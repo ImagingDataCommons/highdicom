@@ -1,12 +1,11 @@
 """Functions for working with DICOM value representations."""
 import re
-from typing import Union
 import warnings
 
 from pydicom.valuerep import PersonName
 
 
-def check_person_name(person_name: Union[str, PersonName]) -> None:
+def check_person_name(person_name: str | PersonName) -> None:
     """Check value is valid for the value representation "person name".
 
     The DICOM Person Name (PN) value representation has a specific format with

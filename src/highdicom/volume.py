@@ -2,7 +2,8 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import itertools
-from typing import List, Optional, Sequence, Union, Tuple, cast
+from typing import cast, Union
+from collections.abc import Sequence
 from pydicom.tag import BaseTag
 from typing_extensions import Self
 
@@ -239,7 +240,7 @@ class _VolumeBase(ABC):
         self,
         affine: np.ndarray,
         coordinate_system: CoordinateSystemNames | str,
-        frame_of_reference_uid: Optional[str] = None,
+        frame_of_reference_uid: str | None = None,
     ):
         """
 
@@ -275,7 +276,7 @@ class _VolumeBase(ABC):
 
     @property
     @abstractmethod
-    def spatial_shape(self) -> Tuple[int, int, int]:
+    def spatial_shape(self) -> tuple[int, int, int]:
         """Tuple[int, int, int]: 3D spatial shape of the array.
 
         Does not include channel dimensions.
@@ -498,7 +499,7 @@ class _VolumeBase(ABC):
             pixel_matrix_position=matrix_position,
         )
 
-    def get_plane_positions(self) -> List[PlanePositionSequence]:
+    def get_plane_positions(self) -> list[PlanePositionSequence]:
         """Get plane positions of all planes in the volume.
 
         This assumes that the volume is encoded in a DICOM file with frames
@@ -568,7 +569,7 @@ class _VolumeBase(ABC):
         )
 
     @property
-    def frame_of_reference_uid(self) -> Optional[UID]:
+    def frame_of_reference_uid(self) -> UID | None:
         """Union[highdicom.UID, None]: Frame of reference UID."""
         if self._frame_of_reference_uid is None:
             return None
@@ -586,11 +587,11 @@ class _VolumeBase(ABC):
 
     def get_affine(
         self,
-        output_convention: Union[
-            str,
-            Sequence[Union[str, PatientOrientationValuesBiped]],
-            None,
-        ],
+        output_convention: (
+            str |
+            Sequence[str | PatientOrientationValuesBiped] |
+            None
+        ),
     ) -> np.ndarray:
         """Get affine matrix in a particular convention.
 
@@ -654,7 +655,7 @@ class _VolumeBase(ABC):
         return np.linalg.inv(self._affine)
 
     @property
-    def direction_cosines(self) -> Tuple[
+    def direction_cosines(self) -> tuple[
         float, float, float, float, float, float
     ]:
         """Tuple[float, float, float, float, float float]:
@@ -675,7 +676,7 @@ class _VolumeBase(ABC):
         return tuple([*vec_along_rows.tolist(), *vec_along_columns.tolist()])
 
     @property
-    def pixel_spacing(self) -> Tuple[float, float]:
+    def pixel_spacing(self) -> tuple[float, float]:
         """Tuple[float, float]:
 
         Within-plane pixel spacing in millimeter units. Two values (spacing
@@ -709,7 +710,7 @@ class _VolumeBase(ABC):
         return spacing
 
     @property
-    def spacing(self) -> Tuple[float, float, float]:
+    def spacing(self) -> tuple[float, float, float]:
         """Tuple[float, float, float]:
 
         Pixel spacing in millimeter units for the three spatial directions.
@@ -726,7 +727,7 @@ class _VolumeBase(ABC):
         return np.prod(self.spacing).item()
 
     @property
-    def position(self) -> Tuple[float, float, float]:
+    def position(self) -> tuple[float, float, float]:
         """Tuple[float, float, float]:
 
         Position in the frame of reference space of the center of voxel at
@@ -764,7 +765,7 @@ class _VolumeBase(ABC):
         norms = np.sqrt((dir_mat ** 2).sum(axis=0))
         return dir_mat / norms
 
-    def spacing_vectors(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def spacing_vectors(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get the vectors along the three array dimensions.
 
         Note that these vectors are not normalized, they have length equal to
@@ -785,7 +786,7 @@ class _VolumeBase(ABC):
         """
         return tuple(self.affine[:3, :3].T)
 
-    def unit_vectors(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def unit_vectors(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get the normalized vectors along the three array dimensions.
 
         Returns
@@ -803,14 +804,14 @@ class _VolumeBase(ABC):
     @abstractmethod
     def __getitem__(
         self,
-        index: Union[int, slice, Tuple[Union[int, slice]]],
+        index: int | slice | tuple[int | slice],
     ) -> Self:
         pass
 
     def _prepare_getitem_index(
         self,
-        index: Union[int, slice, Tuple[Union[int, slice]]],
-    ) -> Tuple[Tuple[slice], Tuple[int, int, int], np.ndarray]:
+        index: int | slice | tuple[int | slice],
+    ) -> tuple[tuple[slice], tuple[int, int, int], np.ndarray]:
 
         def _check_int(val: int, dim: int) -> None:
             if (
@@ -861,7 +862,7 @@ class _VolumeBase(ABC):
             _check_slice(index, 0)
             tuple_index = (cast(slice, index), )
         elif isinstance(index, tuple):
-            index_list: List[slice] = []
+            index_list: list[slice] = []
             for dim, item in enumerate(index):
                 if isinstance(item, int):
                     # Change the index to a slice of length one so that all
@@ -923,9 +924,9 @@ class _VolumeBase(ABC):
     @abstractmethod
     def pad(
         self,
-        pad_width: Union[int, Sequence[int], Sequence[Sequence[int]]],
+        pad_width: int | Sequence[int] | Sequence[Sequence[int]],
         *,
-        mode: Union[PadModes, str] = PadModes.CONSTANT,
+        mode: PadModes | str = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
     ) -> Self:
@@ -933,8 +934,8 @@ class _VolumeBase(ABC):
 
     def _prepare_pad_width(
         self,
-        pad_width: Union[int, Sequence[int], Sequence[Sequence[int]]],
-    ) -> Tuple[np.ndarray, List[List[int]]]:
+        pad_width: int | Sequence[int] | Sequence[Sequence[int]],
+    ) -> tuple[np.ndarray, list[list[int]]]:
         """Pad volume along the three spatial dimensions.
 
         Parameters
@@ -975,7 +976,7 @@ class _VolumeBase(ABC):
                 raise ValueError(
                     "Argument 'pad_width' cannot contain negative values."
                 )
-            full_pad_width: List[List[int]] = [[pad_width, pad_width]] * 3
+            full_pad_width: list[list[int]] = [[pad_width, pad_width]] * 3
         elif isinstance(pad_width, Sequence):
             if isinstance(pad_width[0], int):
                 if len(pad_width) != 2:
@@ -1108,7 +1109,7 @@ class _VolumeBase(ABC):
 
         return self.permute_spatial_axes(indices)
 
-    def get_closest_patient_orientation(self) -> Tuple[
+    def get_closest_patient_orientation(self) -> tuple[
         PatientOrientationValuesBiped,
         PatientOrientationValuesBiped,
         PatientOrientationValuesBiped,
@@ -1132,10 +1133,10 @@ class _VolumeBase(ABC):
 
     def to_patient_orientation(
         self,
-        patient_orientation: Union[
-            str,
-            Sequence[Union[str, PatientOrientationValuesBiped]],
-        ],
+        patient_orientation: (
+            str |
+            Sequence[str | PatientOrientationValuesBiped]
+        ),
     ) -> Self:
         """Rearrange the array to a given orientation.
 
@@ -1222,7 +1223,7 @@ class _VolumeBase(ABC):
 
         return self.permute_spatial_axes(permutation)
 
-    def flip_spatial(self, axes: Union[int, Sequence[int]]) -> Self:
+    def flip_spatial(self, axes: int | Sequence[int]) -> Self:
         """Flip the spatial axes of the array.
 
         Note that this flips the array and updates the affine to reflect the
@@ -1321,10 +1322,10 @@ class _VolumeBase(ABC):
 
     def ensure_handedness(
         self,
-        handedness: Union[AxisHandedness, str],
+        handedness: AxisHandedness | str,
         *,
-        flip_axis: Optional[int] = None,
-        swap_axes: Optional[Sequence[int]] = None,
+        flip_axis: int | None = None,
+        swap_axes: Sequence[int] | None = None,
     ) -> Self:
         """Manipulate the volume if necessary to ensure a given handedness.
 
@@ -1600,7 +1601,7 @@ class _VolumeBase(ABC):
     def geometry_equal(
         self,
         other: Union['Volume', 'VolumeGeometry'],
-        tol: Optional[float] = _DEFAULT_EQUALITY_TOLERANCE,
+        tol: float | None = _DEFAULT_EQUALITY_TOLERANCE,
     ) -> bool:
         """Determine whether two volumes have the same geometry.
 
@@ -1818,7 +1819,7 @@ class VolumeGeometry(_VolumeBase):
         affine: np.ndarray,
         spatial_shape: Sequence[int],
         coordinate_system: CoordinateSystemNames | str,
-        frame_of_reference_uid: Optional[str] = None,
+        frame_of_reference_uid: str | None = None,
     ):
         """
 
@@ -1863,7 +1864,7 @@ class VolumeGeometry(_VolumeBase):
         spacing_between_slices: float,
         number_of_frames: int,
         coordinate_system: CoordinateSystemNames | str,
-        frame_of_reference_uid: Optional[str] = None,
+        frame_of_reference_uid: str | None = None,
     ) -> Self:
         """Create a volume from DICOM attributes.
 
@@ -1944,12 +1945,12 @@ class VolumeGeometry(_VolumeBase):
         position: Sequence[float] | None = None,
         center_position: Sequence[float] | None = None,
         direction: Sequence[float] | None = None,
-        patient_orientation: Union[
-            str,
-            Sequence[Union[str, PatientOrientationValuesBiped]],
-            None,
-        ] = None,
-        frame_of_reference_uid: Optional[str] = None,
+        patient_orientation: (
+            str |
+            Sequence[str | PatientOrientationValuesBiped] |
+            None
+        ) = None,
+        frame_of_reference_uid: str | None = None,
     ) -> Self:
         """Construct a VolumeGeometry from components of the affine matrix.
 
@@ -2054,7 +2055,7 @@ class VolumeGeometry(_VolumeBase):
         )
 
     @property
-    def spatial_shape(self) -> Tuple[int, int, int]:
+    def spatial_shape(self) -> tuple[int, int, int]:
         """Tuple[int, int, int]: Spatial shape of the array.
 
         Does not include the channel dimension.
@@ -2063,7 +2064,7 @@ class VolumeGeometry(_VolumeBase):
         return self._spatial_shape
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self) -> tuple[int, ...]:
         """Tuple[int, ...]: Shape of the underlying array.
 
         For objects of type :class:`highdicom.VolumeGeometry`, this is
@@ -2074,7 +2075,7 @@ class VolumeGeometry(_VolumeBase):
 
     def __getitem__(
         self,
-        index: Union[int, slice, Tuple[Union[int, slice]]],
+        index: int | slice | tuple[int | slice],
     ) -> Self:
         """Get a sub-volume of this volume as a new volume.
 
@@ -2102,9 +2103,9 @@ class VolumeGeometry(_VolumeBase):
 
     def pad(
         self,
-        pad_width: Union[int, Sequence[int], Sequence[Sequence[int]]],
+        pad_width: int | Sequence[int] | Sequence[Sequence[int]],
         *,
-        mode: Union[PadModes, str] = PadModes.CONSTANT,
+        mode: PadModes | str = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
     ) -> Self:
@@ -2260,7 +2261,7 @@ class Volume(_VolumeBase):
         array: np.ndarray,
         affine: np.ndarray,
         coordinate_system: CoordinateSystemNames | str,
-        frame_of_reference_uid: Optional[str] = None,
+        frame_of_reference_uid: str | None = None,
         channels: dict[
             BaseTag | int | str | ChannelDescriptor,
             Sequence[int | str | float | Enum]
@@ -2373,7 +2374,7 @@ class Volume(_VolumeBase):
         pixel_spacing: Sequence[float],
         spacing_between_slices: float,
         coordinate_system: CoordinateSystemNames | str,
-        frame_of_reference_uid: Optional[str] = None,
+        frame_of_reference_uid: str | None = None,
         channels: dict[
             BaseTag | int | str | ChannelDescriptor,
             Sequence[int | str | float | Enum]
@@ -2470,12 +2471,12 @@ class Volume(_VolumeBase):
         position: Sequence[float] | None = None,
         center_position: Sequence[float] | None = None,
         direction: Sequence[float] | None = None,
-        patient_orientation: Union[
-            str,
-            Sequence[Union[str, PatientOrientationValuesBiped]],
-            None,
-        ] = None,
-        frame_of_reference_uid: Optional[str] = None,
+        patient_orientation: (
+            str |
+            Sequence[str | PatientOrientationValuesBiped] |
+            None
+        ) = None,
+        frame_of_reference_uid: str | None = None,
         channels: dict[
             BaseTag | int | str | ChannelDescriptor,
             Sequence[int | str | float | Enum]
@@ -2589,7 +2590,7 @@ class Volume(_VolumeBase):
         return self._array.dtype.type
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self) -> tuple[int, ...]:
         """Tuple[int, ...]: Shape of the underlying array.
 
         Includes any channel dimensions.
@@ -2598,7 +2599,7 @@ class Volume(_VolumeBase):
         return tuple(self._array.shape)
 
     @property
-    def spatial_shape(self) -> Tuple[int, int, int]:
+    def spatial_shape(self) -> tuple[int, int, int]:
         """Tuple[int, int, int]: Spatial shape of the array.
 
         Does not include the channel dimensions.
@@ -2612,7 +2613,7 @@ class Volume(_VolumeBase):
         return self._array.ndim - 3
 
     @property
-    def channel_shape(self) -> Tuple[int, ...]:
+    def channel_shape(self) -> tuple[int, ...]:
         """Tuple[int, ...]: Channel shape of the array.
 
         Does not include the spatial dimensions.
@@ -2741,7 +2742,7 @@ class Volume(_VolumeBase):
 
     def __getitem__(
         self,
-        index: Union[int, slice, Tuple[Union[int, slice]]],
+        index: int | slice | tuple[int | slice],
     ) -> Self:
         """Get a spatial sub-volume of this volume as a new volume.
 
@@ -3134,8 +3135,8 @@ class Volume(_VolumeBase):
 
     def clip(
         self,
-        a_min: Optional[float],
-        a_max: Optional[float],
+        a_min: float | None,
+        a_max: float | None,
     ) -> Self:
         """Clip voxel intensities to lie within a given range.
 
@@ -3216,9 +3217,9 @@ class Volume(_VolumeBase):
 
     def pad(
         self,
-        pad_width: Union[int, Sequence[int], Sequence[Sequence[int]]],
+        pad_width: int | Sequence[int] | Sequence[Sequence[int]],
         *,
-        mode: Union[PadModes, str] = PadModes.CONSTANT,
+        mode: PadModes | str = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
     ) -> Self:
@@ -3357,8 +3358,8 @@ class VolumeToVolumeTransformer:
 
     def __init__(
         self,
-        volume_from: Union[Volume, VolumeGeometry],
-        volume_to: Union[Volume, VolumeGeometry],
+        volume_from: Volume | VolumeGeometry,
+        volume_to: Volume | VolumeGeometry,
         round_output: bool = False,
         check_bounds: bool = False,
     ):

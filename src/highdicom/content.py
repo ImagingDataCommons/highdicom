@@ -2,7 +2,8 @@
 from collections import Counter
 import datetime
 from copy import deepcopy
-from typing import cast, Dict, List, Optional, Union, Sequence, Tuple
+from typing import cast
+from collections.abc import Sequence
 from typing_extensions import Self
 
 import numpy as np
@@ -62,10 +63,10 @@ class AlgorithmIdentificationSequence(DataElementSequence):
     def __init__(
         self,
         name: str,
-        family: Union[Code, CodedConcept],
+        family: Code | CodedConcept,
         version: str,
-        source: Optional[str] = None,
-        parameters: Optional[Dict[str, str]] = None
+        source: str | None = None,
+        parameters: dict[str, str] | None = None
     ):
         """
         Parameters
@@ -167,7 +168,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         return self[0].AlgorithmVersion
 
     @property
-    def source(self) -> Optional[str]:
+    def source(self) -> str | None:
         """Union[str, None]:
                Source of the algorithm, e.g. name of the algorithm
                manufacturer, if any
@@ -176,7 +177,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         return getattr(self[0], 'AlgorithmSource', None)
 
     @property
-    def parameters(self) -> Optional[Dict[str, str]]:
+    def parameters(self) -> dict[str, str] | None:
         """Union[Dict[str, str], None]:
                Dictionary mapping algorithm parameter names to values,
                if any
@@ -201,19 +202,19 @@ class ContentCreatorIdentificationCodeSequence(DataElementSequence):
 
     def __init__(
         self,
-        person_identification_codes: Sequence[Union[Code, CodedConcept]],
+        person_identification_codes: Sequence[Code | CodedConcept],
         institution_name: str,
-        person_address: Optional[str] = None,
-        person_telephone_numbers: Optional[Sequence[str]] = None,
-        person_telecom_information: Optional[str] = None,
-        institution_code: Union[Code, CodedConcept, None] = None,
-        institution_address: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
-        institutional_department_type_code: Union[
-            Code,
-            CodedConcept,
+        person_address: str | None = None,
+        person_telephone_numbers: Sequence[str] | None = None,
+        person_telecom_information: str | None = None,
+        institution_code: Code | CodedConcept | None = None,
+        institution_address: str | None = None,
+        institutional_department_name: str | None = None,
+        institutional_department_type_code: (
+            Code |
+            CodedConcept |
             None
-        ] = None,
+        ) = None,
     ):
         """
 
@@ -323,8 +324,8 @@ class PixelMeasuresSequence(DataElementSequence):
     def __init__(
         self,
         pixel_spacing: Sequence[float],
-        slice_thickness: Optional[float],
-        spacing_between_slices: Optional[float] = None,
+        slice_thickness: float | None,
+        spacing_between_slices: float | None = None,
     ) -> None:
         """
         Parameters
@@ -453,9 +454,9 @@ class PlanePositionSequence(DataElementSequence):
 
     def __init__(
         self,
-        coordinate_system: Union[str, CoordinateSystemNames],
+        coordinate_system: str | CoordinateSystemNames,
         image_position: Sequence[float],
-        pixel_matrix_position: Optional[Tuple[int, int]] = None
+        pixel_matrix_position: tuple[int, int] | None = None
     ) -> None:
         """
         Parameters
@@ -628,7 +629,7 @@ class PlaneOrientationSequence(DataElementSequence):
 
     def __init__(
         self,
-        coordinate_system: Union[str, CoordinateSystemNames],
+        coordinate_system: str | CoordinateSystemNames,
         image_orientation: Sequence[float]
     ) -> None:
         """
@@ -763,9 +764,9 @@ class IssuerOfIdentifier(Dataset):
     def __init__(
         self,
         issuer_of_identifier: str,
-        issuer_of_identifier_type: Optional[
-            Union[str, UniversalEntityIDTypeValues]
-        ] = None
+        issuer_of_identifier_type: None | (
+            str | UniversalEntityIDTypeValues
+        ) = None
     ):
         """
         Parameters
@@ -796,9 +797,9 @@ class IssuerOfIdentifier(Dataset):
         return self._issuer_of_identifier
 
     @property
-    def issuer_of_identifier_type(self) -> Union[
-        UniversalEntityIDTypeValues, None
-    ]:
+    def issuer_of_identifier_type(self) -> (
+        UniversalEntityIDTypeValues | None
+    ):
         """highdicom.UniversalEntityIDTypeValues: Type of the issuer."""
         return self._issuer_of_identifier_type
 
@@ -861,7 +862,7 @@ class SpecimenCollection(ContentSequence):
 
     def __init__(
         self,
-        procedure: Union[Code, CodedConcept]
+        procedure: Code | CodedConcept
     ):
         """
         Parameters
@@ -899,10 +900,10 @@ class SpecimenSampling(ContentSequence):
 
     def __init__(
         self,
-        method: Union[Code, CodedConcept],
+        method: Code | CodedConcept,
         parent_specimen_id: str,
-        parent_specimen_type: Union[Code, CodedConcept],
-        issuer_of_parent_specimen_id: Optional[IssuerOfIdentifier] = None
+        parent_specimen_type: Code | CodedConcept,
+        issuer_of_parent_specimen_id: IssuerOfIdentifier | None = None
     ):
         """
         Parameters
@@ -988,7 +989,7 @@ class SpecimenStaining(ContentSequence):
 
     def __init__(
         self,
-        substances: Sequence[Union[Code, CodedConcept, str]]
+        substances: Sequence[Code | CodedConcept | str]
     ):
         """
         Parameters
@@ -1022,7 +1023,7 @@ class SpecimenStaining(ContentSequence):
             self.append(item)
 
     @property
-    def substances(self) -> List[CodedConcept]:
+    def substances(self) -> list[CodedConcept]:
         """List[highdicom.sr.CodedConcept]: Substances used for staining"""
         items = self.find(codes.SCT.UsingSubstance)
         return [item.value for item in items]
@@ -1036,7 +1037,7 @@ class SpecimenProcessing(ContentSequence):
 
     def __init__(
         self,
-        description: Union[Code, CodedConcept, str]
+        description: Code | CodedConcept | str
     ):
         """
         Parameters
@@ -1081,21 +1082,21 @@ class SpecimenPreparationStep(Dataset):
     def __init__(
         self,
         specimen_id: str,
-        processing_procedure: Union[
-            SpecimenCollection,
-            SpecimenSampling,
-            SpecimenStaining,
-            SpecimenProcessing,
-        ],
-        processing_description: Optional[
-            Union[str, Code, CodedConcept]
-        ] = None,
-        processing_datetime: Optional[datetime.datetime] = None,
-        issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None,
-        fixative: Optional[Union[Code, CodedConcept]] = None,
-        embedding_medium: Optional[Union[Code, CodedConcept]] = None,
-        specimen_container: Optional[Union[Code, CodedConcept]] = None,
-        specimen_type: Optional[Union[Code, CodedConcept]] = None,
+        processing_procedure: (
+            SpecimenCollection |
+            SpecimenSampling |
+            SpecimenStaining |
+            SpecimenProcessing
+        ),
+        processing_description: None | (
+            str | Code | CodedConcept
+        ) = None,
+        processing_datetime: datetime.datetime | None = None,
+        issuer_of_specimen_id: IssuerOfIdentifier | None = None,
+        fixative: Code | CodedConcept | None = None,
+        embedding_medium: Code | CodedConcept | None = None,
+        specimen_container: Code | CodedConcept | None = None,
+        specimen_type: Code | CodedConcept | None = None,
     ):
         """
         Parameters
@@ -1179,10 +1180,10 @@ class SpecimenPreparationStep(Dataset):
             )
             sequence.append(processing_datetime_item)
         if processing_description is not None:
-            processing_description_item: Union[
-                TextContentItem,
-                CodeContentItem,
-            ]
+            processing_description_item: (
+                TextContentItem |
+                CodeContentItem
+            )
             if isinstance(processing_description, str):
                 processing_description_item = TextContentItem(
                     name=codes.DCM.ProcessingStepDescription,
@@ -1248,12 +1249,12 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def processing_procedure(self) -> Union[
-        SpecimenCollection,
-        SpecimenSampling,
-        SpecimenStaining,
-        SpecimenProcessing,
-    ]:
+    def processing_procedure(self) -> (
+        SpecimenCollection |
+        SpecimenSampling |
+        SpecimenStaining |
+        SpecimenProcessing
+    ):
         """Union[highdicom.SpecimenCollection, highdicom.SpecimenSampling,
         highdicom.SpecimenStaining, highdicom.SpecimenProcessing]:
 
@@ -1263,7 +1264,7 @@ class SpecimenPreparationStep(Dataset):
         return self._processing_procedure
 
     @property
-    def fixative(self) -> Union[CodedConcept, None]:
+    def fixative(self) -> CodedConcept | None:
         """highdicom.sr.CodedConcept: Tissue fixative"""
         items = self.SpecimenPreparationStepContentItemSequence.find(
             codes.SCT.TissueFixative
@@ -1273,7 +1274,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def embedding_medium(self) -> Union[CodedConcept, None]:
+    def embedding_medium(self) -> CodedConcept | None:
         """highdicom.sr.CodedConcept: Tissue embedding medium"""
         items = self.SpecimenPreparationStepContentItemSequence.find(
             codes.SCT.TissueEmbeddingMedium
@@ -1283,7 +1284,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def processing_description(self) -> Union[str, CodedConcept, None]:
+    def processing_description(self) -> str | CodedConcept | None:
         """Union[str, highdicom.sr.CodedConcept]: Processing description"""
         if isinstance(self._processing_procedure, SpecimenProcessing):
             return None
@@ -1295,7 +1296,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def processing_datetime(self) -> Union[datetime.datetime, None]:
+    def processing_datetime(self) -> datetime.datetime | None:
         """datetime.datetime: Processing datetime"""
 
         items = self.SpecimenPreparationStepContentItemSequence.find(
@@ -1306,7 +1307,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def issuer_of_specimen_id(self) -> Union[str, None]:
+    def issuer_of_specimen_id(self) -> str | None:
         """str: Issuer of specimen id"""
 
         items = self.SpecimenPreparationStepContentItemSequence.find(
@@ -1317,7 +1318,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def specimen_container(self) -> Union[CodedConcept, None]:
+    def specimen_container(self) -> CodedConcept | None:
         """highdicom.sr.CodedConcept: Specimen container"""
 
         items = self.SpecimenPreparationStepContentItemSequence.find(
@@ -1328,7 +1329,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def specimen_type(self) -> Union[CodedConcept, None]:
+    def specimen_type(self) -> CodedConcept | None:
         """highdicom.sr.CodedConcept: Specimen type"""
 
         items = self.SpecimenPreparationStepContentItemSequence.find(
@@ -1379,12 +1380,12 @@ class SpecimenPreparationStep(Dataset):
             )
         processing_type = processing_type_items[0].value
 
-        instance._processing_procedure: Union[  # noqa: B032
-            SpecimenCollection,
-            SpecimenSampling,
-            SpecimenStaining,
-            SpecimenProcessing,
-        ]
+        instance._processing_procedure: (  # noqa: B032
+            SpecimenCollection |
+            SpecimenSampling |
+            SpecimenStaining |
+            SpecimenProcessing
+        )
         if processing_type == codes.SCT.SpecimenCollection:
             collection_items = sequence.find(codes.SCT.SpecimenCollection)
             if len(collection_items) != 1:
@@ -1482,19 +1483,19 @@ class SpecimenDescription(Dataset):
         self,
         specimen_id: str,
         specimen_uid: str,
-        specimen_location: Optional[
-            Union[str, Tuple[float, float, float]]
-        ] = None,
-        specimen_preparation_steps: Optional[
+        specimen_location: None | (
+            str | tuple[float, float, float]
+        ) = None,
+        specimen_preparation_steps: None | (
             Sequence[SpecimenPreparationStep]
-        ] = None,
-        issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None,
-        primary_anatomic_structures: Optional[
-            Sequence[Union[Code, CodedConcept]]
-        ] = None,
-        specimen_type: Optional[Union[Code, CodedConcept]] = None,
-        specimen_short_description: Optional[str] = None,
-        specimen_detailed_description: Optional[str] = None,
+        ) = None,
+        issuer_of_specimen_id: IssuerOfIdentifier | None = None,
+        primary_anatomic_structures: None | (
+            Sequence[Code | CodedConcept]
+        ) = None,
+        specimen_type: Code | CodedConcept | None = None,
+        specimen_short_description: str | None = None,
+        specimen_detailed_description: str | None = None,
     ):
         """
         Parameters
@@ -1528,7 +1529,7 @@ class SpecimenDescription(Dataset):
         super().__init__()
         self.SpecimenIdentifier = specimen_id
         self.SpecimenUID = specimen_uid
-        self.SpecimenPreparationSequence: List[Dataset] = []
+        self.SpecimenPreparationSequence: list[Dataset] = []
         if specimen_preparation_steps is not None:
             for step_item in specimen_preparation_steps:
                 if not isinstance(step_item, SpecimenPreparationStep):
@@ -1538,7 +1539,7 @@ class SpecimenDescription(Dataset):
                     )
                 self.SpecimenPreparationSequence.append(step_item)
         if specimen_location is not None:
-            loc_seq: List[Union[TextContentItem, NumContentItem]] = []
+            loc_seq: list[TextContentItem | NumContentItem] = []
             if isinstance(specimen_location, str):
                 loc_item = TextContentItem(
                     name=codes.DCM.LocationOfSpecimen,
@@ -1575,7 +1576,7 @@ class SpecimenDescription(Dataset):
             self.SpecimenShortDescription = specimen_short_description
         if specimen_detailed_description is not None:
             self.SpecimenDetailedDescription = specimen_detailed_description
-        self.IssuerOfTheSpecimenIdentifierSequence: List[Dataset] = []
+        self.IssuerOfTheSpecimenIdentifierSequence: list[Dataset] = []
         if issuer_of_specimen_id is not None:
             self.IssuerOfTheSpecimenIdentifierSequence.append(
                 issuer_of_specimen_id
@@ -1592,7 +1593,7 @@ class SpecimenDescription(Dataset):
                     'Argument "primary_anatomic_structures" must not be '
                     'empty.'
                 )
-            self.PrimaryAnatomicStructureSequence: List[Dataset] = []
+            self.PrimaryAnatomicStructureSequence: list[Dataset] = []
             for structure in primary_anatomic_structures:
                 if isinstance(structure, CodedConcept):
                     self.PrimaryAnatomicStructureSequence.append(structure)
@@ -1617,7 +1618,7 @@ class SpecimenDescription(Dataset):
         return UID(self.SpecimenUID)
 
     @property
-    def specimen_location(self) -> Union[str, Tuple[float, float, float], None]:
+    def specimen_location(self) -> str | tuple[float, float, float] | None:
         """Tuple[float, float, float]: Specimen location in container."""
         sequence = self.get("SpecimenLocalizationContentItemSequence")
         if sequence is None:
@@ -1627,12 +1628,12 @@ class SpecimenDescription(Dataset):
         return tuple(item.value for item in sequence)
 
     @property
-    def specimen_preparation_steps(self) -> List[SpecimenPreparationStep]:
+    def specimen_preparation_steps(self) -> list[SpecimenPreparationStep]:
         """highdicom.SpecimenPreparationStep: Specimen preparation steps."""
         return list(self.SpecimenPreparationSequence)
 
     @property
-    def specimen_type(self) -> Union[CodedConcept, None]:
+    def specimen_type(self) -> CodedConcept | None:
         """highdicom.sr.CodedConcept: Specimen type."""
         sequence = self.get("SpecimenTypeCodeSequence")
         if sequence is None:
@@ -1640,17 +1641,17 @@ class SpecimenDescription(Dataset):
         return sequence[0]
 
     @property
-    def specimen_short_description(self) -> Union[str, None]:
+    def specimen_short_description(self) -> str | None:
         """str: Short description of specimen."""
         return self.get("SpecimenShortDescription")
 
     @property
-    def specimen_detailed_description(self) -> Union[str, None]:
+    def specimen_detailed_description(self) -> str | None:
         """str: Detailed description of specimen."""
         return self.get("SpecimenDetailedDescription")
 
     @property
-    def issuer_of_specimen_id(self) -> Union[IssuerOfIdentifier, None]:
+    def issuer_of_specimen_id(self) -> IssuerOfIdentifier | None:
         """IssuerOfIdentifier: Issuer of identifier for the specimen."""
         sequence = self.get("IssuerOfTheSpecimenIdentifierSequence")
         if len(sequence) == 0:
@@ -1658,7 +1659,7 @@ class SpecimenDescription(Dataset):
         return sequence[0]
 
     @property
-    def primary_anatomic_structures(self) -> Union[List[CodedConcept], None]:
+    def primary_anatomic_structures(self) -> list[CodedConcept] | None:
         """List[highdicom.sr.CodedConcept]: List of anatomic structures of the
          specimen."""
         return self.get("PrimaryAnatomicStructureSequence")
@@ -1733,9 +1734,9 @@ class ReferencedImageSequence(DataElementSequence):
 
     def __init__(
         self,
-        referenced_images: Optional[Sequence[Dataset]] = None,
-        referenced_frame_number: Union[int, Sequence[int], None] = None,
-        referenced_segment_number: Union[int, Sequence[int], None] = None,
+        referenced_images: Sequence[Dataset] | None = None,
+        referenced_frame_number: int | Sequence[int] | None = None,
+        referenced_segment_number: int | Sequence[int] | None = None,
     ):
         """
 
@@ -1865,7 +1866,7 @@ class LUT(Dataset):
         self,
         first_mapped_value: int,
         lut_data: np.ndarray,
-        lut_explanation: Optional[str] = None
+        lut_explanation: str | None = None
     ):
         """
 
@@ -2040,8 +2041,8 @@ class LUT(Dataset):
 
     def get_scaled_lut_data(
         self,
-        output_range: Tuple[float, float] = (0.0, 1.0),
-        dtype: Union[type, str, np.dtype, None] = np.float64,
+        output_range: tuple[float, float] = (0.0, 1.0),
+        dtype: type | str | np.dtype | None = np.float64,
         invert: bool = False,
     ) -> np.ndarray:
         """Get LUT data array with output values scaled to a given range.
@@ -2129,7 +2130,7 @@ class LUT(Dataset):
     def apply(
         self,
         array: np.ndarray,
-        dtype: Union[type, str, np.dtype, None] = None,
+        dtype: type | str | np.dtype | None = None,
     ) -> np.ndarray:
         """Apply the LUT to a pixel array.
 
@@ -2164,10 +2165,10 @@ class ModalityLUT(LUT):
 
     def __init__(
         self,
-        lut_type: Union[RescaleTypeValues, str],
+        lut_type: RescaleTypeValues | str,
         first_mapped_value: int,
         lut_data: np.ndarray,
-        lut_explanation: Optional[str] = None
+        lut_explanation: str | None = None
     ):
         """
 
@@ -2205,7 +2206,7 @@ class VOILUT(LUT):
         self,
         first_mapped_value: int,
         lut_data: np.ndarray,
-        lut_explanation: Optional[str] = None
+        lut_explanation: str | None = None
     ):
         """
 
@@ -2237,11 +2238,11 @@ class VOILUTTransformation(Dataset):
 
     def __init__(
         self,
-        window_center: Union[float, Sequence[float], None] = None,
-        window_width: Union[float, Sequence[float], None] = None,
-        window_explanation: Union[str, Sequence[str], None] = None,
-        voi_lut_function: Union[VOILUTFunctionValues, str, None] = None,
-        voi_luts: Optional[Sequence[VOILUT]] = None,
+        window_center: float | Sequence[float] | None = None,
+        window_width: float | Sequence[float] | None = None,
+        window_explanation: str | Sequence[str] | None = None,
+        voi_lut_function: VOILUTFunctionValues | str | None = None,
+        voi_luts: Sequence[VOILUT] | None = None,
     ):
         """
 
@@ -2401,9 +2402,9 @@ class VOILUTTransformation(Dataset):
     def apply(
         self,
         array: np.ndarray,
-        output_range: Tuple[float, float] = (0.0, 1.0),
+        output_range: tuple[float, float] = (0.0, 1.0),
         voi_transform_selector: int | str = 0,
-        dtype: Union[type, str, np.dtype, None] = None,
+        dtype: type | str | np.dtype | None = None,
         invert: bool = False,
         prefer_lut: bool = False,
     ) -> np.ndarray:
@@ -2516,10 +2517,10 @@ class ModalityLUTTransformation(Dataset):
 
     def __init__(
         self,
-        rescale_intercept: Optional[Union[int, float]] = None,
-        rescale_slope: Optional[Union[int, float]] = None,
-        rescale_type: Optional[Union[RescaleTypeValues, str]] = None,
-        modality_lut: Optional[ModalityLUT] = None,
+        rescale_intercept: int | float | None = None,
+        rescale_slope: int | float | None = None,
+        rescale_type: RescaleTypeValues | str | None = None,
+        modality_lut: ModalityLUT | None = None,
     ):
         """
 
@@ -2606,7 +2607,7 @@ class ModalityLUTTransformation(Dataset):
     def apply(
         self,
         array: np.ndarray,
-        dtype: Union[type, str, np.dtype, None] = None,
+        dtype: type | str | np.dtype | None = None,
     ) -> np.ndarray:
         """Apply the transformation to a pixel array.
 
@@ -2668,7 +2669,7 @@ class PresentationLUT(LUT):
         self,
         first_mapped_value: int,
         lut_data: np.ndarray,
-        lut_explanation: Optional[str] = None
+        lut_explanation: str | None = None
     ):
         """
 
@@ -2700,10 +2701,10 @@ class PresentationLUTTransformation(Dataset):
 
     def __init__(
         self,
-        presentation_lut_shape: Optional[
-            Union[PresentationLUTShapeValues, str]
-        ] = None,
-        presentation_lut: Optional[PresentationLUT] = None,
+        presentation_lut_shape: None | (
+            PresentationLUTShapeValues | str
+        ) = None,
+        presentation_lut: PresentationLUT | None = None,
     ):
         """
 
@@ -2897,7 +2898,7 @@ class PaletteColorLUT(Dataset):
     def apply(
         self,
         array: np.ndarray,
-        dtype: Union[type, str, np.dtype, None] = None,
+        dtype: type | str | np.dtype | None = None,
     ) -> np.ndarray:
         """Apply the LUT to a pixel array.
 
@@ -3212,10 +3213,10 @@ class PaletteColorLUTTransformation(Dataset):
 
     def __init__(
         self,
-        red_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
-        green_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
-        blue_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
-        palette_color_lut_uid: Union[UID, str, None] = None
+        red_lut: PaletteColorLUT | SegmentedPaletteColorLUT,
+        green_lut: PaletteColorLUT | SegmentedPaletteColorLUT,
+        blue_lut: PaletteColorLUT | SegmentedPaletteColorLUT,
+        palette_color_lut_uid: UID | str | None = None
     ):
         """
 
@@ -3261,7 +3262,7 @@ class PaletteColorLUTTransformation(Dataset):
         red_length = red_lut.number_of_entries
         green_length = green_lut.number_of_entries
         blue_length = blue_lut.number_of_entries
-        if len(set([red_length, green_length, blue_length])) != 1:
+        if len({red_length, green_length, blue_length}) != 1:
             raise ValueError(
                 'All three palette color LUTs must have the same number of '
                 'entries.'
@@ -3269,7 +3270,7 @@ class PaletteColorLUTTransformation(Dataset):
         red_bits = red_lut.bits_per_entry
         green_bits = green_lut.bits_per_entry
         blue_bits = blue_lut.bits_per_entry
-        if len(set([red_bits, green_bits, blue_bits])) != 1:
+        if len({red_bits, green_bits, blue_bits}) != 1:
             raise ValueError(
                 'All three palette color LUTs must have the same number of '
                 'bits per entry.'
@@ -3277,7 +3278,7 @@ class PaletteColorLUTTransformation(Dataset):
         red_fmv = red_lut.first_mapped_value
         green_fmv = green_lut.first_mapped_value
         blue_fmv = blue_lut.first_mapped_value
-        if len(set([red_fmv, green_fmv, blue_fmv])) != 1:
+        if len({red_fmv, green_fmv, blue_fmv}) != 1:
             raise ValueError(
                 'All three palette color LUTs must have the same '
                 'first mapped value.'
@@ -3311,7 +3312,7 @@ class PaletteColorLUTTransformation(Dataset):
         cls,
         colors: Sequence[str],
         first_mapped_value: int = 0,
-        palette_color_lut_uid: Union[UID, str, None] = None
+        palette_color_lut_uid: UID | str | None = None
     ) -> Self:
         """Create a palette color lookup table from a list of colors.
 
@@ -3389,7 +3390,7 @@ class PaletteColorLUTTransformation(Dataset):
         cls,
         lut_data: np.ndarray,
         first_mapped_value: int = 0,
-        palette_color_lut_uid: Union[UID, str, None] = None
+        palette_color_lut_uid: UID | str | None = None
     ) -> Self:
         """Create a palette color lookup table from a combined LUT array.
 
@@ -3533,7 +3534,7 @@ class PaletteColorLUTTransformation(Dataset):
             )
 
     @property
-    def red_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+    def red_lut(self) -> PaletteColorLUT | SegmentedPaletteColorLUT:
         """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
             Lookup table for the red output color channel
 
@@ -3541,7 +3542,7 @@ class PaletteColorLUTTransformation(Dataset):
         return self._get_lut('red')
 
     @property
-    def green_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+    def green_lut(self) -> PaletteColorLUT | SegmentedPaletteColorLUT:
         """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
             Lookup table for the green output color channel
 
@@ -3549,7 +3550,7 @@ class PaletteColorLUTTransformation(Dataset):
         return self._get_lut('green')
 
     @property
-    def blue_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+    def blue_lut(self) -> PaletteColorLUT | SegmentedPaletteColorLUT:
         """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
             Lookup table for the blue output color channel
 
@@ -3616,7 +3617,7 @@ class PaletteColorLUTTransformation(Dataset):
     def apply(
         self,
         array: np.ndarray,
-        dtype: Union[type, str, np.dtype, None] = None,
+        dtype: type | str | np.dtype | None = None,
     ) -> np.ndarray:
         """Apply the LUT to a pixel array.
 

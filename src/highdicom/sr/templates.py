@@ -2,7 +2,8 @@
 import collections
 import logging
 from copy import deepcopy
-from typing import cast, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import cast
+from collections.abc import Iterable, Sequence
 from typing_extensions import Self
 
 from pydicom.dataset import Dataset
@@ -71,7 +72,7 @@ logger = logging.getLogger(__name__)
 
 def _count_roi_items(
     group_item: ContainerContentItem
-) -> Tuple[int, int, int, int, int]:
+) -> tuple[int, int, int, int, int]:
     """Find content items in a 'Measurement Group' container content item
     structured according to TID 1410 Planar ROI Measurements and Qualitative
     Evaluations or TID 1411 Volumetric ROI Measurements and Qualitative
@@ -202,7 +203,7 @@ def _contains_volumetric_rois(group_item: ContainerContentItem) -> bool:
 
 def _get_planar_roi_reference_item(
     group_item: ContainerContentItem,
-) -> Tuple[Code, ContentItem]:
+) -> tuple[Code, ContentItem]:
     """Get the content item representing a planar measurement group's ROI.
 
     Parameters
@@ -232,7 +233,7 @@ def _get_planar_roi_reference_item(
 
 def _get_volumetric_roi_reference_items(
     group_item: ContainerContentItem,
-) -> Tuple[Code, List[ContentItem]]:
+) -> tuple[Code, list[ContentItem]]:
     """Get the content items representing a volumetric measurement group's ROI.
 
     Parameters
@@ -257,7 +258,7 @@ def _get_volumetric_roi_reference_items(
 def _get_roi_reference_items(
     group_item: ContainerContentItem,
     allowed_reference_types: Iterable[Code]
-) -> Tuple[Code, List[ContentItem]]:
+) -> tuple[Code, list[ContentItem]]:
     """Get the content items representing a measurement group's roi reference.
 
     Parameters
@@ -329,9 +330,9 @@ def _get_roi_reference_items(
 
 def _contains_code_items(
     parent_item: ContentItem,
-    name: Union[Code, CodedConcept],
-    value: Optional[Union[Code, CodedConcept]] = None,
-    relationship_type: Optional[RelationshipTypeValues] = None
+    name: Code | CodedConcept,
+    value: Code | CodedConcept | None = None,
+    relationship_type: RelationshipTypeValues | None = None
 ) -> bool:
     """Checks whether an item contains a specific item with value type CODE.
 
@@ -370,9 +371,9 @@ def _contains_code_items(
 
 def _contains_text_items(
     parent_item: ContentItem,
-    name: Union[Code, CodedConcept],
-    value: Optional[str] = None,
-    relationship_type: Optional[RelationshipTypeValues] = None
+    name: Code | CodedConcept,
+    value: str | None = None,
+    relationship_type: RelationshipTypeValues | None = None
 ) -> bool:
     """Checks whether an item contains a specific item with value type TEXT.
 
@@ -411,9 +412,9 @@ def _contains_text_items(
 
 def _contains_uidref_items(
     parent_item: ContentItem,
-    name: Union[Code, CodedConcept],
-    value: Optional[str] = None,
-    relationship_type: Optional[RelationshipTypeValues] = None
+    name: Code | CodedConcept,
+    value: str | None = None,
+    relationship_type: RelationshipTypeValues | None = None
 ) -> bool:
     """Checks whether an item contains a specific item with value type UIDREF.
 
@@ -452,10 +453,10 @@ def _contains_uidref_items(
 
 def _contains_image_items(
     parent_item: ContentItem,
-    name: Union[Code, CodedConcept, None],
-    referenced_sop_class_uid: Union[str, None] = None,
-    referenced_sop_instance_uid: Union[str, None] = None,
-    relationship_type: Optional[RelationshipTypeValues] = None
+    name: Code | CodedConcept | None,
+    referenced_sop_class_uid: str | None = None,
+    referenced_sop_instance_uid: str | None = None,
+    relationship_type: RelationshipTypeValues | None = None
 ) -> bool:
     """Check whether an item contains a specific item with value type IMAGE.
 
@@ -519,7 +520,7 @@ def _get_coded_modality(sop_class_uid: str) -> Code:
          for storage of an Image information entity
 
     """  # noqa: E501
-    sopclass_to_modality_map: Dict[str, Code] = {
+    sopclass_to_modality_map: dict[str, Code] = {
         '1.2.840.10008.5.1.4.1.1.1': codes.cid29.ComputedRadiography,
         '1.2.840.10008.5.1.4.1.1.1.1': codes.cid29.DigitalRadiography,
         '1.2.840.10008.5.1.4.1.1.1.1.1': codes.cid29.DigitalRadiography,
@@ -642,7 +643,7 @@ class Template(ContentSequence):
 
     def __init__(
         self,
-        items: Optional[Sequence[ContentItem]] = None,
+        items: Sequence[ContentItem] | None = None,
         is_root: bool = False
     ) -> None:
         """
@@ -668,7 +669,7 @@ class AlgorithmIdentification(Template):
         self,
         name: str,
         version: str,
-        parameters: Optional[Sequence[str]] = None
+        parameters: Sequence[str] | None = None
     ) -> None:
         """
 
@@ -723,8 +724,8 @@ class TrackingIdentifier(Template):
 
     def __init__(
         self,
-        uid: Optional[str] = None,
-        identifier: Optional[str] = None
+        uid: str | None = None,
+        identifier: str | None = None
     ):
         """
 
@@ -770,13 +771,13 @@ class TimePointContext(Template):
     def __init__(
         self,
         time_point: str,
-        time_point_type: Optional[Union[CodedConcept, Code]] = None,
-        time_point_order: Optional[int] = None,
-        subject_time_point_identifier: Optional[str] = None,
-        protocol_time_point_identifier: Optional[str] = None,
-        temporal_offset_from_event: Optional[
+        time_point_type: CodedConcept | Code | None = None,
+        time_point_order: int | None = None,
+        subject_time_point_identifier: str | None = None,
+        protocol_time_point_identifier: str | None = None,
+        temporal_offset_from_event: None | (
             LongitudinalTemporalOffsetFromEvent
-        ] = None
+        ) = None
     ):
         """
 
@@ -878,8 +879,8 @@ class MeasurementStatisticalProperties(Template):
     def __init__(
         self,
         values: Sequence[NumContentItem],
-        description: Optional[str] = None,
-        authority: Optional[str] = None
+        description: str | None = None,
+        authority: str | None = None
     ):
         """
 
@@ -941,8 +942,8 @@ class NormalRangeProperties(Template):
     def __init__(
         self,
         values: Sequence[NumContentItem],
-        description: Optional[str] = None,
-        authority: Optional[str] = None
+        description: str | None = None,
+        authority: str | None = None
     ):
         """
 
@@ -991,15 +992,15 @@ class MeasurementProperties(Template):
 
     def __init__(
         self,
-        normality: Optional[Union[CodedConcept, Code]] = None,
-        level_of_significance: Optional[Union[CodedConcept, Code]] = None,
-        selection_status: Optional[Union[CodedConcept, Code]] = None,
-        measurement_statistical_properties: Optional[
+        normality: CodedConcept | Code | None = None,
+        level_of_significance: CodedConcept | Code | None = None,
+        selection_status: CodedConcept | Code | None = None,
+        measurement_statistical_properties: None | (
             MeasurementStatisticalProperties
-        ] = None,
-        normal_range_properties: Optional[NormalRangeProperties] = None,
-        upper_measurement_uncertainty: Optional[Union[int, float]] = None,
-        lower_measurement_uncertainty: Optional[Union[int, float]] = None
+        ) = None,
+        normal_range_properties: NormalRangeProperties | None = None,
+        upper_measurement_uncertainty: int | float | None = None,
+        lower_measurement_uncertainty: int | float | None = None
     ):
         """
 
@@ -1113,10 +1114,10 @@ class PersonObserverIdentifyingAttributes(Template):
     def __init__(
         self,
         name: str,
-        login_name: Optional[str] = None,
-        organization_name: Optional[str] = None,
-        role_in_organization: Optional[Union[CodedConcept, Code]] = None,
-        role_in_procedure: Optional[Union[CodedConcept, Code]] = None
+        login_name: str | None = None,
+        organization_name: str | None = None,
+        role_in_organization: CodedConcept | Code | None = None,
+        role_in_procedure: CodedConcept | Code | None = None
     ):
         """
 
@@ -1196,7 +1197,7 @@ class PersonObserverIdentifyingAttributes(Template):
         return self[0].value
 
     @property
-    def login_name(self) -> Union[str, None]:
+    def login_name(self) -> str | None:
         """Union[str, None]: login name of the person"""
         matches = [
             item for item in self
@@ -1212,7 +1213,7 @@ class PersonObserverIdentifyingAttributes(Template):
         return None
 
     @property
-    def organization_name(self) -> Union[str, None]:
+    def organization_name(self) -> str | None:
         """Union[str, None]: name of the person's organization"""
         matches = [
             item for item in self
@@ -1228,7 +1229,7 @@ class PersonObserverIdentifyingAttributes(Template):
         return None
 
     @property
-    def role_in_organization(self) -> Union[str, None]:
+    def role_in_organization(self) -> str | None:
         """Union[str, None]: role of the person in the organization"""
         matches = [
             item for item in self
@@ -1244,7 +1245,7 @@ class PersonObserverIdentifyingAttributes(Template):
         return None
 
     @property
-    def role_in_procedure(self) -> Union[str, None]:
+    def role_in_procedure(self) -> str | None:
         """Union[str, None]: role of the person in the procedure"""
         matches = [
             item for item in self
@@ -1312,12 +1313,12 @@ class DeviceObserverIdentifyingAttributes(Template):
     def __init__(
         self,
         uid: str,
-        name: Optional[str] = None,
-        manufacturer_name: Optional[str] = None,
-        model_name: Optional[str] = None,
-        serial_number: Optional[str] = None,
-        physical_location: Optional[str] = None,
-        role_in_procedure: Optional[Union[Code, CodedConcept]] = None
+        name: str | None = None,
+        manufacturer_name: str | None = None,
+        model_name: str | None = None,
+        serial_number: str | None = None,
+        physical_location: str | None = None,
+        role_in_procedure: Code | CodedConcept | None = None
     ):
         """
 
@@ -1415,7 +1416,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         return UID(self[0].value)
 
     @property
-    def name(self) -> Union[str, None]:
+    def name(self) -> str | None:
         """Union[str, None]: name of device"""
         matches = [
             item for item in self
@@ -1431,7 +1432,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         return None
 
     @property
-    def manufacturer_name(self) -> Union[str, None]:
+    def manufacturer_name(self) -> str | None:
         """Union[str, None]: name of device manufacturer"""
         matches = [
             item for item in self
@@ -1447,7 +1448,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         return None
 
     @property
-    def model_name(self) -> Union[str, None]:
+    def model_name(self) -> str | None:
         """Union[str, None]: name of device model"""
         matches = [
             item for item in self
@@ -1463,7 +1464,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         return None
 
     @property
-    def serial_number(self) -> Union[str, None]:
+    def serial_number(self) -> str | None:
         """Union[str, None]: device serial number"""
         matches = [
             item for item in self
@@ -1479,7 +1480,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         return None
 
     @property
-    def physical_location(self) -> Union[str, None]:
+    def physical_location(self) -> str | None:
         """Union[str, None]: location of device"""
         matches = [
             item for item in self
@@ -1546,10 +1547,10 @@ class ObserverContext(Template):
     def __init__(
         self,
         observer_type: CodedConcept,
-        observer_identifying_attributes: Union[
-            PersonObserverIdentifyingAttributes,
+        observer_identifying_attributes: (
+            PersonObserverIdentifyingAttributes |
             DeviceObserverIdentifyingAttributes
-        ]
+        )
     ):
         """
 
@@ -1601,10 +1602,10 @@ class ObserverContext(Template):
         return self[0].value
 
     @property
-    def observer_identifying_attributes(self) -> Union[
-        PersonObserverIdentifyingAttributes,
-        DeviceObserverIdentifyingAttributes,
-    ]:
+    def observer_identifying_attributes(self) -> (
+        PersonObserverIdentifyingAttributes |
+        DeviceObserverIdentifyingAttributes
+    ):
         """Union[highdicom.sr.PersonObserverIdentifyingAttributes, highdicom.sr.DeviceObserverIdentifyingAttributes]:
         observer identifying attributes
         """  # noqa: E501
@@ -1694,9 +1695,9 @@ class SubjectContextSpecimen(Template):
     def __init__(
         self,
         uid: str,
-        identifier: Optional[str] = None,
-        container_identifier: Optional[str] = None,
-        specimen_type: Optional[Union[Code, CodedConcept]] = None
+        identifier: str | None = None,
+        container_identifier: str | None = None,
+        specimen_type: Code | CodedConcept | None = None
     ):
         """
 
@@ -1767,7 +1768,7 @@ class SubjectContextSpecimen(Template):
         return self[0].value
 
     @property
-    def specimen_identifier(self) -> Union[str, None]:
+    def specimen_identifier(self) -> str | None:
         """Union[str, None]: specimen identifier"""
         matches = [
             item for item in self
@@ -1783,7 +1784,7 @@ class SubjectContextSpecimen(Template):
         return None
 
     @property
-    def container_identifier(self) -> Union[str, None]:
+    def container_identifier(self) -> str | None:
         """Union[str, None]: specimen container identifier"""
         matches = [
             item for item in self
@@ -1799,7 +1800,7 @@ class SubjectContextSpecimen(Template):
         return None
 
     @property
-    def specimen_type(self) -> Union[CodedConcept, None]:
+    def specimen_type(self) -> CodedConcept | None:
         """Union[highdicom.sr.CodedConcept, None]: type of specimen"""
         matches = [
             item for item in self
@@ -1844,7 +1845,7 @@ class SubjectContextSpecimen(Template):
 
         # Specimen type code sequence is optional
         if hasattr(description, 'SpecimenTypeCodeSequence'):
-            specimen_type: Optional[CodedConcept] = CodedConcept.from_dataset(
+            specimen_type: CodedConcept | None = CodedConcept.from_dataset(
                 description.SpecimenTypeCodeSequence[0]
             )
         else:
@@ -1905,11 +1906,11 @@ class SubjectContextDevice(Template):
     def __init__(
         self,
         name: str,
-        uid: Optional[str] = None,
-        manufacturer_name: Optional[str] = None,
-        model_name: Optional[str] = None,
-        serial_number: Optional[str] = None,
-        physical_location: Optional[str] = None
+        uid: str | None = None,
+        manufacturer_name: str | None = None,
+        model_name: str | None = None,
+        serial_number: str | None = None,
+        physical_location: str | None = None
     ):
         """
 
@@ -1990,7 +1991,7 @@ class SubjectContextDevice(Template):
         return self[0].value
 
     @property
-    def device_uid(self) -> Union[str, None]:
+    def device_uid(self) -> str | None:
         """Union[str, None]: unique device identifier"""
         matches = [
             item for item in self
@@ -2006,7 +2007,7 @@ class SubjectContextDevice(Template):
         return None
 
     @property
-    def device_manufacturer_name(self) -> Union[str, None]:
+    def device_manufacturer_name(self) -> str | None:
         """Union[str, None]: name of device manufacturer"""
         matches = [
             item for item in self
@@ -2022,7 +2023,7 @@ class SubjectContextDevice(Template):
         return None
 
     @property
-    def device_model_name(self) -> Union[str, None]:
+    def device_model_name(self) -> str | None:
         """Union[str, None]: name of device model"""
         matches = [
             item for item in self
@@ -2038,7 +2039,7 @@ class SubjectContextDevice(Template):
         return None
 
     @property
-    def device_serial_number(self) -> Union[str, None]:
+    def device_serial_number(self) -> str | None:
         """Union[str, None]: device serial number"""
         matches = [
             item for item in self
@@ -2054,7 +2055,7 @@ class SubjectContextDevice(Template):
         return None
 
     @property
-    def device_physical_location(self) -> Union[str, None]:
+    def device_physical_location(self) -> str | None:
         """Union[str, None]: location of device"""
         matches = [
             item for item in self
@@ -2123,11 +2124,11 @@ class SubjectContext(Template):
     def __init__(
         self,
         subject_class: CodedConcept,
-        subject_class_specific_context: Union[
-            SubjectContextFetus,
-            SubjectContextSpecimen,
+        subject_class_specific_context: (
+            SubjectContextFetus |
+            SubjectContextSpecimen |
             SubjectContextDevice
-        ]
+        )
     ):
         """
 
@@ -2215,11 +2216,11 @@ class SubjectContext(Template):
         return self[0].value
 
     @property
-    def subject_class_specific_context(self) -> Union[
-        SubjectContextFetus,
-        SubjectContextSpecimen,
+    def subject_class_specific_context(self) -> (
+        SubjectContextFetus |
+        SubjectContextSpecimen |
         SubjectContextDevice
-    ]:
+    ):
         """Union[highdicom.sr.SubjectContextFetus, highdicom.sr.SubjectContextSpecimen, highdicom.sr.SubjectContextDevice]:
         subject class specific context
         """  # noqa: E501
@@ -2240,9 +2241,9 @@ class ObservationContext(Template):
 
     def __init__(
         self,
-        observer_person_context: Optional[ObserverContext] = None,
-        observer_device_context: Optional[ObserverContext] = None,
-        subject_context: Optional[SubjectContext] = None
+        observer_person_context: ObserverContext | None = None,
+        observer_device_context: ObserverContext | None = None,
+        subject_context: SubjectContext | None = None
     ):
         """
 
@@ -2315,8 +2316,8 @@ class QualitativeEvaluation(Template):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[Code, CodedConcept]
+        name: Code | CodedConcept,
+        value: Code | CodedConcept
     ) -> None:
         """
         Parameters
@@ -2370,7 +2371,7 @@ class QualitativeEvaluation(Template):
         return self[0].name
 
     @property
-    def value(self) -> Union[int, float]:
+    def value(self) -> int | float:
         """Union[int, float]: coded value of the qualitative evaluation"""
         return self[0].value
 
@@ -2383,23 +2384,23 @@ class Measurement(Template):
 
     def __init__(
         self,
-        name: Union[CodedConcept, Code],
+        name: CodedConcept | Code,
         value: float,
-        unit: Union[CodedConcept, Code],
-        qualifier: Optional[Union[CodedConcept, Code]] = None,
-        tracking_identifier: Optional[TrackingIdentifier] = None,
-        algorithm_id: Optional[AlgorithmIdentification] = None,
-        derivation: Optional[Union[CodedConcept, Code]] = None,
-        finding_sites: Optional[Sequence[FindingSite]] = None,
-        method: Optional[Union[CodedConcept, Code]] = None,
-        properties: Optional[MeasurementProperties] = None,
-        referenced_images: Optional[Sequence[SourceImageForMeasurement]] = None,
-        referenced_coordinates: Optional[
+        unit: CodedConcept | Code,
+        qualifier: CodedConcept | Code | None = None,
+        tracking_identifier: TrackingIdentifier | None = None,
+        algorithm_id: AlgorithmIdentification | None = None,
+        derivation: CodedConcept | Code | None = None,
+        finding_sites: Sequence[FindingSite] | None = None,
+        method: CodedConcept | Code | None = None,
+        properties: MeasurementProperties | None = None,
+        referenced_images: Sequence[SourceImageForMeasurement] | None = None,
+        referenced_coordinates: None | (
             Sequence[
-                Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]
+                CoordinatesForMeasurement | CoordinatesForMeasurement3D
             ]
-        ] = None,
-        referenced_real_world_value_map: Optional[RealWorldValueMap] = None
+        ) = None,
+        referenced_real_world_value_map: RealWorldValueMap | None = None
     ):
         """
 
@@ -2594,7 +2595,7 @@ class Measurement(Template):
         return self[0].name
 
     @property
-    def value(self) -> Union[int, float]:
+    def value(self) -> int | float:
         """Union[int, float]: measured value"""
         return self[0].value
 
@@ -2604,12 +2605,12 @@ class Measurement(Template):
         return self[0].unit
 
     @property
-    def qualifier(self) -> Union[CodedConcept, None]:
+    def qualifier(self) -> CodedConcept | None:
         """Union[highdicom.sr.CodedConcept, None]: qualifier"""
         return self[0].qualifier
 
     @property
-    def derivation(self) -> Union[CodedConcept, None]:
+    def derivation(self) -> CodedConcept | None:
         """Union[highdicom.sr.CodedConcept, None]: derivation"""
         if not hasattr(self[0], 'ContentSequence'):
             return None
@@ -2623,7 +2624,7 @@ class Measurement(Template):
         return None
 
     @property
-    def method(self) -> Union[CodedConcept, None]:
+    def method(self) -> CodedConcept | None:
         """Union[highdicom.sr.CodedConcept, None]: method"""
         if not hasattr(self[0], 'ContentSequence'):
             return None
@@ -2637,7 +2638,7 @@ class Measurement(Template):
         return None
 
     @property
-    def referenced_images(self) -> List[SourceImageForMeasurement]:
+    def referenced_images(self) -> list[SourceImageForMeasurement]:
         """List[highdicom.sr.SourceImageForMeasurement]: referenced images"""
         if not hasattr(self[0], 'ContentSequence'):
             return []
@@ -2649,8 +2650,8 @@ class Measurement(Template):
         return [SourceImageForMeasurement.from_dataset(m) for m in matches]
 
     @property
-    def referenced_coordinates(self) -> List[
-        Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]
+    def referenced_coordinates(self) -> list[
+        CoordinatesForMeasurement | CoordinatesForMeasurement3D
     ]:
         """List[Union[highdicom.sr.CoordinatesForMeasurement, highdicom.sr.CoordinatesForMeasurement3D]]:
         referenced coordinates"""  # noqa: E501
@@ -2660,8 +2661,8 @@ class Measurement(Template):
             self[0],
             value_type=ValueTypeValues.SCOORD
         )
-        coord: List[
-            Union[CoordinatesForMeasurement, CoordinatesForMeasurement3D]
+        coord: list[
+            CoordinatesForMeasurement | CoordinatesForMeasurement3D
         ] = [
             CoordinatesForMeasurement.from_dataset(m)
             for m in scoord_matches
@@ -2679,7 +2680,7 @@ class Measurement(Template):
         return coord
 
     @property
-    def finding_sites(self) -> List[FindingSite]:
+    def finding_sites(self) -> list[FindingSite]:
         """List[highdicom.sr.FindingSite]: finding sites"""
         if not hasattr(self[0], 'ContentSequence'):
             return []
@@ -2701,18 +2702,18 @@ class _MeasurementsAndQualitativeEvaluations(Template):
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
-        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-        time_point_context: Optional[TimePointContext] = None,
-        finding_type: Optional[Union[CodedConcept, Code]] = None,
-        method: Optional[Union[CodedConcept, Code]] = None,
-        algorithm_id: Optional[AlgorithmIdentification] = None,
-        finding_sites: Optional[Sequence[FindingSite]] = None,
-        session: Optional[str] = None,
-        measurements: Optional[Sequence[Measurement]] = None,
-        qualitative_evaluations: Optional[
+        referenced_real_world_value_map: RealWorldValueMap | None = None,
+        time_point_context: TimePointContext | None = None,
+        finding_type: CodedConcept | Code | None = None,
+        method: CodedConcept | Code | None = None,
+        algorithm_id: AlgorithmIdentification | None = None,
+        finding_sites: Sequence[FindingSite] | None = None,
+        session: str | None = None,
+        measurements: Sequence[Measurement] | None = None,
+        qualitative_evaluations: None | (
             Sequence[QualitativeEvaluation]
-        ] = None,
-        finding_category: Optional[Union[CodedConcept, Code]] = None,
+        ) = None,
+        finding_category: CodedConcept | Code | None = None,
     ):
         """
 
@@ -2912,7 +2913,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         return cast(cls, instance)
 
     @property
-    def method(self) -> Union[CodedConcept, None]:
+    def method(self) -> CodedConcept | None:
         """Union[highdicom.sr.CodedConcept, None]: measurement method"""
         root_item = self[0]
         matches = find_content_items(
@@ -2930,7 +2931,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         return None
 
     @property
-    def tracking_identifier(self) -> Union[str, None]:
+    def tracking_identifier(self) -> str | None:
         """Union[str, None]: tracking identifier"""
         root_item = self[0]
         matches = find_content_items(
@@ -2948,7 +2949,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         return None
 
     @property
-    def tracking_uid(self) -> Union[UID, None]:
+    def tracking_uid(self) -> UID | None:
         """Union[highdicom.UID, None]: tracking unique identifier"""
         root_item = self[0]
         matches = find_content_items(
@@ -2966,7 +2967,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         return None
 
     @property
-    def finding_category(self) -> Union[CodedConcept, None]:
+    def finding_category(self) -> CodedConcept | None:
         """Union[highdicom.sr.CodedConcept, None]: finding category"""
         root_item = self[0]
         matches = find_content_items(
@@ -2984,7 +2985,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         return None
 
     @property
-    def finding_type(self) -> Union[CodedConcept, None]:
+    def finding_type(self) -> CodedConcept | None:
         """Union[highdicom.sr.CodedConcept, None]: finding type"""
         root_item = self[0]
         matches = find_content_items(
@@ -3002,7 +3003,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         return None
 
     @property
-    def finding_sites(self) -> List[FindingSite]:
+    def finding_sites(self) -> list[FindingSite]:
         """List[highdicom.sr.FindingSite]: finding sites"""
         root_item = self[0]
         matches = find_content_items(
@@ -3016,8 +3017,8 @@ class _MeasurementsAndQualitativeEvaluations(Template):
 
     def get_measurements(
         self,
-        name: Optional[Union[Code, CodedConcept]] = None
-    ) -> List[Measurement]:
+        name: Code | CodedConcept | None = None
+    ) -> list[Measurement]:
         """Get measurements.
 
         Parameters
@@ -3050,8 +3051,8 @@ class _MeasurementsAndQualitativeEvaluations(Template):
 
     def get_qualitative_evaluations(
         self,
-        name: Optional[Union[Code, CodedConcept]] = None
-    ) -> List[QualitativeEvaluation]:
+        name: Code | CodedConcept | None = None
+    ) -> list[QualitativeEvaluation]:
         """Get qualitative evaluations.
 
         Parameters
@@ -3098,21 +3099,21 @@ class MeasurementsAndQualitativeEvaluations(
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
-        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-        time_point_context: Optional[TimePointContext] = None,
-        finding_type: Optional[Union[CodedConcept, Code]] = None,
-        method: Optional[Union[CodedConcept, Code]] = None,
-        algorithm_id: Optional[AlgorithmIdentification] = None,
-        finding_sites: Optional[Sequence[FindingSite]] = None,
-        session: Optional[str] = None,
-        measurements: Optional[Sequence[Measurement]] = None,
-        qualitative_evaluations: Optional[
+        referenced_real_world_value_map: RealWorldValueMap | None = None,
+        time_point_context: TimePointContext | None = None,
+        finding_type: CodedConcept | Code | None = None,
+        method: CodedConcept | Code | None = None,
+        algorithm_id: AlgorithmIdentification | None = None,
+        finding_sites: Sequence[FindingSite] | None = None,
+        session: str | None = None,
+        measurements: Sequence[Measurement] | None = None,
+        qualitative_evaluations: None | (
             Sequence[QualitativeEvaluation]
-        ] = None,
-        finding_category: Optional[Union[CodedConcept, Code]] = None,
-        source_images: Optional[
+        ) = None,
+        finding_category: CodedConcept | Code | None = None,
+        source_images: None | (
             Sequence[SourceImageForMeasurementGroup]
-        ] = None,
+        ) = None,
     ):
         """
 
@@ -3175,7 +3176,7 @@ class MeasurementsAndQualitativeEvaluations(
             group_item.ContentSequence.extend(source_images)
 
     @property
-    def source_images(self) -> List[SourceImageForMeasurementGroup]:
+    def source_images(self) -> list[SourceImageForMeasurementGroup]:
         """List[highdicom.sr.SourceImageForMeasurementGroup]: source images"""
         root_item = self[0]
         matches = find_content_items(
@@ -3201,26 +3202,26 @@ class _ROIMeasurementsAndQualitativeEvaluations(
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
-        referenced_regions: Optional[
-            Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
-        ] = None,
-        referenced_segment: Optional[
-            Union[ReferencedSegment, ReferencedSegmentationFrame]
-        ] = None,
-        referenced_volume_surface: Optional[VolumeSurface] = None,
-        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-        time_point_context: Optional[TimePointContext] = None,
-        finding_type: Optional[Union[CodedConcept, Code]] = None,
-        method: Optional[Union[CodedConcept, Code]] = None,
-        algorithm_id: Optional[AlgorithmIdentification] = None,
-        finding_sites: Optional[Sequence[FindingSite]] = None,
-        session: Optional[str] = None,
-        measurements: Optional[Sequence[Measurement]] = None,
-        qualitative_evaluations: Optional[
+        referenced_regions: None | (
+            Sequence[ImageRegion] | Sequence[ImageRegion3D]
+        ) = None,
+        referenced_segment: None | (
+            ReferencedSegment | ReferencedSegmentationFrame
+        ) = None,
+        referenced_volume_surface: VolumeSurface | None = None,
+        referenced_real_world_value_map: RealWorldValueMap | None = None,
+        time_point_context: TimePointContext | None = None,
+        finding_type: CodedConcept | Code | None = None,
+        method: CodedConcept | Code | None = None,
+        algorithm_id: AlgorithmIdentification | None = None,
+        finding_sites: Sequence[FindingSite] | None = None,
+        session: str | None = None,
+        measurements: Sequence[Measurement] | None = None,
+        qualitative_evaluations: None | (
             Sequence[QualitativeEvaluation]
-        ] = None,
-        geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
-        finding_category: Optional[Union[CodedConcept, Code]] = None,
+        ) = None,
+        geometric_purpose: CodedConcept | Code | None = None,
+        finding_category: CodedConcept | Code | None = None,
     ):
         """
 
@@ -3368,21 +3369,21 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
-        referenced_region: Union[ImageRegion, ImageRegion3D, None] = None,
-        referenced_segment: Optional[ReferencedSegmentationFrame] = None,
-        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-        time_point_context: Optional[TimePointContext] = None,
-        finding_type: Optional[Union[CodedConcept, Code]] = None,
-        method: Optional[Union[CodedConcept, Code]] = None,
-        algorithm_id: Optional[AlgorithmIdentification] = None,
-        finding_sites: Optional[Sequence[FindingSite]] = None,
-        session: Optional[str] = None,
-        measurements: Optional[Sequence[Measurement]] = None,
-        qualitative_evaluations: Optional[
+        referenced_region: ImageRegion | ImageRegion3D | None = None,
+        referenced_segment: ReferencedSegmentationFrame | None = None,
+        referenced_real_world_value_map: RealWorldValueMap | None = None,
+        time_point_context: TimePointContext | None = None,
+        finding_type: CodedConcept | Code | None = None,
+        method: CodedConcept | Code | None = None,
+        algorithm_id: AlgorithmIdentification | None = None,
+        finding_sites: Sequence[FindingSite] | None = None,
+        session: str | None = None,
+        measurements: Sequence[Measurement] | None = None,
+        qualitative_evaluations: None | (
             Sequence[QualitativeEvaluation]
-        ] = None,
-        geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
-        finding_category: Optional[Union[CodedConcept, Code]] = None
+        ) = None,
+        geometric_purpose: CodedConcept | Code | None = None,
+        finding_category: CodedConcept | Code | None = None
     ):
         """
 
@@ -3445,9 +3446,9 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
                 'Only one of the following arguments should be provided: '
                 '"referenced_region", "referenced_segment".'
             )
-        referenced_regions: Optional[
-            Union[Sequence[ImageRegion], Sequence[ImageRegion3D]]
-        ] = None
+        referenced_regions: None | (
+            Sequence[ImageRegion] | Sequence[ImageRegion3D]
+        ) = None
         if referenced_region is not None:
             # This is just to satisfy mypy
             if isinstance(referenced_region, ImageRegion):
@@ -3505,7 +3506,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             )
 
     @property
-    def roi(self) -> Union[ImageRegion, ImageRegion3D, None]:
+    def roi(self) -> ImageRegion | ImageRegion3D | None:
         """Union[highdicom.sr.ImageRegion, highdicom.sr.ImageRegion3D, None]:
         image region defined by spatial coordinates
         """  # noqa: E501
@@ -3542,7 +3543,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
     @property
     def _referenced_segmentation_frame_item(
         self
-    ) -> Union[ImageContentItem, None]:
+    ) -> ImageContentItem | None:
         """Union[highdicom.sr.ImageContentItem, None]:
         image content item for referenced segmentation frame
         """  # noqa: E501
@@ -3568,7 +3569,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
     @property
     def _source_image_for_segmentation_item(
         self
-    ) -> Union[SourceImageForSegmentation, None]:
+    ) -> SourceImageForSegmentation | None:
         """Union[highdicom.sr.SourceImageForSegmentation, None]:
         source images used for the referenced segment
         """  # noqa: E501
@@ -3594,7 +3595,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
     @property
     def referenced_segmentation_frame(
         self
-    ) -> Union[ReferencedSegmentationFrame, None]:
+    ) -> ReferencedSegmentationFrame | None:
         """Union[highdicom.sr.ImageContentItem, None]:
         segmentation frame referenced by the measurements group
         """  # noqa: E501
@@ -3650,22 +3651,22 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     def __init__(
         self,
         tracking_identifier: TrackingIdentifier,
-        referenced_regions: Optional[Sequence[ImageRegion]] = None,
-        referenced_volume_surface: Optional[VolumeSurface] = None,
-        referenced_segment: Optional[ReferencedSegment] = None,
-        referenced_real_world_value_map: Optional[RealWorldValueMap] = None,
-        time_point_context: Optional[TimePointContext] = None,
-        finding_type: Optional[Union[CodedConcept, Code]] = None,
-        method: Optional[Union[CodedConcept, Code]] = None,
-        algorithm_id: Optional[AlgorithmIdentification] = None,
-        finding_sites: Optional[Sequence[FindingSite]] = None,
-        session: Optional[str] = None,
-        measurements: Optional[Sequence[Measurement]] = None,
-        qualitative_evaluations: Optional[
+        referenced_regions: Sequence[ImageRegion] | None = None,
+        referenced_volume_surface: VolumeSurface | None = None,
+        referenced_segment: ReferencedSegment | None = None,
+        referenced_real_world_value_map: RealWorldValueMap | None = None,
+        time_point_context: TimePointContext | None = None,
+        finding_type: CodedConcept | Code | None = None,
+        method: CodedConcept | Code | None = None,
+        algorithm_id: AlgorithmIdentification | None = None,
+        finding_sites: Sequence[FindingSite] | None = None,
+        session: str | None = None,
+        measurements: Sequence[Measurement] | None = None,
+        qualitative_evaluations: None | (
             Sequence[QualitativeEvaluation]
-        ] = None,
-        geometric_purpose: Optional[Union[CodedConcept, Code]] = None,
-        finding_category: Optional[Union[CodedConcept, Code]] = None,
+        ) = None,
+        geometric_purpose: CodedConcept | Code | None = None,
+        finding_category: CodedConcept | Code | None = None,
     ):
         """
 
@@ -3775,7 +3776,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     @property
     def roi(
         self
-    ) -> Union[VolumeSurface, List[ImageRegion], None]:
+    ) -> VolumeSurface | list[ImageRegion] | None:
         """Union[highdicom.sr.VolumeSurface, List[highdicom.sr.ImageRegion], None]:
         volume surface or image regions defined by spatial coordinates
         """  # noqa: E501
@@ -3799,7 +3800,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     @property
     def _referenced_segment_item(
         self
-    ) -> Union[ImageContentItem, None]:
+    ) -> ImageContentItem | None:
         """Union[highdicom.sr.ReferencedSegment, None]:
         segment or segmentation frame referenced by the measurements group
         """
@@ -3823,7 +3824,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     @property
     def _source_image_for_segmentation_items(
         self
-    ) -> List[SourceImageForSegmentation]:
+    ) -> list[SourceImageForSegmentation]:
         """List[highdicom.sr.SourceImageForSegmentation]:
         source images used for the referenced segment
         """
@@ -3844,7 +3845,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     @property
     def _source_series_for_segmentation_item(
         self
-    ) -> Union[SourceSeriesForSegmentation, None]:
+    ) -> SourceSeriesForSegmentation | None:
         """Union[highdicom.sr.SourceImageForSegmentation, None]:
         source series used for the referenced segment
         """
@@ -3870,7 +3871,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
     @property
     def referenced_segment(
         self
-    ) -> Union[ReferencedSegment, None]:
+    ) -> ReferencedSegment | None:
         """Union[highdicom.sr.ImageContentItem, None]:
         segmentation frame referenced by the measurements group
         """
@@ -3916,7 +3917,7 @@ class ImageLibraryEntryDescriptors(Template):
     def __init__(
         self,
         image: Dataset,
-        additional_descriptors: Optional[Sequence[ContentItem]] = None
+        additional_descriptors: Sequence[ContentItem] | None = None
     ) -> None:
         """
 
@@ -4184,26 +4185,26 @@ class MeasurementReport(Template):
     def __init__(
         self,
         observation_context: ObservationContext,
-        procedure_reported: Union[
-            Union[CodedConcept, Code],
-            Sequence[Union[CodedConcept, Code]],
-        ],
-        imaging_measurements: Optional[
+        procedure_reported: (
+            CodedConcept | Code |
+            Sequence[CodedConcept | Code]
+        ),
+        imaging_measurements: None | (
             Sequence[
-                Union[
-                    PlanarROIMeasurementsAndQualitativeEvaluations,
-                    VolumetricROIMeasurementsAndQualitativeEvaluations,
-                    MeasurementsAndQualitativeEvaluations,
-                ]
+                (
+                    PlanarROIMeasurementsAndQualitativeEvaluations |
+                    VolumetricROIMeasurementsAndQualitativeEvaluations |
+                    MeasurementsAndQualitativeEvaluations
+                )
             ]
-        ] = None,
-        title: Optional[Union[CodedConcept, Code]] = None,
-        language_of_content_item_and_descendants: Optional[
+        ) = None,
+        title: CodedConcept | Code | None = None,
+        language_of_content_item_and_descendants: None | (
             LanguageOfContentItemAndDescendants
-        ] = None,
-        referenced_images: Optional[
+        ) = None,
+        referenced_images: None | (
             Sequence[Dataset]
-        ] = None
+        ) = None
     ):
         """
 
@@ -4259,11 +4260,11 @@ class MeasurementReport(Template):
             image_library = ImageLibrary(referenced_images)
             item.ContentSequence.extend(image_library)
 
-        measurements: Union[
-            MeasurementsAndQualitativeEvaluations,
-            PlanarROIMeasurementsAndQualitativeEvaluations,
-            VolumetricROIMeasurementsAndQualitativeEvaluations,
-        ]
+        measurements: (
+            MeasurementsAndQualitativeEvaluations |
+            PlanarROIMeasurementsAndQualitativeEvaluations |
+            VolumetricROIMeasurementsAndQualitativeEvaluations
+        )
         if imaging_measurements is not None:
             measurement_types = (
                 PlanarROIMeasurementsAndQualitativeEvaluations,
@@ -4292,7 +4293,7 @@ class MeasurementReport(Template):
         item.ContentSequence.append(container_item)
         super().__init__([item], is_root=True)
 
-    def _find_measurement_groups(self) -> List[ContainerContentItem]:
+    def _find_measurement_groups(self) -> list[ContainerContentItem]:
         root_item = self[0]
         imaging_measurement_items = find_content_items(
             root_item,
@@ -4306,7 +4307,7 @@ class MeasurementReport(Template):
             name=codes.DCM.MeasurementGroup,
             value_type=ValueTypeValues.CONTAINER
         )
-        return cast(List[ContainerContentItem], items)
+        return cast(list[ContainerContentItem], items)
 
     @classmethod
     def from_sequence(
@@ -4364,8 +4365,8 @@ class MeasurementReport(Template):
 
     def get_observer_contexts(
         self,
-        observer_type: Optional[Union[CodedConcept, Code]] = None
-    ) -> List[ObserverContext]:
+        observer_type: CodedConcept | Code | None = None
+    ) -> list[ObserverContext]:
         """Get observer contexts.
 
         Parameters
@@ -4385,10 +4386,10 @@ class MeasurementReport(Template):
             if item.name == codes.DCM.ObserverType
         ]
         observer_contexts = []
-        attributes: Union[
-            DeviceObserverIdentifyingAttributes,
-            PersonObserverIdentifyingAttributes,
-        ]
+        attributes: (
+            DeviceObserverIdentifyingAttributes |
+            PersonObserverIdentifyingAttributes
+        )
         for i, (index, item) in enumerate(matches):
             if observer_type is not None:
                 if item.value != observer_type:
@@ -4416,8 +4417,8 @@ class MeasurementReport(Template):
 
     def get_subject_contexts(
         self,
-        subject_class: Optional[CodedConcept] = None
-    ) -> List[SubjectContext]:
+        subject_class: CodedConcept | None = None
+    ) -> list[SubjectContext]:
         """Get subject contexts.
 
         Parameters
@@ -4438,11 +4439,11 @@ class MeasurementReport(Template):
             if item.name == codes.DCM.SubjectClass
         ]
         subject_contexts = []
-        attributes: Union[
-            SubjectContextSpecimen,
-            SubjectContextFetus,
-            SubjectContextDevice,
-        ]
+        attributes: (
+            SubjectContextSpecimen |
+            SubjectContextFetus |
+            SubjectContextDevice
+        )
         for i, (index, item) in enumerate(matches):
             if subject_class is not None:
                 if item.value != subject_class:
@@ -4474,16 +4475,16 @@ class MeasurementReport(Template):
 
     def get_planar_roi_measurement_groups(
         self,
-        tracking_uid: Optional[str] = None,
-        finding_type: Optional[Union[CodedConcept, Code]] = None,
-        finding_site: Optional[Union[CodedConcept, Code]] = None,
-        reference_type: Optional[Union[CodedConcept, Code]] = None,
-        graphic_type: Optional[
-            Union[GraphicTypeValues, GraphicTypeValues3D]
-        ] = None,
-        referenced_sop_instance_uid: Optional[str] = None,
-        referenced_sop_class_uid: Optional[str] = None
-    ) -> List[PlanarROIMeasurementsAndQualitativeEvaluations]:
+        tracking_uid: str | None = None,
+        finding_type: CodedConcept | Code | None = None,
+        finding_site: CodedConcept | Code | None = None,
+        reference_type: CodedConcept | Code | None = None,
+        graphic_type: None | (
+            GraphicTypeValues | GraphicTypeValues3D
+        ) = None,
+        referenced_sop_instance_uid: str | None = None,
+        referenced_sop_class_uid: str | None = None
+    ) -> list[PlanarROIMeasurementsAndQualitativeEvaluations]:
         """Get imaging measurement groups of planar regions of interest.
 
         Finds (and optionally filters) content items contained in the
@@ -4631,7 +4632,7 @@ class MeasurementReport(Template):
                     matches.append(found_ref_type == reference_type)
 
                 if graphic_type is not None:
-                    found_gt: Union[GraphicTypeValues, GraphicTypeValues3D]
+                    found_gt: GraphicTypeValues | GraphicTypeValues3D
                     if isinstance(graphic_type, GraphicTypeValues):
                         if ref_value_type == ValueTypeValues.SCOORD:
                             found_gt = GraphicTypeValues(ref_item.GraphicType)
@@ -4712,14 +4713,14 @@ class MeasurementReport(Template):
 
     def get_volumetric_roi_measurement_groups(
         self,
-        tracking_uid: Optional[str] = None,
-        finding_type: Optional[Union[CodedConcept, Code]] = None,
-        finding_site: Optional[Union[CodedConcept, Code]] = None,
-        reference_type: Optional[Union[CodedConcept, Code]] = None,
-        graphic_type: Optional[GraphicTypeValues3D] = None,
-        referenced_sop_instance_uid: Optional[str] = None,
-        referenced_sop_class_uid: Optional[str] = None
-    ) -> List[VolumetricROIMeasurementsAndQualitativeEvaluations]:
+        tracking_uid: str | None = None,
+        finding_type: CodedConcept | Code | None = None,
+        finding_site: CodedConcept | Code | None = None,
+        reference_type: CodedConcept | Code | None = None,
+        graphic_type: GraphicTypeValues3D | None = None,
+        referenced_sop_instance_uid: str | None = None,
+        referenced_sop_class_uid: str | None = None
+    ) -> list[VolumetricROIMeasurementsAndQualitativeEvaluations]:
         """Get imaging measurement groups of volumetric regions of interest.
 
         Finds (and optionally filters) content items contained in the
@@ -4887,7 +4888,7 @@ class MeasurementReport(Template):
                     matches.append(found_ref_type == reference_type)
 
                 if graphic_type is not None:
-                    found_gt: Union[GraphicTypeValues, GraphicTypeValues3D]
+                    found_gt: GraphicTypeValues | GraphicTypeValues3D
                     if isinstance(graphic_type, GraphicTypeValues):
                         if ref_value_type == ValueTypeValues.SCOORD:
                             found_gt = GraphicTypeValues(
@@ -4974,12 +4975,12 @@ class MeasurementReport(Template):
 
     def get_image_measurement_groups(
         self,
-        tracking_uid: Optional[str] = None,
-        finding_type: Optional[Union[CodedConcept, Code]] = None,
-        finding_site: Optional[Union[CodedConcept, Code]] = None,
-        referenced_sop_instance_uid: Optional[str] = None,
-        referenced_sop_class_uid: Optional[str] = None
-    ) -> List[MeasurementsAndQualitativeEvaluations]:
+        tracking_uid: str | None = None,
+        finding_type: CodedConcept | Code | None = None,
+        finding_site: CodedConcept | Code | None = None,
+        referenced_sop_instance_uid: str | None = None,
+        referenced_sop_class_uid: str | None = None
+    ) -> list[MeasurementsAndQualitativeEvaluations]:
         """Get imaging measurements of images.
 
         Finds (and optionally filters) content items contained in the

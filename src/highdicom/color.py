@@ -1,6 +1,5 @@
 import logging
 from io import BytesIO
-from typing import Tuple
 
 import numpy as np
 from PIL import Image, ImageCms
@@ -60,7 +59,7 @@ class CIELabColor:
         self._value = (l_val, a_val, b_val)
 
     @property
-    def value(self) -> Tuple[int, int, int]:
+    def value(self) -> tuple[int, int, int]:
         """Tuple[int]:
             Value formatted as a triplet of 16 bit unsigned integers.
         """

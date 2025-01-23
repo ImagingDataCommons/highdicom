@@ -4,16 +4,10 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import (
     cast,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
     overload,
-    Sequence,
-    Tuple,
     Union,
 )
+from collections.abc import Iterable, Iterator, Sequence
 from typing_extensions import Self
 
 import numpy as np
@@ -119,9 +113,9 @@ class ContentItem(Dataset):
 
     def __init__(
         self,
-        value_type: Union[str, ValueTypeValues],
-        name: Union[Code, CodedConcept],
-        relationship_type: Union[str, RelationshipTypeValues, None]
+        value_type: str | ValueTypeValues,
+        name: Code | CodedConcept,
+        relationship_type: str | RelationshipTypeValues | None
     ) -> None:
         """
         Parameters
@@ -151,7 +145,7 @@ class ContentItem(Dataset):
     def __setattr__(
         self,
         name: str,
-        value: Union[DataElement, DataElementSequence]
+        value: DataElement | DataElementSequence
     ) -> None:
         if name == 'ContentSequence':
             super().__setattr__(name, ContentSequence(value))
@@ -243,7 +237,7 @@ class ContentItem(Dataset):
         return ValueTypeValues(self.ValueType)
 
     @property
-    def relationship_type(self) -> Optional[RelationshipTypeValues]:
+    def relationship_type(self) -> RelationshipTypeValues | None:
         """RelationshipTypeValues: type of relationship the content item has
         with its parent (see `highdicom.sr.RelationshipTypeValues`)
 
@@ -260,9 +254,9 @@ class ContentSequence(DataElementSequence):
 
     def __init__(
         self,
-        items: Optional[
+        items: None | (
             Union[Sequence[ContentItem], 'ContentSequence']
-        ] = None,
+        ) = None,
         is_root: bool = False,
         is_sr: bool = True
     ) -> None:
@@ -309,9 +303,9 @@ class ContentSequence(DataElementSequence):
         # (to put it kindly), but we currently don't see a better way without
         # having to change the implementation in the pydicom library.
 
-        self._lut: Dict[
-            Union[Code, CodedConcept],
-            List[ContentItem]
+        self._lut: dict[
+            Code | CodedConcept,
+            list[ContentItem]
         ] = defaultdict(list)
         if items is not None:
             super().__init__(items)
@@ -363,8 +357,8 @@ class ContentSequence(DataElementSequence):
 
     def __setitem__(
         self,
-        idx: Union[slice, int],
-        val: Union[Iterable[ContentItem], ContentItem]
+        idx: slice | int,
+        val: Iterable[ContentItem] | ContentItem
     ) -> None:   # type: ignore[override]
         if isinstance(val, Iterable):
             items = val
@@ -380,7 +374,7 @@ class ContentSequence(DataElementSequence):
 
     def __delitem__(
         self,
-        idx: Union[slice, int]
+        idx: slice | int
     ) -> None:   # type: ignore[override]
         if isinstance(idx, slice):
             items = self[idx]
@@ -431,7 +425,7 @@ class ContentSequence(DataElementSequence):
             raise ValueError(error_message) from e
         return index
 
-    def find(self, name: Union[Code, CodedConcept]) -> Self:
+    def find(self, name: Code | CodedConcept) -> Self:
         """Find contained content items given their name.
 
         Parameters
@@ -653,9 +647,9 @@ class CodeContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[Code, CodedConcept],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None,
+        name: Code | CodedConcept,
+        value: Code | CodedConcept,
+        relationship_type: str | RelationshipTypeValues | None = None,
     ) -> None:
         """
         Parameters
@@ -725,9 +719,9 @@ class PnameContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[str, PersonName],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        value: str | PersonName,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -789,9 +783,9 @@ class TextContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
+        name: Code | CodedConcept,
         value: str,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -852,9 +846,9 @@ class TimeContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[str, datetime.time, TM],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        value: str | datetime.time | TM,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -924,9 +918,9 @@ class DateContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[str, datetime.date, DA],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        value: str | datetime.date | DA,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -996,9 +990,9 @@ class DateTimeContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[str, datetime.datetime, DT],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        value: str | datetime.datetime | DT,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1068,9 +1062,9 @@ class UIDRefContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[str, UID],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        value: str | UID,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1131,11 +1125,11 @@ class NumContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
+        name: Code | CodedConcept,
         value: float,
-        unit: Union[Code, CodedConcept],
-        qualifier: Optional[Union[Code, CodedConcept]] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None,
+        unit: Code | CodedConcept,
+        qualifier: Code | CodedConcept | None = None,
+        relationship_type: str | RelationshipTypeValues | None = None,
     ) -> None:
         """
         Parameters
@@ -1159,7 +1153,7 @@ class NumContentItem(ContentItem):
         super().__init__(
             ValueTypeValues.NUM, name, relationship_type
         )
-        self.MeasuredValueSequence: List[Dataset] = []
+        self.MeasuredValueSequence: list[Dataset] = []
         measured_value_sequence_item = Dataset()
         if not isinstance(value, (int, float, )):
             raise TypeError(
@@ -1190,7 +1184,7 @@ class NumContentItem(ContentItem):
             self.NumericValueQualifierCodeSequence = [qualifier]
 
     @property
-    def value(self) -> Union[int, float]:
+    def value(self) -> int | float:
         """Union[int, float]: measured value"""
         item = self.MeasuredValueSequence[0]
         try:
@@ -1205,7 +1199,7 @@ class NumContentItem(ContentItem):
         return item.MeasurementUnitsCodeSequence[0]
 
     @property
-    def qualifier(self) -> Union[CodedConcept, None]:
+    def qualifier(self) -> CodedConcept | None:
         """Union[highdicom.sr.CodedConcept, None]: qualifier"""
         try:
             return self.NumericValueQualifierCodeSequence[0]
@@ -1263,10 +1257,10 @@ class ContainerContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
+        name: Code | CodedConcept,
         is_content_continuous: bool = True,
-        template_id: Optional[str] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        template_id: str | None = None,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1296,7 +1290,7 @@ class ContainerContentItem(ContentItem):
             self.ContentTemplateSequence = [item]
 
     @property
-    def template_id(self) -> Union[str, None]:
+    def template_id(self) -> str | None:
         """Union[str, None]: template identifier"""
         try:
             item = self.ContentTemplateSequence[0]
@@ -1342,10 +1336,10 @@ class CompositeContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        referenced_sop_class_uid: Union[str, UID],
-        referenced_sop_instance_uid: Union[str, UID],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        referenced_sop_class_uid: str | UID,
+        referenced_sop_instance_uid: str | UID,
+        relationship_type: str | RelationshipTypeValues | None = None
     ):
         """
         Parameters
@@ -1369,7 +1363,7 @@ class CompositeContentItem(ContentItem):
         self.ReferencedSOPSequence = [item]
 
     @property
-    def value(self) -> Tuple[UID, UID]:
+    def value(self) -> tuple[UID, UID]:
         """Tuple[highdicom.UID, highdicom.UID]:
             referenced SOP Class UID and SOP Instance UID
         """
@@ -1427,16 +1421,16 @@ class ImageContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        referenced_sop_class_uid: Union[str, UID],
-        referenced_sop_instance_uid: Union[str, UID],
-        referenced_frame_numbers: Optional[
-            Union[int, Sequence[int]]
-        ] = None,
-        referenced_segment_numbers: Optional[
-            Union[int, Sequence[int]]
-        ] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None,
+        name: Code | CodedConcept,
+        referenced_sop_class_uid: str | UID,
+        referenced_sop_instance_uid: str | UID,
+        referenced_frame_numbers: None | (
+            int | Sequence[int]
+        ) = None,
+        referenced_segment_numbers: None | (
+            int | Sequence[int]
+        ) = None,
+        relationship_type: str | RelationshipTypeValues | None = None,
     ) -> None:
         """
         Parameters
@@ -1470,7 +1464,7 @@ class ImageContentItem(ContentItem):
         self.ReferencedSOPSequence = [item]
 
     @property
-    def value(self) -> Tuple[UID, UID]:
+    def value(self) -> tuple[UID, UID]:
         """Tuple[highdicom.UID, highdicom.UID]:
             referenced SOP Class UID and SOP Instance UID
         """
@@ -1491,7 +1485,7 @@ class ImageContentItem(ContentItem):
         return UID(self.ReferencedSOPSequence[0].ReferencedSOPInstanceUID)
 
     @property
-    def referenced_frame_numbers(self) -> Union[List[int], None]:
+    def referenced_frame_numbers(self) -> list[int] | None:
         """Union[List[int], None]: referenced frame numbers"""
         if not hasattr(
             self.ReferencedSOPSequence[0],
@@ -1505,7 +1499,7 @@ class ImageContentItem(ContentItem):
             return [int(val)]
 
     @property
-    def referenced_segment_numbers(self) -> Union[List[int], None]:
+    def referenced_segment_numbers(self) -> list[int] | None:
         """Union[List[int], None]
             referenced segment numbers
         """
@@ -1564,15 +1558,15 @@ class ScoordContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        graphic_type: Union[str, GraphicTypeValues],
+        name: Code | CodedConcept,
+        graphic_type: str | GraphicTypeValues,
         graphic_data: np.ndarray,
-        pixel_origin_interpretation: Union[
-            str,
+        pixel_origin_interpretation: (
+            str |
             PixelOriginInterpretationValues
-        ] = None,
-        fiducial_uid: Optional[Union[str, UID]] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        ) = None,
+        fiducial_uid: str | UID | None = None,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1695,12 +1689,12 @@ class Scoord3DContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        graphic_type: Union[GraphicTypeValues3D, str],
+        name: Code | CodedConcept,
+        graphic_type: GraphicTypeValues3D | str,
         graphic_data: np.ndarray,
-        frame_of_reference_uid: Union[str, UID],
-        fiducial_uid: Optional[Union[str, UID]] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        frame_of_reference_uid: str | UID,
+        fiducial_uid: str | UID | None = None,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1833,12 +1827,12 @@ class TcoordContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        temporal_range_type: Union[str, TemporalRangeTypeValues],
-        referenced_sample_positions: Optional[Sequence[int]] = None,
-        referenced_time_offsets: Optional[Sequence[float]] = None,
-        referenced_date_time: Optional[Sequence[datetime.datetime]] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        temporal_range_type: str | TemporalRangeTypeValues,
+        referenced_sample_positions: Sequence[int] | None = None,
+        referenced_time_offsets: Sequence[float] | None = None,
+        referenced_date_time: Sequence[datetime.datetime] | None = None,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1884,7 +1878,7 @@ class TcoordContentItem(ContentItem):
             )
 
     @property
-    def value(self) -> Union[List[int], List[float], List[datetime.datetime]]:
+    def value(self) -> list[int] | list[float] | list[datetime.datetime]:
         """Union[List[int], List[float], List[datetime.datetime]]: time points
         """
         try:
@@ -1938,13 +1932,13 @@ class WaveformContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        referenced_sop_class_uid: Union[str, UID],
-        referenced_sop_instance_uid: Union[str, UID],
-        referenced_waveform_channels: Optional[
-            Union[int, Sequence[int]]
-        ] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None,
+        name: Code | CodedConcept,
+        referenced_sop_class_uid: str | UID,
+        referenced_sop_instance_uid: str | UID,
+        referenced_waveform_channels: None | (
+            int | Sequence[int]
+        ) = None,
+        relationship_type: str | RelationshipTypeValues | None = None,
     ) -> None:
         """
         Parameters
@@ -1979,7 +1973,7 @@ class WaveformContentItem(ContentItem):
         self.ReferencedSOPSequence = [item]
 
     @property
-    def value(self) -> Tuple[UID, UID]:
+    def value(self) -> tuple[UID, UID]:
         """Tuple[highdicom.UID, highdicom.UID]:
             referenced SOP Class UID and SOP Instance UID
         """
@@ -2000,10 +1994,10 @@ class WaveformContentItem(ContentItem):
         return UID(self.ReferencedSOPSequence[0].ReferencedSOPInstanceUID)
 
     @property
-    def referenced_waveform_channels(self) -> Union[
-        List[Tuple[int, int]],
+    def referenced_waveform_channels(self) -> (
+        list[tuple[int, int]] |
         None
-    ]:
+    ):
         """Union[List[Tuple[int, int]], None]: referenced waveform channels"""
         if not hasattr(
             self.ReferencedSOPSequence[0],

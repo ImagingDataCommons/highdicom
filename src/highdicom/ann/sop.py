@@ -7,13 +7,8 @@ from typing import (
     Any,
     BinaryIO,
     cast,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
 )
+from collections.abc import Sequence
 from typing_extensions import Self
 
 import numpy as np
@@ -46,7 +41,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
     def __init__(
         self,
         source_images: Sequence[Dataset],
-        annotation_coordinate_type: Union[str, AnnotationCoordinateTypeValues],
+        annotation_coordinate_type: str | AnnotationCoordinateTypeValues,
         annotation_groups: Sequence[AnnotationGroup],
         series_instance_uid: str,
         series_number: int,
@@ -54,16 +49,16 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         instance_number: int,
         manufacturer: str,
         manufacturer_model_name: str,
-        software_versions: Union[str, Tuple[str]],
+        software_versions: str | tuple[str],
         device_serial_number: str,
-        content_description: Optional[str] = None,
-        content_creator_name: Optional[Union[str, PersonName]] = None,
-        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
-        pixel_origin_interpretation: Union[
-            str,
+        content_description: str | None = None,
+        content_creator_name: str | PersonName | None = None,
+        transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
+        pixel_origin_interpretation: (
+            str |
             PixelOriginInterpretationValues
-        ] = PixelOriginInterpretationValues.VOLUME,
-        content_label: Optional[str] = None,
+        ) = PixelOriginInterpretationValues.VOLUME,
+        content_label: str | None = None,
         **kwargs: Any
     ) -> None:
         """
@@ -207,14 +202,14 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         ref.ReferencedSOPInstanceUID = src_img.SOPInstanceUID
         self.ReferencedImageSequence = [ref]
 
-        referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
+        referenced_series: dict[str, list[Dataset]] = defaultdict(list)
         for img in source_images:
             ref = Dataset()
             ref.ReferencedSOPClassUID = img.SOPClassUID
             ref.ReferencedSOPInstanceUID = img.SOPInstanceUID
             referenced_series[img.SeriesInstanceUID].append(ref)
 
-        self.ReferencedSeriesSequence: List[Dataset] = []
+        self.ReferencedSeriesSequence: list[Dataset] = []
         for series_instance_uid, referenced_images in referenced_series.items():
             ref = Dataset()
             ref.SeriesInstanceUID = series_instance_uid
@@ -238,8 +233,8 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
 
     def get_annotation_group(
         self,
-        number: Optional[int] = None,
-        uid: Optional[Union[str, UID]] = None,
+        number: int | None = None,
+        uid: str | UID | None = None,
     ) -> AnnotationGroup:
         """Get an individual annotation group.
 
@@ -303,17 +298,17 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
 
     def get_annotation_groups(
         self,
-        annotated_property_category: Optional[Union[Code, CodedConcept]] = None,
-        annotated_property_type: Optional[Union[Code, CodedConcept]] = None,
-        label: Optional[str] = None,
-        graphic_type: Optional[Union[str, GraphicTypeValues]] = None,
-        algorithm_type: Optional[
-            Union[str, AnnotationGroupGenerationTypeValues]
-        ] = None,
-        algorithm_name: Optional[str] = None,
-        algorithm_family: Optional[Union[Code, CodedConcept]] = None,
-        algorithm_version: Optional[str] = None,
-    ) -> List[AnnotationGroup]:
+        annotated_property_category: Code | CodedConcept | None = None,
+        annotated_property_type: Code | CodedConcept | None = None,
+        label: str | None = None,
+        graphic_type: str | GraphicTypeValues | None = None,
+        algorithm_type: None | (
+            str | AnnotationGroupGenerationTypeValues
+        ) = None,
+        algorithm_name: str | None = None,
+        algorithm_family: Code | CodedConcept | None = None,
+        algorithm_version: str | None = None,
+    ) -> list[AnnotationGroup]:
         """Get annotation groups matching search criteria.
 
         Parameters
@@ -462,7 +457,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
 
 
 def annread(
-    fp: Union[str, bytes, PathLike, BinaryIO],
+    fp: str | bytes | PathLike | BinaryIO,
 ) -> MicroscopyBulkSimpleAnnotations:
     """Read a bulk annotations object stored in DICOM File Format.
 

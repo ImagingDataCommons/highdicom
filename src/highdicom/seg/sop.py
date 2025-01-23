@@ -9,15 +9,9 @@ import pkgutil
 from typing import (
     Any,
     BinaryIO,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
     cast,
 )
+from collections.abc import Iterator, Sequence
 from typing_extensions import Self
 import warnings
 
@@ -113,7 +107,7 @@ _PURPOSE_CODE = CodedConcept.from_code(
 )
 
 
-def _get_unsigned_dtype(max_val: Union[int, np.integer]) -> type:
+def _get_unsigned_dtype(max_val: int | np.integer) -> type:
     """Get the smallest unsigned NumPy datatype to accommodate a value.
 
     Parameters
@@ -138,7 +132,7 @@ def _get_unsigned_dtype(max_val: Union[int, np.integer]) -> type:
 
 def _check_numpy_value_representation(
     max_val: int,
-    dtype: Union[np.dtype, str, type]
+    dtype: np.dtype | str | type
 ) -> None:
     """Check whether a given maximum value can be represented by a given dtype.
 
@@ -181,8 +175,8 @@ class Segmentation(_Image):
     def __init__(
         self,
         source_images: Sequence[Dataset],
-        pixel_array: Union[np.ndarray, Volume],
-        segmentation_type: Union[str, SegmentationTypeValues],
+        pixel_array: np.ndarray | Volume,
+        segmentation_type: str | SegmentationTypeValues,
         segment_descriptions: Sequence[SegmentDescription],
         series_instance_uid: str,
         series_number: int,
@@ -190,38 +184,38 @@ class Segmentation(_Image):
         instance_number: int,
         manufacturer: str,
         manufacturer_model_name: str,
-        software_versions: Union[str, Tuple[str]],
+        software_versions: str | tuple[str],
         device_serial_number: str,
-        fractional_type: Optional[
-            Union[str, SegmentationFractionalTypeValues]
-        ] = SegmentationFractionalTypeValues.PROBABILITY,
+        fractional_type: None | (
+            str | SegmentationFractionalTypeValues
+        ) = SegmentationFractionalTypeValues.PROBABILITY,
         max_fractional_value: int = 255,
-        content_description: Optional[str] = None,
-        content_creator_name: Optional[Union[str, PersonName]] = None,
-        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
-        pixel_measures: Optional[PixelMeasuresSequence] = None,
-        plane_orientation: Optional[PlaneOrientationSequence] = None,
-        plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
+        content_description: str | None = None,
+        content_creator_name: str | PersonName | None = None,
+        transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
+        pixel_measures: PixelMeasuresSequence | None = None,
+        plane_orientation: PlaneOrientationSequence | None = None,
+        plane_positions: Sequence[PlanePositionSequence] | None = None,
         omit_empty_frames: bool = True,
-        content_label: Optional[str] = None,
-        content_creator_identification: Optional[
+        content_label: str | None = None,
+        content_creator_identification: None | (
             ContentCreatorIdentificationCodeSequence
-        ] = None,
-        workers: Union[int, Executor] = 0,
-        dimension_organization_type: Union[
-            DimensionOrganizationTypeValues,
-            str,
-            None,
-        ] = None,
+        ) = None,
+        workers: int | Executor = 0,
+        dimension_organization_type: (
+            DimensionOrganizationTypeValues |
+            str |
+            None
+        ) = None,
         tile_pixel_array: bool = False,
-        tile_size: Union[Sequence[int], None] = None,
-        pyramid_uid: Optional[str] = None,
-        pyramid_label: Optional[str] = None,
-        further_source_images: Optional[Sequence[Dataset]] = None,
-        palette_color_lut_transformation: Optional[
+        tile_size: Sequence[int] | None = None,
+        pyramid_uid: str | None = None,
+        pyramid_label: str | None = None,
+        further_source_images: Sequence[Dataset] | None = None,
+        palette_color_lut_transformation: None | (
             PaletteColorLUTTransformation
-        ] = None,
-        icc_profile: Optional[bytes] = None,
+        ) = None,
+        icc_profile: bytes | None = None,
         **kwargs: Any
     ) -> None:
         """
@@ -492,7 +486,7 @@ class Segmentation(_Image):
         if len(source_images) == 0:
             raise ValueError('At least one source image is required.')
 
-        uniqueness_criteria = set(
+        uniqueness_criteria = {
             (
                 image.StudyInstanceUID,
                 image.SeriesInstanceUID,
@@ -501,7 +495,7 @@ class Segmentation(_Image):
                 getattr(image, 'FrameOfReferenceUID', None),
             )
             for image in source_images
-        )
+        }
         if len(uniqueness_criteria) > 1:
             raise ValueError(
                 'Source images must all be part of the same series and must '
@@ -727,8 +721,8 @@ class Segmentation(_Image):
         # Note that appending directly to the SourceImageSequence is typically
         # slow so it's more efficient to build as a Python list then convert
         # later. We save conversion for after the main loop
-        source_image_seq: List[Dataset] = []
-        referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
+        source_image_seq: list[Dataset] = []
+        referenced_series: dict[str, list[Dataset]] = defaultdict(list)
         for s_img in chain(source_images, further_source_images):
             ref = Dataset()
             ref.ReferencedSOPClassUID = s_img.SOPClassUID
@@ -738,7 +732,7 @@ class Segmentation(_Image):
         self.SourceImageSequence = source_image_seq
 
         # Common Instance Reference
-        ref_image_seq: List[Dataset] = []
+        ref_image_seq: list[Dataset] = []
         for series_instance_uid, referenced_images in referenced_series.items():
             ref = Dataset()
             ref.SeriesInstanceUID = series_instance_uid
@@ -1411,7 +1405,7 @@ class Segmentation(_Image):
             )
 
         is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
-        process_pool: Optional[Executor] = None
+        process_pool: Executor | None = None
 
         if not isinstance(workers, (int, Executor)):
             raise TypeError(
@@ -1427,7 +1421,7 @@ class Segmentation(_Image):
         # the end. In the case of encapsulated transfer syntaxes with no
         # workers, we will accumulate a list of encoded frames to encapsulate
         # at the end
-        frames: Union[List[bytes], List[np.ndarray]] = []
+        frames: list[bytes] | list[np.ndarray] = []
 
         # In the case of native encoding when the number pixels in a frame is
         # not a multiple of 8. This array carries "leftover" pixels that
@@ -1441,7 +1435,7 @@ class Segmentation(_Image):
                 # In the case of encapsulated transfer syntaxes with multiple
                 # workers, we will accumulate a list of encoded frames to
                 # encapsulate at the end
-                frame_futures: List[Future] = []
+                frame_futures: list[Future] = []
 
                 # Use the existing executor or create one
                 if isinstance(workers, Executor):
@@ -1477,7 +1471,7 @@ class Segmentation(_Image):
         # efficiency gain is observed when building this as a Python list
         # rather than a pydicom sequence, and then converting to a pydicom
         # sequence at the end
-        pffg_sequence: List[Dataset] = []
+        pffg_sequence: list[Dataset] = []
 
         # We want the larger loop to work in the labelmap cases (where segments
         # are dealt with together) and the other cases (where segments are
@@ -1693,7 +1687,7 @@ class Segmentation(_Image):
         self,
         pixel_array: np.ndarray,
         segment_descriptions: Sequence[SegmentDescription],
-        plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
+        plane_positions: Sequence[PlanePositionSequence] | None = None,
         omit_empty_frames: bool = True,
     ) -> None:
         """To ensure correctness of segmentation images, this
@@ -1792,7 +1786,7 @@ class Segmentation(_Image):
         source_image: Dataset,
         is_multiframe: bool,
         coordinate_system: CoordinateSystemNames | None,
-    ) -> Optional[PixelMeasuresSequence]:
+    ) -> PixelMeasuresSequence | None:
         """Get a Pixel Measures Sequence from the source image.
 
         This is a helper method used in the constructor.
@@ -1904,7 +1898,7 @@ class Segmentation(_Image):
         pixel_measures: PixelMeasuresSequence,
         are_spatial_locations_preserved: bool,
         is_tiled: bool,
-        total_pixel_matrix_size: Optional[Tuple[int, int]] = None,
+        total_pixel_matrix_size: tuple[int, int] | None = None,
     ) -> None:
         """Add metadata related to the slide coordinate system.
 
@@ -2025,18 +2019,18 @@ class Segmentation(_Image):
 
     @staticmethod
     def _check_tiled_dimension_organization(
-        dimension_organization_type: Union[
-            DimensionOrganizationTypeValues,
-            str,
-            None,
-        ],
+        dimension_organization_type: (
+            DimensionOrganizationTypeValues |
+            str |
+            None
+        ),
         is_tiled: bool,
         omit_empty_frames: bool,
         plane_positions: Sequence[PlanePositionSequence],
         tile_pixel_array: bool,
         rows: int,
         columns: int,
-    ) -> Optional[DimensionOrganizationTypeValues]:
+    ) -> DimensionOrganizationTypeValues | None:
         """Checks that the specified Dimension Organization Type is valid.
 
         Parameters
@@ -2131,7 +2125,7 @@ class Segmentation(_Image):
         segment_numbers: np.ndarray,
         segmentation_type: SegmentationTypeValues,
         dtype: type,
-    ) -> Tuple[np.ndarray, SegmentsOverlapValues]:
+    ) -> tuple[np.ndarray, SegmentsOverlapValues]:
         """Checks on the shape and data type of the pixel array.
 
         Also checks for overlapping segments and returns the result.
@@ -2308,7 +2302,7 @@ class Segmentation(_Image):
     @staticmethod
     def _get_nonempty_plane_indices(
         pixel_array: np.ndarray
-    ) -> Tuple[List[int], bool]:
+    ) -> tuple[list[int], bool]:
         """Get a list of all indices of original planes that are non-empty.
 
         Empty planes (without any positive pixels in any of the segments) do
@@ -2392,7 +2386,7 @@ class Segmentation(_Image):
         plane_positions: Sequence[PlanePositionSequence],
         rows: int,
         columns: int,
-    ) -> Tuple[List[int], bool]:
+    ) -> tuple[list[int], bool]:
         """Get a list of all indices of tile locations that are non-empty.
 
         This is similar to _get_nonempty_plane_indices, but works on a total
@@ -2537,13 +2531,13 @@ class Segmentation(_Image):
 
     @staticmethod
     def _get_pffg_item(
-        segment_number: Optional[int],
-        dimension_index_values: List[int],
+        segment_number: int | None,
+        dimension_index_values: list[int],
         plane_position: PlanePositionSequence,
-        source_images: List[Dataset],
+        source_images: list[Dataset],
         source_image_index: int,
         are_spatial_locations_preserved: bool,
-        coordinate_system: Optional[CoordinateSystemNames],
+        coordinate_system: CoordinateSystemNames | None,
         is_multiframe: bool,
     ) -> Dataset:
         """Get a single item of the Per Frame Functional Groups Sequence.
@@ -2871,7 +2865,7 @@ class Segmentation(_Image):
     @property
     def segmentation_fractional_type(
         self
-    ) -> Union[SegmentationFractionalTypeValues, None]:
+    ) -> SegmentationFractionalTypeValues | None:
         """
         highdicom.seg.SegmentationFractionalTypeValues:
             Segmentation fractional type.
@@ -2905,7 +2899,7 @@ class Segmentation(_Image):
         return len(self.SegmentSequence)
 
     @property
-    def segment_numbers(self) -> List[int]:
+    def segment_numbers(self) -> list[int]:
         """List[int]: The segment numbers of non-background segments present
         in the SEG image."""
         if hasattr(self, 'PixelPaddingValue'):
@@ -2946,13 +2940,13 @@ class Segmentation(_Image):
 
     def get_segment_numbers(
         self,
-        segment_label: Optional[str] = None,
-        segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
-        segmented_property_type: Optional[Union[Code, CodedConcept]] = None,
-        algorithm_type: Optional[Union[SegmentAlgorithmTypeValues, str]] = None,
-        tracking_uid: Optional[str] = None,
-        tracking_id: Optional[str] = None,
-    ) -> List[int]:
+        segment_label: str | None = None,
+        segmented_property_category: Code | CodedConcept | None = None,
+        segmented_property_type: Code | CodedConcept | None = None,
+        algorithm_type: SegmentAlgorithmTypeValues | str | None = None,
+        tracking_uid: str | None = None,
+        tracking_id: str | None = None,
+    ) -> list[int]:
         """Get a list of non-background segment numbers with given criteria.
 
         Any number of optional filters may be provided. A segment must match
@@ -3057,10 +3051,10 @@ class Segmentation(_Image):
 
     def get_tracking_ids(
         self,
-        segmented_property_category: Optional[Union[Code, CodedConcept]] = None,
-        segmented_property_type: Optional[Union[Code, CodedConcept]] = None,
-        algorithm_type: Optional[Union[SegmentAlgorithmTypeValues, str]] = None
-    ) -> List[Tuple[str, UID]]:
+        segmented_property_category: Code | CodedConcept | None = None,
+        segmented_property_type: Code | CodedConcept | None = None,
+        algorithm_type: SegmentAlgorithmTypeValues | str | None = None
+    ) -> list[tuple[str, UID]]:
         """Get all unique tracking identifiers in this SEG image.
 
         Any number of optional filters may be provided. A segment must match
@@ -3143,7 +3137,7 @@ class Segmentation(_Image):
         })
 
     @property
-    def segmented_property_categories(self) -> List[CodedConcept]:
+    def segmented_property_categories(self) -> list[CodedConcept]:
         """Get all unique non-background segmented property categories.
 
         Returns
@@ -3168,7 +3162,7 @@ class Segmentation(_Image):
         return categories
 
     @property
-    def segmented_property_types(self) -> List[CodedConcept]:
+    def segmented_property_types(self) -> list[CodedConcept]:
         """Get all unique non-background segmented property types.
 
         Returns
@@ -3194,13 +3188,13 @@ class Segmentation(_Image):
 
     def _get_pixels_by_seg_frame(
         self,
-        spatial_shape: Union[int, Tuple[int, int]],
+        spatial_shape: int | tuple[int, int],
         indices_iterator: Iterator[
-            Tuple[
+            tuple[
                 int,
-                Tuple[Union[slice, int], ...],
-                Tuple[Union[slice, int], ...],
-                Tuple[int, ...],
+                tuple[slice | int, ...],
+                tuple[slice | int, ...],
+                tuple[int, ...],
             ]
         ],
         segment_numbers: np.ndarray,
@@ -3208,7 +3202,7 @@ class Segmentation(_Image):
         relabel: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
-        dtype: Union[type, str, np.dtype, None] = None,
+        dtype: type | str | np.dtype | None = None,
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
@@ -3550,7 +3544,7 @@ class Segmentation(_Image):
 
     def get_default_dimension_index_pointers(
         self
-    ) -> List[BaseTag]:
+    ) -> list[BaseTag]:
         """Get the default list of tags used to index frames.
 
         The list of tags used to index dimensions depends upon how the
@@ -3575,7 +3569,7 @@ class Segmentation(_Image):
 
     def are_dimension_indices_unique(
         self,
-        dimension_index_pointers: Sequence[Union[int, BaseTag]]
+        dimension_index_pointers: Sequence[int | BaseTag]
     ) -> bool:
         """Check if a list of index pointers uniquely identifies frames.
 
@@ -3667,14 +3661,14 @@ class Segmentation(_Image):
     def get_pixels_by_source_instance(
         self,
         source_sop_instance_uids: Sequence[str],
-        segment_numbers: Optional[Sequence[int]] = None,
+        segment_numbers: Sequence[int] | None = None,
         combine_segments: bool = False,
         relabel: bool = False,
         ignore_spatial_locations: bool = False,
         assert_missing_frames_are_empty: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
-        dtype: Union[type, str, np.dtype, None] = None,
+        dtype: type | str | np.dtype | None = None,
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
@@ -3923,14 +3917,14 @@ class Segmentation(_Image):
         self,
         source_sop_instance_uid: str,
         source_frame_numbers: Sequence[int],
-        segment_numbers: Optional[Sequence[int]] = None,
+        segment_numbers: Sequence[int] | None = None,
         combine_segments: bool = False,
         relabel: bool = False,
         ignore_spatial_locations: bool = False,
         assert_missing_frames_are_empty: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
-        dtype: Union[type, str, np.dtype, None] = None,
+        dtype: type | str | np.dtype | None = None,
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
     ):
@@ -4221,7 +4215,7 @@ class Segmentation(_Image):
         atol: float | None = None,
         allow_missing_positions: bool = True,
         allow_duplicate_positions: bool = True,
-    ) -> Optional[VolumeGeometry]:
+    ) -> VolumeGeometry | None:
         """Get geometry of the image in 3D space.
 
         Note that this differs from the method of the same name on the
@@ -4265,15 +4259,15 @@ class Segmentation(_Image):
     def get_volume(
         self,
         *,
-        slice_start: Optional[int] = None,
-        slice_end: Optional[int] = None,
-        row_start: Optional[int] = None,
-        row_end: Optional[int] = None,
-        column_start: Optional[int] = None,
-        column_end: Optional[int] = None,
+        slice_start: int | None = None,
+        slice_end: int | None = None,
+        row_start: int | None = None,
+        row_end: int | None = None,
+        column_start: int | None = None,
+        column_end: int | None = None,
         as_indices: bool = False,
-        dtype: Union[type, str, np.dtype, None] = None,
-        segment_numbers: Optional[Sequence[int]] = None,
+        dtype: type | str | np.dtype | None = None,
+        segment_numbers: Sequence[int] | None = None,
         combine_segments: bool = False,
         relabel: bool = False,
         rescale_fractional: bool = True,
@@ -4539,14 +4533,14 @@ class Segmentation(_Image):
     def get_pixels_by_dimension_index_values(
         self,
         dimension_index_values: Sequence[Sequence[int]],
-        dimension_index_pointers: Optional[Sequence[int]] = None,
-        segment_numbers: Optional[Sequence[int]] = None,
+        dimension_index_pointers: Sequence[int] | None = None,
+        segment_numbers: Sequence[int] | None = None,
         combine_segments: bool = False,
         relabel: bool = False,
         assert_missing_frames_are_empty: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
-        dtype: Union[type, str, np.dtype, None] = None,
+        dtype: type | str | np.dtype | None = None,
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
     ):
@@ -4777,7 +4771,7 @@ class Segmentation(_Image):
             unique_dim_ind_vals = self._get_unique_dim_index_values(
                 dimension_index_pointers
             )
-            queried_dim_inds = set(tuple(r) for r in dimension_index_values)
+            queried_dim_inds = {tuple(r) for r in dimension_index_values}
             missing_dim_inds = queried_dim_inds - unique_dim_ind_vals
             if len(missing_dim_inds) > 0:
                 msg = (
@@ -4834,16 +4828,16 @@ class Segmentation(_Image):
 
     def get_total_pixel_matrix(
         self,
-        row_start: Optional[int] = None,
-        row_end: Optional[int] = None,
-        column_start: Optional[int] = None,
-        column_end: Optional[int] = None,
-        segment_numbers: Optional[Sequence[int]] = None,
+        row_start: int | None = None,
+        row_end: int | None = None,
+        column_start: int | None = None,
+        column_end: int | None = None,
+        segment_numbers: Sequence[int] | None = None,
         combine_segments: bool = False,
         relabel: bool = False,
         rescale_fractional: bool = True,
         skip_overlap_checks: bool = False,
-        dtype: Union[type, str, np.dtype, None] = None,
+        dtype: type | str | np.dtype | None = None,
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
         as_indices: bool = False,
@@ -5052,7 +5046,7 @@ class Segmentation(_Image):
 
 
 def segread(
-    fp: Union[str, bytes, PathLike, BinaryIO],
+    fp: str | bytes | PathLike | BinaryIO,
     lazy_frame_retrieval: bool = False,
 ) -> Segmentation:
     """Read a segmentation image stored in DICOM File Format.

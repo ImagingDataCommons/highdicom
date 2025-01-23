@@ -2,7 +2,6 @@
 import logging
 import sys
 import traceback
-from typing import List, Tuple, Union
 from typing_extensions import Self
 from pathlib import Path
 import weakref
@@ -40,7 +39,7 @@ _START_MARKERS = {_JPEG_SOI_MARKER, _JPEG2000_SOC_MARKER}
 _END_MARKERS = {_JPEG_EOI_MARKER, _JPEG2000_EOC_MARKER}
 
 
-def _get_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
+def _get_bot(fp: DicomFileLike, number_of_frames: int) -> list[int]:
     """Tries to read the value of the Basic Offset Table (BOT) item and builds
     it in case it is empty.
 
@@ -86,7 +85,7 @@ def _get_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
     return basic_offset_table
 
 
-def _read_bot(fp: DicomFileLike) -> List[int]:
+def _read_bot(fp: DicomFileLike) -> list[int]:
     """Read Basic Offset Table (BOT) item of encapsulated Pixel Data element.
 
     Parameters
@@ -126,7 +125,7 @@ def _read_bot(fp: DicomFileLike) -> List[int]:
     return offsets
 
 
-def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
+def _build_bot(fp: DicomFileLike, number_of_frames: int) -> list[int]:
     """Build Basic Offset Table (BOT) item of encapsulated Pixel Data element.
 
     Parameters
@@ -227,7 +226,7 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
 def _read_eot(
     extended_offset_table: bytes,
     number_of_frames: int
-) -> List[int]:
+) -> list[int]:
     """Read an extended offset table.
 
     Parameters
@@ -296,7 +295,7 @@ class ImageFileReader:
 
     """
 
-    def __init__(self, filename: Union[str, Path, DicomFileLike]):
+    def __init__(self, filename: str | Path | DicomFileLike):
         """
         Parameters
         ----------
@@ -414,7 +413,7 @@ class ImageFileReader:
     def _check_file_format(
             self,
             fp: DicomFileLike
-    ) -> Tuple[bool, bool]:
+    ) -> tuple[bool, bool]:
         """Check whether file object represents a DICOM Part 10 file.
 
         Parameters
@@ -559,8 +558,8 @@ class ImageFileReader:
         # Build the ICC Transformation object. This takes some time and should
         # be done only once to speedup subsequent color corrections.
 
-        icc_profile: Union[bytes, None] = None
-        self._color_manager: Union[ColorManager, None] = None
+        icc_profile: bytes | None = None
+        self._color_manager: ColorManager | None = None
         if metadata.SamplesPerPixel > 1:
             try:
                 icc_profile = metadata.ICCProfile

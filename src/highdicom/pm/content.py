@@ -1,4 +1,4 @@
-from typing import List, Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
 
 import numpy as np
 from pydicom.datadict import keyword_for_tag, tag_for_keyword
@@ -23,12 +23,12 @@ class RealWorldValueMapping(Dataset):
         self,
         lut_label: str,
         lut_explanation: str,
-        unit: Union[CodedConcept, Code],
-        value_range: Union[Tuple[int, int], Tuple[float, float]],
-        slope: Optional[Union[int, float]] = None,
-        intercept: Optional[Union[int, float]] = None,
-        lut_data: Optional[Sequence[float]] = None,
-        quantity_definition: Optional[Union[CodedConcept, Code]] = None
+        unit: CodedConcept | Code,
+        value_range: tuple[int, int] | tuple[float, float],
+        slope: int | float | None = None,
+        intercept: int | float | None = None,
+        lut_data: Sequence[float] | None = None,
+        quantity_definition: CodedConcept | Code | None = None
     ) -> None:
         """
         Parameters
@@ -167,14 +167,14 @@ class RealWorldValueMapping(Dataset):
         return 'RealWorldValueLUTData' in self
 
     @property
-    def lut_data(self) -> Optional[np.ndarray]:
+    def lut_data(self) -> np.ndarray | None:
         """Union[numpy.ndarray, None] LUT data, if present."""
         if self.has_lut():
             return np.array(self.RealWorldValueLUTData)
         return None
 
     @property
-    def value_range(self) -> Tuple[float, float]:
+    def value_range(self) -> tuple[float, float]:
         """Tuple[float, float]: Range of valid input values."""
         if 'DoubleFloatRealWorldValueFirstValueMapped' in self:
             return (
@@ -250,7 +250,7 @@ class DimensionIndexSequence(DataElementSequence):
 
     def __init__(
         self,
-        coordinate_system: Union[str, CoordinateSystemNames]
+        coordinate_system: str | CoordinateSystemNames
     ) -> None:
         """
         Parameters
@@ -353,7 +353,7 @@ class DimensionIndexSequence(DataElementSequence):
     def get_plane_positions_of_image(
         self,
         image: Dataset
-    ) -> List[PlanePositionSequence]:
+    ) -> list[PlanePositionSequence]:
         """Get plane positions of frames in multi-frame image.
 
         Parameters
@@ -394,7 +394,7 @@ class DimensionIndexSequence(DataElementSequence):
     def get_plane_positions_of_series(
         self,
         images: Sequence[Dataset]
-    ) -> List[PlanePositionSequence]:
+    ) -> list[PlanePositionSequence]:
         """Gets plane positions for series of single-frame images.
 
         Parameters
@@ -427,7 +427,7 @@ class DimensionIndexSequence(DataElementSequence):
     def get_index_values(
         self,
         plane_positions: Sequence[PlanePositionSequence]
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Get the values of indexed attributes.
 
         Parameters
@@ -503,7 +503,7 @@ class DimensionIndexSequence(DataElementSequence):
             )
         return indices[0]
 
-    def get_index_keywords(self) -> List[str]:
+    def get_index_keywords(self) -> list[str]:
         """Get keywords of attributes that specify the position of planes.
 
         Returns

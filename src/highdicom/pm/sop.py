@@ -1,5 +1,6 @@
 from collections import defaultdict
-from typing import cast, Dict, List, Optional, Sequence, Tuple, Union
+from typing import cast
+from collections.abc import Sequence
 from enum import Enum
 
 import numpy as np
@@ -60,37 +61,37 @@ class ParametricMap(SOPClass):
         instance_number: int,
         manufacturer: str,
         manufacturer_model_name: str,
-        software_versions: Union[str, Tuple[str]],
+        software_versions: str | tuple[str],
         device_serial_number: str,
         contains_recognizable_visual_features: bool,
-        real_world_value_mappings: Union[
-            Sequence[RealWorldValueMapping],
-            Sequence[Sequence[RealWorldValueMapping]],
-        ],
+        real_world_value_mappings: (
+            Sequence[RealWorldValueMapping] |
+            Sequence[Sequence[RealWorldValueMapping]]
+        ),
         window_center: float,
         window_width: float,
-        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
-        content_description: Optional[str] = None,
-        content_creator_name: Optional[str] = None,
-        pixel_measures: Optional[PixelMeasuresSequence] = None,
-        plane_orientation: Optional[PlaneOrientationSequence] = None,
-        plane_positions: Optional[Sequence[PlanePositionSequence]] = None,
-        content_label: Optional[str] = None,
-        content_qualification: Union[
-            str,
+        transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
+        content_description: str | None = None,
+        content_creator_name: str | None = None,
+        pixel_measures: PixelMeasuresSequence | None = None,
+        plane_orientation: PlaneOrientationSequence | None = None,
+        plane_positions: Sequence[PlanePositionSequence] | None = None,
+        content_label: str | None = None,
+        content_qualification: (
+            str |
             ContentQualificationValues
-        ] = ContentQualificationValues.RESEARCH,
-        image_flavor: Union[str, ImageFlavorValues] = ImageFlavorValues.VOLUME,
-        derived_pixel_contrast: Union[
-            str,
+        ) = ContentQualificationValues.RESEARCH,
+        image_flavor: str | ImageFlavorValues = ImageFlavorValues.VOLUME,
+        derived_pixel_contrast: (
+            str |
             DerivedPixelContrastValues
-        ] = DerivedPixelContrastValues.QUANTITY,
-        content_creator_identification: Optional[
+        ) = DerivedPixelContrastValues.QUANTITY,
+        content_creator_identification: None | (
             ContentCreatorIdentificationCodeSequence
-        ] = None,
-        palette_color_lut_transformation: Optional[
+        ) = None,
+        palette_color_lut_transformation: None | (
             PaletteColorLUTTransformation
-        ] = None,
+        ) = None,
         **kwargs,
     ):
         """
@@ -255,7 +256,7 @@ class ParametricMap(SOPClass):
             raise ValueError('At least one source image is required')
         self._source_images = source_images
 
-        uniqueness_criteria = set(
+        uniqueness_criteria = {
             (
                 image.StudyInstanceUID,
                 image.SeriesInstanceUID,  # TODO: Might be overly restrictive
@@ -264,7 +265,7 @@ class ParametricMap(SOPClass):
                 image.FrameOfReferenceUID,
             )
             for image in self._source_images
-        )
+        }
         if len(uniqueness_criteria) > 1:
             raise ValueError(
                 'Source images must all be part of the same series and must'
@@ -359,8 +360,8 @@ class ParametricMap(SOPClass):
         )
 
         # General Reference
-        self.SourceImageSequence: List[Dataset] = []
-        referenced_series: Dict[str, List[Dataset]] = defaultdict(list)
+        self.SourceImageSequence: list[Dataset] = []
+        referenced_series: dict[str, list[Dataset]] = defaultdict(list)
         for s_img in self._source_images:
             ref = Dataset()
             ref.ReferencedSOPClassUID = s_img.SOPClassUID
@@ -369,7 +370,7 @@ class ParametricMap(SOPClass):
             referenced_series[s_img.SeriesInstanceUID].append(ref)
 
         # Common Instance Reference
-        self.ReferencedSeriesSequence: List[Dataset] = []
+        self.ReferencedSeriesSequence: list[Dataset] = []
         for (
             series_instance_uid,
             referenced_images,
@@ -495,7 +496,7 @@ class ParametricMap(SOPClass):
             raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
         # Acquisition Context
-        self.AcquisitionContextSequence: List[Dataset] = []
+        self.AcquisitionContextSequence: list[Dataset] = []
 
         # Image Pixel
         self.Rows = pixel_array.shape[1]
@@ -766,7 +767,7 @@ class ParametricMap(SOPClass):
     def _get_pixel_data_type_and_attr(
         self,
         pixel_array: np.ndarray
-    ) -> Tuple[_PixelDataType, str]:
+    ) -> tuple[_PixelDataType, str]:
         """Get the data type and name of pixel data attribute.
 
         Parameters

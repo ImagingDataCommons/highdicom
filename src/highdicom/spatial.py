@@ -1,13 +1,5 @@
 import itertools
-from typing import (
-    Generator,
-    Iterator,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from collections.abc import Generator, Iterator, Sequence
 from typing_extensions import Self
 
 from pydicom import Dataset
@@ -75,7 +67,7 @@ def tile_pixel_matrix(
     total_pixel_matrix_columns: int,
     rows: int,
     columns: int,
-) -> Iterator[Tuple[int, int]]:
+) -> Iterator[tuple[int, int]]:
     """Tiles an image into smaller frames (rectangular regions).
 
     Follows the convention used in image with Dimension Organization Type
@@ -191,7 +183,7 @@ def compute_tile_positions_per_frame(
     total_pixel_matrix_image_position: Sequence[float],
     image_orientation: Sequence[float],
     pixel_spacing: Sequence[float],
-) -> List[Tuple[List[int], List[float]]]:
+) -> list[tuple[list[int], list[float]]]:
     """Get positions of each tile in a TILED_FULL image.
 
     A TILED_FULL image is one with DimensionOrganizationType of "TILED_FULL".
@@ -275,7 +267,7 @@ def compute_tile_positions_per_frame(
 def iter_tiled_full_frame_data(
     dataset: Dataset,
 ) -> Generator[
-    Tuple[Union[int, None], int, int, int, float, float, float],
+    tuple[int | None, int, int, int, float, float, float],
     None,
     None,
 ]:
@@ -418,7 +410,7 @@ def iter_tiled_full_frame_data(
 
 def get_image_coordinate_system(
     dataset: Dataset
-) -> Optional[CoordinateSystemNames]:
+) -> CoordinateSystemNames | None:
     """Get the coordinate system used by an image.
 
     Parameters
@@ -468,13 +460,13 @@ def get_image_coordinate_system(
 
 def _get_spatial_information(
     dataset: Dataset,
-    frame_number: Optional[int] = None,
+    frame_number: int | None = None,
     for_total_pixel_matrix: bool = False,
-) -> Tuple[
-    List[float],
-    List[float],
-    List[float],
-    Optional[float],
+) -> tuple[
+    list[float],
+    list[float],
+    list[float],
+    float | None,
 ]:
     """Get spatial information from an image dataset.
 
@@ -699,8 +691,8 @@ def _are_images_coplanar(
 
 
 def _normalize_pixel_index_convention(
-    c: Union[str, Sequence[Union[str, PixelIndexDirections]]],
-) -> Tuple[PixelIndexDirections, PixelIndexDirections]:
+    c: str | Sequence[str | PixelIndexDirections],
+) -> tuple[PixelIndexDirections, PixelIndexDirections]:
     """Normalize and check a pixel index convention.
 
     Parameters
@@ -735,8 +727,8 @@ def _normalize_pixel_index_convention(
 
 
 def _normalize_patient_orientation(
-    c: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]]],
-) -> Tuple[
+    c: str | Sequence[str | PatientOrientationValuesBiped],
+) -> tuple[
     PatientOrientationValuesBiped,
     PatientOrientationValuesBiped,
     PatientOrientationValuesBiped,
@@ -778,7 +770,7 @@ def _normalize_patient_orientation(
     return c
 
 
-def get_closest_patient_orientation(affine: np.ndarray) -> Tuple[
+def get_closest_patient_orientation(affine: np.ndarray) -> tuple[
     PatientOrientationValuesBiped,
     PatientOrientationValuesBiped,
     PatientOrientationValuesBiped,
@@ -891,11 +883,11 @@ def _is_matrix_orthogonal(
 
 def get_normal_vector(
     image_orientation: Sequence[float],
-    index_convention: Union[str, Sequence[Union[PixelIndexDirections, str]]] = (
+    index_convention: str | Sequence[PixelIndexDirections | str] = (
         PixelIndexDirections.R,
         PixelIndexDirections.D,
     ),
-    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
+    handedness: AxisHandedness | str = AxisHandedness.RIGHT_HANDED,
 ):
     """Get a vector normal to an imaging plane.
 
@@ -973,13 +965,13 @@ def get_normal_vector(
 
 def create_rotation_matrix(
     image_orientation: Sequence[float],
-    index_convention: Union[str, Sequence[Union[PixelIndexDirections, str]]] = (
+    index_convention: str | Sequence[PixelIndexDirections | str] = (
         PixelIndexDirections.R,
         PixelIndexDirections.D,
     ),
     slices_first: bool = False,
-    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
-    pixel_spacing: Union[float, Sequence[float]] = 1.0,
+    handedness: AxisHandedness | str = AxisHandedness.RIGHT_HANDED,
+    pixel_spacing: float | Sequence[float] = 1.0,
     spacing_between_slices: float = 1.0,
 ) -> np.ndarray:
     """Builds a rotation matrix (with or without scaling).
@@ -1122,14 +1114,14 @@ def _stack_affine_matrix(
 def create_affine_matrix_from_attributes(
     image_position: Sequence[float],
     image_orientation: Sequence[float],
-    pixel_spacing: Union[float, Sequence[float]],
+    pixel_spacing: float | Sequence[float],
     spacing_between_slices: float = 1.0,
-    index_convention: Union[str, Sequence[Union[PixelIndexDirections, str]]] = (
+    index_convention: str | Sequence[PixelIndexDirections | str] = (
         PixelIndexDirections.R,
         PixelIndexDirections.D,
     ),
     slices_first: bool = False,
-    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
+    handedness: AxisHandedness | str = AxisHandedness.RIGHT_HANDED,
 ) -> np.ndarray:
     """Create affine matrix from attributes found in a DICOM object.
 
@@ -1316,11 +1308,11 @@ def _create_inv_affine_matrix_from_attributes(
 
 
 def rotation_for_patient_orientation(
-    patient_orientation: Union[
-        str,
-        Sequence[Union[str, PatientOrientationValuesBiped]],
-    ],
-    spacing: Union[float, Sequence[float]] = 1.0,
+    patient_orientation: (
+        str |
+        Sequence[str | PatientOrientationValuesBiped]
+    ),
+    spacing: float | Sequence[float] = 1.0,
 ) -> np.ndarray:
     """Create a (scaled) rotation matrix for a given patient orientation.
 
@@ -1370,11 +1362,11 @@ def create_affine_matrix_from_components(
     position: Sequence[float] | None = None,
     center_position: Sequence[float] | None = None,
     direction: Sequence[float] | None = None,
-    patient_orientation: Union[
-        str,
-        Sequence[Union[str, PatientOrientationValuesBiped]],
-        None,
-    ] = None,
+    patient_orientation: (
+        str |
+        Sequence[str | PatientOrientationValuesBiped] |
+        None
+    ) = None,
     spatial_shape: Sequence[int] | None = None,
 ) -> np.ndarray:
     """Construct an affine matrix from components.
@@ -1501,10 +1493,10 @@ def create_affine_matrix_from_components(
 def _transform_affine_matrix(
     affine: np.ndarray,
     shape: Sequence[int],
-    flip_indices: Optional[Sequence[bool]] = None,
-    flip_reference: Optional[Sequence[bool]] = None,
-    permute_indices: Optional[Sequence[int]] = None,
-    permute_reference: Optional[Sequence[int]] = None,
+    flip_indices: Sequence[bool] | None = None,
+    flip_reference: Sequence[bool] | None = None,
+    permute_indices: Sequence[int] | None = None,
+    permute_reference: Sequence[int] | None = None,
 ) -> np.ndarray:
     """Transform an affine matrix between conventions.
 
@@ -1567,7 +1559,7 @@ def _transform_affine_matrix(
             raise ValueError(
                 'Argument "permute_indices" should have 3 elements.'
             )
-        if set(permute_indices) != set((0, 1, 2)):
+        if set(permute_indices) != {0, 1, 2}:
             raise ValueError(
                 'Argument "permute_indices" should contain elements 0, 1, '
                 "and 3 in some order."
@@ -1580,7 +1572,7 @@ def _transform_affine_matrix(
             raise ValueError(
                 'Argument "permute_reference" should have 3 elements.'
             )
-        if set(permute_reference) != set((0, 1, 2)):
+        if set(permute_reference) != {0, 1, 2}:
             raise ValueError(
                 'Argument "permute_reference" should contain elements 0, 1, '
                 "and 3 in some order."
@@ -1626,12 +1618,12 @@ def _translate_affine_matrix(
 def _transform_affine_to_convention(
     affine: np.ndarray,
     shape: Sequence[int],
-    from_reference_convention: Union[
-        str, Sequence[Union[str, PatientOrientationValuesBiped]],
-    ],
-    to_reference_convention: Union[
-        str, Sequence[Union[str, PatientOrientationValuesBiped]],
-    ]
+    from_reference_convention: (
+        str | Sequence[str | PatientOrientationValuesBiped]
+    ),
+    to_reference_convention: (
+        str | Sequence[str | PatientOrientationValuesBiped]
+    )
 ) -> np.ndarray:
     """Transform an affine matrix between different conventions.
 
@@ -1824,7 +1816,7 @@ class PixelToReferenceTransformer:
     def for_image(
         cls,
         dataset: Dataset,
-        frame_number: Optional[int] = None,
+        frame_number: int | None = None,
         for_total_pixel_matrix: bool = False,
     ) -> Self:
         """Construct a transformer for a given image or image frame.
@@ -2039,7 +2031,7 @@ class ReferenceToPixelTransformer:
     def for_image(
         cls,
         dataset: Dataset,
-        frame_number: Optional[int] = None,
+        frame_number: int | None = None,
         for_total_pixel_matrix: bool = False,
         round_output: bool = True,
         drop_slice_index: bool = False,
@@ -2283,8 +2275,8 @@ class PixelToPixelTransformer:
         cls,
         dataset_from: Dataset,
         dataset_to: Dataset,
-        frame_number_from: Optional[int] = None,
-        frame_number_to: Optional[int] = None,
+        frame_number_from: int | None = None,
+        frame_number_to: int | None = None,
         for_total_pixel_matrix_from: bool = False,
         for_total_pixel_matrix_to: bool = False,
         round_output: bool = True,
@@ -2491,7 +2483,7 @@ class ImageToReferenceTransformer:
     def for_image(
         cls,
         dataset: Dataset,
-        frame_number: Optional[int] = None,
+        frame_number: int | None = None,
         for_total_pixel_matrix: bool = False,
     ) -> Self:
         """Construct a transformer for a given image or image frame.
@@ -2704,7 +2696,7 @@ class ReferenceToImageTransformer:
     def for_image(
         cls,
         dataset: Dataset,
-        frame_number: Optional[int] = None,
+        frame_number: int | None = None,
         for_total_pixel_matrix: bool = False,
         drop_slice_coord: bool = False,
     ) -> Self:
@@ -2941,8 +2933,8 @@ class ImageToImageTransformer:
         cls,
         dataset_from: Dataset,
         dataset_to: Dataset,
-        frame_number_from: Optional[int] = None,
-        frame_number_to: Optional[int] = None,
+        frame_number_from: int | None = None,
+        frame_number_to: int | None = None,
         for_total_pixel_matrix_from: bool = False,
         for_total_pixel_matrix_to: bool = False,
     ) -> Self:
@@ -3008,7 +3000,7 @@ def map_pixel_into_coordinate_system(
     image_position: Sequence[float],
     image_orientation: Sequence[float],
     pixel_spacing: Sequence[float],
-) -> Tuple[float, float, float]:
+) -> tuple[float, float, float]:
     """Map an index to the pixel matrix into the reference coordinate system.
 
     Parameters
@@ -3076,7 +3068,7 @@ def map_coordinate_into_pixel_matrix(
     image_orientation: Sequence[float],
     pixel_spacing: Sequence[float],
     spacing_between_slices: float = 1.0,
-) -> Tuple[int, int, int]:
+) -> tuple[int, int, int]:
     """Map a reference coordinate into an index to the total pixel matrix.
 
     Parameters
@@ -3197,13 +3189,13 @@ def get_series_volume_positions(
     sort: bool = True,
     allow_missing_positions: bool = False,
     allow_duplicate_positions: bool = False,
-    index_convention: Union[
-        str,
-        Sequence[Union[PixelIndexDirections, str]]
-    ] = VOLUME_INDEX_CONVENTION,
-    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
+    index_convention: (
+        str |
+        Sequence[PixelIndexDirections | str]
+    ) = VOLUME_INDEX_CONVENTION,
+    handedness: AxisHandedness | str = AxisHandedness.RIGHT_HANDED,
     enforce_handedness: bool = False,
-) -> Tuple[Optional[float], Optional[List[int]]]:
+) -> tuple[float | None, list[int] | None]:
     """Get volume positions and spacing for a series of single frame images.
 
     First determines whether the image series represents a 3D volume.
@@ -3335,14 +3327,14 @@ def get_volume_positions(
     sort: bool = True,
     allow_missing_positions: bool = False,
     allow_duplicate_positions: bool = False,
-    spacing_hint: Optional[float] = None,
-    index_convention: Union[
-        str,
-        Sequence[Union[PixelIndexDirections, str]]
-    ] = VOLUME_INDEX_CONVENTION,
-    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
+    spacing_hint: float | None = None,
+    index_convention: (
+        str |
+        Sequence[PixelIndexDirections | str]
+    ) = VOLUME_INDEX_CONVENTION,
+    handedness: AxisHandedness | str = AxisHandedness.RIGHT_HANDED,
     enforce_handedness: bool = False,
-) -> Tuple[Optional[float], Optional[List[int]]]:
+) -> tuple[float | None, list[int] | None]:
     """Get the spacing and positions of images within a 3D volume.
 
     First determines whether the image positions and orientation represent a 3D
@@ -3611,12 +3603,12 @@ def get_volume_positions(
 def get_plane_sort_index(
     image_positions: Sequence[Sequence[float]],
     image_orientation: Sequence[float],
-    index_convention: Union[
-        str,
-        Sequence[Union[PixelIndexDirections, str]]
-    ] = VOLUME_INDEX_CONVENTION,
-    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
-) -> List[int]:
+    index_convention: (
+        str |
+        Sequence[PixelIndexDirections | str]
+    ) = VOLUME_INDEX_CONVENTION,
+    handedness: AxisHandedness | str = AxisHandedness.RIGHT_HANDED,
+) -> list[int]:
     """
 
     Parameters
@@ -3684,12 +3676,12 @@ def get_plane_sort_index(
 
 def get_dataset_sort_index(
     datasets: Sequence[Dataset],
-    index_convention: Union[
-        str,
-        Sequence[Union[PixelIndexDirections, str]]
-    ] = VOLUME_INDEX_CONVENTION,
-    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
-) -> List[int]:
+    index_convention: (
+        str |
+        Sequence[PixelIndexDirections | str]
+    ) = VOLUME_INDEX_CONVENTION,
+    handedness: AxisHandedness | str = AxisHandedness.RIGHT_HANDED,
+) -> list[int]:
     """Get index to sort single frame datasets spatially.
 
     Parameters
@@ -3750,12 +3742,12 @@ def get_dataset_sort_index(
 
 def sort_datasets(
     datasets: Sequence[Dataset],
-    index_convention: Union[
-        str,
-        Sequence[Union[PixelIndexDirections, str]]
-    ] = VOLUME_INDEX_CONVENTION,
-    handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
-) -> List[Dataset]:
+    index_convention: (
+        str |
+        Sequence[PixelIndexDirections | str]
+    ) = VOLUME_INDEX_CONVENTION,
+    handedness: AxisHandedness | str = AxisHandedness.RIGHT_HANDED,
+) -> list[Dataset]:
     """Sort single frame datasets spatially.
 
     Parameters

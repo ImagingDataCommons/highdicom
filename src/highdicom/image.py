@@ -9,18 +9,9 @@ import sqlite3
 from typing import (
     Any,
     BinaryIO,
-    Iterable,
-    Iterator,
-    Dict,
-    Generator,
-    List,
-    Optional,
-    Set,
-    Sequence,
-    Tuple,
-    Union,
     cast,
 )
+from collections.abc import Iterable, Iterator, Generator, Sequence
 from typing_extensions import Self
 
 import numpy as np
@@ -174,13 +165,13 @@ class _CombinedPixelTransform:
         image: Dataset,
         frame_index: int = 0,
         *,
-        output_dtype: Union[type, str, np.dtype] = np.float64,
+        output_dtype: type | str | np.dtype = np.float64,
         apply_real_world_transform: bool | None = None,
         real_world_value_map_selector: int | str | Code | CodedConcept = 0,
         apply_modality_transform: bool | None = None,
         apply_voi_transform: bool | None = False,
         voi_transform_selector: int | str | VOILUTTransformation = 0,
-        voi_output_range: Tuple[float, float] = (0.0, 1.0),
+        voi_output_range: tuple[float, float] = (0.0, 1.0),
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
         remove_palette_color_values: Sequence[int] | None = None,
@@ -522,12 +513,12 @@ class _CombinedPixelTransform:
                     )
                 )
 
-            modality_lut: Optional[LUT] = None
-            modality_slope_intercept: Optional[Tuple[float, float]] = None
+            modality_lut: LUT | None = None
+            modality_slope_intercept: tuple[float, float] | None = None
 
-            voi_lut: Optional[LUT] = None
-            voi_scaled_lut_data: Optional[np.ndarray] = None
-            voi_center_width: Optional[Tuple[float, float]] = None
+            voi_lut: LUT | None = None
+            voi_scaled_lut_data: np.ndarray | None = None
+            voi_center_width: tuple[float, float] | None = None
             voi_function = 'LINEAR'
             invert = False
             has_rwvm = False
@@ -1114,10 +1105,10 @@ class _Image(SOPClass):
     _coordinate_system: CoordinateSystemNames | None
     _is_tiled_full: bool
     _single_source_frame_per_frame: bool
-    _dim_ind_pointers: List[BaseTag]
+    _dim_ind_pointers: list[BaseTag]
     # Mapping of tag value to (index column name, val column name(s))
-    _dim_ind_col_names: Dict[int, Tuple[str, Union[str, Tuple[str, ...], None]]]
-    _locations_preserved: Optional[SpatialLocationsPreservedValues]
+    _dim_ind_col_names: dict[int, tuple[str, str | tuple[str, ...] | None]]
+    _locations_preserved: SpatialLocationsPreservedValues | None
     _db_con: sqlite3.Connection
     _file_reader: ImageFileReader | None
 
@@ -1367,13 +1358,13 @@ class _Image(SOPClass):
         frame_number: int,
         as_index: bool = False,
         *,
-        dtype: Union[type, str, np.dtype] = np.float64,
+        dtype: type | str | np.dtype = np.float64,
         apply_real_world_transform: bool | None = None,
         real_world_value_map_selector: int | str | Code | CodedConcept = 0,
         apply_modality_transform: bool | None = None,
         apply_voi_transform: bool | None = False,
         voi_transform_selector: int | str | VOILUTTransformation = 0,
-        voi_output_range: Tuple[float, float] = (0.0, 1.0),
+        voi_output_range: tuple[float, float] = (0.0, 1.0),
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
         apply_icc_profile: bool | None = None,
@@ -1555,7 +1546,7 @@ class _Image(SOPClass):
         # Defer to pydicom
         return super().pixel_array
 
-    def __getstate__(self) -> Dict[str, Any]:
+    def __getstate__(self) -> dict[str, Any]:
         """Get the state for pickling.
 
         This is required to work around the fact that a sqlite3
@@ -1576,7 +1567,7 @@ class _Image(SOPClass):
 
         return state
 
-    def __setstate__(self, state: Dict[str, Any]) -> None:
+    def __setstate__(self, state: dict[str, Any]) -> None:
         """Set the state of the object.
 
         This is required to work around the fact that a sqlite3
@@ -1764,17 +1755,17 @@ class _Image(SOPClass):
         if 'PerFrameFunctionalGroupsSequence' in self:
             first_pffgs = self.PerFrameFunctionalGroupsSequence[0]
 
-        dim_indices: Dict[int, List[int]] = {
+        dim_indices: dict[int, list[int]] = {
             ptr: [] for ptr in self._dim_ind_pointers
         }
-        dim_values: Dict[int, List[Any]] = {
+        dim_values: dict[int, list[Any]] = {
             ptr: [] for ptr in self._dim_ind_pointers
         }
 
         # Additional information that is not one of the indices
         extra_collection_pointers = []
         extra_collection_func_pointers = {}
-        extra_collection_values: Dict[int, List[Any]] = {}
+        extra_collection_values: dict[int, list[Any]] = {}
 
         for grp_ptr, ptr in [
             # PlanePositionSequence/ImagePositionPatient
@@ -1842,10 +1833,10 @@ class _Image(SOPClass):
                     extra_collection_values[ptr] = []
 
         slice_spacing_hint = None
-        shared_pixel_spacing: Optional[List[float]] = None
+        shared_pixel_spacing: list[float] | None = None
 
         # Get the shared orientation
-        shared_image_orientation: Optional[List[float]] = None
+        shared_image_orientation: list[float] | None = None
         if hasattr(self, 'ImageOrientationSlide'):
             shared_image_orientation = self.ImageOrientationSlide
 
@@ -1902,8 +1893,8 @@ class _Image(SOPClass):
             referenced_instances = None
             referenced_frames = None
         else:
-            referenced_instances: Optional[List[str]] = []
-            referenced_frames: Optional[List[int]] = []
+            referenced_instances: list[str] | None = []
+            referenced_frames: list[int] | None = []
 
             # Create a list of source images and check for spatial locations
             # preserved
@@ -2289,7 +2280,7 @@ class _Image(SOPClass):
                 zip(*column_data),
             )
 
-    def _get_ref_instance_uids(self) -> List[Tuple[str, str, str]]:
+    def _get_ref_instance_uids(self) -> list[tuple[str, str, str]]:
         """List all instances referenced in the image.
 
         Returns
@@ -2413,7 +2404,7 @@ class _Image(SOPClass):
             )
 
     @property
-    def dimension_index_pointers(self) -> List[BaseTag]:
+    def dimension_index_pointers(self) -> list[BaseTag]:
         """List[pydicom.tag.BaseTag]:
             List of tags used as dimension indices.
         """
@@ -2421,7 +2412,7 @@ class _Image(SOPClass):
 
     def _create_ref_instance_table(
         self,
-        referenced_uids: List[Tuple[str, str, str]],
+        referenced_uids: list[tuple[str, str, str]],
     ) -> None:
         """Create a table of referenced instances.
 
@@ -2497,7 +2488,7 @@ class _Image(SOPClass):
 
     def are_dimension_indices_unique(
         self,
-        dimension_index_pointers: Sequence[Union[int, BaseTag, str]],
+        dimension_index_pointers: Sequence[int | BaseTag | str],
     ) -> bool:
         """Check if a list of index pointers uniquely identifies frames.
 
@@ -2530,7 +2521,7 @@ class _Image(SOPClass):
             column_names.append(self._dim_ind_col_names[ptr][0])
         return self._do_columns_identify_unique_frames(column_names)
 
-    def get_source_image_uids(self) -> List[Tuple[UID, UID, UID]]:
+    def get_source_image_uids(self) -> list[tuple[UID, UID, UID]]:
         """Get UIDs of source image instances referenced in the image.
 
         Returns
@@ -2559,7 +2550,7 @@ class _Image(SOPClass):
             (UID(a), UID(b), UID(c)) for a, b, c in res.fetchall()
         ]
 
-    def _get_unique_referenced_sop_instance_uids(self) -> Set[str]:
+    def _get_unique_referenced_sop_instance_uids(self) -> set[str]:
         """Get set of unique Referenced SOP Instance UIDs.
 
         Returns
@@ -2614,7 +2605,7 @@ class _Image(SOPClass):
     def _get_unique_dim_index_values(
         self,
         dimension_index_pointers: Sequence[int],
-    ) -> Set[Tuple[int, ...]]:
+    ) -> set[tuple[int, ...]]:
         """Get set of unique dimension index value combinations.
 
         Parameters
@@ -2881,7 +2872,7 @@ class _Image(SOPClass):
         atol: float | None = None,
         allow_missing_positions: bool = False,
         allow_duplicate_positions: bool = True,
-    ) -> Optional[VolumeGeometry]:
+    ) -> VolumeGeometry | None:
         """Get geometry of the image in 3D space.
 
         This will succeed in two situations. Either the image is a consists of
@@ -3102,24 +3093,24 @@ class _Image(SOPClass):
 
     def _get_pixels_by_frame(
         self,
-        spatial_shape: Union[int, Tuple[int, int]],
+        spatial_shape: int | tuple[int, int],
         indices_iterator: Iterator[
-            Tuple[
+            tuple[
                 int,
-                Tuple[Union[slice, int], ...],
-                Tuple[Union[slice, int], ...],
-                Tuple[int, ...],
+                tuple[slice | int, ...],
+                tuple[slice | int, ...],
+                tuple[int, ...],
             ]
         ],
         *,
-        dtype: Union[type, str, np.dtype] = np.float64,
+        dtype: type | str | np.dtype = np.float64,
         channel_shape: tuple[int, ...] = (),
         apply_real_world_transform: bool | None = None,
         real_world_value_map_selector: int | str | Code | CodedConcept = 0,
         apply_modality_transform: bool | None = None,
         apply_voi_transform: bool | None = False,
         voi_transform_selector: int | str | VOILUTTransformation = 0,
-        voi_output_range: Tuple[float, float] = (0.0, 1.0),
+        voi_output_range: tuple[float, float] = (0.0, 1.0),
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
         remove_palette_color_values: Sequence[int] | None = None,
@@ -3378,11 +3369,11 @@ class _Image(SOPClass):
 
     def _normalize_dimension_queries(
         self,
-        queries: Dict[Union[int, str], Any],
+        queries: dict[int | str, Any],
         use_indices: bool,
         multiple_values: bool,
         allow_missing_values: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Check and standardize queries used to specify dimensions.
 
         Parameters
@@ -3415,7 +3406,7 @@ class _Image(SOPClass):
             in the Frame LUT.
 
         """
-        normalized_queries: Dict[str, Any] = {}
+        normalized_queries: dict[str, Any] = {}
         tag: BaseTag | None = None
 
         if len(queries) == 0:
@@ -3557,7 +3548,7 @@ class _Image(SOPClass):
     def _prepare_channel_tables(
         self,
         norm_channel_indices_list: list[dict[str, Any]],
-        remap_channel_indices: Optional[Sequence[int]] = None,
+        remap_channel_indices: Sequence[int] | None = None,
     ) -> tuple[list[str], list[str], list[_SQLTableDefinition]]:
         """Prepare query elements for a query involving output channels.
 
@@ -3653,7 +3644,7 @@ class _Image(SOPClass):
 
     def _prepare_filter_string(
         self,
-        filters: Optional[Dict[Union[int, str], Any]] = None,
+        filters: dict[int | str, Any] | None = None,
         filters_use_indices: bool = False,
         allow_missing_values: bool = False,
     ) -> str:
@@ -3701,23 +3692,23 @@ class _Image(SOPClass):
     @contextmanager
     def _iterate_indices_for_stack(
         self,
-        stack_indices: Dict[Union[int, str], Sequence[Any]] | None = None,
+        stack_indices: dict[int | str, Sequence[Any]] | None = None,
         stack_dimension_use_indices: bool = False,
         stack_table_def: _SQLTableDefinition | None = None,
         channel_indices: list[dict[int | str, Sequence[Any]]] | None = None,
         channel_dimension_use_indices: bool = False,
-        remap_channel_indices: Optional[Sequence[int]] = None,
-        filters: Optional[Dict[Union[int, str], Any]] = None,
+        remap_channel_indices: Sequence[int] | None = None,
+        filters: dict[int | str, Any] | None = None,
         filters_use_indices: bool = False,
         allow_missing_values: bool = False,
         allow_missing_combinations: bool = False,
     ) -> Generator[
             Iterator[
-                Tuple[
+                tuple[
                     int,  # frame index
-                    Tuple[slice, slice],  # input indexer
-                    Tuple[int, slice, slice],  # output indexer
-                    Tuple[int, ...],  # channel indexer
+                    tuple[slice, slice],  # input indexer
+                    tuple[int, slice, slice],  # output indexer
+                    tuple[int, ...],  # channel indexer
                 ]
             ],
             None,
@@ -4029,10 +4020,10 @@ class _Image(SOPClass):
 
     @staticmethod
     def _standardize_row_column_indices(
-        row_start: Optional[int],
-        row_end: Optional[int],
-        column_start: Optional[int],
-        column_end: Optional[int],
+        row_start: int | None,
+        row_end: int | None,
+        column_start: int | None,
+        column_end: int | None,
         rows: int,
         columns: int,
         as_indices: bool = False,
@@ -4154,26 +4145,26 @@ class _Image(SOPClass):
     @contextmanager
     def _iterate_indices_for_tiled_region(
         self,
-        row_start: Optional[int] = None,
-        row_end: Optional[int] = None,
-        column_start: Optional[int] = None,
-        column_end: Optional[int] = None,
+        row_start: int | None = None,
+        row_end: int | None = None,
+        column_start: int | None = None,
+        column_end: int | None = None,
         as_indices: bool = False,
         channel_indices: list[dict[int | str, Sequence[Any]]] | None = None,
         channel_dimension_use_indices: bool = False,
-        remap_channel_indices: Optional[Sequence[int]] = None,
-        filters: Optional[Dict[Union[int, str], Any]] = None,
+        remap_channel_indices: Sequence[int] | None = None,
+        filters: dict[int | str, Any] | None = None,
         filters_use_indices: bool = False,
         allow_missing_values: bool = False,
         allow_missing_combinations: bool = False,
     ) -> tuple[
             Generator[
                 Iterator[
-                    Tuple[
+                    tuple[
                         int,
-                        Tuple[slice, slice],
-                        Tuple[slice, slice],
-                        Tuple[int, ...]
+                        tuple[slice, slice],
+                        tuple[slice, slice],
+                        tuple[int, ...]
                     ]
                 ],
                 None,
@@ -4463,7 +4454,7 @@ class _Image(SOPClass):
     @classmethod
     def from_file(
         cls,
-        fp: Union[str, bytes, PathLike, BinaryIO],
+        fp: str | bytes | PathLike | BinaryIO,
         lazy_frame_retrieval: bool = False
     ) -> Self:
         """Read an image stored in DICOM File Format.
@@ -4527,20 +4518,20 @@ class Image(_Image):
     def get_volume(
         self,
         *,
-        slice_start: Optional[int] = None,
-        slice_end: Optional[int] = None,
-        row_start: Optional[int] = None,
-        row_end: Optional[int] = None,
-        column_start: Optional[int] = None,
-        column_end: Optional[int] = None,
+        slice_start: int | None = None,
+        slice_end: int | None = None,
+        row_start: int | None = None,
+        row_end: int | None = None,
+        column_start: int | None = None,
+        column_end: int | None = None,
         as_indices: bool = False,
-        dtype: Union[type, str, np.dtype] = np.float64,
+        dtype: type | str | np.dtype = np.float64,
         apply_real_world_transform: bool | None = None,
         real_world_value_map_selector: int | str | Code | CodedConcept = 0,
         apply_modality_transform: bool | None = None,
         apply_voi_transform: bool | None = False,
         voi_transform_selector: int | str | VOILUTTransformation = 0,
-        voi_output_range: Tuple[float, float] = (0.0, 1.0),
+        voi_output_range: tuple[float, float] = (0.0, 1.0),
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
         apply_icc_profile: bool | None = None,
@@ -4868,17 +4859,17 @@ class Image(_Image):
 
     def get_total_pixel_matrix(
         self,
-        row_start: Optional[int] = None,
-        row_end: Optional[int] = None,
-        column_start: Optional[int] = None,
-        column_end: Optional[int] = None,
-        dtype: Union[type, str, np.dtype] = np.float64,
+        row_start: int | None = None,
+        row_end: int | None = None,
+        column_start: int | None = None,
+        column_end: int | None = None,
+        dtype: type | str | np.dtype = np.float64,
         apply_real_world_transform: bool | None = None,
         real_world_value_map_selector: int | str | Code | CodedConcept = 0,
         apply_modality_transform: bool | None = None,
         apply_voi_transform: bool | None = False,
         voi_transform_selector: int | str | VOILUTTransformation = 0,
-        voi_output_range: Tuple[float, float] = (0.0, 1.0),
+        voi_output_range: tuple[float, float] = (0.0, 1.0),
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
         apply_icc_profile: bool | None = None,
@@ -5071,7 +5062,7 @@ class Image(_Image):
 
 
 def imread(
-    fp: Union[str, bytes, PathLike, BinaryIO],
+    fp: str | bytes | PathLike | BinaryIO,
     lazy_frame_retrieval: bool = False
 ) -> Image:
     """Read an image stored in DICOM File Format.
@@ -5103,13 +5094,13 @@ def imread(
 def get_volume_from_series(
     series_datasets: Sequence[Dataset],
     *,
-    dtype: Union[type, str, np.dtype] = np.float64,
+    dtype: type | str | np.dtype = np.float64,
     apply_real_world_transform: bool | None = None,
     real_world_value_map_selector: int | str | Code | CodedConcept = 0,
     apply_modality_transform: bool | None = None,
     apply_voi_transform: bool | None = False,
     voi_transform_selector: int | str | VOILUTTransformation = 0,
-    voi_output_range: Tuple[float, float] = (0.0, 1.0),
+    voi_output_range: tuple[float, float] = (0.0, 1.0),
     apply_presentation_lut: bool = True,
     apply_palette_color_lut: bool | None = None,
     apply_icc_profile: bool | None = None,

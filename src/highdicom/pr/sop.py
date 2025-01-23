@@ -2,7 +2,7 @@
 import logging
 import pkgutil
 from collections import defaultdict
-from typing import Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
 
 import numpy as np
 from pydicom import Dataset
@@ -69,30 +69,30 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
         instance_number: int,
         manufacturer: str,
         manufacturer_model_name: str,
-        software_versions: Union[str, Tuple[str]],
+        software_versions: str | tuple[str],
         device_serial_number: str,
         content_label: str,
-        content_description: Optional[str] = None,
-        graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
-        graphic_layers: Optional[Sequence[GraphicLayer]] = None,
-        graphic_groups: Optional[Sequence[GraphicGroup]] = None,
-        concept_name: Union[Code, CodedConcept, None] = None,
-        institution_name: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
-        content_creator_name: Optional[Union[str, PersonName]] = None,
-        content_creator_identification: Optional[
+        content_description: str | None = None,
+        graphic_annotations: Sequence[GraphicAnnotation] | None = None,
+        graphic_layers: Sequence[GraphicLayer] | None = None,
+        graphic_groups: Sequence[GraphicGroup] | None = None,
+        concept_name: Code | CodedConcept | None = None,
+        institution_name: str | None = None,
+        institutional_department_name: str | None = None,
+        content_creator_name: str | PersonName | None = None,
+        content_creator_identification: None | (
             ContentCreatorIdentificationCodeSequence
-        ] = None,
-        modality_lut_transformation: Optional[
+        ) = None,
+        modality_lut_transformation: None | (
             ModalityLUTTransformation
-        ] = None,
-        voi_lut_transformations: Optional[
+        ) = None,
+        voi_lut_transformations: None | (
             Sequence[SoftcopyVOILUTTransformation]
-        ] = None,
-        presentation_lut_transformation: Optional[
+        ) = None,
+        presentation_lut_transformation: None | (
             PresentationLUTTransformation
-        ] = None,
-        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
+        ) = None,
+        transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
         **kwargs
     ):
         """
@@ -340,29 +340,29 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
         instance_number: int,
         manufacturer: str,
         manufacturer_model_name: str,
-        software_versions: Union[str, Tuple[str]],
+        software_versions: str | tuple[str],
         device_serial_number: str,
         palette_color_lut_transformation: PaletteColorLUTTransformation,
         content_label: str,
-        content_description: Optional[str] = None,
-        graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
-        graphic_layers: Optional[Sequence[GraphicLayer]] = None,
-        graphic_groups: Optional[Sequence[GraphicGroup]] = None,
-        concept_name: Union[Code, CodedConcept, None] = None,
-        institution_name: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
-        content_creator_name: Optional[Union[str, PersonName]] = None,
-        content_creator_identification: Optional[
+        content_description: str | None = None,
+        graphic_annotations: Sequence[GraphicAnnotation] | None = None,
+        graphic_layers: Sequence[GraphicLayer] | None = None,
+        graphic_groups: Sequence[GraphicGroup] | None = None,
+        concept_name: Code | CodedConcept | None = None,
+        institution_name: str | None = None,
+        institutional_department_name: str | None = None,
+        content_creator_name: str | PersonName | None = None,
+        content_creator_identification: None | (
             ContentCreatorIdentificationCodeSequence
-        ] = None,
-        modality_lut_transformation: Optional[
+        ) = None,
+        modality_lut_transformation: None | (
             ModalityLUTTransformation
-        ] = None,
-        voi_lut_transformations: Optional[
+        ) = None,
+        voi_lut_transformations: None | (
             Sequence[SoftcopyVOILUTTransformation]
-        ] = None,
-        icc_profile: Optional[bytes] = None,
-        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
+        ) = None,
+        icc_profile: bytes | None = None,
+        transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
         **kwargs
     ):
         """
@@ -623,22 +623,22 @@ class ColorSoftcopyPresentationState(SOPClass):
         instance_number: int,
         manufacturer: str,
         manufacturer_model_name: str,
-        software_versions: Union[str, Tuple[str]],
+        software_versions: str | tuple[str],
         device_serial_number: str,
         content_label: str,
-        content_description: Optional[str] = None,
-        graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
-        graphic_layers: Optional[Sequence[GraphicLayer]] = None,
-        graphic_groups: Optional[Sequence[GraphicGroup]] = None,
-        concept_name: Union[Code, CodedConcept, None] = None,
-        institution_name: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
-        content_creator_name: Optional[Union[str, PersonName]] = None,
-        content_creator_identification: Optional[
+        content_description: str | None = None,
+        graphic_annotations: Sequence[GraphicAnnotation] | None = None,
+        graphic_layers: Sequence[GraphicLayer] | None = None,
+        graphic_groups: Sequence[GraphicGroup] | None = None,
+        concept_name: Code | CodedConcept | None = None,
+        institution_name: str | None = None,
+        institutional_department_name: str | None = None,
+        content_creator_name: str | PersonName | None = None,
+        content_creator_identification: None | (
             ContentCreatorIdentificationCodeSequence
-        ] = None,
-        icc_profile: Optional[bytes] = None,
-        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
+        ) = None,
+        icc_profile: bytes | None = None,
+        transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
         **kwargs
     ):
         """
@@ -813,22 +813,22 @@ class AdvancedBlendingPresentationState(SOPClass):
         instance_number: int,
         manufacturer: str,
         manufacturer_model_name: str,
-        software_versions: Union[str, Tuple[str]],
+        software_versions: str | tuple[str],
         device_serial_number: str,
         content_label: str,
-        content_description: Optional[str] = None,
-        graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
-        graphic_layers: Optional[Sequence[GraphicLayer]] = None,
-        graphic_groups: Optional[Sequence[GraphicGroup]] = None,
-        concept_name: Union[Code, CodedConcept, None] = None,
-        institution_name: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
-        content_creator_name: Optional[Union[str, PersonName]] = None,
-        content_creator_identification: Optional[
+        content_description: str | None = None,
+        graphic_annotations: Sequence[GraphicAnnotation] | None = None,
+        graphic_layers: Sequence[GraphicLayer] | None = None,
+        graphic_groups: Sequence[GraphicGroup] | None = None,
+        concept_name: Code | CodedConcept | None = None,
+        institution_name: str | None = None,
+        institutional_department_name: str | None = None,
+        content_creator_name: str | PersonName | None = None,
+        content_creator_identification: None | (
             ContentCreatorIdentificationCodeSequence
-        ] = None,
-        icc_profile: Optional[bytes] = None,
-        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
+        ) = None,
+        icc_profile: bytes | None = None,
+        transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
         **kwargs
     ):
         """

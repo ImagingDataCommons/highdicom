@@ -3,7 +3,7 @@ auto-generated on 2024-10-04 at 14:31:17.
 """
 from typing import Dict, List
 
-IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
+IOD_MODULE_MAP: dict[str, list[dict[str, str]]] = {
     "12-lead-ecg": [
         {
             "ie": "Patient",

@@ -1,5 +1,6 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Union
+from collections.abc import Sequence
 
 from pydicom import Dataset
 
@@ -28,7 +29,7 @@ class ModuleUsageValues(Enum):
 def check_required_attributes(
     dataset: Dataset,
     module: str,
-    base_path: Optional[Sequence[str]] = None,
+    base_path: Sequence[str] | None = None,
     recursive: bool = True,
     check_optional_sequences: bool = True
 ) -> None:
@@ -98,8 +99,8 @@ def check_required_attributes(
     # Define recursive function
     def check(
         dataset: Dataset,
-        subtree: Dict[str, Any],
-        path: List[str]
+        subtree: dict[str, Any],
+        path: list[str]
     ) -> None:
         for kw, item in subtree['attributes'].items():
             required = item['type'] in types_to_check
@@ -140,7 +141,7 @@ def check_required_attributes(
     check(dataset, tree, [])
 
 
-def construct_module_tree(module: str) -> Dict[str, Any]:
+def construct_module_tree(module: str) -> dict[str, Any]:
     """Return module attributes arranged in a tree structure.
 
     Parameters
@@ -164,7 +165,7 @@ def construct_module_tree(module: str) -> Dict[str, Any]:
     from highdicom._modules import MODULE_ATTRIBUTE_MAP
     if module not in MODULE_ATTRIBUTE_MAP:
         raise AttributeError(f"No such module found: '{module}'.")
-    tree: Dict[str, Any] = {'attributes': {}}
+    tree: dict[str, Any] = {'attributes': {}}
     for item in MODULE_ATTRIBUTE_MAP[module]:
         location = tree['attributes']
         for p in item['path']:
@@ -180,7 +181,7 @@ def construct_module_tree(module: str) -> Dict[str, Any]:
 def get_module_usage(
     module_key: str,
     sop_class_uid: str
-) -> Union[ModuleUsageValues, None]:
+) -> ModuleUsageValues | None:
     """Get the usage (M/C/U) of a module within an IOD.
 
     Parameters

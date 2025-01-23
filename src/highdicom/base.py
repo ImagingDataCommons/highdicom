@@ -1,7 +1,7 @@
 import logging
 import datetime
 from io import BytesIO
-from typing import List, Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
 
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset, FileMetaDataset
@@ -35,29 +35,29 @@ class SOPClass(Dataset):
         sop_class_uid: str,
         instance_number: int,
         modality: str,
-        manufacturer: Optional[str] = None,
-        transfer_syntax_uid: Optional[str] = None,
-        patient_id: Optional[str] = None,
-        patient_name: Optional[Union[str, PersonName]] = None,
-        patient_birth_date: Optional[str] = None,
-        patient_sex: Union[str, PatientSexValues, None] = None,
-        accession_number: Optional[str] = None,
-        study_id: Optional[str] = None,
-        study_date: Optional[Union[str, datetime.date]] = None,
-        study_time: Optional[Union[str, datetime.time]] = None,
-        referring_physician_name: Optional[Union[str, PersonName]] = None,
-        content_qualification: Optional[
-            Union[str, ContentQualificationValues]
-        ] = None,
-        coding_schemes: Optional[
+        manufacturer: str | None = None,
+        transfer_syntax_uid: str | None = None,
+        patient_id: str | None = None,
+        patient_name: str | PersonName | None = None,
+        patient_birth_date: str | None = None,
+        patient_sex: str | PatientSexValues | None = None,
+        accession_number: str | None = None,
+        study_id: str | None = None,
+        study_date: str | datetime.date | None = None,
+        study_time: str | datetime.time | None = None,
+        referring_physician_name: str | PersonName | None = None,
+        content_qualification: None | (
+            str | ContentQualificationValues
+        ) = None,
+        coding_schemes: None | (
             Sequence[CodingSchemeIdentificationItem]
-        ] = None,
-        series_description: Optional[str] = None,
-        manufacturer_model_name: Optional[str] = None,
-        software_versions: Union[str, Tuple[str], None] = None,
-        device_serial_number: Optional[str] = None,
-        institution_name: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
+        ) = None,
+        series_description: str | None = None,
+        manufacturer_model_name: str | None = None,
+        software_versions: str | tuple[str] | None = None,
+        device_serial_number: str | None = None,
+        institution_name: str | None = None,
+        institutional_department_name: str | None = None,
     ):
         """
         Parameters
@@ -235,7 +235,7 @@ class SOPClass(Dataset):
             )
             self.ContentQualification = content_qualification.value
         if coding_schemes is not None:
-            self.CodingSchemeIdentificationSequence: List[Dataset] = []
+            self.CodingSchemeIdentificationSequence: list[Dataset] = []
             for item in coding_schemes:
                 if not isinstance(item, CodingSchemeIdentificationItem):
                     raise TypeError(
@@ -279,7 +279,7 @@ class SOPClass(Dataset):
         self,
         dataset: Dataset,
         ie: str,
-        module: Optional[str] = None
+        module: str | None = None
     ) -> None:
         """Copies all attributes at the root level of a given module from
         `dataset` to `self`.

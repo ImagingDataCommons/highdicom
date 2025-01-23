@@ -1,6 +1,7 @@
 """Content that is specific to Annotation IODs."""
 from copy import deepcopy
-from typing import cast, List, Optional, Sequence, Tuple, Union
+from typing import cast
+from collections.abc import Sequence
 from typing_extensions import Self
 
 import numpy as np
@@ -24,9 +25,9 @@ class Measurements(Dataset):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
+        name: Code | CodedConcept,
         values: np.ndarray,
-        unit: Union[Code, CodedConcept]
+        unit: Code | CodedConcept
     ) -> None:
         """
         Parameters
@@ -178,22 +179,22 @@ class AnnotationGroup(Dataset):
         number: int,
         uid: str,
         label: str,
-        annotated_property_category: Union[Code, CodedConcept],
-        annotated_property_type: Union[Code, CodedConcept],
-        graphic_type: Union[str, GraphicTypeValues],
+        annotated_property_category: Code | CodedConcept,
+        annotated_property_type: Code | CodedConcept,
+        graphic_type: str | GraphicTypeValues,
         graphic_data: Sequence[np.ndarray],
-        algorithm_type: Union[str, AnnotationGroupGenerationTypeValues],
-        algorithm_identification: Optional[
+        algorithm_type: str | AnnotationGroupGenerationTypeValues,
+        algorithm_identification: None | (
             AlgorithmIdentificationSequence
-        ] = None,
-        measurements: Optional[Sequence[Measurements]] = None,
-        description: Optional[str] = None,
-        anatomic_regions: Optional[
-            Sequence[Union[Code, CodedConcept]]
-        ] = None,
-        primary_anatomic_structures: Optional[
-            Sequence[Union[Code, CodedConcept]]
-        ] = None
+        ) = None,
+        measurements: Sequence[Measurements] | None = None,
+        description: str | None = None,
+        anatomic_regions: None | (
+            Sequence[Code | CodedConcept]
+        ) = None,
+        primary_anatomic_structures: None | (
+            Sequence[Code | CodedConcept]
+        ) = None
     ):
         """
         Parameters
@@ -479,7 +480,7 @@ class AnnotationGroup(Dataset):
     @property
     def algorithm_identification(
         self
-    ) -> Union[AlgorithmIdentificationSequence, None]:
+    ) -> AlgorithmIdentificationSequence | None:
         """Union[highdicom.AlgorithmIdentificationSequence, None]:
             Information useful for identification of the algorithm, if any.
 
@@ -489,7 +490,7 @@ class AnnotationGroup(Dataset):
         return None
 
     @property
-    def anatomic_regions(self) -> List[CodedConcept]:
+    def anatomic_regions(self) -> list[CodedConcept]:
         """List[highdicom.sr.CodedConcept]:
             List of anatomic regions into which the annotations fall.
             May be empty.
@@ -500,7 +501,7 @@ class AnnotationGroup(Dataset):
         return list(self.AnatomicRegionSequence)
 
     @property
-    def primary_anatomic_structures(self) -> List[CodedConcept]:
+    def primary_anatomic_structures(self) -> list[CodedConcept]:
         """List[highdicom.sr.CodedConcept]:
             List of anatomic structures the annotations represent.
             May be empty.
@@ -512,8 +513,8 @@ class AnnotationGroup(Dataset):
 
     def get_graphic_data(
         self,
-        coordinate_type: Union[str, AnnotationCoordinateTypeValues]
-    ) -> List[np.ndarray]:
+        coordinate_type: str | AnnotationCoordinateTypeValues
+    ) -> list[np.ndarray]:
         """Get spatial coordinates of all graphical annotations.
 
         Parameters
@@ -582,10 +583,10 @@ class AnnotationGroup(Dataset):
                 GraphicTypeValues.ELLIPSE,
             ):
                 # Fixed 4 coordinates per object
-                split_param: Union[
-                    int,
+                split_param: (
+                    int |
                     Sequence[int]
-                ] = len(decoded_coordinates_data) // 4
+                ) = len(decoded_coordinates_data) // 4
             elif graphic_type == GraphicTypeValues.POINT:
                 # Fixed 1 coordinate per object
                 split_param = len(decoded_coordinates_data)
@@ -619,7 +620,7 @@ class AnnotationGroup(Dataset):
     def get_coordinates(
         self,
         annotation_number: int,
-        coordinate_type: Union[str, AnnotationCoordinateTypeValues]
+        coordinate_type: str | AnnotationCoordinateTypeValues
     ) -> np.ndarray:
         """Get spatial coordinates of a graphical annotation.
 
@@ -653,9 +654,9 @@ class AnnotationGroup(Dataset):
 
     def get_measurements(
         self,
-        name: Optional[Union[Code, CodedConcept]] = None
-    ) -> Tuple[
-        List[CodedConcept], np.ndarray, List[CodedConcept]
+        name: Code | CodedConcept | None = None
+    ) -> tuple[
+        list[CodedConcept], np.ndarray, list[CodedConcept]
     ]:
         """Get measurements.
 

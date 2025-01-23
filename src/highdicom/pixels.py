@@ -1,6 +1,4 @@
 """Functional interface for pixel transformations."""
-from typing import Optional, Union, Tuple
-
 import numpy as np
 
 from pydicom import Dataset
@@ -11,10 +9,10 @@ from highdicom.enum import VOILUTFunctionValues
 from highdicom.sr.coding import CodedConcept
 
 
-def _parse_palette_color_lut_attributes(dataset: Dataset) -> Tuple[
+def _parse_palette_color_lut_attributes(dataset: Dataset) -> tuple[
     bool,
-    Tuple[int, int, int],
-    Tuple[bytes, bytes, bytes],
+    tuple[int, int, int],
+    tuple[bytes, bytes, bytes],
 ]:
     """Extract information about palette color lookup table from a dataset.
 
@@ -126,7 +124,7 @@ def _parse_palette_color_lut_attributes(dataset: Dataset) -> Tuple[
 
 def _get_combined_palette_color_lut(
     dataset: Dataset,
-) -> Tuple[int, np.ndarray]:
+) -> tuple[int, np.ndarray]:
     """Get a LUT array with three color channels from a dataset.
 
     Parameters
@@ -181,7 +179,7 @@ def _check_rescale_dtype(
     output_dtype: np.dtype,
     intercept: float,
     slope: float,
-    input_range: Optional[Tuple[float, float]] = None,
+    input_range: tuple[float, float] | None = None,
 ) -> None:
     """Checks whether it is appropriate to apply a given rescale to an array
     with a given dtype.
@@ -366,12 +364,12 @@ def apply_voi_window(
     array: np.ndarray,
     window_center: float,
     window_width: float,
-    voi_lut_function: Union[
-        str,
+    voi_lut_function: (
+        str |
         VOILUTFunctionValues
-    ] = VOILUTFunctionValues.LINEAR,
-    output_range: Tuple[float, float] = (0.0, 1.0),
-    dtype: Union[type, str, np.dtype, None] = np.float64,
+    ) = VOILUTFunctionValues.LINEAR,
+    output_range: tuple[float, float] = (0.0, 1.0),
+    dtype: type | str | np.dtype | None = np.float64,
     invert: bool = False,
 ) -> np.ndarray:
     """DICOM VOI windowing function.
@@ -484,7 +482,7 @@ def apply_lut(
     array: np.ndarray,
     lut_data: np.ndarray,
     first_mapped_value: int,
-    dtype: Union[type, str, np.dtype, None] = None,
+    dtype: type | str | np.dtype | None = None,
     clip: bool = True,
 ) -> np.ndarray:
     """Apply a LUT to a pixel array.

@@ -1,6 +1,6 @@
 import logging
 from io import BytesIO
-from typing import Optional, Union, cast
+from typing import cast
 
 import numpy as np
 from PIL import Image
@@ -34,9 +34,9 @@ def encode_frame(
     transfer_syntax_uid: str,
     bits_allocated: int,
     bits_stored: int,
-    photometric_interpretation: Union[PhotometricInterpretationValues, str],
-    pixel_representation: Union[PixelRepresentationValues, int] = 0,
-    planar_configuration: Optional[Union[PlanarConfigurationValues, int]] = None
+    photometric_interpretation: PhotometricInterpretationValues | str,
+    pixel_representation: PixelRepresentationValues | int = 0,
+    planar_configuration: PlanarConfigurationValues | int | None = None
 ) -> bytes:
     """Encode pixel data of an individual frame.
 
@@ -356,8 +356,8 @@ def decode_frame(
     samples_per_pixel: int,
     bits_allocated: int,
     bits_stored: int,
-    photometric_interpretation: Union[PhotometricInterpretationValues, str],
-    pixel_representation: Union[PixelRepresentationValues, int] = 0,
+    photometric_interpretation: PhotometricInterpretationValues | str,
+    pixel_representation: PixelRepresentationValues | int = 0,
     planar_configuration: PlanarConfigurationValues | int | None = None,
     index: int = 0,
 ) -> np.ndarray:

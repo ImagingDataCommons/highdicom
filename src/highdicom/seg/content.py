@@ -1,6 +1,7 @@
 """Content that is specific to Segmentation IODs."""
 from copy import deepcopy
-from typing import cast, List, Optional, Sequence, Tuple, Union
+from typing import cast
+from collections.abc import Sequence
 from typing_extensions import Self
 
 import numpy as np
@@ -42,21 +43,21 @@ class SegmentDescription(Dataset):
         self,
         segment_number: int,
         segment_label: str,
-        segmented_property_category: Union[Code, CodedConcept],
-        segmented_property_type: Union[Code, CodedConcept],
-        algorithm_type: Union[SegmentAlgorithmTypeValues, str],
-        algorithm_identification: Optional[
+        segmented_property_category: Code | CodedConcept,
+        segmented_property_type: Code | CodedConcept,
+        algorithm_type: SegmentAlgorithmTypeValues | str,
+        algorithm_identification: None | (
             AlgorithmIdentificationSequence
-        ] = None,
-        tracking_uid: Optional[str] = None,
-        tracking_id: Optional[str] = None,
-        anatomic_regions: Optional[
-            Sequence[Union[Code, CodedConcept]]
-        ] = None,
-        primary_anatomic_structures: Optional[
-            Sequence[Union[Code, CodedConcept]]
-        ] = None,
-        display_color: Optional[CIELabColor] = None,
+        ) = None,
+        tracking_uid: str | None = None,
+        tracking_id: str | None = None,
+        anatomic_regions: None | (
+            Sequence[Code | CodedConcept]
+        ) = None,
+        primary_anatomic_structures: None | (
+            Sequence[Code | CodedConcept]
+        ) = None,
+        display_color: CIELabColor | None = None,
     ) -> None:
         """
         Parameters
@@ -270,7 +271,7 @@ class SegmentDescription(Dataset):
     @property
     def algorithm_identification(
         self
-    ) -> Union[AlgorithmIdentificationSequence, None]:
+    ) -> AlgorithmIdentificationSequence | None:
         """Union[highdicom.AlgorithmIdentificationSequence, None]
             Information useful for identification of the algorithm, if any.
 
@@ -280,7 +281,7 @@ class SegmentDescription(Dataset):
         return None
 
     @property
-    def tracking_uid(self) -> Union[str, None]:
+    def tracking_uid(self) -> str | None:
         """Union[str, None]:
             Tracking unique identifier for the segment, if any.
 
@@ -290,14 +291,14 @@ class SegmentDescription(Dataset):
         return None
 
     @property
-    def tracking_id(self) -> Union[str, None]:
+    def tracking_id(self) -> str | None:
         """Union[str, None]: Tracking identifier for the segment, if any."""
         if 'TrackingID' in self:
             return self.TrackingID
         return None
 
     @property
-    def anatomic_regions(self) -> List[CodedConcept]:
+    def anatomic_regions(self) -> list[CodedConcept]:
         """List[highdicom.sr.CodedConcept]:
             List of anatomic regions into which the segment falls.
             May be empty.
@@ -308,7 +309,7 @@ class SegmentDescription(Dataset):
         return list(self.AnatomicRegionSequence)
 
     @property
-    def primary_anatomic_structures(self) -> List[CodedConcept]:
+    def primary_anatomic_structures(self) -> list[CodedConcept]:
         """List[highdicom.sr.CodedConcept]:
             List of anatomic anatomic structures the segment represents.
             May be empty.
@@ -333,7 +334,7 @@ class DimensionIndexSequence(DataElementSequence):
 
     def __init__(
         self,
-        coordinate_system: Union[str, CoordinateSystemNames, None],
+        coordinate_system: str | CoordinateSystemNames | None,
         include_segment_number: bool = True,
     ) -> None:
         """
@@ -472,7 +473,7 @@ class DimensionIndexSequence(DataElementSequence):
     def get_plane_positions_of_image(
         self,
         image: Dataset
-    ) -> List[PlanePositionSequence]:
+    ) -> list[PlanePositionSequence]:
         """Gets plane positions of frames in multi-frame image.
 
         Parameters
@@ -517,7 +518,7 @@ class DimensionIndexSequence(DataElementSequence):
     def get_plane_positions_of_series(
         self,
         images: Sequence[Dataset]
-    ) -> List[PlanePositionSequence]:
+    ) -> list[PlanePositionSequence]:
         """Gets plane positions for series of single-frame images.
 
         Parameters
@@ -618,16 +619,16 @@ class DimensionIndexSequence(DataElementSequence):
     def get_index_values(
         self,
         plane_positions: Sequence[PlanePositionSequence],
-        image_orientation: Optional[Sequence[float]] = None,
-        index_convention: Union[
-            str,
-            Sequence[Union[PixelIndexDirections, str]]
-        ] = (
+        image_orientation: Sequence[float] | None = None,
+        index_convention: (
+            str |
+            Sequence[PixelIndexDirections | str]
+        ) = (
             PixelIndexDirections.R,
             PixelIndexDirections.D,
         ),
-        handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        handedness: AxisHandedness | str = AxisHandedness.RIGHT_HANDED,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Get values of indexed attributes that specify position of planes.
 
         Parameters
@@ -755,7 +756,7 @@ class DimensionIndexSequence(DataElementSequence):
 
         return (plane_position_values, plane_sort_indices)
 
-    def get_index_keywords(self) -> List[str]:
+    def get_index_keywords(self) -> list[str]:
         """Get keywords of attributes that specify the position of planes.
 
         Returns
