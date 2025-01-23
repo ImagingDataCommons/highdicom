@@ -145,11 +145,11 @@ def _deduce_color_type(image: Dataset):
     return _ImageColorType.COLOR
 
 
-class _CombinedPixelTransformation:
+class _CombinedPixelTransform:
 
-    """Class representing a combined pixel transformation.
+    """Class representing a combined pixel transform.
 
-    DICOM images contain multi-stage transformations to apply to the raw stored
+    DICOM images contain multi-stage transforms to apply to the raw stored
     pixel values. This class is intended to provide a single class that
     configurably and efficiently applies the net effect of the selected
     transforms to stored pixel data.
@@ -160,18 +160,18 @@ class _CombinedPixelTransformation:
     For monochrome images:
     * Real world value maps, which map stored pixels to real-world values and
     is independent of all other transforms
-    * Modality LUT transformation, which transforms stored pixel values to
+    * Modality LUT transform, which transforms stored pixel values to
     modality-specific values
-    * Value-of-interest (VOI) LUT transformation, which transforms the output
+    * Value-of-interest (VOI) LUT transform, which transforms the output
     of the Modality LUT transform to output values in order to focus on a
     particular region of intensities values of particular interest (such as a
     windowing operation).
-    * Presentation LUT transformation, which inverts the range of values for
+    * Presentation LUT transform, which inverts the range of values for
     display.
 
     For pseudo-color images (stored as monochrome images but displayed as color
     images):
-    * The Palette Color LUT transformation, which maps stored single-sample
+    * The Palette Color LUT transform, which maps stored single-sample
     pixel values to 3-samples-per-pixel RGB color images.
 
     For color images and pseudo-color images:
@@ -203,14 +203,14 @@ class _CombinedPixelTransformation:
         ----------
         image: pydicom.Dataset
             Image (single frame or multiframe) for which the pixel
-            transformation should be represented.
+            transform should be represented.
         frame_index: int
             Zero-based index (one less than the frame number).
         output_dtype: Union[type, str, numpy.dtype], optional
             Data type of the output array.
         apply_real_world_transform: bool | None, optional
             Whether to apply a real-world value map to the frame.
-            The real world value map converts stored pixel values to output
+            A real-world value maps converts stored pixel values to output
             values with a real-world meaning, either using a LUT or a linear
             slope and intercept.
 
@@ -237,7 +237,7 @@ class _CombinedPixelTransformation:
             attribute).
         apply_modality_transform: bool | None, optional
             Whether to apply the modality transform (if present in the
-            dataset) to the frame. The modality transformation maps stored pixel
+            dataset) to the frame. The modality transform maps stored pixel
             values to output values, either using a LUT or rescale slope and
             intercept.
 
@@ -248,7 +248,7 @@ class _CombinedPixelTransformation:
             map takes precedence, but no error will be raised if it is not
             present.
         apply_voi_transform: bool | None, optional
-            Apply the value-of-interest (VOI) transformation (if present in the
+            Apply the value-of-interest (VOI) transform (if present in the
             dataset), which limits the range of pixel values to a particular
             range of interest using either a windowing operation or a LUT.
 
@@ -270,6 +270,10 @@ class _CombinedPixelTransformation:
             explanations are optional according to the standard and therefore
             may not be present. Ignored if ``apply_voi_transform`` is ``False``
             or no VOI transform is included in the datasets.
+
+            Alternatively, a user-defined
+            :class:`highdicom.content.VOILUTTransformation` may be supplied.
+            This will override any such transform specified in the dataset.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
             relevant if ``apply_voi_transform`` is True and a VOI transform is
@@ -300,7 +304,7 @@ class _CombinedPixelTransformation:
             provided.
         apply_icc_profile: bool | None, optional
             Whether colors should be corrected by applying an ICC
-            transformation. Will only be performed if metadata contain an
+            transform. Will only be performed if metadata contain an
             ICC Profile.
 
             If True, the transform is applied if present, and if not
@@ -940,7 +944,7 @@ class _CombinedPixelTransformation:
         if self._effective_window_center_width is not None:
             if self.output_dtype.kind != 'f':
                 raise ValueError(
-                    'The VOI transformation requires a floating point data '
+                    'The VOI transform requires a floating point data '
                     'type.'
                 )
 
@@ -972,7 +976,7 @@ class _CombinedPixelTransformation:
         Parameters
         ----------
         frame: numpy.ndarray | bytes
-            Input frame for the transformation. Either a raw bytes array or the
+            Input frame for the transform. Either a raw bytes array or the
             numpy array of the stored values.
         frame_index: int, optional
             Frame index. This is only required if frame is a raw bytes array,
@@ -983,7 +987,7 @@ class _CombinedPixelTransformation:
         Returns
         -------
         numpy.ndarray:
-            Output frame after the transformation is applied.
+            Output frame after the transform is applied.
 
         """
         if isinstance(frame, bytes):
@@ -1138,7 +1142,7 @@ class _Image(SOPClass):
         Parameters
         ----------
         dataset: pydicom.Dataset
-            Dataset of a multi-frame image.
+            Dataset representing an image.
         copy: bool
             If True, the underlying dataset is deep-copied such that the
             original dataset remains intact. If False, this operation will
@@ -1172,7 +1176,7 @@ class _Image(SOPClass):
         """int: Number of frames in the image."""
         return self.get('NumberOfFrames', 1)
 
-    def _get_color_tyoe(self) -> _ImageColorType:
+    def _get_color_type(self) -> _ImageColorType:
         """_ImageColorType: Color type of the image."""
         return _deduce_color_type(self)
 
@@ -1183,8 +1187,10 @@ class _Image(SOPClass):
 
     @property
     def coordinate_system(self) -> CoordinateSystemNames | None:
-        """highdicom.CoordinateSystemNames | None: Coordinate system, if any,
-        within which the image exists."""
+        """highdicom.CoordinateSystemNames | None: Frame-of-reference
+        coordinate system, if any, within which the image exists.
+
+        """
         return self._coordinate_system
 
     def _standardize_frame_index(
@@ -1206,6 +1212,11 @@ class _Image(SOPClass):
         as_index: bool
             Interpret the input `frame_number` as a 0-based index, instead of
             the default 1-based index.
+
+        Returns
+        -------
+        int:
+            Zero-based frame index, validated for use for this image.
 
         """
         if as_index:
@@ -1232,7 +1243,7 @@ class _Image(SOPClass):
         frame_number: int,
         as_index: bool = False,
     ) -> bytes:
-        """Get the raw data for an encoded frame.
+        """Get the raw data for an encoded frame as bytes.
 
         Parameters
         ----------
@@ -1304,14 +1315,14 @@ class _Image(SOPClass):
         """Get a single frame of stored values.
 
         Stored values are the pixel values stored within the dataset. They have
-        been decompressed from the raw bytes, interpreted as the correct pixel
-        datatype (according to the pixel representation and planar
-        configuration) and reshaped into a 2D (grayscale image) or 3D (color)
-        NumPy array. However, no further pixel transformation, such as the
-        modality transform, VOI transforms, palette color LUTs, or ICC profile,
-        has been applied.
+        been decompressed from the raw bytes (if necessary), interpreted as the
+        correct pixel datatype (according to the pixel representation and
+        planar configuration) and reshaped into a 2D (grayscale image) or 3D
+        (color) NumPy array. However, no further pixel transform, such as
+        the modality transform, VOI transforms, palette color LUTs, or ICC
+        profile, has been applied.
 
-        To get frames with pixel transformations applied (as is appropriate for
+        To get frames with pixel transforms applied (as is appropriate for
         most applications), use :func:`highdicom.Image.get_frame`
         instead.
 
@@ -1377,15 +1388,11 @@ class _Image(SOPClass):
         apply_palette_color_lut: bool | None = None,
         apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
-        """Get a single frame of stored values.
+        """Get a single frame of pixels, with transforms applied.
 
-        Stored values are the pixel values stored within the dataset. They have
-        been decompressed from the raw bytes, interpreted as the correct pixel
-        datatype (according to the pixel representation and planar
-        configuration) and reshaped into a 2D (grayscale image) or 3D (color)
-        frame. However, no further pixel transformation, such as the modality
-        transform, VOI transforms, palette color LUTs, or ICC profile, had been
-        applied.
+        This method retrieves a frame of stored values and applies various
+        intensity transforms specified within the dataset to them, depending on
+        the options provided.
 
         Parameters
         ----------
@@ -1402,7 +1409,7 @@ class _Image(SOPClass):
             Data type of the output array.
         apply_real_world_transform: bool | None, optional
             Whether to apply a real-world value map to the frame.
-            The real world value map converts stored pixel values to output
+            A real-world value maps converts stored pixel values to output
             values with a real-world meaning, either using a LUT or a linear
             slope and intercept.
 
@@ -1429,7 +1436,7 @@ class _Image(SOPClass):
             attribute).
         apply_modality_transform: bool | None, optional
             Whether to apply the modality transform (if present in the
-            dataset) to the frame. The modality transformation maps stored pixel
+            dataset) to the frame. The modality transform maps stored pixel
             values to output values, either using a LUT or rescale slope and
             intercept.
 
@@ -1440,7 +1447,7 @@ class _Image(SOPClass):
             map takes precedence, but no error will be raised if it is not
             present.
         apply_voi_transform: bool | None, optional
-            Apply the value-of-interest (VOI) transformation (if present in the
+            Apply the value-of-interest (VOI) transform (if present in the
             dataset) which limits the range of pixel values to a particular
             range of interest, using either a windowing operation or a LUT.
 
@@ -1462,6 +1469,10 @@ class _Image(SOPClass):
             explanations are optional according to the standard and therefore
             may not be present. Ignored if ``apply_voi_transform`` is ``False``
             or no VOI transform is included in the datasets.
+
+            Alternatively, a user-defined
+            :class:`highdicom.content.VOILUTTransformation` may be supplied.
+            This will override any such transform specified in the dataset.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
             relevant if ``apply_voi_transform`` is True and a VOI transform is
@@ -1482,7 +1493,7 @@ class _Image(SOPClass):
             transform is applied.
         apply_icc_profile: bool | None, optional
             Whether colors should be corrected by applying an ICC
-            transformation. Will only be performed if metadata contain an
+            transform. Will only be performed if metadata contain an
             ICC Profile.
 
         Returns
@@ -1498,7 +1509,7 @@ class _Image(SOPClass):
 
         frame = self.get_stored_frame(frame_number, as_index=as_index)
 
-        frame_transform = _CombinedPixelTransformation(
+        frame_transform = _CombinedPixelTransform(
             self,
             frame_index=frame_index,
             output_dtype=dtype,
@@ -1517,7 +1528,7 @@ class _Image(SOPClass):
 
     @property
     def pixel_array(self):
-        """Get the full pixel array of stored values.
+        """Get the full pixel array of stored values for all frames.
 
         This method is consistent with the behavior of the pydicom Dataset
         class, but additionally functions correctly when lazy frame retrieval
@@ -2202,10 +2213,10 @@ class _Image(SOPClass):
         filter: str | None = None,
         none_if_missing: bool = False
     ) -> Any:
-        """Find the value of a attribute shared across frames.
+        """Find the value of an attribute shared across frames.
 
         First checks whether the requested attribute is shared across all
-        frames.
+        frames and raises an error if it is not.
 
         Parameters
         ----------
@@ -2652,6 +2663,11 @@ class _Image(SOPClass):
     ) -> tuple[VolumeGeometry, list[tuple[int, int]]]:
         """Get geometry of a volume created by stacking frames.
 
+        For this to succeed the image (or the filtered subset of its frames)
+        must consist of a set of frames that are parallel and regularly spaced
+        along their normal vectors within the frame-of-reference coordinate
+        system.
+
         Parameters
         ----------
         rtol: float | None, optional
@@ -2794,7 +2810,9 @@ class _Image(SOPClass):
         slice_end: int | None = None,
         as_indices: bool = False,
     ) -> tuple[_SQLTableDefinition, VolumeGeometry]:
-        """Get geometry of a volume created by stacking frames.
+        """Get geometry of a volume created by stacking frames and prepare a
+        SQL table mapping frame number to the resulting position in the volume
+        stack.
 
         Parameters
         ----------
@@ -2876,6 +2894,16 @@ class _Image(SOPClass):
     ) -> Optional[VolumeGeometry]:
         """Get geometry of the image in 3D space.
 
+        This will succeed in two situations. Either the image is a consists of
+        a set of frames that are stacked together to give a regularly-spaced 3D
+        volume array (typical of CT, MRI, and PET) or the image is a tiled
+        image consisting of a set of 2D tiles that are placed together in the
+        same plane to form a total pixel matrix.
+
+        A single frame image has a volume geometry if it provides any
+        information about its position and orientation within a
+        frame-of-reference coordinate system.
+
         Parameters
         ----------
         rtol: float | None, optional
@@ -2898,7 +2926,7 @@ class _Image(SOPClass):
         -------
         highdicom.VolumeGeometry | None:
             Geometry of the volume if the image represents a regularly-spaced
-            3D volume. ``None`` otherwise.
+            3D volume or tiled total pixel matrix. ``None`` otherwise.
 
         """
         try:
@@ -3108,7 +3136,7 @@ class _Image(SOPClass):
         palette_color_background_index: int = 0,
         apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
-        """Construct a pixel array given an array of frame numbers.
+        """Construct a pixel array given a sequence of frame numbers.
 
         The output array has 3 dimensions (frame, rows, columns), followed by 1
         for RGB color channels, if applicable, followed by one for each
@@ -3145,7 +3173,7 @@ class _Image(SOPClass):
             Data type of the returned array.
         apply_real_world_transform: bool | None, optional
             Whether to apply a real-world value map to the frame.
-            The real world value map converts stored pixel values to output
+            A real-world value maps converts stored pixel values to output
             values with a real-world meaning, either using a LUT or a linear
             slope and intercept.
 
@@ -3172,7 +3200,7 @@ class _Image(SOPClass):
             attribute).
         apply_modality_transform: bool | None, optional
             Whether to apply the modality transform (if present in the
-            dataset) to the frame. The modality transformation maps stored pixel
+            dataset) to the frame. The modality transform maps stored pixel
             values to output values, either using a LUT or rescale slope and
             intercept.
 
@@ -3183,7 +3211,7 @@ class _Image(SOPClass):
             map takes precedence, but no error will be raised if it is not
             present.
         apply_voi_transform: bool | None, optional
-            Apply the value-of-interest (VOI) transformation (if present in the
+            Apply the value-of-interest (VOI) transform (if present in the
             dataset), which limits the range of pixel values to a particular
             range of interest using either a windowing operation or a LUT.
 
@@ -3205,6 +3233,10 @@ class _Image(SOPClass):
             explanations are optional according to the standard and therefore
             may not be present. Ignored if ``apply_voi_transform`` is ``False``
             or no VOI transform is included in the datasets.
+
+            Alternatively, a user-defined
+            :class:`highdicom.content.VOILUTTransformation` may be supplied.
+            This will override any such transform specified in the dataset.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
             relevant if ``apply_voi_transform`` is True and a VOI transform is
@@ -3235,7 +3267,7 @@ class _Image(SOPClass):
             provided.
         apply_icc_profile: bool | None, optional
             Whether colors should be corrected by applying an ICC
-            transformation. Will only be performed if metadata contain an
+            transform. Will only be performed if metadata contain an
             ICC Profile.
 
             If True, the transform is applied if present, and if not
@@ -3250,7 +3282,7 @@ class _Image(SOPClass):
             Pixel array
 
         """  # noqa: E501
-        shared_frame_transform = _CombinedPixelTransformation(
+        shared_frame_transform = _CombinedPixelTransform(
             self,
             apply_real_world_transform=apply_real_world_transform,
             real_world_value_map_selector=real_world_value_map_selector,
@@ -3304,7 +3336,7 @@ class _Image(SOPClass):
                 if shared_frame_transform.applies_to_all_frames:
                     frame_transform = shared_frame_transform
                 else:
-                    frame_transform = _CombinedPixelTransformation(
+                    frame_transform = _CombinedPixelTransform(
                         self,
                         frame_index=frame_index,
                         apply_real_world_transform=apply_real_world_transform,
@@ -3360,6 +3392,29 @@ class _Image(SOPClass):
         use_indices: bool,
         multiple_values: bool,
     ) -> Dict[str, Any]:
+        """Check and standardize queries used to specify dimensions.
+
+        Parameters
+        ----------
+        queries: Dict[Union[int, str], Any]
+            Dictionary defining a filter or index along a dimension. The keys
+            define the dimensions used. They may be either the tags or keywords
+            of attributes in the image's dimension index, or the special
+            values, 'ReferencedSOPInstanceUID', and 'ReferencedFrameNumber'.
+            The values of the dictionary give sequences of values of
+            corresponding dimension that define each slice of the output array
+            or a single value that is used to filter the frames. Note that
+            multiple dimensions may be used, in which case a frame must match
+            the values of all provided dimensions to be placed in the output
+            array.
+        use_indices: bool
+            Whether indexing is done using (integer) dimension index values, as
+            opposed to values themselves.
+        multiple_values: bool
+            Whether multiple values are expected for each dimension. If True,
+            defines an index, if False, defines a filter.
+
+        """
         normalized_queries: Dict[str, Any] = {}
         tag: BaseTag | None = None
 
@@ -3375,10 +3430,7 @@ class _Image(SOPClass):
 
             elif isinstance(p, str):
                 # Special cases
-                if p == 'VolumePosition':
-                    col_name = 'VolumePosition'
-                    python_type = int
-                elif p == 'ReferencedSOPInstanceUID':
+                if p == 'ReferencedSOPInstanceUID':
                     col_name = 'ReferencedSOPInstanceUID'
                     python_type = str
                 elif p == 'ReferencedFrameNumber':
@@ -3652,7 +3704,7 @@ class _Image(SOPClass):
             Dictionary defining the stack dimension (axis 0 of the output
             array). The keys define the dimensions used. They may be either the
             tags or keywords of attributes in the image's dimension index, or
-            the special values 'VolumePosition', 'ReferencedSOPInstanceUID',
+            the special values, 'ReferencedSOPInstanceUID',
             and 'ReferencedFrameNumber'. The values of the dictionary give
             sequences of values of corresponding dimension that define each
             slice of the output array. Note that multiple dimensions may be
@@ -3863,7 +3915,7 @@ class _Image(SOPClass):
         n_vol_positions: int,
         as_indices: bool = False,
     ) -> tuple[int, int]:
-        """Standardize format of slice indices as given by user.
+        """Standardize format of slice indices as given by the user.
 
         This includes interpretation of None values, and negatives.
 
@@ -4406,7 +4458,10 @@ class Image(_Image):
     An "image" is any object representing an Image Information Entity.
 
     Note that this does not correspond to a particular SOP class in DICOM, but
-    instead captures behavior that is common to a number of SOP classes.
+    instead captures behavior that is common to a number of SOP classes. It
+    provides various methods to access the frames in the image, apply
+    transforms specified in the dataset to the pixels, and arrange them
+    spatially.
 
     The class may not be instantiated directly, but should be created from an
     existing dataset.
@@ -4501,7 +4556,7 @@ class Image(_Image):
             Data type of the returned array.
         apply_real_world_transform: bool | None, optional
             Whether to apply a real-world value map to the frame.
-            The real world value map converts stored pixel values to output
+            A real-world value maps converts stored pixel values to output
             values with a real-world meaning, either using a LUT or a linear
             slope and intercept.
 
@@ -4528,7 +4583,7 @@ class Image(_Image):
             attribute).
         apply_modality_transform: bool | None, optional
             Whether to apply the modality transform (if present in the
-            dataset) to the frame. The modality transformation maps stored pixel
+            dataset) to the frame. The modality transform maps stored pixel
             values to output values, either using a LUT or rescale slope and
             intercept.
 
@@ -4539,7 +4594,7 @@ class Image(_Image):
             map takes precedence, but no error will be raised if it is not
             present.
         apply_voi_transform: bool | None, optional
-            Apply the value-of-interest (VOI) transformation (if present in the
+            Apply the value-of-interest (VOI) transform (if present in the
             dataset), which limits the range of pixel values to a particular
             range of interest using either a windowing operation or a LUT.
 
@@ -4560,7 +4615,11 @@ class Image(_Image):
             attributes to choose from multiple VOI transforms. Note that such
             explanations are optional according to the standard and therefore
             may not be present. Ignored if ``apply_voi_transform`` is ``False``
-            or no VOI transform is included in the datasets.
+            or no VOI transform is included in the dataset.
+
+            Alternatively, a user-defined
+            :class:`highdicom.content.VOILUTTransformation` may be supplied.
+            This will override any such transform specified in the dataset.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
             relevant if ``apply_voi_transform`` is True and a VOI transform is
@@ -4581,7 +4640,7 @@ class Image(_Image):
             transform is applied.
         apply_icc_profile: bool | None, optional
             Whether colors should be corrected by applying an ICC
-            transformation. Will only be performed if metadata contain an
+            transform. Will only be performed if metadata contain an
             ICC Profile.
 
             If True, the transform is applied if present, and if not
@@ -4654,7 +4713,7 @@ class Image(_Image):
 
         channel_spec = None
 
-        color_type = self._get_color_tyoe()
+        color_type = self._get_color_type()
         if (
             color_type == _ImageColorType.COLOR or
             (
@@ -4780,6 +4839,11 @@ class Image(_Image):
     ):
         """Get the pixel array as a (region of) the total pixel matrix.
 
+        This is only possible for tiled images, which are images in which the
+        frames are arranged over a 2D plane (like tiles over a floor) and
+        typically occur in microscopy. This method is not relevant for other
+        types of image.
+
         Parameters
         ----------
         row_start: int, optional
@@ -4812,7 +4876,7 @@ class Image(_Image):
             Data type of the returned array.
         apply_real_world_transform: bool | None, optional
             Whether to apply a real-world value map to the frame.
-            The real world value map converts stored pixel values to output
+            A real-world value maps converts stored pixel values to output
             values with a real-world meaning, either using a LUT or a linear
             slope and intercept.
 
@@ -4839,7 +4903,7 @@ class Image(_Image):
             attribute).
         apply_modality_transform: bool | None, optional
             Whether to apply the modality transform (if present in the
-            dataset) to the frame. The modality transformation maps stored pixel
+            dataset) to the frame. The modality transform maps stored pixel
             values to output values, either using a LUT or rescale slope and
             intercept.
 
@@ -4850,7 +4914,7 @@ class Image(_Image):
             map takes precedence, but no error will be raised if it is not
             present.
         apply_voi_transform: bool | None, optional
-            Apply the value-of-interest (VOI) transformation (if present in the
+            Apply the value-of-interest (VOI) transform (if present in the
             dataset), which limits the range of pixel values to a particular
             range of interest using either a windowing operation or a LUT.
 
@@ -4872,6 +4936,10 @@ class Image(_Image):
             explanations are optional according to the standard and therefore
             may not be present. Ignored if ``apply_voi_transform`` is ``False``
             or no VOI transform is included in the datasets.
+
+            Alternatively, a user-defined
+            :class:`highdicom.content.VOILUTTransformation` may be supplied.
+            This will override any such transform specified in the dataset.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
             relevant if ``apply_voi_transform`` is True and a VOI transform is
@@ -4892,7 +4960,7 @@ class Image(_Image):
             transform is applied.
         apply_icc_profile: bool | None, optional
             Whether colors should be corrected by applying an ICC
-            transformation. Will only be performed if metadata contain an
+            transform. Will only be performed if metadata contain an
             ICC Profile.
 
             If True, the transform is applied if present, and if not
@@ -5017,7 +5085,7 @@ def get_volume_from_series(
         Data type of the returned array.
     apply_real_world_transform: bool | None, optional
         Whether to apply a real-world value map to the frame.
-        The real world value map converts stored pixel values to output
+        A real-world value maps converts stored pixel values to output
         values with a real-world meaning, either using a LUT or a linear
         slope and intercept.
 
@@ -5044,7 +5112,7 @@ def get_volume_from_series(
         attribute).
     apply_modality_transform: bool | None, optional
         Whether to apply the modality transform (if present in the dataset) to
-        the frame. The modality transformation maps stored pixel values to
+        the frame. The modality transform maps stored pixel values to
         output values, either using a LUT or rescale slope and intercept.
 
         If True, the transform is applied if present, and if not
@@ -5054,7 +5122,7 @@ def get_volume_from_series(
         map takes precedence, but no error will be raised if it is not
         present.
     apply_voi_transform: bool | None, optional
-        Apply the value-of-interest (VOI) transformation (if present in the
+        Apply the value-of-interest (VOI) transform (if present in the
         dataset), which limits the range of pixel values to a particular
         range of interest using either a windowing operation or a LUT.
 
@@ -5096,7 +5164,7 @@ def get_volume_from_series(
         transform is applied.
     apply_icc_profile: bool | None, optional
         Whether colors should be corrected by applying an ICC
-        transformation. Will only be performed if metadata contain an
+        transform. Will only be performed if metadata contain an
         ICC Profile.
 
         If True, the transform is applied if present, and if not
@@ -5179,7 +5247,7 @@ def get_volume_from_series(
     frames = []
     for ds in sorted_datasets:
         frame = ds.pixel_array
-        transf = _CombinedPixelTransformation(
+        transf = _CombinedPixelTransform(
             ds,
             output_dtype=dtype,
             apply_real_world_transform=apply_real_world_transform,

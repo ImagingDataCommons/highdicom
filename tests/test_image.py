@@ -19,7 +19,7 @@ from highdicom._module_utils import (
 )
 from highdicom.content import VOILUTTransformation
 from highdicom.image import (
-    _CombinedPixelTransformation,
+    _CombinedPixelTransform,
 )
 from highdicom.pixels import (
     apply_voi_window,
@@ -116,7 +116,7 @@ def test_combined_transform_ect_rwvm():
         np.float32,
         np.float64,
     ]:
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             output_dtype=output_dtype,
         )
@@ -155,7 +155,7 @@ def test_combined_transform_ect_rwvm():
         'negative.'
     )
     with pytest.raises(ValueError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             output_dtype=np.uint32,
         )
@@ -165,7 +165,7 @@ def test_combined_transform_ect_rwvm():
         'color image.'
     )
     with pytest.raises(ValueError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             apply_palette_color_lut=True,
         )
@@ -175,7 +175,7 @@ def test_combined_transform_ect_rwvm():
         'color image.'
     )
     with pytest.raises(ValueError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             apply_icc_profile=True,
         )
@@ -185,7 +185,7 @@ def test_combined_transform_ect_rwvm():
         'with slope 1.00 and intercept -1024.0.'
     )
     with pytest.raises(ValueError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             output_dtype=np.int16,
         )
@@ -193,7 +193,7 @@ def test_combined_transform_ect_rwvm():
     # Various different indexing methods
     unit_code = CodedConcept('ml/100ml/s', 'UCUM', 'ml/100ml/s', '1.4')
     for selector in [-1, 'RCBF', unit_code]:
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             real_world_value_map_selector=selector,
         )
@@ -204,7 +204,7 @@ def test_combined_transform_ect_rwvm():
     other_unit_code = CodedConcept('m/s', 'UCUM', 'm/s', '1.4')
     for selector in [2, -2, 'ABCD', other_unit_code]:
         with pytest.raises(IndexError, match=msg):
-            _CombinedPixelTransformation(
+            _CombinedPixelTransform(
                 dcm,
                 real_world_value_map_selector=selector,
             )
@@ -219,7 +219,7 @@ def test_combined_transform_ect_rwvm():
         'A real-world value map is required but not found in the image.'
     )
     with pytest.raises(RuntimeError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             apply_real_world_transform=True,
         )
@@ -245,7 +245,7 @@ def test_combined_transform_ect_modality():
         np.float32,
         np.float64,
     ]:
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             output_dtype=output_dtype,
             apply_real_world_transform=False,
@@ -271,7 +271,7 @@ def test_combined_transform_ect_modality():
         assert full_output_arr.dtype == output_dtype
 
         # Same thing should work by requiring the modality LUT
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             output_dtype=output_dtype,
             apply_modality_transform=True,
@@ -292,7 +292,7 @@ def test_combined_transform_ect_modality():
         'negative.'
     )
     with pytest.raises(ValueError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             output_dtype=np.uint32,
         )
@@ -302,7 +302,7 @@ def test_combined_transform_ect_modality():
         'with slope 1.00 and intercept -1024.0.'
     )
     with pytest.raises(ValueError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             output_dtype=np.int16,
         )
@@ -318,7 +318,7 @@ def test_combined_transform_ect_modality():
         'the image.'
     )
     with pytest.raises(RuntimeError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             apply_modality_transform=True,
         )
@@ -357,7 +357,7 @@ def test_combined_transform_ect_with_voi():
             (-10.0, 10.0),
             (50., 100.0),
         ]:
-            tf = _CombinedPixelTransformation(
+            tf = _CombinedPixelTransform(
                 dcm,
                 output_dtype=output_dtype,
                 apply_real_world_transform=False,
@@ -397,10 +397,10 @@ def test_combined_transform_ect_with_voi():
             assert full_output_arr.dtype == output_dtype
 
     msg = (
-        'The VOI transformation requires a floating point data type.'
+        'The VOI transform requires a floating point data type.'
     )
     with pytest.raises(ValueError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             output_dtype=np.int32,
             apply_real_world_transform=False,
@@ -418,7 +418,7 @@ def test_combined_transform_ect_with_voi():
         'the image.'
     )
     with pytest.raises(RuntimeError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             apply_modality_transform=True,
         )
@@ -444,7 +444,7 @@ def test_combined_transform_modality_lut():
         np.float32,
         np.float64,
     ]:
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             output_dtype=output_dtype
         )
@@ -465,7 +465,7 @@ def test_combined_transform_modality_lut():
         'A VOI transform is required but not found in the image.'
     )
     with pytest.raises(RuntimeError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             apply_voi_transform=True,
         )
@@ -475,13 +475,13 @@ def test_combined_transform_modality_lut():
         "dtype('float16') according to the rule 'safe'"
     )
     with pytest.raises(TypeError, match=msg):
-        tf = _CombinedPixelTransformation(dcm, output_dtype=np.float16)
+        tf = _CombinedPixelTransform(dcm, output_dtype=np.float16)
 
     # Add a voi lut
     dcm.WindowCenter = 24
     dcm.WindowWidth = 24
 
-    tf = _CombinedPixelTransformation(dcm, apply_voi_transform=None)
+    tf = _CombinedPixelTransform(dcm, apply_voi_transform=None)
     output_arr = tf(input_arr)
     expected = np.array([[0.0, 0.17391304], [0.86956522, 1.0]])
     assert np.allclose(output_arr, expected)
@@ -494,10 +494,10 @@ def test_combined_transform_multiple_vois():
     c1, c2 = dcm.WindowCenter
     w1, w2 = dcm.WindowWidth
 
-    tf = _CombinedPixelTransformation(dcm, apply_voi_transform=None)
+    tf = _CombinedPixelTransform(dcm, apply_voi_transform=None)
     assert tf._effective_window_center_width == (c1, w1)
 
-    tf = _CombinedPixelTransformation(
+    tf = _CombinedPixelTransform(
         dcm,
         apply_voi_transform=None,
         voi_transform_selector=1,
@@ -505,7 +505,7 @@ def test_combined_transform_multiple_vois():
     assert tf._effective_window_center_width == (c2, w2)
     assert tf._effective_voi_function == 'LINEAR'
 
-    tf = _CombinedPixelTransformation(
+    tf = _CombinedPixelTransform(
         dcm,
         apply_voi_transform=None,
         voi_transform_selector=-1,
@@ -513,7 +513,7 @@ def test_combined_transform_multiple_vois():
     assert tf._effective_window_center_width == (c2, w2)
     assert tf._effective_voi_function == 'LINEAR'
 
-    tf = _CombinedPixelTransformation(
+    tf = _CombinedPixelTransform(
         dcm,
         apply_voi_transform=None,
         voi_transform_selector=-2,
@@ -521,7 +521,7 @@ def test_combined_transform_multiple_vois():
     assert tf._effective_window_center_width == (c1, w1)
     assert tf._effective_voi_function == 'LINEAR'
 
-    tf = _CombinedPixelTransformation(
+    tf = _CombinedPixelTransform(
         dcm,
         apply_voi_transform=None,
         voi_transform_selector='WINDOW1',
@@ -529,7 +529,7 @@ def test_combined_transform_multiple_vois():
     assert tf._effective_window_center_width == (c1, w1)
     assert tf._effective_voi_function == 'LINEAR'
 
-    tf = _CombinedPixelTransformation(
+    tf = _CombinedPixelTransform(
         dcm,
         apply_voi_transform=None,
         voi_transform_selector='WINDOW2',
@@ -539,19 +539,19 @@ def test_combined_transform_multiple_vois():
 
     msg = "Requested 'voi_transform_selector' is not present."
     with pytest.raises(IndexError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             apply_voi_transform=None,
             voi_transform_selector='DOES_NOT_EXIST',
         )
     with pytest.raises(IndexError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             apply_voi_transform=None,
             voi_transform_selector=2,
         )
     with pytest.raises(IndexError, match=msg):
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             apply_voi_transform=None,
             voi_transform_selector=-3,
@@ -562,7 +562,7 @@ def test_combined_transform_multiple_vois():
         window_center=c3,
         window_width=w3,
     )
-    tf = _CombinedPixelTransformation(
+    tf = _CombinedPixelTransform(
         dcm,
         apply_voi_transform=None,
         voi_transform_selector=external_voi,
@@ -579,7 +579,7 @@ def test_combined_transform_multiple_vois():
         "'voi_transform_selector', it must contain a single transform."
     )
     with pytest.raises(ValueError, match=msg):
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             apply_voi_transform=None,
             voi_transform_selector=invalid_external_voi,
@@ -602,7 +602,7 @@ def test_combined_transform_voi_lut():
             (-10.0, 10.0),
             (50., 100.0),
         ]:
-            tf = _CombinedPixelTransformation(
+            tf = _CombinedPixelTransform(
                 dcm,
                 output_dtype=output_dtype,
                 apply_voi_transform=None,
@@ -642,14 +642,14 @@ def test_combined_transform_voi_lut():
     # Create an explanation to use for searching by explanation
     dcm.VOILUTSequence[0].LUTExplanation = 'BONE'
 
-    tf = _CombinedPixelTransformation(
+    tf = _CombinedPixelTransform(
         dcm,
         apply_voi_transform=None,
         voi_transform_selector='BONE'
     )
     assert tf._effective_lut_data is not None
 
-    tf = _CombinedPixelTransformation(
+    tf = _CombinedPixelTransform(
         dcm,
         apply_voi_transform=None,
         voi_transform_selector=-1,
@@ -658,13 +658,13 @@ def test_combined_transform_voi_lut():
 
     msg = "Requested 'voi_transform_selector' is not present."
     with pytest.raises(IndexError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             apply_voi_transform=None,
             voi_transform_selector='NOT_BONE',
         )
     with pytest.raises(IndexError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             apply_voi_transform=None,
             voi_transform_selector=1,
@@ -687,7 +687,7 @@ def test_combined_transform_monochrome():
         np.float64,
     ]:
         # Default behavior; inversion but no VOI
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             output_dtype=output_dtype,
         )
@@ -708,7 +708,7 @@ def test_combined_transform_monochrome():
         assert output_arr.dtype == output_dtype
 
         # No inversion
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             output_dtype=output_dtype,
             apply_presentation_lut=False,
@@ -732,7 +732,7 @@ def test_combined_transform_monochrome():
         np.float64,
     ]:
         # VOI and inversion
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             output_dtype=output_dtype,
             apply_voi_transform=None,
@@ -760,7 +760,7 @@ def test_combined_transform_monochrome():
         assert output_arr.dtype == output_dtype
 
         # VOI and no inversion
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             output_dtype=output_dtype,
             apply_voi_transform=None,
@@ -798,7 +798,7 @@ def test_combined_transform_color():
     # The original UID is not recognized
     dcm.SOPClassUID = pydicom.uid.UltrasoundImageStorage
 
-    tf = _CombinedPixelTransformation(dcm)
+    tf = _CombinedPixelTransform(dcm)
     assert tf._effective_slope_intercept is None
     assert tf._effective_lut_data is None
     assert tf._effective_window_center_width is None
@@ -811,7 +811,7 @@ def test_combined_transform_color():
 
     msg = "An ICC profile is required but not found in the image."
     with pytest.raises(RuntimeError, match=msg):
-        _CombinedPixelTransformation(
+        _CombinedPixelTransform(
             dcm,
             apply_icc_profile=True,
         )
@@ -826,7 +826,7 @@ def test_combined_transform_color():
         dcm,
         icc_profile=icc_profile,
     )
-    tf = _CombinedPixelTransformation(dcm)
+    tf = _CombinedPixelTransform(dcm)
     assert tf._effective_slope_intercept is None
     assert tf._effective_lut_data is None
     assert tf._effective_window_center_width is None
@@ -856,7 +856,7 @@ def test_combined_transform_labelmap_seg():
         np.float32,
         np.float64,
     ]:
-        tf = _CombinedPixelTransformation(dcm, output_dtype=output_dtype)
+        tf = _CombinedPixelTransform(dcm, output_dtype=output_dtype)
         assert tf._effective_slope_intercept is None
         assert tf._effective_lut_data is not None
         assert tf._effective_window_center_width is None
@@ -869,7 +869,7 @@ def test_combined_transform_labelmap_seg():
         assert output_arr.shape == (dcm.Rows, dcm.Columns, 3)
         assert output_arr.dtype == output_dtype
 
-        tf = _CombinedPixelTransformation(
+        tf = _CombinedPixelTransform(
             dcm,
             output_dtype=output_dtype,
             apply_icc_profile=False,
@@ -907,7 +907,7 @@ def test_combined_transform_sm_image():
         np.float32,
         np.float64,
     ]:
-        tf = _CombinedPixelTransformation(dcm, output_dtype=output_dtype)
+        tf = _CombinedPixelTransform(dcm, output_dtype=output_dtype)
         assert tf._effective_slope_intercept is None
         assert tf._effective_lut_data is None
         assert tf._effective_window_center_width is None
@@ -942,7 +942,7 @@ def test_combined_transform_all_test_files():
         except Exception:
             continue
 
-        tf = _CombinedPixelTransformation(dcm)
+        tf = _CombinedPixelTransform(dcm)
 
         # Crudely decide whether indexing by frame is needed
         expected_dims = 3 if dcm.SamplesPerPixel > 1 else 2
@@ -991,7 +991,7 @@ def test_combined_transform_pmap_rwvm_lut():
     )
 
     output_dtype = np.float64
-    tf = _CombinedPixelTransformation(pmap, output_dtype=output_dtype)
+    tf = _CombinedPixelTransform(pmap, output_dtype=output_dtype)
     assert tf._effective_lut_data is not None
     assert tf._effective_lut_data.dtype == output_dtype
     assert tf._effective_slope_intercept is None
@@ -1012,7 +1012,7 @@ def test_combined_transform_pmap_rwvm_lut():
         "dtype('float32') according to the rule 'safe'"
     )
     with pytest.raises(TypeError, match=msg):
-        tf = _CombinedPixelTransformation(pmap, output_dtype=np.float32)
+        tf = _CombinedPixelTransform(pmap, output_dtype=np.float32)
 
 
 def test_get_volume_multiframe_ct():
