@@ -17,6 +17,7 @@ from typing import (
     Union,
     BinaryIO,
 )
+from typing_extensions import Self
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset
@@ -734,7 +735,7 @@ class ComprehensiveSR(_SR):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ComprehensiveSR':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -755,8 +756,8 @@ class ComprehensiveSR(_SR):
         if dataset.SOPClassUID != ComprehensiveSRStorage:
             raise ValueError('Dataset is not a Comprehensive SR document.')
         sop_instance = super().from_dataset(dataset, copy=copy)
-        sop_instance.__class__ = ComprehensiveSR
-        return cast(ComprehensiveSR, sop_instance)
+        sop_instance.__class__ = cls
+        return cast(cls, sop_instance)
 
 
 class Comprehensive3DSR(_SR):
@@ -885,7 +886,7 @@ class Comprehensive3DSR(_SR):
         cls,
         dataset: Dataset,
         copy: bool = True
-    ) -> 'Comprehensive3DSR':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -906,8 +907,8 @@ class Comprehensive3DSR(_SR):
         if dataset.SOPClassUID != Comprehensive3DSRStorage:
             raise ValueError('Dataset is not a Comprehensive 3D SR document.')
         sop_instance = super().from_dataset(dataset, copy=copy)
-        sop_instance.__class__ = Comprehensive3DSR
-        return cast(Comprehensive3DSR, sop_instance)
+        sop_instance.__class__ = cls
+        return cast(cls, sop_instance)
 
 
 def srread(

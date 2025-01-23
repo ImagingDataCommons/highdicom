@@ -75,6 +75,15 @@ highdicom.utils module
    :undoc-members:
    :show-inheritance:
 
+highdicom.pixels module
++++++++++++++++++++++++
+
+.. automodule:: highdicom.pixels
+   :members:
+   :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :special-members: __call__
+   :undoc-members:
+   :show-inheritance:
 
 .. _highdicom-legacy-subpackage:
 

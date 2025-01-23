@@ -1,12 +1,12 @@
 import logging
 from io import BytesIO
-from typing import Optional, Union
+from typing import Optional, Union, cast
 
 import numpy as np
 from PIL import Image
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate
-from pydicom.pixels.utils import pack_bits
+from pydicom.pixels.utils import pack_bits, unpack_bits
 from pydicom.pixels.encoders.base import get_encoder
 from pydicom.uid import (
     ExplicitVRLittleEndian,
@@ -145,7 +145,7 @@ def encode_frame(
                     'with native encoding.'
                 )
         allowable_pis = {
-            1: ['MONOCHROME1', 'MONOCHROME2', 'PALETTE_COLOR'],
+            1: ['MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR'],
             3: ['RGB', 'YBR_FULL'],
         }[samples_per_pixel]
         if photometric_interpretation not in allowable_pis:
@@ -358,7 +358,8 @@ def decode_frame(
     bits_stored: int,
     photometric_interpretation: Union[PhotometricInterpretationValues, str],
     pixel_representation: Union[PixelRepresentationValues, int] = 0,
-    planar_configuration: Optional[Union[PlanarConfigurationValues, int]] = None
+    planar_configuration: PlanarConfigurationValues | int | None = None,
+    index: int = 0,
 ) -> np.ndarray:
     """Decode pixel data of an individual frame.
 
@@ -387,6 +388,15 @@ def decode_frame(
     planar_configuration: Union[highdicom.PlanarConfigurationValues, int, None], optional
         Whether color samples are encoded by pixel (``R1G1B1R2G2B2...``) or
         by plane (``R1R2...G1G2...B1B2...``).
+    index: int, optional
+        The (zero-based) index of the frame in the original dataset. This is
+        only required situation: when the bits allocated is 1, the transfer
+        syntax is not encapsulated (i.e. is native) and the number of pixels
+        per frame is not a multiple of 8. In this case, the index is required
+        to know how many bits need to be stripped from the start and/or end of
+        the byte array. In all other situations, this parameter is not
+        required and will have no effect (since decoding a frame does not
+        depend on the index of the frame).
 
     Returns
     -------
@@ -420,6 +430,17 @@ def decode_frame(
     of color image frames in RGB color space.
 
     """  # noqa: E501
+    is_encapsulated = UID(transfer_syntax_uid).is_encapsulated
+
+    # This is a special case since there may be extra bits that need stripping
+    # from the start and/or end
+    if bits_allocated == 1 and not is_encapsulated:
+        unpacked_frame = cast(np.ndarray, unpack_bits(value))
+        n_pixels = (rows * columns * samples_per_pixel)
+        pixel_offset = int(((index * n_pixels / 8) % 1) * 8)
+        pixel_array = unpacked_frame[pixel_offset:pixel_offset + n_pixels]
+        return pixel_array.reshape(rows, columns)
+
     # The pydicom library does currently not support reading individual frames.
     # This hack creates a small dataset containing only a single frame, which
     # can then be decoded using the pydicom API.
@@ -453,7 +474,7 @@ def decode_frame(
         ).value
         ds.PlanarConfiguration = planar_configuration
 
-    if UID(file_meta.TransferSyntaxUID).is_encapsulated:
+    if is_encapsulated:
         ds.PixelData = encapsulate(frames=[value])
     else:
         ds.PixelData = value

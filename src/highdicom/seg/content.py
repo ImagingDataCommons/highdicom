@@ -1,6 +1,7 @@
 """Content that is specific to Segmentation IODs."""
 from copy import deepcopy
 from typing import cast, List, Optional, Sequence, Tuple, Union
+from typing_extensions import Self
 
 import numpy as np
 from pydicom.datadict import keyword_for_tag, tag_for_keyword
@@ -13,13 +14,24 @@ from highdicom.content import (
     AlgorithmIdentificationSequence,
     PlanePositionSequence,
 )
-from highdicom.enum import CoordinateSystemNames
+from highdicom.enum import (
+    AxisHandedness,
+    CoordinateSystemNames,
+    PixelIndexDirections,
+)
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
-from highdicom.spatial import map_pixel_into_coordinate_system
+from highdicom.spatial import (
+    _get_slice_distances,
+    get_normal_vector,
+    map_pixel_into_coordinate_system,
+)
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.utils import compute_plane_position_slide_per_frame
-from highdicom._module_utils import check_required_attributes
+from highdicom._module_utils import (
+    check_required_attributes,
+    is_multiframe_image,
+)
 
 
 class SegmentDescription(Dataset):
@@ -93,8 +105,10 @@ class SegmentDescription(Dataset):
 
         """  # noqa: E501
         super().__init__()
-        if segment_number < 1:
-            raise ValueError("Segment number must be a positive integer")
+        if segment_number < 1 or segment_number > 65535:
+            raise ValueError(
+                "Segment number must be a positive integer below 65536."
+            )
         self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
         self.SegmentedPropertyCategoryCodeSequence = [
@@ -155,7 +169,7 @@ class SegmentDescription(Dataset):
         cls,
         dataset: Dataset,
         copy: bool = True
-    ) -> 'SegmentDescription':
+    ) -> Self:
         """Construct instance from an existing dataset.
 
         Parameters
@@ -217,7 +231,7 @@ class SegmentDescription(Dataset):
                 CodedConcept.from_dataset(ds, copy=False)
                 for ds in desc.PrimaryAnatomicStructureSequence
             ]
-        return cast(SegmentDescription, desc)
+        return cast(cls, desc)
 
     @property
     def segment_number(self) -> int:
@@ -472,7 +486,7 @@ class DimensionIndexSequence(DataElementSequence):
             Plane position of each frame in the image
 
         """
-        is_multiframe = hasattr(image, 'NumberOfFrames')
+        is_multiframe = is_multiframe_image(image)
         if not is_multiframe:
             raise ValueError('Argument "image" must be a multi-frame image.')
 
@@ -517,7 +531,7 @@ class DimensionIndexSequence(DataElementSequence):
             Plane position of each frame in the image
 
         """
-        is_multiframe = any([hasattr(img, 'NumberOfFrames') for img in images])
+        is_multiframe = any([is_multiframe_image(img) for img in images])
         if is_multiframe:
             raise ValueError(
                 'Argument "images" must be a series of single-frame images.'
@@ -603,7 +617,16 @@ class DimensionIndexSequence(DataElementSequence):
 
     def get_index_values(
         self,
-        plane_positions: Sequence[PlanePositionSequence]
+        plane_positions: Sequence[PlanePositionSequence],
+        image_orientation: Optional[Sequence[float]] = None,
+        index_convention: Union[
+            str,
+            Sequence[Union[PixelIndexDirections, str]]
+        ] = (
+            PixelIndexDirections.R,
+            PixelIndexDirections.D,
+        ),
+        handedness: Union[AxisHandedness, str] = AxisHandedness.RIGHT_HANDED,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Get values of indexed attributes that specify position of planes.
 
@@ -611,7 +634,38 @@ class DimensionIndexSequence(DataElementSequence):
         ----------
         plane_positions: Sequence[highdicom.PlanePositionSequence]
             Plane position of frames in a multi-frame image or in a series of
-            single-frame images
+            single-frame images.
+        image_orientation: Union[Sequence[float], None], optional
+            An image orientation to use to order frames within a 3D coordinate
+            system. By default (if ``image_orientation`` is ``None``), the
+            plane positions are ordered using their raw numerical values and
+            not along any particular spatial vector. If ``image_orientation``
+            is provided, planes are ordered along the positive direction of the
+            vector normal to the specified. Should be a sequence of 6 floats.
+            This is only valid when plane position inputs contain only the
+            ImagePositionPatient.
+        index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
+            Convention used to determine how to order frames if
+            ``image_orientation`` is specified. Should be a sequence of two
+            :class:`highdicom.enum.PixelIndexDirections` or their string
+            representations, giving in order, the indexing conventions used for
+            specifying pixel indices. For example ``('R', 'D')`` means that the
+            first pixel index indexes the columns from left to right, and the
+            second pixel index indexes the rows from top to bottom (this is the
+            convention typically used within DICOM). As another example ``('D',
+            'R')`` would switch the order of the indices to give the convention
+            typically used within NumPy.
+
+            Alternatively, a single shorthand string may be passed that combines
+            the string representations of the two directions. So for example,
+            passing ``'RD'`` is equivalent to passing ``('R', 'D')``.
+
+            This is used in combination with the ``handedness`` to determine
+            the positive direction used to order frames.
+        handedness: Union[highdicom.enum.AxisHandedness, str], optional
+            Choose the frame order in order such that the frame axis creates a
+            coordinate system with this handedness in the when combined with
+            the within-frame convention given by ``index_convention``.
 
         Returns
         -------
@@ -632,7 +686,7 @@ class DimensionIndexSequence(DataElementSequence):
         reference, and excludes values of the Referenced Segment Number
         attribute.
 
-        """
+        """  # noqa: E501
         if self._coordinate_system is None:
             raise RuntimeError(
                 'Cannot calculate index values for multiple plane '
@@ -662,21 +716,41 @@ class DimensionIndexSequence(DataElementSequence):
             for p in plane_positions
         ])
 
-        # Build an array that can be used to sort planes according to the
-        # Dimension Index Value based on the order of the items in the
-        # Dimension Index Sequence.
-        _, plane_sort_indices = np.unique(
-            plane_position_values,
-            axis=0,
-            return_index=True
-        )
+        if image_orientation is not None:
+            if not hasattr(plane_positions[0][0], 'ImagePositionPatient'):
+                raise ValueError(
+                    'Provided "image_orientation" is only valid when '
+                    'plane_positions contain the ImagePositionPatient.'
+                )
+            normal_vector = get_normal_vector(
+                image_orientation,
+                index_convention=index_convention,
+                handedness=handedness,
+            )
+            origin_distances = _get_slice_distances(
+                plane_position_values[:, 0, :],
+                normal_vector,
+            )
+            _, plane_sort_indices = np.unique(
+                origin_distances,
+                return_index=True,
+            )
+        else:
+            # Build an array that can be used to sort planes according to the
+            # Dimension Index Value based on the order of the items in the
+            # Dimension Index Sequence.
+            _, plane_sort_indices = np.unique(
+                plane_position_values,
+                axis=0,
+                return_index=True
+            )
 
         if len(plane_sort_indices) != len(plane_positions):
             raise ValueError(
-                "Input image/frame positions are not unique according to the "
-                "Dimension Index Pointers. The generated segmentation would be "
-                "ambiguous. Ensure that source images/frames have distinct "
-                "locations."
+                'Input image/frame positions are not unique according to the '
+                'Dimension Index Pointers. The generated segmentation would be '
+                'ambiguous. Ensure that source images/frames have distinct '
+                'locations.'
             )
 
         return (plane_position_values, plane_sort_indices)

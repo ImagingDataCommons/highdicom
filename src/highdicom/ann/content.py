@@ -1,6 +1,7 @@
 """Content that is specific to Annotation IODs."""
 from copy import deepcopy
 from typing import cast, List, Optional, Sequence, Tuple, Union
+from typing_extensions import Self
 
 import numpy as np
 from pydicom.dataset import Dataset
@@ -119,7 +120,7 @@ class Measurements(Dataset):
         cls,
         dataset: Dataset,
         copy: bool = True
-    ) -> 'Measurements':
+    ) -> Self:
         """Construct instance from an existing dataset.
 
         Parameters
@@ -165,7 +166,7 @@ class Measurements(Dataset):
             )
         ]
 
-        return cast(Measurements, measurements)
+        return cast(cls, measurements)
 
 
 class AnnotationGroup(Dataset):
@@ -770,7 +771,7 @@ class AnnotationGroup(Dataset):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'AnnotationGroup':
+    ) -> Self:
         """Construct instance from an existing dataset.
 
         Parameters
@@ -838,4 +839,4 @@ class AnnotationGroup(Dataset):
                 for ds in group.PrimaryAnatomicStructureSequence
             ]
 
-        return cast(AnnotationGroup, group)
+        return cast(cls, group)

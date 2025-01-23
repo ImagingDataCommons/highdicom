@@ -3,11 +3,13 @@ import logging
 import sys
 import traceback
 from typing import List, Tuple, Union
+from typing_extensions import Self
 from pathlib import Path
+import weakref
 
 import numpy as np
 import pydicom
-from pydicom.dataset import Dataset
+from pydicom.dataset import Dataset, FileDataset
 from pydicom.encaps import parse_basic_offsets
 from pydicom.filebase import DicomFile, DicomFileLike, DicomBytesIO
 from pydicom.filereader import (
@@ -16,12 +18,12 @@ from pydicom.filereader import (
     read_file_meta_info,
     read_partial
 )
-from pydicom.pixels.utils import unpack_bits
 from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
-from pydicom.uid import UID
+from pydicom.uid import UID, DeflatedExplicitVRLittleEndian
 
 from highdicom.frame import decode_frame
 from highdicom.color import ColorManager
+from highdicom.uid import UID as hd_UID
 
 logger = logging.getLogger(__name__)
 
@@ -157,8 +159,13 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
 
     """
     initial_position = fp.tell()
-    offset_values = []
-    current_offset = 0
+
+    # We will keep two lists, one of all fragment boundaries (regardless of
+    # whether or not they are frame boundaries) and the other of just those
+    # fragment boundaries that are known to be frame boundaries (as identified
+    # by JPEG start markers).
+    frame_offset_values = []
+    fragment_offset_values = []
     i = 0
     while True:
         frame_position = fp.tell()
@@ -185,29 +192,67 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
                 f'Length of Frame item #{i} is zero.'
             )
 
-        first_two_bytes = fp.read(2, True)
-        if not fp.is_little_endian:
-            first_two_bytes = first_two_bytes[::-1]
+        current_offset = frame_position - initial_position
+        fragment_offset_values.append(current_offset)
+
         # In case of fragmentation, we only want to get the offsets to the
         # first fragment of a given frame. We can identify those based on the
         # JPEG and JPEG 2000 markers that should be found at the beginning and
         # end of the compressed byte stream.
+        first_two_bytes = fp.read(2)
+        if not fp.is_little_endian:
+            first_two_bytes = first_two_bytes[::-1]
+
         if first_two_bytes in _START_MARKERS:
-            current_offset = frame_position - initial_position
-            offset_values.append(current_offset)
+            frame_offset_values.append(current_offset)
 
         i += 1
         fp.seek(length - 2, 1)  # minus the first two bytes
 
-    if len(offset_values) != number_of_frames:
+    if len(frame_offset_values) == number_of_frames:
+        basic_offset_table = frame_offset_values
+    elif len(fragment_offset_values) == number_of_frames:
+        # This covers RLE and others that have no frame markers but have a
+        # single fragment per frame
+        basic_offset_table = fragment_offset_values
+    else:
         raise ValueError(
             'Number of frame items does not match specified Number of Frames.'
         )
-    else:
-        basic_offset_table = offset_values
 
     fp.seek(initial_position, 0)
     return basic_offset_table
+
+
+def _read_eot(
+    extended_offset_table: bytes,
+    number_of_frames: int
+) -> List[int]:
+    """Read an extended offset table.
+
+    Parameters
+    ----------
+    extended_offset_table: bytes
+        Value of the ExtendedOffsetTable attribute.
+    number_of_frames: int
+        Number of frames contained in the Pixel Data element
+
+    Returns
+    -------
+    List[int]
+        Offset of each Frame item in bytes from the first byte of the Pixel Data
+        element following the BOT item
+
+    """
+    result = np.frombuffer(extended_offset_table, dtype=np.uint64).tolist()
+
+    if len(result) != number_of_frames:
+        raise ValueError(
+            'The number of items in the extended offset table does nt match '
+            'the specified number of frames.'
+        )
+
+    return result
 
 
 def _stop_after_group_2(tag: pydicom.tag.BaseTag, vr: str, length: int) -> bool:
@@ -221,8 +266,18 @@ class ImageFileReader:
 
     """Reader for DICOM datasets representing Image Information Entities.
 
-    It provides efficient access to individual Frame items contained in the
-    Pixel Data element without loading the entire element into memory.
+    It provides efficient, "lazy", access to individual frame items contained
+    in the Pixel Data element without loading the entire element into memory.
+
+    Note
+    ----
+    As of highdicom 0.24.0, users should prefer the :class:`highdicom.Image`
+    class with lazy frame retrieval (e.g. as output by the
+    :func:`highdicom.imread` function when `lazy_frame_retrieval=True`) to this
+    class in most situations. The :class:`highdicom.Image` class offers the
+    same lazy frame-level access, but additionally has several higher-level
+    features, including apply pixel transformations to loaded frames,
+    constructing total pixel matrices, and constructing volumes.
 
     Examples
     --------
@@ -264,14 +319,44 @@ class ImageFileReader:
                 'Argument "filename" must be either an open DICOM file object '
                 'or the path to a DICOM file stored on disk.'
             )
-        self._metadata = None
+        self._metadata: Dataset | weakref.ReferenceType | None = None
+        self._voi_lut = None
+        self._palette_color_lut = None
+        self._modality_lut = None
+
+    def _change_metadata_ownership(self) -> FileDataset:
+        """Set the metadata using a weakref.
+
+        This is used by imread to allow an Image object to take ownership of
+        the metadata and this file reader without creating potentially
+        problematic reference cycles.
+
+        Returns
+        -------
+        metadata: pydicom.FileDataset
+            Dataset containing the metadata.
+
+        """
+        with self:
+            self._read_metadata()
+            # The file meta was stripped from metadata previously, add it back
+            # here to give a FileDataset
+            metadata = FileDataset(
+                self._filename,
+                dataset=self.metadata,
+                file_meta=self._file_meta,
+                is_implicit_VR=self.transfer_syntax_uid.is_implicit_VR,
+                is_little_endian=self.transfer_syntax_uid.is_little_endian,
+            )
+        self._metadata = weakref.ref(metadata)
+        return metadata
 
     @property
     def filename(self) -> str:
         """str: Path to the image file"""
         return str(self._filename)
 
-    def __enter__(self) -> 'ImageFileReader':
+    def __enter__(self) -> Self:
         self.open()
         return self
 
@@ -280,6 +365,8 @@ class ImageFileReader:
             self._fp.close()
         except AttributeError:
             pass
+        else:
+            self._fp = None
         if except_value:
             sys.stderr.write(
                 f'Error while accessing file "{self._filename}":\n'
@@ -383,8 +470,8 @@ class ImageFileReader:
                 f'DICOM metadata cannot be read from file: "{err}"'
             ) from err
 
-        # Cache Transfer Syntax UID, since we need it to decode frame items
-        self._transfer_syntax_uid = UID(metadata.file_meta.TransferSyntaxUID)
+        # Cache file meta, since we need it to decode frame items
+        self._file_meta = metadata.file_meta
 
         # Construct a new Dataset that is fully decoupled from the file, i.e.,
         # that does not contain any File Meta Information
@@ -392,6 +479,16 @@ class ImageFileReader:
         self._metadata = Dataset(metadata)
 
         self._pixel_data_offset = self._fp.tell()
+
+        if self.transfer_syntax_uid == DeflatedExplicitVRLittleEndian:
+            # The entire file is compressed with DEFLATE. These cannot be used
+            # since the entire file must be decompressed to read or build the
+            # basic/extended offset
+            raise ValueError(
+                'Deflated transfer syntaxes cannot be used with the '
+                'ImageFileReader.'
+            )
+
         # Determine whether dataset contains a Pixel Data element
         try:
             tag = TupleTag(self._fp.read_tag())
@@ -411,15 +508,30 @@ class ImageFileReader:
         self._fp.seek(self._pixel_data_offset, 0)
 
         logger.debug('build Basic Offset Table')
-        number_of_frames = int(getattr(self._metadata, 'NumberOfFrames', 1))
-        if self._transfer_syntax_uid.is_encapsulated:
-            try:
-                self._basic_offset_table = _get_bot(self._fp, number_of_frames)
-            except Exception as err:
-                raise OSError(
-                    f'Failed to build Basic Offset Table: "{err}"'
-                ) from err
-            self._first_frame_offset = self._fp.tell()
+        number_of_frames = int(getattr(metadata, 'NumberOfFrames', 1))
+        if self.transfer_syntax_uid.is_encapsulated:
+            if 'ExtendedOffsetTable' in metadata:
+                # Try the extended offset table first
+                self._offset_table = _read_eot(
+                    metadata.ExtendedOffsetTable,
+                    number_of_frames
+                )
+                # tag, VR, reserved and length for PixelData plus tag and
+                # length of the BOT (which should be empty if extended offsets
+                # are present)
+                header_offset = 4 + 2 + 2 + 4 + 4 + 4
+                self._first_frame_offset = (
+                    self._pixel_data_offset + 20
+                )
+            else:
+                # Fall back to the basic offset table
+                try:
+                    self._offset_table = _get_bot(self._fp, number_of_frames)
+                except Exception as err:
+                    raise OSError(
+                        f'Failed to build Basic Offset Table: "{err}"'
+                    ) from err
+                self._first_frame_offset = self._fp.tell()
         else:
             if self._fp.is_implicit_VR:
                 header_offset = 4 + 4  # tag and length
@@ -429,17 +541,17 @@ class ImageFileReader:
             n_pixels = self._pixels_per_frame
             bits_allocated = self._metadata.BitsAllocated
             if bits_allocated == 1:
-                self._basic_offset_table = [
+                self._offset_table = [
                     int(np.floor(i * n_pixels / 8))
                     for i in range(number_of_frames)
                 ]
             else:
-                self._basic_offset_table = [
+                self._offset_table = [
                     i * self._bytes_per_frame_uncompressed
                     for i in range(number_of_frames)
                 ]
 
-        if len(self._basic_offset_table) != number_of_frames:
+        if len(self._offset_table) != number_of_frames:
             raise ValueError(
                 'Length of Basic Offset Table does not match Number of Frames.'
             )
@@ -449,17 +561,17 @@ class ImageFileReader:
 
         icc_profile: Union[bytes, None] = None
         self._color_manager: Union[ColorManager, None] = None
-        if self.metadata.SamplesPerPixel > 1:
+        if metadata.SamplesPerPixel > 1:
             try:
-                icc_profile = self.metadata.ICCProfile
+                icc_profile = metadata.ICCProfile
             except AttributeError:
                 try:
-                    if len(self.metadata.OpticalPathSequence) > 1:
+                    if len(metadata.OpticalPathSequence) > 1:
                         # This should not happen in case of a color image.
                         logger.warning(
                             'color image contains more than one optical path'
                         )
-                    optical_path_item = self.metadata.OpticalPathSequence[0]
+                    optical_path_item = metadata.OpticalPathSequence[0]
                     icc_profile = optical_path_item.ICCProfile
                 except (IndexError, AttributeError):
                     logger.warning('no ICC Profile found in image metadata.')
@@ -473,9 +585,17 @@ class ImageFileReader:
     @property
     def metadata(self) -> Dataset:
         """pydicom.dataset.Dataset: Metadata"""
+        if isinstance(self._metadata, weakref.ReferenceType):
+            return self._metadata()
         if self._metadata is None:
             self._read_metadata()
         return self._metadata
+
+    @property
+    def transfer_syntax_uid(self) -> hd_UID:
+        """highdicom.UID: Transfer Syntax UID of the file."""
+        self.metadata  # ensure metadata has been read
+        return hd_UID(self._file_meta.TransferSyntaxUID)
 
     @property
     def _pixels_per_frame(self) -> int:
@@ -535,11 +655,11 @@ class ImageFileReader:
             raise ValueError('Frame index exceeds number of frames in image.')
         logger.debug(f'read frame #{index}')
 
-        frame_offset = self._basic_offset_table[index]
+        frame_offset = self._offset_table[index]
         self._fp.seek(self._first_frame_offset + frame_offset, 0)
-        if self._transfer_syntax_uid.is_encapsulated:
+        if self.transfer_syntax_uid.is_encapsulated:
             try:
-                stop_at = self._basic_offset_table[index + 1] - frame_offset
+                stop_at = self._offset_table[index + 1] - frame_offset
             except IndexError:
                 # For the last frame, there is no next offset available.
                 stop_at = -1
@@ -593,27 +713,20 @@ class ImageFileReader:
 
         logger.debug(f'decode frame #{index}')
 
-        if self.metadata.BitsAllocated == 1:
-            unpacked_frame = unpack_bits(frame_data)
-            rows, columns = self.metadata.Rows, self.metadata.Columns
-            n_pixels = self._pixels_per_frame
-            pixel_offset = int(((index * n_pixels / 8) % 1) * 8)
-            pixel_array = unpacked_frame[pixel_offset:pixel_offset + n_pixels]
-            return pixel_array.reshape(rows, columns)
-
         frame_array = decode_frame(
             frame_data,
             rows=self.metadata.Rows,
             columns=self.metadata.Columns,
             samples_per_pixel=self.metadata.SamplesPerPixel,
-            transfer_syntax_uid=self._transfer_syntax_uid,
+            transfer_syntax_uid=self.transfer_syntax_uid,
             bits_allocated=self.metadata.BitsAllocated,
             bits_stored=self.metadata.BitsStored,
             photometric_interpretation=self.metadata.PhotometricInterpretation,
             pixel_representation=self.metadata.PixelRepresentation,
             planar_configuration=getattr(
                 self.metadata, 'PlanarConfiguration', None
-            )
+            ),
+            index=index,
         )
 
         # We don't use the color_correct_frame() function here, since we cache

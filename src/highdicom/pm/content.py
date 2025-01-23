@@ -5,9 +5,11 @@ from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
+from highdicom._module_utils import is_multiframe_image
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
+from highdicom.pixels import apply_lut
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.value_types import CodeContentItem
 from highdicom.uid import UID
@@ -151,6 +153,90 @@ class RealWorldValueMapping(Dataset):
             )
             self.QuantityDefinitionSequence = [quantity_item]
 
+    def has_lut(self) -> bool:
+        """Determine whether the mapping contains a non-linear lookup table.
+
+        Returns
+        -------
+        bool:
+            True if the mapping contains a look-up table. False otherwise, when
+            the mapping is represented by a slope and intercept defining a
+            linear relationship.
+
+        """
+        return 'RealWorldValueLUTData' in self
+
+    @property
+    def lut_data(self) -> Optional[np.ndarray]:
+        """Union[numpy.ndarray, None] LUT data, if present."""
+        if self.has_lut():
+            return np.array(self.RealWorldValueLUTData)
+        return None
+
+    @property
+    def value_range(self) -> Tuple[float, float]:
+        """Tuple[float, float]: Range of valid input values."""
+        if 'DoubleFloatRealWorldValueFirstValueMapped' in self:
+            return (
+                self.DoubleFloatRealWorldValueFirstValueMapped,
+                self.DoubleFloatRealWorldValueLastValueMapped,
+            )
+        return (
+            float(self.RealWorldValueFirstValueMapped),
+            float(self.RealWorldValueLastValueMapped),
+        )
+
+    def apply(
+        self,
+        array: np.ndarray,
+    ) -> np.ndarray:
+        """Apply the mapping to a pixel array.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the transform should be applied. Can be of any
+            shape but must have an integer datatype if the mapping uses a LUT.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with LUT applied, will have data type ``numpy.float64``.
+
+        """
+        lut_data = self.lut_data
+        if lut_data is not None:
+            if array.dtype.kind not in ('u', 'i'):
+                raise ValueError(
+                    'Array must have an integer data type if the mapping '
+                    'contains a LUT.'
+                )
+            first = self.RealWorldValueFirstValueMapped
+            last = self.RealWorldValueLastValueMapped
+            if len(lut_data) != last + 1 - first:
+                raise RuntimeError(
+                    "LUT data is stored with the incorrect number of elements."
+                )
+
+            return apply_lut(
+                array=array,
+                lut_data=lut_data,
+                first_mapped_value=first,
+                clip=False,  # values outside the range are undefined
+            )
+        else:
+            slope = self.RealWorldValueSlope
+            intercept = self.RealWorldValueIntercept
+
+            first, last = self.value_range
+
+            if array.min() < first or array.max() > last:
+                raise ValueError(
+                    'Array contains value outside the valid range.'
+                )
+
+            return array * slope + intercept
+
 
 class DimensionIndexSequence(DataElementSequence):
 
@@ -281,7 +367,7 @@ class DimensionIndexSequence(DataElementSequence):
             Plane position of each frame in the image
 
         """
-        is_multiframe = hasattr(image, 'NumberOfFrames')
+        is_multiframe = is_multiframe_image(image)
         if not is_multiframe:
             raise ValueError('Argument "image" must be a multi-frame image.')
 
@@ -322,7 +408,7 @@ class DimensionIndexSequence(DataElementSequence):
             Plane position of each frame in the image
 
         """
-        is_multiframe = any([hasattr(img, 'NumberOfFrames') for img in images])
+        is_multiframe = any([is_multiframe_image(img) for img in images])
         if is_multiframe:
             raise ValueError(
                 'Argument "images" must be a series of single-frame images.'

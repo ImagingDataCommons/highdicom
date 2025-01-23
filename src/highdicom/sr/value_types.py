@@ -14,6 +14,7 @@ from typing import (
     Tuple,
     Union,
 )
+from typing_extensions import Self
 
 import numpy as np
 from pydicom.dataelem import DataElement
@@ -45,9 +46,9 @@ def _assert_value_type(
 
     Parameters
     ----------
-    dataset: pydicom.dataset.Dataset
+    dataset: pydicom.Dataset
         Dataset representing an SR Content Item
-    value_type: highdicom.sr.enum.ValueTypeValues
+    value_type: highdicom.sr.ValueTypeValues
         Expected value of Value Type attribute
 
     Raises
@@ -158,7 +159,7 @@ class ContentItem(Dataset):
             super().__setattr__(name, value)
 
     @classmethod
-    def _from_dataset_derived(cls, dataset: Dataset) -> 'ContentItem':
+    def _from_dataset_derived(cls, dataset: Dataset) -> Self:
         """Construct object of derived type from an existing dataset.
 
         Parameters
@@ -184,7 +185,7 @@ class ContentItem(Dataset):
         )  # type: ignore
 
     @classmethod
-    def _from_dataset_base(cls, dataset: Dataset) -> 'ContentItem':
+    def _from_dataset_base(cls, dataset: Dataset) -> Self:
         if not hasattr(dataset, 'ValueType'):
             raise AttributeError(
                 'Dataset is not an SR Content Item because it lacks '
@@ -226,7 +227,7 @@ class ContentItem(Dataset):
                 copy=False
             )
         ]
-        return cast(ContentItem, item)
+        return cast(cls, item)
 
     @property
     def name(self) -> CodedConcept:
@@ -430,7 +431,7 @@ class ContentSequence(DataElementSequence):
             raise ValueError(error_message) from e
         return index
 
-    def find(self, name: Union[Code, CodedConcept]) -> 'ContentSequence':
+    def find(self, name: Union[Code, CodedConcept]) -> Self:
         """Find contained content items given their name.
 
         Parameters
@@ -450,7 +451,7 @@ class ContentSequence(DataElementSequence):
             is_sr=self._is_sr
         )
 
-    def get_nodes(self) -> 'ContentSequence':
+    def get_nodes(self) -> Self:
         """Get content items that represent nodes in the content tree.
 
         A node is hereby defined as a content item that has a `ContentSequence`
@@ -556,7 +557,7 @@ class ContentSequence(DataElementSequence):
         is_root: bool = False,
         is_sr: bool = True,
         copy: bool = True,
-    ) -> 'ContentSequence':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -688,7 +689,7 @@ class CodeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'CodeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -715,7 +716,7 @@ class CodeContentItem(ContentItem):
         item.ConceptCodeSequence = DataElementSequence([
             CodedConcept.from_dataset(item.ConceptCodeSequence[0], copy=False)
         ])
-        return cast(CodeContentItem, item)
+        return cast(cls, item)
 
 
 class PnameContentItem(ContentItem):
@@ -755,7 +756,7 @@ class PnameContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'PnameContentItem':
+    ) -> Self:
         """Construct object from existing dataset.
 
         Parameters
@@ -779,7 +780,7 @@ class PnameContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.PNAME)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(PnameContentItem, item)
+        return cast(cls, item)
 
 
 class TextContentItem(ContentItem):
@@ -818,7 +819,7 @@ class TextContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'TextContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -842,7 +843,7 @@ class TextContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TEXT)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(TextContentItem, item)
+        return cast(cls, item)
 
 
 class TimeContentItem(ContentItem):
@@ -890,7 +891,7 @@ class TimeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'TimeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -914,7 +915,7 @@ class TimeContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TIME)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(TimeContentItem, item)
+        return cast(cls, item)
 
 
 class DateContentItem(ContentItem):
@@ -962,7 +963,7 @@ class DateContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'DateContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -986,7 +987,7 @@ class DateContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.DATE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(DateContentItem, item)
+        return cast(cls, item)
 
 
 class DateTimeContentItem(ContentItem):
@@ -1034,7 +1035,7 @@ class DateTimeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'DateTimeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1058,7 +1059,7 @@ class DateTimeContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.DATETIME)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(DateTimeContentItem, item)
+        return cast(cls, item)
 
 
 class UIDRefContentItem(ContentItem):
@@ -1097,7 +1098,7 @@ class UIDRefContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'UIDRefContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1121,7 +1122,7 @@ class UIDRefContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.UIDREF)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(UIDRefContentItem, item)
+        return cast(cls, item)
 
 
 class NumContentItem(ContentItem):
@@ -1216,7 +1217,7 @@ class NumContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'NumContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1253,7 +1254,7 @@ class NumContentItem(ContentItem):
             item.NumericValueQualifierCodeSequence = DataElementSequence([
                 CodedConcept.from_dataset(qualifier_item, copy=False)
             ])
-        return cast(NumContentItem, item)
+        return cast(cls, item)
 
 
 class ContainerContentItem(ContentItem):
@@ -1308,7 +1309,7 @@ class ContainerContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ContainerContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1332,7 +1333,7 @@ class ContainerContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.CONTAINER)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ContainerContentItem, item)
+        return cast(cls, item)
 
 
 class CompositeContentItem(ContentItem):
@@ -1393,7 +1394,7 @@ class CompositeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'CompositeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1417,7 +1418,7 @@ class CompositeContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.COMPOSITE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(CompositeContentItem, item)
+        return cast(cls, item)
 
 
 class ImageContentItem(ContentItem):
@@ -1524,7 +1525,7 @@ class ImageContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ImageContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1548,7 +1549,7 @@ class ImageContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ImageContentItem, item)
+        return cast(cls, item)
 
 
 class ScoordContentItem(ContentItem):
@@ -1654,7 +1655,7 @@ class ScoordContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ScoordContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1678,7 +1679,7 @@ class ScoordContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.SCOORD)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ScoordContentItem, item)
+        return cast(cls, item)
 
 
 class Scoord3DContentItem(ContentItem):
@@ -1799,7 +1800,7 @@ class Scoord3DContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'Scoord3DContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1823,7 +1824,7 @@ class Scoord3DContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.SCOORD3D)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(Scoord3DContentItem, item)
+        return cast(cls, item)
 
 
 class TcoordContentItem(ContentItem):
@@ -1904,7 +1905,7 @@ class TcoordContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'TcoordContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1928,7 +1929,7 @@ class TcoordContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TCOORD)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(TcoordContentItem, item)
+        return cast(cls, item)
 
 
 class WaveformContentItem(ContentItem):
@@ -2023,7 +2024,7 @@ class WaveformContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'WaveformContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -2047,4 +2048,4 @@ class WaveformContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(WaveformContentItem, item)
+        return cast(cls, item)

@@ -36,6 +36,7 @@ dependencies = [
     "pillow>=8.3",
     "pydicom>=3.0.1",
     "pyjpegls>=1.0.0",
+    "typing-extensions>=4.0.0",
 ]
 
 [project.optional-dependencies]

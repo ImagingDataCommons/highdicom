@@ -2,6 +2,7 @@
 import logging
 from copy import deepcopy
 from typing import cast, List, Optional, Sequence, Union
+from typing_extensions import Self
 
 import numpy as np
 from pydicom.uid import (
@@ -32,6 +33,7 @@ from highdicom.sr.value_types import (
     Scoord3DContentItem,
     UIDRefContentItem,
 )
+from highdicom._module_utils import is_multiframe_image
 
 
 logger = logging.getLogger(__name__)
@@ -90,7 +92,7 @@ def _check_frame_numbers_valid_for_dataset(
     referenced_frame_numbers: Optional[Sequence[int]]
 ) -> None:
     if referenced_frame_numbers is not None:
-        if not hasattr(dataset, 'NumberOfFrames'):
+        if not is_multiframe_image(dataset):
             raise TypeError(
                 'The dataset does not represent a multi-frame dataset, so no '
                 'referenced frame numbers should be provided.'
@@ -157,7 +159,7 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'LongitudinalTemporalOffsetFromEvent':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -180,7 +182,7 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(LongitudinalTemporalOffsetFromEvent, item)
+        return cast(cls, item)
 
 
 class SourceImageForMeasurementGroup(ImageContentItem):
@@ -235,7 +237,7 @@ class SourceImageForMeasurementGroup(ImageContentItem):
         cls,
         image: Dataset,
         referenced_frame_numbers: Optional[Sequence[int]] = None
-    ) -> 'SourceImageForMeasurementGroup':
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -269,7 +271,7 @@ class SourceImageForMeasurementGroup(ImageContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'SourceImageForMeasurementGroup':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -292,7 +294,7 @@ class SourceImageForMeasurementGroup(ImageContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForMeasurementGroup, item)
+        return cast(cls, item)
 
 
 class SourceImageForMeasurement(ImageContentItem):
@@ -347,7 +349,7 @@ class SourceImageForMeasurement(ImageContentItem):
         cls,
         image: Dataset,
         referenced_frame_numbers: Optional[Sequence[int]] = None
-    ) -> 'SourceImageForMeasurement':
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -381,7 +383,7 @@ class SourceImageForMeasurement(ImageContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'SourceImageForMeasurement':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -404,7 +406,7 @@ class SourceImageForMeasurement(ImageContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForMeasurement, item)
+        return cast(cls, item)
 
 
 class SourceImageForRegion(ImageContentItem):
@@ -455,7 +457,7 @@ class SourceImageForRegion(ImageContentItem):
         cls,
         image: Dataset,
         referenced_frame_numbers: Optional[Sequence[int]] = None
-    ) -> 'SourceImageForRegion':
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -489,7 +491,7 @@ class SourceImageForRegion(ImageContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'SourceImageForRegion':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -509,7 +511,7 @@ class SourceImageForRegion(ImageContentItem):
         """
         dataset_copy = deepcopy(dataset)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForRegion, item)
+        return cast(cls, item)
 
 
 class SourceImageForSegmentation(ImageContentItem):
@@ -564,7 +566,7 @@ class SourceImageForSegmentation(ImageContentItem):
         cls,
         image: Dataset,
         referenced_frame_numbers: Optional[Sequence[int]] = None
-    ) -> 'SourceImageForSegmentation':
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -598,7 +600,7 @@ class SourceImageForSegmentation(ImageContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'SourceImageForSegmentation':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -621,7 +623,7 @@ class SourceImageForSegmentation(ImageContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForSegmentation, item)
+        return cast(cls, item)
 
 
 class SourceSeriesForSegmentation(UIDRefContentItem):
@@ -652,7 +654,7 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
     def from_source_image(
         cls,
         image: Dataset,
-    ) -> 'SourceSeriesForSegmentation':
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -677,7 +679,7 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'SourceSeriesForSegmentation':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -700,7 +702,7 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceSeriesForSegmentation, item)
+        return cast(cls, item)
 
 
 class CoordinatesForMeasurement(ScoordContentItem):
@@ -909,7 +911,7 @@ class ImageRegion(ScoordContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ImageRegion':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -932,7 +934,7 @@ class ImageRegion(ScoordContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ImageRegion, item)
+        return cast(cls, item)
 
 
 class ImageRegion3D(Scoord3DContentItem):
@@ -985,7 +987,7 @@ class ImageRegion3D(Scoord3DContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ImageRegion3D':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1008,7 +1010,7 @@ class ImageRegion3D(Scoord3DContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ImageRegion3D, item)
+        return cast(cls, item)
 
 
 class VolumeSurface(ContentSequence):
@@ -1137,7 +1139,7 @@ class VolumeSurface(ContentSequence):
     def from_sequence(
         cls,
         sequence: Sequence[Dataset]
-    ) -> 'VolumeSurface':
+    ) -> Self:
         """Construct an object from an existing content sequence.
 
         Parameters
@@ -1345,7 +1347,7 @@ class RealWorldValueMap(CompositeContentItem):
     def from_source_value_map(
         cls,
         value_map_dataset: Dataset,
-    ) -> 'RealWorldValueMap':
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -1373,7 +1375,7 @@ class RealWorldValueMap(CompositeContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'RealWorldValueMap':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1396,7 +1398,7 @@ class RealWorldValueMap(CompositeContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(RealWorldValueMap, item)
+        return cast(cls, item)
 
 
 class FindingSite(CodeContentItem):
@@ -1497,7 +1499,7 @@ class FindingSite(CodeContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'FindingSite':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1520,7 +1522,7 @@ class FindingSite(CodeContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(FindingSite, item)
+        return cast(cls, item)
 
 
 class ReferencedSegmentationFrame(ContentSequence):
@@ -1580,7 +1582,7 @@ class ReferencedSegmentationFrame(ContentSequence):
     def from_sequence(
         cls,
         sequence: Sequence[Dataset]
-    ) -> 'ReferencedSegmentationFrame':
+    ) -> Self:
         """Construct an object from items within an existing content sequence.
 
         Parameters
@@ -1642,7 +1644,7 @@ class ReferencedSegmentationFrame(ContentSequence):
 
         new_seq = ContentSequence([seg_frame_items[0], source_image_items[0]])
         new_seq.__class__ = cls
-        return cast(ReferencedSegmentationFrame, new_seq)
+        return cast(cls, new_seq)
 
     @classmethod
     def from_segmentation(
@@ -1650,7 +1652,7 @@ class ReferencedSegmentationFrame(ContentSequence):
         segmentation: Dataset,
         frame_number: Optional[Union[int, Sequence[int]]] = None,
         segment_number: Optional[int] = None
-    ) -> 'ReferencedSegmentationFrame':
+    ) -> Self:
         """Construct the content item directly from a segmentation dataset
 
         Parameters
@@ -1937,7 +1939,7 @@ class ReferencedSegment(ContentSequence):
     def from_sequence(
         cls,
         sequence: Sequence[Dataset]
-    ) -> 'ReferencedSegment':
+    ) -> Self:
         """Construct an object from items within an existing content sequence.
 
         Parameters
@@ -2031,7 +2033,7 @@ class ReferencedSegment(ContentSequence):
             )
 
         new_seq.__class__ = cls
-        return cast(ReferencedSegment, new_seq)
+        return cast(cls, new_seq)
 
     @classmethod
     def from_segmentation(
@@ -2039,7 +2041,7 @@ class ReferencedSegment(ContentSequence):
         segmentation: Dataset,
         segment_number: int,
         frame_numbers: Optional[Sequence[int]] = None
-    ) -> 'ReferencedSegment':
+    ) -> Self:
         """Construct the content item directly from a segmentation dataset
 
         Parameters

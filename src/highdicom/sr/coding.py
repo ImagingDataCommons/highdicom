@@ -1,6 +1,7 @@
 from copy import deepcopy
 import logging
 from typing import Optional, Union
+from typing_extensions import Self
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -96,7 +97,7 @@ class CodedConcept(Dataset):
         cls,
         dataset: Dataset,
         copy: bool = True
-    ) -> 'CodedConcept':
+    ) -> Self:
         """Construct a CodedConcept from an existing dataset.
 
         Parameters
@@ -147,7 +148,7 @@ class CodedConcept(Dataset):
         return concept
 
     @classmethod
-    def from_code(cls, code: Union[Code, 'CodedConcept']) -> 'CodedConcept':
+    def from_code(cls, code: Union[Code, 'CodedConcept']) -> Self:
         """Construct a CodedConcept for a pydicom Code.
 
         Parameters

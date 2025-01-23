@@ -41,6 +41,8 @@ from highdicom.valuerep import (
     _check_long_string,
     _check_short_text
 )
+from highdicom._module_utils import is_multiframe_image
+
 
 logger = logging.getLogger(__name__)
 
@@ -553,7 +555,7 @@ class GraphicAnnotation(Dataset):
             )
         self.GraphicLayer = graphic_layer.GraphicLayer
 
-        is_multiframe = hasattr(referenced_images[0], 'NumberOfFrames')
+        is_multiframe = is_multiframe_image(referenced_images[0])
         if is_multiframe and len(referenced_images) > 1:
             raise ValueError(
                 'If referenced images are multi-frame, only a single image '
@@ -1087,7 +1089,7 @@ def _get_modality_lut_transformation(
 
     """
     # Multframe images
-    if any(hasattr(im, 'NumberOfFrames') for im in referenced_images):
+    if any(is_multiframe_image(im) for im in referenced_images):
         im = referenced_images[0]
         if len(referenced_images) > 1 and not is_tiled_image(im):
             raise ValueError(
@@ -1201,7 +1203,7 @@ def _get_modality_lut_transformation(
             if intercept is None:
                 rescale_type = None
             else:
-                rescale_type = RescaleTypeValues.HU.value
+                rescale_type = RescaleTypeValues.US.value
 
     if intercept is None:
         return None
@@ -1277,10 +1279,7 @@ def _add_softcopy_voi_lut_attributes(
                         'included in "referenced_images".'
                     )
                 ref_im = ref_images_lut[uids]
-                is_multiframe = hasattr(
-                    ref_im,
-                    'NumberOfFrames',
-                )
+                is_multiframe = is_multiframe_image(ref_im)
                 if uids in prev_ref_frames and not is_multiframe:
                     raise ValueError(
                         f'Instance with SOP Instance UID {uids[1]} '
@@ -1333,7 +1332,7 @@ def _add_softcopy_voi_lut_attributes(
     dataset.SoftcopyVOILUTSequence = voi_lut_transformations
 
 
-def _get_softcopy_voi_lut_transformations(
+def _get_voi_lut_transformations(
     referenced_images: Sequence[Dataset]
 ) -> Sequence[SoftcopyVOILUTTransformation]:
     """Get Softcopy VOI LUT Transformation from referenced images.
@@ -1358,7 +1357,7 @@ def _get_softcopy_voi_lut_transformations(
 
     """
     transformations = []
-    if any(hasattr(im, 'NumberOfFrames') for im in referenced_images):
+    if any(is_multiframe_image(im) for im in referenced_images):
         if len(referenced_images) > 1:
             raise ValueError(
                 "If multiple images are passed and any of them are multiframe, "
@@ -1829,7 +1828,7 @@ class AdvancedBlending(Dataset):
                 voi_lut_transformations=voi_lut_transformations
             )
         else:
-            voi_lut_transformations = _get_softcopy_voi_lut_transformations(
+            voi_lut_transformations = _get_voi_lut_transformations(
                 referenced_images
             )
             if len(voi_lut_transformations) > 0:

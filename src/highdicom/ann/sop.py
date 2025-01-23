@@ -14,6 +14,7 @@ from typing import (
     Tuple,
     Union,
 )
+from typing_extensions import Self
 
 import numpy as np
 from pydicom import dcmread
@@ -418,7 +419,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'MicroscopyBulkSimpleAnnotations':
+    ) -> Self:
         """Construct instance from an existing dataset.
 
         Parameters
@@ -450,14 +451,14 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             ann = deepcopy(dataset)
         else:
             ann = dataset
-        ann.__class__ = MicroscopyBulkSimpleAnnotations
+        ann.__class__ = cls
 
         ann.AnnotationGroupSequence = [
             AnnotationGroup.from_dataset(item, copy=copy)
             for item in ann.AnnotationGroupSequence
         ]
 
-        return cast(MicroscopyBulkSimpleAnnotations, ann)
+        return cast(cls, ann)
 
 
 def annread(

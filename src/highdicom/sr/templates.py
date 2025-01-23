@@ -3,6 +3,7 @@ import collections
 import logging
 from copy import deepcopy
 from typing import cast, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing_extensions import Self
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -1263,7 +1264,7 @@ class PersonObserverIdentifyingAttributes(Template):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False
-    ) -> 'PersonObserverIdentifyingAttributes':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -1499,7 +1500,7 @@ class DeviceObserverIdentifyingAttributes(Template):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False
-    ) -> 'DeviceObserverIdentifyingAttributes':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -1653,7 +1654,7 @@ class SubjectContextFetus(Template):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False
-    ) -> 'SubjectContextFetus':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -1817,7 +1818,7 @@ class SubjectContextSpecimen(Template):
     def from_image(
         cls,
         image: Dataset,
-    ) -> 'SubjectContextSpecimen':
+    ) -> Self:
         """Deduce specimen information from an existing image.
 
         This is appropriate, for example, when copying the specimen information
@@ -1861,7 +1862,7 @@ class SubjectContextSpecimen(Template):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False
-    ) -> 'SubjectContextSpecimen':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -2074,7 +2075,7 @@ class SubjectContextDevice(Template):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False
-    ) -> 'SubjectContextDevice':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -2174,7 +2175,7 @@ class SubjectContext(Template):
         self.extend(subject_class_specific_context)
 
     @classmethod
-    def from_image(cls, image: Dataset) -> 'Optional[SubjectContext]':
+    def from_image(cls, image: Dataset) -> Self | None:
         """Get a subject context inferred from an existing image.
 
         Currently this is only supported for subjects that are specimens.
@@ -2338,7 +2339,7 @@ class QualitativeEvaluation(Template):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False
-    ) -> 'QualitativeEvaluation':
+    ) -> Self:
         """Construct object from a sequence of content items.
 
         Parameters
@@ -2552,7 +2553,7 @@ class Measurement(Template):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False
-    ) -> 'Measurement':
+    ) -> Self:
         """Construct object from a sequence of content items.
 
         Parameters
@@ -2872,7 +2873,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False
-    ) -> '_MeasurementsAndQualitativeEvaluations':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -3608,7 +3609,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False
-    ) -> 'PlanarROIMeasurementsAndQualitativeEvaluations':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -3628,8 +3629,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
 
         """
         instance = super().from_sequence(sequence)
-        instance.__class__ = PlanarROIMeasurementsAndQualitativeEvaluations
-        return cast(PlanarROIMeasurementsAndQualitativeEvaluations, instance)
+        instance.__class__ = cls
+        return cast(cls, instance)
 
 
 class VolumetricROIMeasurementsAndQualitativeEvaluations(
@@ -3882,7 +3883,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = False
-    ) -> 'VolumetricROIMeasurementsAndQualitativeEvaluations':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -3902,11 +3903,8 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
 
         """
         instance = super().from_sequence(sequence)
-        instance.__class__ = VolumetricROIMeasurementsAndQualitativeEvaluations
-        return cast(
-            VolumetricROIMeasurementsAndQualitativeEvaluations,
-            instance
-        )
+        instance.__class__ = cls
+        return cast(cls, instance)
 
 
 class ImageLibraryEntryDescriptors(Template):
@@ -4316,7 +4314,7 @@ class MeasurementReport(Template):
         sequence: Sequence[Dataset],
         is_root: bool = True,
         copy: bool = True,
-    ) -> 'MeasurementReport':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -4361,8 +4359,8 @@ class MeasurementReport(Template):
             is_root=True,
             copy=copy
         )
-        instance.__class__ = MeasurementReport
-        return cast(MeasurementReport, instance)
+        instance.__class__ = cls
+        return cast(cls, instance)
 
     def get_observer_contexts(
         self,

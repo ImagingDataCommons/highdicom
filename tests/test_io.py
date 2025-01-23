@@ -1,13 +1,16 @@
 import unittest
 from pathlib import Path
 from random import shuffle
+from tempfile import TemporaryDirectory
 
 import numpy as np
 from pydicom import dcmread
 from pydicom.data import get_testdata_file
 from pydicom.filebase import DicomBytesIO, DicomFileLike
+import pytest
 
 from highdicom.io import ImageFileReader
+from tests.utils import find_readable_images
 
 
 class TestImageFileReader(unittest.TestCase):
@@ -212,3 +215,103 @@ class TestImageFileReader(unittest.TestCase):
                 reader.metadata.Columns,
             )
             np.testing.assert_array_equal(frame, pixel_array)
+
+    def test_read_rle_no_bot(self):
+        # This image is RLE compressed but has no BOT, requiring searching
+        # through the pixel data for delimiter tags
+        filename = Path(get_testdata_file('rtdose_rle.dcm'))
+
+        dataset = dcmread(filename)
+        pixel_array = dataset.pixel_array
+        with ImageFileReader(filename) as reader:
+            assert reader.number_of_frames == 15
+            for f in range(reader.number_of_frames):
+                frame = reader.read_frame(f, correct_color=False)
+                assert isinstance(frame, np.ndarray)
+                assert frame.ndim == 2
+                assert frame.dtype == np.uint32
+                assert frame.shape == (
+                    reader.metadata.Rows,
+                    reader.metadata.Columns,
+                )
+                np.testing.assert_array_equal(frame, pixel_array[f])
+
+    def test_disallow_deflated_dataset(self):
+        # Files with a deflated transfer
+        msg = (
+            'Deflated transfer syntaxes cannot be used with the '
+            'ImageFileReader.'
+        )
+        filename = get_testdata_file('image_dfl.dcm')
+
+        with pytest.raises(ValueError, match=msg):
+            with ImageFileReader(filename) as reader:
+                reader.read_frame(1)
+
+    def test_extended_offsets(self):
+        # Surprisingly, there are no pydicom test files with extended offsets
+        # Instead, we start with an image with no basic offsets, and mock one
+        # up
+        filename = get_testdata_file('rtdose_rle.dcm')
+
+        # First use the image file reader to infer the offsets
+        with ImageFileReader(filename) as reader:
+            reader.read_frame(1)
+            offsets = reader._offset_table
+
+        # Add the extended offset table to the dataset
+        dataset = dcmread(filename)
+        dataset_with_eot = dcmread(filename)
+        dataset_with_eot.ExtendedOffsetTable = np.array(
+            offsets,
+            np.uint64
+        ).tobytes()
+
+        with TemporaryDirectory() as d:
+            new_filename = d + '/test.dcm'
+            dataset_with_eot.save_as(new_filename)
+
+            with ImageFileReader(new_filename) as reader:
+                for i in range(dataset.NumberOfFrames):
+                    frame = reader.read_frame(i)
+                    assert np.array_equal(frame, dataset.pixel_array[i])
+
+
+@pytest.mark.parametrize(
+    'filename',
+    find_readable_images(),
+)
+def test_all_images(filename):
+    dataset = dcmread(filename)
+    pixel_array = dataset.pixel_array
+
+    is_color = dataset.SamplesPerPixel == 3
+    number_of_frames = dataset.get('NumberOfFrames', 1)
+    is_multiframe = number_of_frames > 1
+
+    if is_color:
+        ndim = 3
+        shape = (
+            dataset.Rows,
+            dataset.Columns,
+            3
+        )
+    else:
+        ndim = 2
+        shape = (
+            dataset.Rows,
+            dataset.Columns,
+        )
+
+    with ImageFileReader(filename) as reader:
+        assert reader.number_of_frames == number_of_frames
+        for f in range(reader.number_of_frames):
+            frame = reader.read_frame(f, correct_color=False)
+            assert isinstance(frame, np.ndarray)
+            assert frame.ndim == ndim
+            assert frame.dtype == pixel_array.dtype
+            assert frame.shape == shape
+            expected_frame = (
+                pixel_array[f] if is_multiframe else pixel_array
+            )
+            np.testing.assert_array_equal(frame, expected_frame)

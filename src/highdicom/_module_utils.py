@@ -216,7 +216,11 @@ def get_module_usage(
     return None
 
 
-def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:
+def is_attribute_in_iod(
+    attribute: str,
+    sop_class_uid: str,
+    exclude_path_elements: Sequence[str] | None = None,
+) -> bool:
     """Check whether an attribute is present within an IOD.
 
     Parameters
@@ -225,6 +229,9 @@ def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:
         Keyword for the attribute
     sop_class_uid: str
         SOP Class UID identifying the IOD.
+    exclude_path_elements: Sequence[str] | None, optional
+        If any of these elements are found anywhere in the attribute's path,
+        that occurrence is excluded.
 
     Returns
     -------
@@ -247,6 +254,11 @@ def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:
     for module in IOD_MODULE_MAP[iod_name]:
         module_attributes = MODULE_ATTRIBUTE_MAP[module['key']]
         for attr in module_attributes:
+            if exclude_path_elements is not None:
+                if any(
+                    p in exclude_path_elements for p in attr['path']
+                ):
+                    continue
             if attr['keyword'] == attribute:
                 return True
 
@@ -279,12 +291,17 @@ def does_iod_have_pixel_data(sop_class_uid: str) -> bool:
         'DoubleFloatPixelData',
     ]
     return any(
-        is_attribute_in_iod(attr, sop_class_uid) for attr in pixel_attrs
+        is_attribute_in_iod(
+            attr,
+            sop_class_uid,
+            exclude_path_elements=['IconImageSequence'],
+        ) for attr in pixel_attrs
     )
 
 
 def is_multiframe_image(dataset: Dataset):
     """Determine whether an image is a multiframe image.
+
     The definition used is whether the IOD allows for multiple frames, not
     whether this particular instance has more than one frame.
 
@@ -300,6 +317,6 @@ def is_multiframe_image(dataset: Dataset):
 
     """
     return is_attribute_in_iod(
-        'PerFrameFunctionalGroupsSequence',
+        'NumberOfFrames',
         dataset.SOPClassUID,
     )
