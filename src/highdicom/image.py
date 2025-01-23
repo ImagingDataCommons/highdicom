@@ -1333,7 +1333,7 @@ class _Image(SOPClass):
             Numpy array of stored values. This will have shape (Rows, Columns)
             for a grayscale image, or (Rows, Columns, 3) for a color image. The
             data type will depend on how the pixels are stored in the file, and
-            may be signed or unsighed integers or float.
+            may be signed or unsigned integers or float.
 
         """
         frame_index = self._standardize_frame_index(frame_number, as_index)
@@ -1491,7 +1491,7 @@ class _Image(SOPClass):
             Numpy array of stored values. This will have shape (Rows, Columns)
             for a grayscale image, or (Rows, Columns, 3) for a color image. The
             data type will depend on how the pixels are stored in the file, and
-            may be signed or unsighed integers or float.
+            may be signed or unsigned integers or float.
 
         """  # noqa; E501
         frame_index = self._standardize_frame_index(frame_number, as_index)
@@ -5144,14 +5144,11 @@ def get_volume_from_series(
     ):
         raise ValueError('Images do not share a frame of reference.')
 
-    series_datasets = sort_datasets(series_datasets)
-
-    ds = series_datasets[0]
-
     if len(series_datasets) == 1:
-        slice_spacing = ds.get('SpacingBetweenSlices', 1.0)
+        slice_spacing = series_datasets[0].get('SpacingBetweenSlices', 1.0)
+        sorted_datasets = series_datasets
     else:
-        slice_spacing, _ = get_series_volume_positions(
+        slice_spacing, vol_positions = get_series_volume_positions(
             series_datasets,
             atol=atol,
             rtol=rtol,
@@ -5159,8 +5156,13 @@ def get_volume_from_series(
         if slice_spacing is None:
             raise ValueError('Series is not a regularly-spaced volume.')
 
+        sorted_datasets = [
+            series_datasets[vol_positions.index(i)]
+            for i in range(len(series_datasets))
+        ]
+
     frames = []
-    for ds in series_datasets:
+    for ds in sorted_datasets:
         frame = ds.pixel_array
         transf = _CombinedPixelTransformation(
             ds,
@@ -5187,12 +5189,14 @@ def get_volume_from_series(
 
     coordinate_system = get_image_coordinate_system(series_datasets[0])
 
+    first_ds = sorted_datasets[0]
+
     return Volume.from_attributes(
         array=array,
         frame_of_reference_uid=frame_of_reference_uid,
-        image_position=ds.ImagePositionPatient,
-        image_orientation=ds.ImageOrientationPatient,
-        pixel_spacing=ds.PixelSpacing,
+        image_position=first_ds.ImagePositionPatient,
+        image_orientation=first_ds.ImageOrientationPatient,
+        pixel_spacing=first_ds.PixelSpacing,
         spacing_between_slices=slice_spacing,
         channels=channels,
         coordinate_system=coordinate_system,
