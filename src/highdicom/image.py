@@ -62,7 +62,6 @@ from highdicom.spatial import (
     get_series_volume_positions,
     get_volume_positions,
     is_tiled_image,
-    sort_datasets,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID as UID
@@ -101,15 +100,6 @@ _DCM_SQL_TYPE_MAP = {
     'US': 'INTEGER',
     'UT': 'TEXT',
 }
-
-
-# TODO new type hints
-# TODO rebase parametric map
-# TODO exports/inits and docs
-# TODO add labelmap to seg documentation
-# TODO quickstart for image/volume
-# TODO tidy up missing frames parameters
-# TODO check with nifti conversion
 
 
 class _ImageColorType(Enum):
@@ -1150,7 +1140,7 @@ class _Image(SOPClass):
 
         Returns
         -------
-        highdicom._Image:
+        Self:
             Image object from the input dataset.
 
         """
@@ -2518,7 +2508,7 @@ class _Image(SOPClass):
 
         Parameters
         ----------
-        dimension_index_pointers: Sequence[Union[int, pydicom.tag.BaseTag, str]]
+        Sequence[Union[int, pydicom.tag.BaseTag, str]]:
             Sequence of tags serving as dimension index pointers. If strings,
             the items are interpreted as keywords.
 
@@ -2635,7 +2625,7 @@ class _Image(SOPClass):
 
         Returns
         -------
-        Set[Tuple[int, ...]]
+        Set[Tuple[int, ...]]:
             Set of unique dimension index value combinations for the given
             input dimension index pointers.
 
@@ -3391,6 +3381,7 @@ class _Image(SOPClass):
         queries: Dict[Union[int, str], Any],
         use_indices: bool,
         multiple_values: bool,
+        allow_missing_values: bool = False,
     ) -> Dict[str, Any]:
         """Check and standardize queries used to specify dimensions.
 
@@ -3413,6 +3404,15 @@ class _Image(SOPClass):
         multiple_values: bool
             Whether multiple values are expected for each dimension. If True,
             defines an index, if False, defines a filter.
+        allow_missing_values: bool, optional
+            Do not raise an error if some query values are not found in the
+            dataset.
+
+        Returns
+        -------
+        dict[str, Any]:
+            Queries after validation, with keys matching the column names used
+            in the Frame LUT.
 
         """
         normalized_queries: Dict[str, Any] = {}
@@ -3491,13 +3491,22 @@ class _Image(SOPClass):
                             'Try querying by index value instead. '
                         )
 
+            allowed_values = {
+                v[0] for v in self._db_con.execute(
+                    f"SELECT DISTINCT({col_name}) FROM FrameLUT;"
+                )
+            }
+
             if multiple_values:
                 if isinstance(value, np.ndarray):
                     if value.ndim != 1:
                         raise ValueError('Numpy array of invalid shape.')
                     value = value.tolist()
-                elif not isinstance(value, list):
-                    value = list(value)
+                else:
+                    value = [
+                        v.item() if isinstance(v, np.generic) else v
+                        for v in value
+                    ]
 
                 if len(value) != n_values:
                     raise ValueError(
@@ -3512,6 +3521,14 @@ class _Image(SOPClass):
                             f'For dimension {p}, expected all values to be of '
                             f'type {python_type}.'
                         )
+
+                if not allow_missing_values:
+                    if not set(value) <= allowed_values:
+                        raise ValueError(
+                            f"One or more values for dimension {p} are not "
+                            "present in the image."
+                        )
+
             else:
                 if isinstance(value, np.generic):
                     # Change numpy to python type
@@ -3521,6 +3538,13 @@ class _Image(SOPClass):
                         f'For dimension {p}, expected value to be of type '
                         f'{python_type}.'
                     )
+
+                if not allow_missing_values:
+                    if value not in allowed_values:
+                        raise ValueError(
+                            f"Value {value} for dimension {p} are not "
+                            "present in the image."
+                        )
 
             if col_name in normalized_queries:
                 raise ValueError(
@@ -3631,6 +3655,7 @@ class _Image(SOPClass):
         self,
         filters: Optional[Dict[Union[int, str], Any]] = None,
         filters_use_indices: bool = False,
+        allow_missing_values: bool = False,
     ) -> str:
         """Get a SQL-syntax filter string from filter definitions.
 
@@ -3643,6 +3668,9 @@ class _Image(SOPClass):
         filters_use_indices: bool, optional
             Whether the filters used dimension indices instead of the value
             itself.
+        allow_missing_values: bool, optional
+            Allow queries to include values that are not present in the dataset.
+            Relevant parts of the output volume will be left blank.
 
         Returns
         -------
@@ -3655,6 +3683,7 @@ class _Image(SOPClass):
                 filters,
                 filters_use_indices,
                 False,
+                allow_missing_values=allow_missing_values,
             )
 
             filter_comparisons = []
@@ -3680,7 +3709,8 @@ class _Image(SOPClass):
         remap_channel_indices: Optional[Sequence[int]] = None,
         filters: Optional[Dict[Union[int, str], Any]] = None,
         filters_use_indices: bool = False,
-        allow_missing_frames: bool = False,
+        allow_missing_values: bool = False,
+        allow_missing_combinations: bool = False,
     ) -> Generator[
             Iterator[
                 Tuple[
@@ -3745,10 +3775,14 @@ class _Image(SOPClass):
             values rather than lists.
         filters_use_indices: bool, optional
             As ``stack_dimension_use_indices`` but for the filters.
-        allow_missing_frames: bool, optional
-            Allow frames in the output array to be blank because these frames
-            are omitted from the image. If False and missing frames are found,
-            an error is raised.
+        allow_missing_values: bool, optional
+            Allow queries to include values that are not present in the dataset.
+            Relevant parts of the output volume will be left blank.
+        allow_missing_combinations: bool, optional
+            Allow queries to contain combinations of values along multiple
+            dimensions that are not found in the dataset and place blank frames
+            into the output at these locations. Ignored if
+            `allow_missing_values` is True.
 
         Yields
         ------
@@ -3760,12 +3794,16 @@ class _Image(SOPClass):
             inserting them into the output array.
 
         """  # noqa: E501
+        if allow_missing_values:
+            allow_missing_combinations = True
+
         all_columns = []
         if stack_indices is not None:
             norm_stack_indices = self._normalize_dimension_queries(
                 stack_indices,
                 stack_dimension_use_indices,
                 True,
+                allow_missing_values=allow_missing_values,
             )
             all_columns.extend(list(norm_stack_indices.keys()))
         elif stack_table_def is None:
@@ -3780,6 +3818,7 @@ class _Image(SOPClass):
                     indices_dict,
                     channel_dimension_use_indices,
                     True,
+                    allow_missing_values=allow_missing_values,
                 ) for indices_dict in channel_indices
             ]
             for indices_dict in norm_channel_indices_list:
@@ -3800,6 +3839,7 @@ class _Image(SOPClass):
         filter_str = self._prepare_filter_string(
             filters=filters,
             filters_use_indices=filters_use_indices,
+            allow_missing_values=allow_missing_values,
         )
 
         if stack_table_def is None:
@@ -3870,7 +3910,7 @@ class _Image(SOPClass):
 
         with self._generate_temp_tables([stack_table_def] + channel_table_defs):
 
-            if not allow_missing_frames:
+            if not allow_missing_combinations:
                 counting_query = query_template.format(
                     selection_str='COUNT(*)',
                     order_str='',
@@ -3890,7 +3930,7 @@ class _Image(SOPClass):
                     raise RuntimeError(
                         'The requested set of frames includes frames that '
                         'are missing from the image. You may need to allow '
-                        'missing frames or add additional filters.'
+                        'missing combinations or add additional filters.'
                     )
 
             full_query = query_template.format(
@@ -4124,7 +4164,8 @@ class _Image(SOPClass):
         remap_channel_indices: Optional[Sequence[int]] = None,
         filters: Optional[Dict[Union[int, str], Any]] = None,
         filters_use_indices: bool = False,
-        allow_missing_frames: bool = False,
+        allow_missing_values: bool = False,
+        allow_missing_combinations: bool = False,
     ) -> tuple[
             Generator[
                 Iterator[
@@ -4216,10 +4257,14 @@ class _Image(SOPClass):
             values rather than lists.
         filters_use_indices: bool, optional
             As ``stack_dimension_use_indices`` but for the filters.
-        allow_missing_frames: bool, optional
-            Allow frames in the output array to be blank because these frames
-            are omitted from the image. If False and missing frames are found,
-            an error is raised.
+        allow_missing_values: bool, optional
+            Allow queries to include values that are not present in the dataset.
+            Relevant parts of the output volume will be left blank.
+        allow_missing_combinations: bool, optional
+            Allow queries to contain combinations of values along multiple
+            dimensions that are not found in the dataset and place blank frames
+            into the output at these locations. Ignored if
+            `allow_missing_values` is True.
 
         Yields
         ------
@@ -4233,6 +4278,9 @@ class _Image(SOPClass):
             Output shape.
 
         """  # noqa: E501
+        if allow_missing_values:
+            allow_missing_combinations = True
+
         all_columns = [
             'RowPositionInTotalImagePixelMatrix',
             'ColumnPositionInTotalImagePixelMatrix',
@@ -4243,6 +4291,7 @@ class _Image(SOPClass):
                     indices_dict,
                     channel_dimension_use_indices,
                     True,
+                    allow_missing_values=allow_missing_values,
                 ) for indices_dict in channel_indices
             ]
             for indices_dict in norm_channel_indices_list:
@@ -4253,6 +4302,7 @@ class _Image(SOPClass):
         filter_str = self._prepare_filter_string(
             filters=filters,
             filters_use_indices=filters_use_indices,
+            allow_missing_values=allow_missing_values,
         )
 
         all_dimensions = [
@@ -4348,7 +4398,7 @@ class _Image(SOPClass):
         with self._generate_temp_tables(channel_table_defs):
 
             if (
-                not allow_missing_frames and
+                not allow_missing_combinations and
                 self.get('DimensionOrganizationType', '') != "TILED_FULL"
             ):
                 counting_query = query_template.format(
@@ -4431,7 +4481,7 @@ class _Image(SOPClass):
 
         Returns
         -------
-        highdicom._Image
+        Self:
             Image read from the file.
 
         """
@@ -4494,7 +4544,7 @@ class Image(_Image):
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
         apply_icc_profile: bool | None = None,
-        allow_missing_frames: bool = False,
+        allow_missing_positions: bool = False,
         rtol: float | None = None,
         atol: float | None = None,
     ) -> Volume:
@@ -4648,10 +4698,10 @@ class Image(_Image):
             be applied, regardless of whether it is present. If ``None``, the
             transform will be applied if it is present, but no error will be
             raised if it is not present.
-        allow_missing_frames: bool, optional
-            Allow frames in the output array to be blank because these frames
-            are omitted from the image. If False and missing frames are found,
-            an error is raised.
+        allow_missing_positions: bool, optional
+            Allow spatial positions the output array to be blank because these
+            frames are omitted from the image. If False and missing positions
+            are found, an error is raised.
         rtol: float | None, optional
             Relative tolerance for determining spacing regularity. If slice
             spacings vary by less that this proportion of the average spacing,
@@ -4747,7 +4797,6 @@ class Image(_Image):
                 apply_presentation_lut=apply_presentation_lut,
                 apply_palette_color_lut=apply_palette_color_lut,
                 apply_icc_profile=apply_icc_profile,
-                allow_missing_frames=allow_missing_frames,
                 as_indices=True,  # standardized earlier as indices
                 dtype=dtype,
             )[None]
@@ -4777,7 +4826,7 @@ class Image(_Image):
             ) = self._prepare_volume_positions_table(
                 rtol=rtol,
                 atol=atol,
-                allow_missing_positions=allow_missing_frames,
+                allow_missing_positions=allow_missing_positions,
                 slice_start=slice_start,
                 slice_end=slice_end,
                 as_indices=as_indices,
@@ -4785,7 +4834,6 @@ class Image(_Image):
 
             with self._iterate_indices_for_stack(
                 stack_table_def=stack_table_def,
-                allow_missing_frames=allow_missing_frames,
             ) as indices:
 
                 array = self._get_pixels_by_frame(
@@ -4834,7 +4882,6 @@ class Image(_Image):
         apply_presentation_lut: bool = True,
         apply_palette_color_lut: bool | None = None,
         apply_icc_profile: bool | None = None,
-        allow_missing_frames: bool = True,
         as_indices: bool = False,
     ):
         """Get the pixel array as a (region of) the total pixel matrix.
@@ -4968,10 +5015,6 @@ class Image(_Image):
             be applied, regardless of whether it is present. If ``None``, the
             transform will be applied if it is present, but no error will be
             raised if it is not present.
-        allow_missing_frames: bool, optional
-            Allow frames in the output array to be blank because these frames
-            are omitted from the image. If False and missing frames are found,
-            an error is raised.
         as_indices: bool, optional
             If True, interpret all row/column numbering parameters
             (``row_start``, ``row_end``, ``column_start``, and ``column_end``)
@@ -5008,7 +5051,6 @@ class Image(_Image):
             row_end=row_end,
             column_start=column_start,
             column_end=column_end,
-            allow_missing_frames=allow_missing_frames,
             as_indices=as_indices,
         ) as (indices, output_shape):
 

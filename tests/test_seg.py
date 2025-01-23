@@ -4966,7 +4966,7 @@ class TestSegmentationParsing:
         )
         assert np.array_equal(expected_array, out)
 
-    def test_allow_missing_frames(self):
+    def test_allow_missing_positions(self):
         all_source_sop_uids = [
             tup[-1] for tup in
             self._ct_binary_overlap_seg.get_source_image_uids()
@@ -4977,7 +4977,6 @@ class TestSegmentationParsing:
         # source UIDs
         self._ct_binary_overlap_seg.get_pixels_by_source_instance(
             source_sop_instance_uids=source_sop_uids,
-            allow_missing_frames=False,
         )
 
         # There are missing frames when indexing by volume position
@@ -4986,7 +4985,7 @@ class TestSegmentationParsing:
         )
         with pytest.raises(RuntimeError, match=msg):
             self._ct_binary_overlap_seg.get_volume(
-                allow_missing_frames=False,
+                allow_missing_positions=False
             )
 
     def test_get_volume_binary(self):

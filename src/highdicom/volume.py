@@ -34,19 +34,13 @@ from highdicom.content import (
     PlaneOrientationSequence,
     PlanePositionSequence,
 )
+from highdicom.uid import UID
 
 from pydicom.datadict import (
     get_entry,
     tag_for_keyword,
     keyword_for_tag,
 )
-
-
-# TODO should methods copy arrays?
-# TODO trim non-zero
-# TODO volread and metadata
-# TODO constructors for geometry, do they make sense for volume?
-# TODO tidy up channel/dimension terminology
 
 
 _DCM_PYTHON_TYPE_MAP = {
@@ -91,7 +85,7 @@ class ChannelDescriptor:
 
         Parameters
         ----------
-        identifier: str | int | highdicom.volume.ChannelDescriptor
+        identifier: str | int | highdicom.ChannelDescriptor
             Identifier of the attribute. May be a DICOM attribute identified
             either by its keyword or integer tag value. Alternatively, if
             ``is_custom`` is True, an arbitrary string used to identify the
@@ -239,7 +233,7 @@ RGB_COLOR_CHANNEL_DESCRIPTOR = ChannelDescriptor(
 
 class _VolumeBase(ABC):
 
-    """Base class for object exhibiting volume geometry."""
+    """Base class for objects exhibiting volume geometry."""
 
     def __init__(
         self,
@@ -252,13 +246,12 @@ class _VolumeBase(ABC):
         Parameters
         ----------
         affine: numpy.ndarray
-            4 x 4 affine matrix representing the transformation from pixel
-            indices (slice index, row index, column index) to the
-            frame-of-reference coordinate system. The top left 3 x 3 matrix
-            should be a scaled orthogonal matrix representing the rotation and
-            scaling. The top right 3 x 1 vector represents the translation
-            component. The last row should have value [0, 0, 0, 1].
-        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+            4 x 4 affine matrix representing the transformation from voxel
+            indices to the frame-of-reference coordinate system. The top left 3
+            x 3 matrix should be a scaled orthogonal matrix representing the
+            rotation and scaling. The top right 3 x 1 vector represents the
+            translation component. The last row should have value [0, 0, 0, 1].
+        coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
             is defined).
         frame_of_reference_uid: Optional[str], optional
@@ -283,16 +276,16 @@ class _VolumeBase(ABC):
     @property
     @abstractmethod
     def spatial_shape(self) -> Tuple[int, int, int]:
-        """Tuple[int, int, int]: Spatial shape of the array.
+        """Tuple[int, int, int]: 3D spatial shape of the array.
 
-        Does not include the channel dimension.
+        Does not include channel dimensions.
 
         """
         pass
 
     @property
     def coordinate_system(self) -> CoordinateSystemNames:
-        """coordinate_system: highdicom.enum.CoordinateSystemNames | str
+        """highdicom.CoordinateSystemNames | str:
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
             is defined).
         """
@@ -300,7 +293,7 @@ class _VolumeBase(ABC):
 
     @property
     def nearest_center_indices(self) -> tuple[int, int, int]:
-        """Get array index of center of the volume, rounded down to the nearest
+        """Array index of center of the volume, rounded down to the nearest
         integer value.
 
         Results are discrete zero-based array indices.
@@ -319,7 +312,7 @@ class _VolumeBase(ABC):
 
     @property
     def center_indices(self) -> tuple[float, float, float]:
-        """Get array index of center of the volume, as floats with sub-voxel
+        """Array index of center of the volume, as floats with sub-voxel
         precision.
 
         Results are continuous zero-based array indices.
@@ -359,7 +352,7 @@ class _VolumeBase(ABC):
         self,
         indices: np.ndarray,
     ) -> np.ndarray:
-        """Transform image pixel indices to frame of reference coordinates.
+        """Transform image pixel indices to frame-of-reference coordinates.
 
         Parameters
         ----------
@@ -475,7 +468,7 @@ class _VolumeBase(ABC):
         else:
             return indices
 
-    def get_plane_position(self, plane_number: int) -> PlanePositionSequence:
+    def get_plane_position(self, plane_index: int) -> PlanePositionSequence:
         """Get plane position of a given plane.
 
         Parameters
@@ -485,13 +478,13 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.content.PlanePositionSequence:
+        highdicom.PlanePositionSequence:
             Plane position of the plane.
 
         """
-        if plane_number < 0 or plane_number >= self.spatial_shape[0]:
+        if plane_index < 0 or plane_index >= self.spatial_shape[0]:
             raise ValueError("Invalid plane number for volume.")
-        index = np.array([[plane_number, 0, 0]])
+        index = np.array([[plane_index, 0, 0]])
         position = self.map_indices_to_reference(index)[0]
 
         if self.coordinate_system == CoordinateSystemNames.SLIDE:
@@ -513,7 +506,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        List[highdicom.content.PlanePositionSequence]:
+        List[highdicom.PlanePositionSequence]:
             Plane position of the all planes (stacked down axis 0 of the
             volume).
 
@@ -575,16 +568,18 @@ class _VolumeBase(ABC):
         )
 
     @property
-    def frame_of_reference_uid(self) -> Optional[str]:
-        """Union[str, None]: Frame of reference UID."""
-        return self._frame_of_reference_uid
+    def frame_of_reference_uid(self) -> Optional[UID]:
+        """Union[highdicom.UID, None]: Frame of reference UID."""
+        if self._frame_of_reference_uid is None:
+            return None
+        return UID(self._frame_of_reference_uid)
 
     @property
     def affine(self) -> np.ndarray:
         """numpy.ndarray: 4x4 affine transformation matrix
 
-        This matrix maps an index into the array into a position in the LPS
-        frame of reference coordinate space.
+        This matrix maps an index of the array into a position in the LPS
+        frame-of-reference coordinate space.
 
         """
         return self._affine.copy()
@@ -633,7 +628,7 @@ class _VolumeBase(ABC):
             4x4 affine transformation matrix mapping augmented voxel indices to
             frame-of-reference coordinates defined by the chosen convention.
 
-        """
+        """  # noqa: E501
         affine = self.affine
         if output_convention is not None:
             affine = _transform_affine_to_convention(
@@ -668,6 +663,10 @@ class _VolumeBase(ABC):
         rows and the vector along the columns, matching the format of the DICOM
         Image Orientation Patient and Image Orientation Slide attributes.
 
+        Assumes that frames are stacked down axis 0, rows down axis 1, and
+        columns down axis 2 (the convention used to create volumes from
+        images).
+
         """
         vec_along_rows = self._affine[:3, 2].copy()
         vec_along_columns = self._affine[:3, 1].copy()
@@ -679,8 +678,13 @@ class _VolumeBase(ABC):
     def pixel_spacing(self) -> Tuple[float, float]:
         """Tuple[float, float]:
 
-        Within-plane pixel spacing in millimeter units. Two
-        values (spacing between rows, spacing between columns).
+        Within-plane pixel spacing in millimeter units. Two values (spacing
+        between rows, spacing between columns), matching the format of the
+        DICOM PixelSpacing attribute.
+
+        Assumes that frames are stacked down axis 0, rows down axis 1, and
+        columns down axis 2 (the convention used to create volumes from
+        images).
 
         """
         vec_along_rows = self._affine[:3, 2]
@@ -694,6 +698,10 @@ class _VolumeBase(ABC):
         """float:
 
         Spacing between consecutive slices in millimeter units.
+
+        Assumes that frames are stacked down axis 0, rows down axis 1, and
+        columns down axis 2 (the convention used to create volumes from
+        images).
 
         """
         slice_vec = self._affine[:3, 0]
@@ -749,8 +757,7 @@ class _VolumeBase(ABC):
         Direction matrix for the volume. The columns of the direction
         matrix are orthogonal unit vectors that give the direction in the
         frame of reference space of the increasing direction of each axis
-        of the array. This matrix may be passed either as a 3x3 matrix or a
-        flattened 9 element array (first row, second row, third row).
+        of the array.
 
         """
         dir_mat = self._affine[:3, :3]
@@ -1033,7 +1040,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.volume._VolumeBase:
+        Self:
             Copy of the original object.
 
         """
@@ -1052,7 +1059,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom._VolumeBase:
+        Self:
             New volume with spatial axes permuted in the provided order.
 
         """
@@ -1075,7 +1082,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.volume._VolumeBase:
+        Self:
             New geometry with spatial axes permuted randomly.
 
         """
@@ -1150,7 +1157,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        Self:
             New volume with the requested patient orientation.
 
         """  # noqa: E501
@@ -1183,7 +1190,7 @@ class _VolumeBase(ABC):
         return result.permute_spatial_axes(permute_indices)
 
     def swap_spatial_axes(self, axis_1: int, axis_2: int) -> Self:
-        """Swap the spatial axes of the array.
+        """Swap two spatial axes of the array.
 
         Parameters
         ----------
@@ -1194,7 +1201,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        Self:
             New volume with spatial axes swapped as requested.
 
         """
@@ -1267,7 +1274,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        Self:
             New volume with selected spatial axes randomly flipped.
 
         """
@@ -1300,7 +1307,13 @@ class _VolumeBase(ABC):
 
     @property
     def handedness(self) -> AxisHandedness:
-        """highdicom.AxisHandedness: Axis handedness of the volume."""
+        """highdicom.AxisHandedness: Axis handedness of the volume.
+
+        This indicates whether the volume's three spatial axes form a
+        right-handed or left-handed coordinate system in the frame-of-reference
+        space.
+
+        """
         v1, v2, v3 = self.spacing_vectors()
         if np.cross(v1, v2) @ v3 < 0.0:
             return AxisHandedness.LEFT_HANDED
@@ -1334,6 +1347,11 @@ class _VolumeBase(ABC):
             Specification of a sequence of two spatial axis indices (each being
             0, 1, or 2) to swap if required to meet the given handedness
             requirement.
+
+        Returns
+        -------
+        Self:
+            New volume with corrected handedness.
 
         Note
         ----
@@ -1402,7 +1420,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        Self:
             Volume with padding applied.
 
         """
@@ -1442,7 +1460,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        Self:
             Volume with padding applied.
 
         """
@@ -1511,7 +1529,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        Self:
             Volume with padding and/or cropping applied.
 
         """
@@ -1562,7 +1580,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.Volume:
+        Self:
             New volume formed by cropping the volumes.
 
         """
@@ -1647,7 +1665,7 @@ class _VolumeBase(ABC):
 
         Returns
         -------
-        highdicom.volume._VolumeBase:
+        Self:
             New volume formed by matching the geometry of this volume to that
             of ``other``.
 
@@ -1814,8 +1832,9 @@ class VolumeGeometry(_VolumeBase):
             scaling. The top right 3 x 1 vector represents the translation
             component. The last row should have value [0, 0, 0, 1].
         spatial_shape: Sequence[int]
-            Number of voxels in the volume along the three spatial dimensions.
-        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+            Number of voxels in the (implied) volume along the three spatial
+            dimensions.
+        coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
             is defined).
         frame_of_reference_uid: Optional[str], optional
@@ -1848,6 +1867,12 @@ class VolumeGeometry(_VolumeBase):
     ) -> Self:
         """Create a volume from DICOM attributes.
 
+        The resulting geometry assumes that the frames of the image whose
+        attributes are used are stacked down axis 0, the rows down axis 1, and
+        the columns down axis 2. Furthermore, frames will be stacked such that
+        the resulting geometry forms a right-handed coordinate system in the
+        frame-of-reference coordinate system.
+
         Parameters
         ----------
         image_position: Sequence[float]
@@ -1879,7 +1904,7 @@ class VolumeGeometry(_VolumeBase):
             "ImagePositionPatient" attributes of consecutive slices).
         number_of_frames: int
             Number of frames in the volume.
-        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+        coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
             is defined).
         frame_of_reference_uid: Union[str, None], optional
@@ -1888,7 +1913,7 @@ class VolumeGeometry(_VolumeBase):
 
         Returns
         -------
-        highdicom.Volume:
+        highdicom.VolumeGeometry:
             New Volume using the given array and DICOM attributes.
 
         """
@@ -1938,7 +1963,7 @@ class VolumeGeometry(_VolumeBase):
             be either a sequence of length 3 to give the values along the three
             spatial dimensions, or a single float value to be shared by all
             spatial dimensions.
-        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+        coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
             is defined).
         position: Sequence[float]
@@ -2214,26 +2239,19 @@ class Volume(_VolumeBase):
     """Class representing an array of regularly-spaced frames in 3D space.
 
     This class combines a NumPy array with an affine matrix describing the
-    location of the voxels in the frame of reference coordinate space. A
+    location of the voxels in the frame-of-reference coordinate space. A
     Volume is not a DICOM object itself, but represents a volume that may
     be extracted from DICOM image, and/or encoded within a DICOM object,
     potentially following any number of processing steps.
-
-    All volume arrays have three spatial dimensions. They may optionally have
-    further non-spatial dimensions, known as "channel" dimensions, whose
-    meaning is explicitly specified.
 
     All such volumes have a geometry that exists either within DICOM's patient
     coordinate system or its slide coordinate system, both of which clearly
     define the meaning of the three spatial axes of the frame of reference
     coordinate system.
 
-    Note
-    ----
-    The ordering of pixel indices used by this class (slice, row, column)
-    matches the way pydicom and highdicom represent pixel arrays but differs
-    from the (column, row, slice) convention used by the various "transformer"
-    classes in the ``highdicom.spatial`` module.
+    All volume arrays have three spatial dimensions. They may optionally have
+    further non-spatial dimensions, known as "channel" dimensions, whose
+    meaning is explicitly specified.
 
     """
 
@@ -2263,7 +2281,7 @@ class Volume(_VolumeBase):
             should be a scaled orthogonal matrix representing the rotation and
             scaling. The top right 3 x 1 vector represents the translation
             component. The last row should have value [0, 0, 0, 1].
-        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+        coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
             is defined).
         frame_of_reference_uid: Optional[str], optional
@@ -2363,6 +2381,12 @@ class Volume(_VolumeBase):
     ) -> Self:
         """Create a volume from DICOM attributes.
 
+        The resulting geometry assumes that the frames of the image whose
+        attributes are used are stacked down axis 0, the rows down axis 1, and
+        the columns down axis 2. Furthermore, frames will be stacked such that
+        the resulting geometry forms a right-handed coordinate system in the
+        frame-of-reference coordinate system.
+
         Parameters
         ----------
         array: numpy.ndarray
@@ -2392,7 +2416,7 @@ class Volume(_VolumeBase):
             attribute "SpacingBetweenSlices" (however, this may not be present
             in many images and may need to be inferred from
             "ImagePositionPatient" attributes of consecutive slices).
-        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+        coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
             is defined).
         frame_of_reference_uid: Union[str, None], optional
@@ -2469,7 +2493,7 @@ class Volume(_VolumeBase):
             be either a sequence of length 3 to give the values along the three
             spatial dimensions, or a single float value to be shared by all
             spatial dimensions.
-        coordinate_system: highdicom.enum.CoordinateSystemNames | str
+        coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
             is defined).
         position: Sequence[float]
@@ -2548,7 +2572,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        hd.VolumeGeometry:
+        highdicom.VolumeGeometry:
             Geometry object matching this volume.
 
         """
@@ -2598,7 +2622,7 @@ class Volume(_VolumeBase):
 
     @property
     def channel_descriptors(self) -> tuple[ChannelDescriptor, ...]:
-        """tuple[highdicom.volume.ChannelDescriptor]
+        """tuple[highdicom.ChannelDescriptor]
         Descriptor of each channel.
 
         """
@@ -2829,7 +2853,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        channel_identifiers: Sequence[pydicom.BaseTag | int | str | highdicom.volume.ChannelDescriptor]
+        channel_identifiers: Sequence[pydicom.BaseTag | int | str | highdicom.ChannelDescriptor]
             List of channel identifiers matching those in the volume but in an
             arbitrary order.
 
@@ -2869,17 +2893,17 @@ class Volume(_VolumeBase):
 
         Given a value used to specify a channel, check that such a channel
         exists in the volume and return a channel identifier as a
-        highdicom.volume.ChannelDescriptor object.
+        highdicom.ChannelDescriptor object.
 
         Parameters
         ----------
-        identifier: highdicom.volume.ChannelDescriptor | int | str
+        identifier: highdicom.ChannelDescriptor | int | str
             Identifier. Strings will be matched against keywords and integers
             will be matched against tags.
 
         Returns
         -------
-        highdicom.volume.ChannelDescriptor:
+        highdicom.ChannelDescriptor:
             Channel identifier in standard form.
 
         """
@@ -2923,7 +2947,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        identifier: highdicom.volume.ChannelDescriptor | int | str
+        identifier: highdicom.ChannelDescriptor | int | str
             Identifier. Strings will be matched against keywords and integers
             will be matched against tags.
 
@@ -2947,7 +2971,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        channel_identifier: highdicom.volume.ChannelDescriptor | int | str
+        channel_identifier: highdicom.ChannelDescriptor | int | str
             Identifier of a channel within the image.
 
         Returns
@@ -3144,7 +3168,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        channel_descriptors: Sequence[str | int | highdicom.volume.ChannelDescriptor] | None
+        channel_descriptors: Sequence[str | int | highdicom.ChannelDescriptor] | None
             Identifiers of channels to squeeze. If ``None``, squeeze all
             singleton channels. Otherwise squeeze only the specified channels
             and raise an error if any cannot be squeezed.

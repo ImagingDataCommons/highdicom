@@ -3677,7 +3677,6 @@ class Segmentation(_Image):
         dtype: Union[type, str, np.dtype, None] = None,
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
-        allow_missing_frames: bool = True,
     ) -> np.ndarray:
         """Get a pixel array for a list of source instances.
 
@@ -3801,10 +3800,6 @@ class Segmentation(_Image):
             present. If None, apply an ICC profile if found but do not require
             it to be present. If False, never apply an ICC profile. Only
             possible when ``apply_palette_color_lut`` is True.
-        allow_missing_frames: bool, optional
-            Allow frames in the output array to be blank because these frames
-            are omitted from the image. If False and missing frames are found,
-            an error is raised.
 
         Returns
         -------
@@ -3907,7 +3902,8 @@ class Segmentation(_Image):
             },
             channel_indices=channel_indices,
             remap_channel_indices=[remap_channel_indices],
-            allow_missing_frames=allow_missing_frames,
+            allow_missing_values=True,
+            allow_missing_combinations=True,
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
@@ -3937,7 +3933,6 @@ class Segmentation(_Image):
         dtype: Union[type, str, np.dtype, None] = None,
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
-        allow_missing_frames: bool = True,
     ):
         """Get a pixel array for a list of frames within a source instance.
 
@@ -4066,10 +4061,6 @@ class Segmentation(_Image):
             present. If None, apply an ICC profile if found but do not require
             it to be present. If False, never apply an ICC profile. Only
             possible when ``apply_palette_color_lut`` is True.
-        allow_missing_frames: bool, optional
-            Allow frames in the output array to be blank because these frames
-            are omitted from the image. If False and missing frames are found,
-            an error is raised.
 
         Returns
         -------
@@ -4206,7 +4197,8 @@ class Segmentation(_Image):
             stack_indices={'ReferencedFrameNumber': list(source_frame_numbers)},
             channel_indices=channel_indices,
             remap_channel_indices=[remap_channel_indices],
-            allow_missing_frames=allow_missing_frames,
+            allow_missing_values=True,
+            allow_missing_combinations=True,
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
@@ -4288,7 +4280,7 @@ class Segmentation(_Image):
         skip_overlap_checks: bool = False,
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
-        allow_missing_frames: bool = True,
+        allow_missing_positions: bool = True,
         rtol: float | None = None,
         atol: float | None = None,
     ) -> Volume:
@@ -4390,10 +4382,10 @@ class Segmentation(_Image):
             present. If None, apply an ICC profile if found but do not require
             it to be present. If False, never apply an ICC profile. Only
             possible when ``apply_palette_color_lut`` is True.
-        allow_missing_frames: bool, optional
-            Allow frames in the output array to be blank because these frames
-            are omitted from the image. If False and missing frames are found,
-            an error is raised.
+        allow_missing_positions: bool, optional
+            Allow spatial positions the output array to be blank because these
+            frames are omitted from the image. If False and missing positions
+            are found, an error is raised.
         rtol: float | None, optional
             Relative tolerance for determining spacing regularity. If slice
             spacings vary by less that this proportion of the average spacing,
@@ -4478,7 +4470,6 @@ class Segmentation(_Image):
                 skip_overlap_checks=skip_overlap_checks,
                 apply_palette_color_lut=apply_palette_color_lut,
                 apply_icc_profile=apply_icc_profile,
-                allow_missing_frames=allow_missing_frames,
                 as_indices=True,  # due to earlier standardization
                 dtype=dtype,
             )[None]
@@ -4503,7 +4494,7 @@ class Segmentation(_Image):
             ) = self._prepare_volume_positions_table(
                 rtol=rtol,
                 atol=atol,
-                allow_missing_positions=allow_missing_frames,
+                allow_missing_positions=allow_missing_positions,
                 slice_start=slice_start,
                 slice_end=slice_end,
                 as_indices=as_indices,
@@ -4513,7 +4504,8 @@ class Segmentation(_Image):
                 stack_table_def=stack_table_def,
                 channel_indices=channel_indices,
                 remap_channel_indices=[remap_channel_indices],
-                allow_missing_frames=allow_missing_frames,
+                allow_missing_values=True,
+                allow_missing_combinations=True,
             ) as indices:
 
                 array = self._get_pixels_by_seg_frame(
@@ -4557,7 +4549,6 @@ class Segmentation(_Image):
         dtype: Union[type, str, np.dtype, None] = None,
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
-        allow_missing_frames: bool = True,
     ):
         """Get a pixel array for a list of dimension index values.
 
@@ -4684,10 +4675,6 @@ class Segmentation(_Image):
             present. If None, apply an ICC profile if found but do not require
             it to be present. If False, never apply an ICC profile. Only
             possible when ``apply_palette_color_lut`` is True.
-        allow_missing_frames: bool, optional
-            Allow frames in the output array to be blank because these frames
-            are omitted from the image. If False and missing frames are found,
-            an error is raised.
 
         Returns
         -------
@@ -4828,7 +4815,8 @@ class Segmentation(_Image):
             stack_dimension_use_indices=True,
             channel_indices=channel_indices,
             remap_channel_indices=[remap_channel_indices],
-            allow_missing_frames=allow_missing_frames,
+            allow_missing_values=True,
+            allow_missing_combinations=True,
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
@@ -4858,7 +4846,6 @@ class Segmentation(_Image):
         dtype: Union[type, str, np.dtype, None] = None,
         apply_palette_color_lut: bool = False,
         apply_icc_profile: bool | None = None,
-        allow_missing_frames: bool = True,
         as_indices: bool = False,
     ):
         """Get the pixel array as a (region of) the total pixel matrix.
@@ -4986,10 +4973,6 @@ class Segmentation(_Image):
             present. If None, apply an ICC profile if found but do not require
             it to be present. If False, never apply an ICC profile. Only
             possible when ``apply_palette_color_lut`` is True.
-        allow_missing_frames: bool, optional
-            Allow frames in the output array to be blank because these frames
-            are omitted from the image. If False and missing frames are found,
-            an error is raised.
         as_indices: bool, optional
             If True, interpret all row/column numbering parameters
             (``row_start``, ``row_end``, ``column_start``, and ``column_end``)
@@ -5049,8 +5032,9 @@ class Segmentation(_Image):
             column_end=column_end,
             channel_indices=channel_indices,
             remap_channel_indices=[remap_channel_indices],
-            allow_missing_frames=allow_missing_frames,
             as_indices=as_indices,
+            allow_missing_values=True,
+            allow_missing_combinations=True,
         ) as (indices, output_shape):
 
             return self._get_pixels_by_seg_frame(

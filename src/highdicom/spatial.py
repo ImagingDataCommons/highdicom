@@ -428,7 +428,7 @@ def get_image_coordinate_system(
 
     Returns
     --------
-    Union[highdicom.enum.CoordinateSystemNames, None]
+    Union[highdicom.CoordinateSystemNames, None]
         Coordinate system used by the image, if any.
 
     """
