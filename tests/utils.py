@@ -4,6 +4,7 @@ from pathlib import Path
 from pydicom.data import get_testdata_files
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.filereader import dcmread
+from pydicom import uid
 
 
 from highdicom._module_utils import (
@@ -30,9 +31,14 @@ def write_and_read_dataset(dataset: Dataset):
         return dcmread(fp, force=True)
 
 
-def find_readable_images() -> list[str]:
+def find_readable_images() -> list[tuple[str, str | None]]:
     """Get a list of all images in highdicom and pydicom test data that should
     be expected to work with image reading routines.
+
+    Returns a list of tuples (path, dependency), where path is the filepath,
+    and dependency is either None if the file can be read using only required
+    dependencies, or a str that can be used with pytest.importorskip if an
+    optional dependency is required to decode pixel data.
 
     """
     # All pydicom test files
@@ -97,6 +103,19 @@ def find_readable_images() -> list[str]:
         if excluded:
             continue
 
-        files_to_use.append(f)
+        dependency = None
+        if dcm.file_meta.TransferSyntaxUID in (
+            uid.JPEGExtended12Bit,
+            uid.JPEGLosslessSV1,
+        ):
+            dependency = "libjpeg"
+
+        if dcm.file_meta.TransferSyntaxUID in (
+            uid.JPEG2000,
+            uid.JPEG2000Lossless,
+        ):
+            dependency = "openjpeg"
+
+        files_to_use.append((f, dependency))
 
     return files_to_use

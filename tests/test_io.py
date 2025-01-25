@@ -278,10 +278,13 @@ class TestImageFileReader(unittest.TestCase):
 
 
 @pytest.mark.parametrize(
-    'filename',
+    'filename,dependency',
     find_readable_images(),
 )
-def test_all_images(filename):
+def test_all_images(filename, dependency):
+    if dependency is not None:
+        pytest.importorskip(dependency)
+
     dataset = dcmread(filename)
     pixel_array = dataset.pixel_array
 

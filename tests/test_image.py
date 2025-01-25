@@ -1241,12 +1241,15 @@ def test_instantiation():
 
 
 @pytest.mark.parametrize(
-    'f',
+    'f,dependency',
     find_readable_images(),
 )
-def test_imread_all_test_files(f):
+def test_imread_all_test_files(f, dependency):
     # A simple test that the reads in all images in the pydicom test suite
     # and gets a single frame
+    if dependency is not None:
+        pytest.importorskip(dependency)
+
     im = imread(f)
     im_lazy = imread(f, lazy_frame_retrieval=True)
 
