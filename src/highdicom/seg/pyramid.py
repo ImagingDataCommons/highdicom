@@ -1,5 +1,6 @@
 """Tools for constructing multi-resolution segmentation pyramids."""
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any
+from collections.abc import Sequence
 
 import numpy as np
 from PIL import Image
@@ -20,20 +21,20 @@ from highdicom.uid import UID
 def create_segmentation_pyramid(
     source_images: Sequence[Dataset],
     pixel_arrays: Sequence[np.ndarray],
-    segmentation_type: Union[str, SegmentationTypeValues],
+    segmentation_type: str | SegmentationTypeValues,
     segment_descriptions: Sequence[SegmentDescription],
     series_instance_uid: str,
     series_number: int,
     manufacturer: str,
     manufacturer_model_name: str,
-    software_versions: Union[str, Tuple[str]],
+    software_versions: str | tuple[str],
     device_serial_number: str,
-    downsample_factors: Optional[Sequence[float]] = None,
-    sop_instance_uids: Optional[List[str]] = None,
-    pyramid_uid: Optional[str] = None,
-    pyramid_label: Optional[str] = None,
+    downsample_factors: Sequence[float] | None = None,
+    sop_instance_uids: list[str] | None = None,
+    pyramid_uid: str | None = None,
+    pyramid_label: str | None = None,
     **kwargs: Any
-) -> List[Segmentation]:
+) -> list[Segmentation]:
     """Construct a multi-resolution segmentation pyramid series.
 
     A multi-resolution pyramid represents the same segmentation array at
@@ -269,7 +270,7 @@ def create_segmentation_pyramid(
             )
 
     # Check that pixel arrays have an appropriate shape
-    if len(set(p.ndim for p in pixel_arrays)) != 1:
+    if len({p.ndim for p in pixel_arrays}) != 1:
         raise ValueError(
             'Each item of argument "pixel_arrays" must have the same number of '
             'dimensions.'

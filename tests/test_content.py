@@ -17,6 +17,7 @@ from highdicom import (
     PaletteColorLUT,
     ContentCreatorIdentificationCodeSequence,
     ModalityLUT,
+    ModalityLUTTransformation,
     LUT,
     PaletteColorLUTTransformation,
     PixelMeasuresSequence,
@@ -127,18 +128,74 @@ class TestLUT(TestCase):
         self._lut_data_16 = np.arange(510, 600, dtype=np.uint16)
         self._explanation = 'My LUT'
 
-    # Commented out until 8 bit LUTs are reimplemented
-    # def test_construction(self):
-    #     first_value = 0
-    #     lut = LUT(
-    #         first_mapped_value=first_value,
-    #         lut_data=self._lut_data,
-    #     )
-    #     assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-    #     assert lut.bits_per_entry == 8
-    #     assert lut.first_mapped_value == first_value
-    #     assert np.array_equal(lut.lut_data, self._lut_data)
-    #     assert not hasattr(lut, 'LUTExplanation')
+    def test_construction(self):
+        first_value = 0
+        lut = LUT(
+            first_mapped_value=first_value,
+            lut_data=self._lut_data,
+        )
+        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
+        assert lut.bits_per_entry == 8
+        assert lut.first_mapped_value == first_value
+        assert np.array_equal(lut.lut_data, self._lut_data)
+        assert not hasattr(lut, 'LUTExplanation')
+
+        arr = np.array([0, 1, 0, 89, 1])
+        expected = np.array([10, 11, 10, 99, 11])
+        output = lut.apply(arr)
+        assert output.dtype == np.uint8
+        assert np.array_equal(output, expected)
+
+        for dtype in [
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.float32,
+            np.float64,
+            np.int16,
+            np.int32,
+            np.int64,
+        ]:
+            output = lut.apply(arr, dtype=dtype)
+            assert output.dtype == dtype
+            assert np.array_equal(output, expected.astype(dtype))
+
+        for dtype in [
+            np.int8,
+        ]:
+            with pytest.raises(TypeError):
+                lut.apply(arr, dtype=dtype)
+
+        for out_min, out_max in [
+            (0.0, 1.0),
+            (-10, -5),
+            (100.0, 150.0),
+        ]:
+            for dtype in [
+                np.float16,
+                np.float32,
+                np.float64,
+            ]:
+                scaled_data = lut.get_scaled_lut_data(
+                    output_range=(out_min, out_max),
+                    dtype=dtype,
+                )
+                assert scaled_data.min() == out_min
+                assert scaled_data.max() == out_max
+                assert scaled_data[0] == out_min
+                assert scaled_data[-1] == out_max
+                assert scaled_data.dtype == dtype
+
+                scaled_data = lut.get_scaled_lut_data(
+                    output_range=(out_min, out_max),
+                    dtype=dtype,
+                    invert=True,
+                )
+                assert scaled_data.min() == out_min
+                assert scaled_data.max() == out_max
+                assert scaled_data[-1] == out_min
+                assert scaled_data[0] == out_max
+                assert scaled_data.dtype == dtype
 
     def test_construction_16bit(self):
         first_value = 0
@@ -151,6 +208,62 @@ class TestLUT(TestCase):
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert not hasattr(lut, 'LUTExplanation')
+
+        arr = np.array([0, 1, 0, 89, 1])
+        expected = np.array([510, 511, 510, 599, 511])
+        output = lut.apply(arr)
+        assert output.dtype == np.uint16
+        assert np.array_equal(output, expected)
+
+        for dtype in [
+            np.uint16,
+            np.uint32,
+            np.float32,
+            np.float64,
+            np.int32,
+            np.int64,
+        ]:
+            output = lut.apply(arr, dtype=dtype)
+            assert output.dtype == dtype
+            assert np.array_equal(output, expected.astype(dtype))
+
+        for dtype in [
+            np.uint8,
+            np.int8,
+            np.int16,
+        ]:
+            with pytest.raises(TypeError):
+                lut.apply(arr, dtype=dtype)
+
+        for out_min, out_max in [
+            (0.0, 1.0),
+            (-10, -5),
+            (100.0, 150.0),
+        ]:
+            for dtype in [
+                np.float32,
+                np.float64,
+            ]:
+                scaled_data = lut.get_scaled_lut_data(
+                    output_range=(out_min, out_max),
+                    dtype=dtype,
+                )
+                assert scaled_data.min() == out_min
+                assert scaled_data.max() == out_max
+                assert scaled_data[0] == out_min
+                assert scaled_data[-1] == out_max
+                assert scaled_data.dtype == dtype
+
+                scaled_data = lut.get_scaled_lut_data(
+                    output_range=(out_min, out_max),
+                    dtype=dtype,
+                    invert=True,
+                )
+                assert scaled_data.min() == out_min
+                assert scaled_data.max() == out_max
+                assert scaled_data[-1] == out_min
+                assert scaled_data[0] == out_max
+                assert scaled_data.dtype == dtype
 
     def test_construction_explanation(self):
         first_value = 0
@@ -174,20 +287,45 @@ class TestModalityLUT(TestCase):
         self._lut_data_16 = np.arange(510, 600, dtype=np.uint16)
         self._explanation = 'My LUT'
 
-    # Commented out until 8 bit LUTs are reimplemented
-    # def test_construction(self):
-    #     first_value = 0
-    #     lut = ModalityLUT(
-    #         lut_type=RescaleTypeValues.HU,
-    #         first_mapped_value=first_value,
-    #         lut_data=self._lut_data,
-    #     )
-    #     assert lut.ModalityLUTType == RescaleTypeValues.HU.value
-    #     assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
-    #     assert lut.bits_per_entry == 8
-    #     assert lut.first_mapped_value == first_value
-    #     assert np.array_equal(lut.lut_data, self._lut_data)
-    #     assert not hasattr(lut, 'LUTExplanation')
+    def test_construction(self):
+        first_value = 0
+        lut = ModalityLUT(
+            lut_type=RescaleTypeValues.HU,
+            first_mapped_value=first_value,
+            lut_data=self._lut_data,
+        )
+        assert lut.ModalityLUTType == RescaleTypeValues.HU.value
+        assert lut.LUTDescriptor == [len(self._lut_data), first_value, 8]
+        assert lut.bits_per_entry == 8
+        assert lut.first_mapped_value == first_value
+        assert np.array_equal(lut.lut_data, self._lut_data)
+        assert not hasattr(lut, 'LUTExplanation')
+
+        arr = np.array([0, 1, 0, 89, 1])
+        expected = np.array([10, 11, 10, 99, 11])
+        output = lut.apply(arr)
+        assert output.dtype == np.uint8
+        assert np.array_equal(output, expected)
+
+        for dtype in [
+            np.uint16,
+            np.uint32,
+            np.int16,
+            np.float16,
+            np.float32,
+            np.float64,
+            np.int32,
+            np.int64,
+        ]:
+            output = lut.apply(arr, dtype=dtype)
+            assert output.dtype == dtype
+            assert np.array_equal(output, expected.astype(dtype))
+
+        for dtype in [
+            np.int8,
+        ]:
+            with pytest.raises(TypeError):
+                lut.apply(arr, dtype=dtype)
 
     def test_construction_16bit(self):
         first_value = 0
@@ -202,6 +340,33 @@ class TestModalityLUT(TestCase):
         assert lut.first_mapped_value == first_value
         assert np.array_equal(lut.lut_data, self._lut_data_16)
         assert not hasattr(lut, 'LUTExplanation')
+
+        arr = np.array([0, 1, 0, 89, 1])
+        expected = np.array([510, 511, 510, 599, 511])
+        output = lut.apply(arr)
+        assert output.dtype == np.uint16
+        assert np.array_equal(output, expected)
+
+        for dtype in [
+            np.uint16,
+            np.uint32,
+            np.float32,
+            np.float64,
+            np.int32,
+            np.int64,
+        ]:
+            output = lut.apply(arr, dtype=dtype)
+            assert output.dtype == dtype
+            assert np.array_equal(output, expected.astype(dtype))
+
+        for dtype in [
+            np.uint8,
+            np.int8,
+            np.int16,
+            np.float16,
+        ]:
+            with pytest.raises(TypeError):
+                lut.apply(arr, dtype=dtype)
 
     def test_construction_string_type(self):
         first_value = 0
@@ -249,9 +414,222 @@ class TestModalityLUT(TestCase):
         with pytest.raises(ValueError):
             ModalityLUT(
                 lut_type=RescaleTypeValues.HU,
-                first_mapped_value=0,  # invalid
-                lut_data=np.array([0, 1, 2], dtype=np.int16),
+                first_mapped_value=0,
+                lut_data=np.array([0, 1, 2], dtype=np.int16),  # invalid
             )
+
+
+class TestModalityLUTTransformation(TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self._lut = ModalityLUT(
+            lut_type=RescaleTypeValues.HU,
+            first_mapped_value=0,
+            lut_data=np.array([11, 22, 33, 44], np.uint8),
+        )
+        self._input_array = np.array(
+            [
+                [0, 1, 2, 3],
+                [0, 1, 2, 3],
+                [0, 1, 2, 3],
+            ],
+            dtype=np.uint8,
+        )
+
+    def test_with_lut(self):
+        transf = ModalityLUTTransformation(modality_lut=self._lut)
+        assert transf.has_lut()
+
+        out = transf.apply(self._input_array)
+
+        expected = np.array(
+            [
+                [11, 22, 33, 44],
+                [11, 22, 33, 44],
+                [11, 22, 33, 44],
+            ]
+        )
+
+        assert np.array_equal(out, expected)
+        assert out.dtype == np.uint8
+
+    def test_with_scale_1(self):
+        transf = ModalityLUTTransformation(
+            rescale_type=RescaleTypeValues.HU,
+            rescale_slope=1.0,
+            rescale_intercept=0.0,
+        )
+        assert not transf.has_lut()
+
+        out = transf.apply(self._input_array)
+
+        expected = self._input_array
+
+        assert np.array_equal(out, expected)
+        assert out.dtype == np.float64
+
+        for dtype in [
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.uint64,
+            np.float16,
+            np.float32,
+            np.float64,
+            np.int16,
+            np.int32,
+            np.int64,
+        ]:
+            out = transf.apply(self._input_array, dtype=dtype)
+            assert np.array_equal(out, expected)
+            assert out.dtype == dtype
+
+        for dtype in [np.int8]:
+            msg = (
+                f'Datatype {np.dtype(dtype)} does not have capacity for '
+                'values with slope 1.00 and intercept 0.00.'
+            )
+            with pytest.raises(ValueError, match=msg):
+                transf.apply(self._input_array, dtype=dtype)
+
+        msg = (
+            'An integer data type cannot be used if the input '
+            'array is floating point.'
+        )
+        with pytest.raises(ValueError, match=msg):
+            transf.apply(self._input_array.astype(np.float32), dtype=np.int64)
+
+    def test_with_scale_2(self):
+        transf = ModalityLUTTransformation(
+            rescale_type=RescaleTypeValues.HU,
+            rescale_slope=10.0,
+            rescale_intercept=0.0,
+        )
+        assert not transf.has_lut()
+
+        out = transf.apply(self._input_array)
+
+        expected = self._input_array * 10
+
+        assert np.array_equal(out, expected)
+        assert out.dtype == np.float64
+
+        for dtype in [
+            np.uint16,
+            np.uint32,
+            np.uint64,
+            np.float32,
+            np.float64,
+            np.int16,
+            np.int32,
+            np.int64,
+        ]:
+            out = transf.apply(self._input_array, dtype=dtype)
+            assert np.array_equal(out, expected)
+            assert out.dtype == dtype
+
+        for dtype in [
+            np.int8,
+            np.uint8,
+        ]:
+            msg = (
+                f'Datatype {np.dtype(dtype)} does not have capacity for '
+                'values with slope 10.00 and intercept 0.00.'
+            )
+            with pytest.raises(ValueError, match=msg):
+                transf.apply(self._input_array, dtype=dtype)
+
+    def test_with_scale_3(self):
+        transf = ModalityLUTTransformation(
+            rescale_type=RescaleTypeValues.HU,
+            rescale_slope=2.0,
+            rescale_intercept=-1000.0,
+        )
+        assert not transf.has_lut()
+
+        out = transf.apply(self._input_array)
+
+        expected = self._input_array.astype(np.float64) * 2 - 1000
+
+        assert np.array_equal(out, expected)
+        assert out.dtype == np.float64
+
+        for dtype in [
+            np.float16,
+            np.float32,
+            np.float64,
+            np.int16,
+            np.int32,
+            np.int64,
+        ]:
+            out = transf.apply(self._input_array, dtype=dtype)
+            assert np.array_equal(out, expected)
+            assert out.dtype == dtype
+
+        for dtype in [
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.uint64,
+        ]:
+            msg = (
+                'An unsigned integer data type cannot be used if the '
+                'intercept is negative.'
+            )
+            with pytest.raises(ValueError, match=msg):
+                transf.apply(self._input_array, dtype=dtype)
+
+        for dtype in [
+            np.int8,
+        ]:
+            msg = (
+                f'Datatype {np.dtype(dtype)} does not have capacity for '
+                'values with slope 2.00 and intercept -1000.00.'
+            )
+            with pytest.raises(ValueError, match=msg):
+                transf.apply(self._input_array, dtype=dtype)
+
+    def test_with_scale_4(self):
+        transf = ModalityLUTTransformation(
+            rescale_type=RescaleTypeValues.HU,
+            rescale_slope=3.14159,
+            rescale_intercept=0.0,
+        )
+        assert not transf.has_lut()
+
+        out = transf.apply(self._input_array)
+
+        expected = self._input_array.astype(np.float64) * 3.14159
+        assert np.array_equal(out, expected)
+        assert out.dtype == np.float64
+
+        for dtype in [
+            np.float16,
+            np.float32,
+            np.float64,
+        ]:
+            expected = self._input_array.astype(np.float64) * dtype(3.14159)
+            out = transf.apply(self._input_array, dtype=dtype)
+            assert np.array_equal(out, expected)
+            assert out.dtype == dtype
+
+        for dtype in [
+            np.int8,
+            np.int16,
+            np.int32,
+            np.int64,
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.uint64,
+        ]:
+            msg = (
+                'An integer data type cannot be used if the slope '
+                'or intercept is a non-integer value.'
+            )
+            with pytest.raises(ValueError, match=msg):
+                transf.apply(self._input_array, dtype=dtype)
 
 
 class TestPlanePositionSequence(TestCase):
@@ -932,6 +1310,64 @@ class TestVOILUTTransformation(TestCase):
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
         assert not hasattr(lut, 'VOILUTSequence')
+        assert not lut.has_lut()
+
+        input_array = np.array(
+            [
+                [-200, -200, -200],
+                [-160, -160, -160],
+                [39.5, 39.5, 39.5],
+                [239, 239, 239],
+                [300, 300, 300],
+            ]
+        )
+
+        expected = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0],
+                [0.5, 0.5, 0.5],
+                [1.0, 1.0, 1.0],
+                [1.0, 1.0, 1.0],
+            ]
+        )
+        inverted_expected = np.flipud(expected)
+
+        out = lut.apply(array=input_array)
+        assert np.array_equal(expected, out)
+        assert out.dtype == np.float64
+
+        # Check with a different dtype
+        for dtype in [np.float16, np.float32, np.float64]:
+            out = lut.apply(array=input_array, dtype=dtype)
+            assert np.allclose(expected, out)
+            assert out.dtype == dtype
+
+            out = lut.apply(array=input_array, dtype=dtype, invert=True)
+            assert np.allclose(inverted_expected, out)
+            assert out.dtype == dtype
+
+        for dtype in [np.int16, np.uint8, np.int64]:
+            msg = f'Data type "{np.dtype(dtype)}" is not suitable.'
+            with pytest.raises(ValueError, match=msg):
+                lut.apply(array=input_array, dtype=dtype)
+
+        # Check with a different window
+        expected = np.array(
+            [
+                [-0.5, -0.5, -0.5],
+                [-0.5, -0.5, -0.5],
+                [0.0, 0.0, 0.0],
+                [0.5, 0.5, 0.5],
+                [0.5, 0.5, 0.5],
+            ]
+        )
+        out = lut.apply(
+            array=input_array,
+            output_range=(-0.5, 0.5),
+        )
+        assert np.array_equal(expected, out)
+        assert out.dtype == np.float64
 
     def test_construction_explanation(self):
         lut = VOILUTTransformation(
@@ -941,15 +1377,65 @@ class TestVOILUTTransformation(TestCase):
         )
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
+        assert not lut.has_lut()
 
     def test_construction_multiple(self):
         lut = VOILUTTransformation(
-            window_center=[40.0, 600.0],
-            window_width=[400.0, 1500.0],
-            window_explanation=['Soft Tissue Window', 'Lung Window'],
+            window_center=[600.0, 40.0],
+            window_width=[1500.0, 400.0],
+            window_explanation=['Lung Window', 'Soft Tissue Window'],
         )
-        assert lut.WindowCenter == [40.0, 600.0]
-        assert lut.WindowWidth == [400.0, 1500.0]
+        assert lut.WindowCenter == [600.0, 40.0]
+        assert lut.WindowWidth == [1500.0, 400.0]
+        assert not lut.has_lut()
+
+        input_array_lung = np.array(
+            [
+                [-200, -200, -200],
+                [-150, -150, -150],
+                [599.5, 599.5, 599.5],
+                [1350, 1350, 1350],
+                [1400, 1400, 1400],
+            ]
+        )
+
+        input_array_soft_tissue = np.array(
+            [
+                [-200, -200, -200],
+                [-160, -160, -160],
+                [39.5, 39.5, 39.5],
+                [239, 239, 239],
+                [300, 300, 300],
+            ]
+        )
+
+        expected = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0],
+                [0.5, 0.5, 0.5],
+                [1.0, 1.0, 1.0],
+                [1.0, 1.0, 1.0],
+            ]
+        )
+
+        out = lut.apply(array=input_array_lung, voi_transform_selector=0)
+        assert np.allclose(expected, out)
+        assert out.dtype == np.float64
+
+        out = lut.apply(
+            array=input_array_soft_tissue,
+            voi_transform_selector=1
+        )
+        assert np.array_equal(expected, out)
+        assert out.dtype == np.float64
+
+        out = lut.apply(
+            array=input_array_soft_tissue,
+            voi_transform_selector=-1
+        )
+        assert np.array_equal(expected, out)
+        assert out.dtype == np.float64
 
     def test_construction_multiple_mismatch1(self):
         with pytest.raises(ValueError):
@@ -988,7 +1474,7 @@ class TestVOILUTTransformation(TestCase):
                 window_explanation=['Soft Tissue Window', 'Lung Window'],
             )
 
-    def test_construction_lut_function(self):
+    def test_construction_sigmoid(self):
         window_center = 40.0
         window_width = 400.0
         voi_lut_function = VOILUTFunctionValues.SIGMOID
@@ -1000,12 +1486,189 @@ class TestVOILUTTransformation(TestCase):
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
         assert lut.VOILUTFunction == voi_lut_function.value
+        assert not lut.has_lut()
+
+        input_array = np.array(
+            [
+                [-2000, -20000, -2000],
+                [40, 40, 40],
+                [3000, 3000, 3000],
+            ]
+        )
+
+        expected = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [0.5, 0.5, 0.5],
+                [1.0, 1.0, 1.0],
+            ]
+        )
+
+        out = lut.apply(array=input_array)
+        assert np.allclose(expected, out)
+        assert out.dtype == np.float64
+
+        # Check with a different dtype
+        for dtype in [np.float16, np.float32, np.float64]:
+            out = lut.apply(array=input_array, dtype=dtype)
+            assert np.allclose(expected, out)
+            assert out.dtype == dtype
+
+        expected = np.array(
+            [
+                [10.0, 10.0, 10.0],
+                [15.0, 15.0, 15.0],
+                [20.0, 20.0, 20.0],
+            ]
+        )
+
+        out = lut.apply(
+            array=input_array,
+            output_range=(10.0, 20.0),
+        )
+        assert np.allclose(expected, out)
+        assert out.dtype == np.float64
+
+        # test with invert
+        inverted_expected = np.flipud(expected)
+        out = lut.apply(
+            array=input_array,
+            output_range=(10.0, 20.0),
+            invert=True,
+        )
+        assert np.allclose(inverted_expected, out)
+        assert out.dtype == np.float64
+
+    def test_construction_linear_exact(self):
+        window_center = 40.0
+        window_width = 400.0
+        voi_lut_function = VOILUTFunctionValues.LINEAR_EXACT
+        lut = VOILUTTransformation(
+            window_center=window_center,
+            window_width=window_width,
+            voi_lut_function=voi_lut_function,
+        )
+        assert lut.WindowCenter == 40.0
+        assert lut.WindowWidth == 400.0
+        assert lut.VOILUTFunction == voi_lut_function.value
+        assert not lut.has_lut()
+
+        input_array = np.array(
+            [
+                [-200, -200, -200],
+                [-160, -160, -160],
+                [40, 40, 40],
+                [240, 240, 240],
+                [300, 300, 300],
+            ],
+            np.int16
+        )
+
+        expected = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0],
+                [0.5, 0.5, 0.5],
+                [1.0, 1.0, 1.0],
+                [1.0, 1.0, 1.0],
+            ]
+        )
+
+        out = lut.apply(array=input_array)
+        assert np.array_equal(expected, out)
+        assert out.dtype == np.float64
+
+        # Check with a different window
+        expected = np.array(
+            [
+                [-20.0, -20.0, -20.0],
+                [-20.0, -20.0, -20.0],
+                [-15.0, -15.0, -15.0],
+                [-10.0, -10.0, -10.0],
+                [-10.0, -10.0, -10.0],
+            ]
+        )
+        out = lut.apply(
+            array=input_array,
+            output_range=(-20.0, -10.0),
+        )
+        assert np.array_equal(expected, out)
+        assert out.dtype == np.float64
+
+        # Check inverted
+        expected = np.array(
+            [
+                [-10.0, -10.0, -10.0],
+                [-10.0, -10.0, -10.0],
+                [-15.0, -15.0, -15.0],
+                [-20.0, -20.0, -20.0],
+                [-20.0, -20.0, -20.0],
+            ]
+        )
+        out = lut.apply(
+            array=input_array,
+            output_range=(-20.0, -10.0),
+            invert=True,
+            dtype=np.float32
+        )
+        assert np.array_equal(expected, out)
+        assert out.dtype == np.float32
 
     def test_construction_luts(self):
         lut = VOILUTTransformation(voi_luts=[self._lut])
         assert len(lut.VOILUTSequence) == 1
         assert not hasattr(lut, 'WindowWidth')
         assert not hasattr(lut, 'WindowCenter')
+        assert lut.has_lut()
+
+        input_array = np.array(
+            [
+                [0, 0, 0],
+                [1, 1, 1],
+                [2, 2, 2],
+            ],
+            dtype=np.uint8
+        )
+
+        expected = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [0.5, 0.5, 0.5],
+                [1.0, 1.0, 1.0],
+            ],
+        )
+        out = lut.apply(input_array)
+        assert np.array_equal(expected, out)
+
+        expected = np.array(
+            [
+                [1.0, 1.0, 1.0],
+                [0.5, 0.5, 0.5],
+                [0.0, 0.0, 0.0],
+            ],
+        )
+        out = lut.apply(input_array, invert=True)
+        assert np.array_equal(expected, out)
+
+        expected = np.array(
+            [
+                [1.0, 1.0, 1.0],
+                [3.5, 3.5, 3.5],
+                [6.0, 6.0, 6.0],
+            ],
+        )
+        out = lut.apply(input_array, output_range=(1.0, 6.0))
+        assert np.array_equal(expected, out)
+
+        expected = np.array(
+            [
+                [6.0, 6.0, 6.0],
+                [3.5, 3.5, 3.5],
+                [1.0, 1.0, 1.0],
+            ],
+        )
+        out = lut.apply(input_array, output_range=(1.0, 6.0), invert=True)
+        assert np.array_equal(expected, out)
 
     def test_construction_both(self):
         lut = VOILUTTransformation(
@@ -1016,6 +1679,7 @@ class TestVOILUTTransformation(TestCase):
         assert len(lut.VOILUTSequence) == 1
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
+        assert lut.has_lut()
 
     def test_construction_neither(self):
         with pytest.raises(TypeError):
@@ -1186,28 +1850,78 @@ class TestPaletteColorLUT(TestCase):
         assert lut.lut_data.dtype == np.uint16
         np.array_equal(lut.lut_data, lut_data)
 
-    # Commented out until 8 bit LUTs are reimplemented
-    # def test_construction_8bit(self):
-    #     lut_data = np.arange(0, 256, dtype=np.uint8)
-    #     first_mapped_value = 0
-    #     lut = PaletteColorLUT(first_mapped_value, lut_data, color='blue')
+        arr = np.array([32, 33, 32, 132])
+        expected = np.array([10, 11, 10, 110])
+        output = lut.apply(arr)
+        assert output.dtype == np.uint16
+        assert np.array_equal(output, expected)
 
-    #     assert len(lut.BluePaletteColorLookupTableDescriptor) == 3
-    #     assert lut.BluePaletteColorLookupTableDescriptor[0] == 256
-    #     assert lut.BluePaletteColorLookupTableDescriptor[1] == 0
-    #     assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
-    #     assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
-    #     assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
-    #     expected_len = lut_data.shape[0] * 2
-    #     assert len(lut.BluePaletteColorLookupTableData) == expected_len
-    #     assert not hasattr(lut, 'RedPaletteColorLookupTableData')
-    #     assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
+        for dtype in [
+            np.uint16,
+            np.uint32,
+            np.float32,
+            np.float64,
+            np.int32,
+            np.int64,
+        ]:
+            output = lut.apply(arr, dtype=dtype)
+            assert output.dtype == dtype
+            assert np.array_equal(output, expected.astype(dtype))
 
-    #     assert lut.number_of_entries == lut_data.shape[0]
-    #     assert lut.first_mapped_value == first_mapped_value
-    #     assert lut.bits_per_entry == 8
-    #     assert lut.lut_data.dtype == np.uint8
-    #     np.array_equal(lut.lut_data, lut_data)
+        for dtype in [
+            np.uint8,
+            np.int8,
+            np.int16,
+        ]:
+            with pytest.raises(TypeError):
+                lut.apply(arr, dtype=dtype)
+
+    def test_construction_8bit(self):
+        lut_data = np.arange(0, 256, dtype=np.uint8)
+        first_mapped_value = 0
+        lut = PaletteColorLUT(first_mapped_value, lut_data, color='blue')
+
+        assert len(lut.BluePaletteColorLookupTableDescriptor) == 3
+        assert lut.BluePaletteColorLookupTableDescriptor[0] == 256
+        assert lut.BluePaletteColorLookupTableDescriptor[1] == 0
+        assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
+        assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
+        expected_len = lut_data.shape[0]
+        assert len(lut.BluePaletteColorLookupTableData) == expected_len
+        assert not hasattr(lut, 'RedPaletteColorLookupTableData')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableData')
+
+        assert lut.number_of_entries == lut_data.shape[0]
+        assert lut.first_mapped_value == first_mapped_value
+        assert lut.bits_per_entry == 8
+        assert lut.lut_data.dtype == np.uint8
+        np.array_equal(lut.lut_data, lut_data)
+
+        arr = np.array([0, 1, 0, 255])
+        expected = np.array([0, 1, 0, 255])
+        output = lut.apply(arr)
+        assert output.dtype == np.uint8
+        assert np.array_equal(output, expected)
+
+        for dtype in [
+            np.uint16,
+            np.uint32,
+            np.int16,
+            np.float32,
+            np.float64,
+            np.int32,
+            np.int64,
+        ]:
+            output = lut.apply(arr, dtype=dtype)
+            assert output.dtype == dtype
+            assert np.array_equal(output, expected.astype(dtype))
+
+        for dtype in [
+            np.int8,
+        ]:
+            with pytest.raises(TypeError):
+                lut.apply(arr, dtype=dtype)
 
 
 class TestPaletteColorLUTTransformation(TestCase):
@@ -1216,47 +1930,80 @@ class TestPaletteColorLUTTransformation(TestCase):
         super().setUp()
 
     def test_construction(self):
-        dtype = np.uint16
-        r_lut_data = np.arange(10, 120, dtype=dtype)
-        g_lut_data = np.arange(20, 130, dtype=dtype)
-        b_lut_data = np.arange(30, 140, dtype=dtype)
-        first_mapped_value = 32
-        lut_uid = UID()
-        r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
-        g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
-        b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
-        instance = PaletteColorLUTTransformation(
-            red_lut=r_lut,
-            green_lut=g_lut,
-            blue_lut=b_lut,
-            palette_color_lut_uid=lut_uid,
-        )
-        assert instance.PaletteColorLookupTableUID == lut_uid
-        red_desc = [len(r_lut_data), first_mapped_value, 16]
-        r_lut_data_retrieved = np.frombuffer(
-            instance.RedPaletteColorLookupTableData,
-            dtype=np.uint16
-        )
-        assert np.array_equal(r_lut_data, r_lut_data_retrieved)
-        assert instance.RedPaletteColorLookupTableDescriptor == red_desc
-        green_desc = [len(g_lut_data), first_mapped_value, 16]
-        g_lut_data_retrieved = np.frombuffer(
-            instance.GreenPaletteColorLookupTableData,
-            dtype=np.uint16
-        )
-        assert np.array_equal(g_lut_data, g_lut_data_retrieved)
-        assert instance.GreenPaletteColorLookupTableDescriptor == green_desc
-        blue_desc = [len(b_lut_data), first_mapped_value, 16]
-        b_lut_data_retrieved = np.frombuffer(
-            instance.BluePaletteColorLookupTableData,
-            dtype=np.uint16
-        )
-        assert np.array_equal(b_lut_data, b_lut_data_retrieved)
-        assert instance.BluePaletteColorLookupTableDescriptor == blue_desc
+        for bits, dtype in [(8, np.uint8), (16, np.uint16)]:
+            r_lut_data = np.arange(10, 120, dtype=dtype)
+            g_lut_data = np.arange(20, 130, dtype=dtype)
+            b_lut_data = np.arange(30, 140, dtype=dtype)
+            first_mapped_value = 32
+            lut_uid = UID()
+            r_lut = PaletteColorLUT(
+                first_mapped_value,
+                r_lut_data,
+                color='red',
+            )
+            g_lut = PaletteColorLUT(
+                first_mapped_value,
+                g_lut_data,
+                color='green',
+            )
+            b_lut = PaletteColorLUT(
+                first_mapped_value,
+                b_lut_data,
+                color='blue',
+            )
+            instance = PaletteColorLUTTransformation(
+                red_lut=r_lut,
+                green_lut=g_lut,
+                blue_lut=b_lut,
+                palette_color_lut_uid=lut_uid,
+            )
+            assert instance.PaletteColorLookupTableUID == lut_uid
+            red_desc = [len(r_lut_data), first_mapped_value, bits]
+            r_lut_data_retrieved = np.frombuffer(
+                instance.RedPaletteColorLookupTableData,
+                dtype=dtype,
+            )
+            assert np.array_equal(r_lut_data, r_lut_data_retrieved)
+            assert (
+                instance.RedPaletteColorLookupTableDescriptor == red_desc
+            )
+            green_desc = [len(g_lut_data), first_mapped_value, bits]
+            g_lut_data_retrieved = np.frombuffer(
+                instance.GreenPaletteColorLookupTableData,
+                dtype=dtype,
+            )
+            assert np.array_equal(g_lut_data, g_lut_data_retrieved)
+            assert (
+                instance.GreenPaletteColorLookupTableDescriptor == green_desc
+            )
+            blue_desc = [len(b_lut_data), first_mapped_value, bits]
+            b_lut_data_retrieved = np.frombuffer(
+                instance.BluePaletteColorLookupTableData,
+                dtype=dtype,
+            )
+            assert np.array_equal(b_lut_data, b_lut_data_retrieved)
+            assert (
+                instance.BluePaletteColorLookupTableDescriptor == blue_desc
+            )
 
-        assert np.array_equal(instance.red_lut.lut_data, r_lut_data)
-        assert np.array_equal(instance.green_lut.lut_data, g_lut_data)
-        assert np.array_equal(instance.blue_lut.lut_data, b_lut_data)
+            assert np.array_equal(instance.red_lut.lut_data, r_lut_data)
+            assert np.array_equal(instance.green_lut.lut_data, g_lut_data)
+            assert np.array_equal(instance.blue_lut.lut_data, b_lut_data)
+
+            assert instance.first_mapped_value == first_mapped_value
+            assert instance.number_of_entries == len(r_lut_data)
+            assert instance.bits_per_entry == bits
+
+            arr = np.array([32, 33, 32, 132])
+            expected = np.array(
+                [
+                    [10, 11, 10, 110],
+                    [20, 21, 20, 120],
+                    [30, 31, 30, 130],
+                ]
+            ).T
+            output = instance.apply(arr)
+            assert np.array_equal(output, expected)
 
     def test_construction_no_uid(self):
         r_lut_data = np.arange(10, 120, dtype=np.uint16)
@@ -1288,21 +2035,20 @@ class TestPaletteColorLUTTransformation(TestCase):
                 blue_lut=b_lut,
             )
 
-    # Commented out until 8 bit LUTs are reimplemented
-    # def test_construction_different_dtypes(self):
-    #     r_lut_data = np.arange(10, 120, dtype=np.uint8)
-    #     g_lut_data = np.arange(20, 130, dtype=np.uint16)
-    #     b_lut_data = np.arange(30, 140, dtype=np.uint16)
-    #     first_mapped_value = 32
-    #     r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
-    #     g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
-    #     b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
-    #     with pytest.raises(ValueError):
-    #         PaletteColorLUTTransformation(
-    #             red_lut=r_lut,
-    #             green_lut=g_lut,
-    #             blue_lut=b_lut,
-    #         )
+    def test_construction_different_dtypes(self):
+        r_lut_data = np.arange(10, 120, dtype=np.uint8)
+        g_lut_data = np.arange(20, 130, dtype=np.uint16)
+        b_lut_data = np.arange(30, 140, dtype=np.uint16)
+        first_mapped_value = 32
+        r_lut = PaletteColorLUT(first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(first_mapped_value, b_lut_data, color='blue')
+        with pytest.raises(ValueError):
+            PaletteColorLUTTransformation(
+                red_lut=r_lut,
+                green_lut=g_lut,
+                blue_lut=b_lut,
+            )
 
     def test_construction_different_first_values(self):
         r_lut_data = np.arange(10, 120, dtype=np.uint16)
@@ -1320,6 +2066,33 @@ class TestPaletteColorLUTTransformation(TestCase):
                 green_lut=g_lut,
                 blue_lut=b_lut,
             )
+
+    def test_construction_from_colors(self):
+        lut = PaletteColorLUTTransformation.from_colors(
+            ['black', 'red', 'green', 'blue', 'white'],
+        )
+
+        assert np.array_equal(lut.red_lut.lut_data, [0, 255, 0, 0, 255])
+        assert np.array_equal(lut.green_lut.lut_data, [0, 0, 128, 0, 255])
+        assert np.array_equal(lut.blue_lut.lut_data, [0, 0, 0, 255, 255])
+
+    def test_construction_from_combined(self):
+
+        r_lut_data = np.arange(10, 120, dtype=np.uint8)
+        g_lut_data = np.arange(20, 130, dtype=np.uint8)
+        b_lut_data = np.arange(30, 140, dtype=np.uint8)
+
+        combined_lut = np.stack(
+            [r_lut_data, g_lut_data, b_lut_data],
+            axis=-1
+        )
+        lut = PaletteColorLUTTransformation.from_combined_lut(
+            combined_lut,
+        )
+
+        assert np.array_equal(lut.red_lut.lut_data, r_lut_data)
+        assert np.array_equal(lut.blue_lut.lut_data, b_lut_data)
+        assert np.array_equal(lut.green_lut.lut_data, g_lut_data)
 
 
 class TestSpecimenDescription(TestCase):

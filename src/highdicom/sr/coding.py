@@ -1,6 +1,7 @@
 from copy import deepcopy
 import logging
-from typing import Optional, Union
+from typing import Union
+from typing_extensions import Self
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -17,7 +18,7 @@ class CodedConcept(Dataset):
         value: str,
         scheme_designator: str,
         meaning: str,
-        scheme_version: Optional[str] = None
+        scheme_version: str | None = None
     ) -> None:
         """
         Parameters
@@ -96,7 +97,7 @@ class CodedConcept(Dataset):
         cls,
         dataset: Dataset,
         copy: bool = True
-    ) -> 'CodedConcept':
+    ) -> Self:
         """Construct a CodedConcept from an existing dataset.
 
         Parameters
@@ -147,7 +148,7 @@ class CodedConcept(Dataset):
         return concept
 
     @classmethod
-    def from_code(cls, code: Union[Code, 'CodedConcept']) -> 'CodedConcept':
+    def from_code(cls, code: Union[Code, 'CodedConcept']) -> Self:
         """Construct a CodedConcept for a pydicom Code.
 
         Parameters
@@ -192,6 +193,6 @@ class CodedConcept(Dataset):
         return self.CodingSchemeDesignator
 
     @property
-    def scheme_version(self) -> Optional[str]:
+    def scheme_version(self) -> str | None:
         """Union[str, None]: version of the coding scheme (if specified)"""
         return getattr(self, 'CodingSchemeVersion', None)

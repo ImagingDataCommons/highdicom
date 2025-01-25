@@ -1,5 +1,7 @@
 """Content that is specific to Key Object Selection IODs."""
-from typing import cast, List, Optional, Sequence, Union
+from typing import cast
+from collections.abc import Sequence
+from typing_extensions import Self
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -31,11 +33,11 @@ class KeyObjectSelection(ContentSequence):
 
     def __init__(
         self,
-        document_title: Union[Code, CodedConcept],
+        document_title: Code | CodedConcept,
         referenced_objects: Sequence[Dataset],
-        observer_person_context: Optional[ObserverContext] = None,
-        observer_device_context: Optional[ObserverContext] = None,
-        description: Optional[str] = None
+        observer_person_context: ObserverContext | None = None,
+        observer_device_context: ObserverContext | None = None,
+        description: str | None = None
     ):
         """
         Parameters
@@ -112,7 +114,7 @@ class KeyObjectSelection(ContentSequence):
             meaning='Source',
         )
         for ds in referenced_objects:
-            reference_item: Union[ImageContentItem, CompositeContentItem]
+            reference_item: ImageContentItem | CompositeContentItem
             if 'Rows' in ds and 'Columns' in ds:
                 reference_item = ImageContentItem(
                     name=name,
@@ -137,7 +139,7 @@ class KeyObjectSelection(ContentSequence):
         cls,
         sequence: Sequence[Dataset],
         is_root: bool = True
-    ) -> 'KeyObjectSelection':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -174,13 +176,13 @@ class KeyObjectSelection(ContentSequence):
                 'because it does not have Template Identifier "2010".'
             )
         instance = ContentSequence.from_sequence(sequence, is_root=True)
-        instance.__class__ = KeyObjectSelection
-        return cast(KeyObjectSelection, instance)
+        instance.__class__ = cls
+        return cast(Self, instance)
 
     def get_observer_contexts(
         self,
-        observer_type: Optional[Union[CodedConcept, Code]] = None
-    ) -> List[ObserverContext]:
+        observer_type: CodedConcept | Code | None = None
+    ) -> list[ObserverContext]:
         """Get observer contexts.
 
         Parameters
@@ -200,10 +202,10 @@ class KeyObjectSelection(ContentSequence):
             if item.name == codes.DCM.ObserverType
         ]
         observer_contexts = []
-        attributes: Union[
-            DeviceObserverIdentifyingAttributes,
-            PersonObserverIdentifyingAttributes,
-        ]
+        attributes: (
+            DeviceObserverIdentifyingAttributes |
+            PersonObserverIdentifyingAttributes
+        )
         for i, (index, item) in enumerate(matches):
             if observer_type is not None:
                 if item.value != observer_type:
@@ -231,10 +233,10 @@ class KeyObjectSelection(ContentSequence):
 
     def get_references(
         self,
-        value_type: Optional[ValueTypeValues] = None,
-        sop_class_uid: Optional[str] = None
-    ) -> List[
-        Union[ImageContentItem, CompositeContentItem, WaveformContentItem]
+        value_type: ValueTypeValues | None = None,
+        sop_class_uid: str | None = None
+    ) -> list[
+        ImageContentItem | CompositeContentItem | WaveformContentItem
     ]:
         """Get referenced objects.
 

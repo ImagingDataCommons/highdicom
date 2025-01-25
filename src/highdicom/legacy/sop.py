@@ -3,7 +3,8 @@
 import logging
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
@@ -34,7 +35,7 @@ LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
 
 def _convert_legacy_to_enhanced(
     sf_datasets: Sequence[Dataset],
-    mf_dataset: Optional[Dataset] = None
+    mf_dataset: Dataset | None = None
 ) -> Dataset:
     """Converts one or more MR, CT or PET Image instances into one
     Legacy Converted Enhanced MR/CT/PET Image instance by copying information
@@ -164,7 +165,7 @@ def _convert_legacy_to_enhanced(
     pixel_representation = sf_datasets[0].PixelRepresentation
     volumetric_properties = 'VOLUME'
     unique_image_types = set()
-    unassigned_dataelements: Dict[str, List[Dataset]] = defaultdict(list)
+    unassigned_dataelements: dict[str, list[Dataset]] = defaultdict(list)
 
     # Per-Frame Functional Groups
     perframe_items = []
@@ -235,7 +236,7 @@ def _convert_legacy_to_enhanced(
 
         elif sop_class_uid == '1.2.840.10008.5.1.4.1.1.128.1':
             # PET Image Frame Type (M)
-            perframe_item.PETImageFrameTypeSequence = [
+            perframe_item.PETFrameTypeSequence = [
                 frame_type_item,
             ]
 

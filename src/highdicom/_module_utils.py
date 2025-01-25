@@ -1,5 +1,6 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Union
+from collections.abc import Sequence
 
 from pydicom import Dataset
 
@@ -28,7 +29,7 @@ class ModuleUsageValues(Enum):
 def check_required_attributes(
     dataset: Dataset,
     module: str,
-    base_path: Optional[Sequence[str]] = None,
+    base_path: Sequence[str] | None = None,
     recursive: bool = True,
     check_optional_sequences: bool = True
 ) -> None:
@@ -98,8 +99,8 @@ def check_required_attributes(
     # Define recursive function
     def check(
         dataset: Dataset,
-        subtree: Dict[str, Any],
-        path: List[str]
+        subtree: dict[str, Any],
+        path: list[str]
     ) -> None:
         for kw, item in subtree['attributes'].items():
             required = item['type'] in types_to_check
@@ -140,7 +141,7 @@ def check_required_attributes(
     check(dataset, tree, [])
 
 
-def construct_module_tree(module: str) -> Dict[str, Any]:
+def construct_module_tree(module: str) -> dict[str, Any]:
     """Return module attributes arranged in a tree structure.
 
     Parameters
@@ -164,7 +165,7 @@ def construct_module_tree(module: str) -> Dict[str, Any]:
     from highdicom._modules import MODULE_ATTRIBUTE_MAP
     if module not in MODULE_ATTRIBUTE_MAP:
         raise AttributeError(f"No such module found: '{module}'.")
-    tree: Dict[str, Any] = {'attributes': {}}
+    tree: dict[str, Any] = {'attributes': {}}
     for item in MODULE_ATTRIBUTE_MAP[module]:
         location = tree['attributes']
         for p in item['path']:
@@ -180,7 +181,7 @@ def construct_module_tree(module: str) -> Dict[str, Any]:
 def get_module_usage(
     module_key: str,
     sop_class_uid: str
-) -> Union[ModuleUsageValues, None]:
+) -> ModuleUsageValues | None:
     """Get the usage (M/C/U) of a module within an IOD.
 
     Parameters
@@ -216,7 +217,11 @@ def get_module_usage(
     return None
 
 
-def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:
+def is_attribute_in_iod(
+    attribute: str,
+    sop_class_uid: str,
+    exclude_path_elements: Sequence[str] | None = None,
+) -> bool:
     """Check whether an attribute is present within an IOD.
 
     Parameters
@@ -225,6 +230,9 @@ def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:
         Keyword for the attribute
     sop_class_uid: str
         SOP Class UID identifying the IOD.
+    exclude_path_elements: Sequence[str] | None, optional
+        If any of these elements are found anywhere in the attribute's path,
+        that occurrence is excluded.
 
     Returns
     -------
@@ -247,6 +255,11 @@ def is_attribute_in_iod(attribute: str, sop_class_uid: str) -> bool:
     for module in IOD_MODULE_MAP[iod_name]:
         module_attributes = MODULE_ATTRIBUTE_MAP[module['key']]
         for attr in module_attributes:
+            if exclude_path_elements is not None:
+                if any(
+                    p in exclude_path_elements for p in attr['path']
+                ):
+                    continue
             if attr['keyword'] == attribute:
                 return True
 
@@ -279,12 +292,17 @@ def does_iod_have_pixel_data(sop_class_uid: str) -> bool:
         'DoubleFloatPixelData',
     ]
     return any(
-        is_attribute_in_iod(attr, sop_class_uid) for attr in pixel_attrs
+        is_attribute_in_iod(
+            attr,
+            sop_class_uid,
+            exclude_path_elements=['IconImageSequence'],
+        ) for attr in pixel_attrs
     )
 
 
 def is_multiframe_image(dataset: Dataset):
     """Determine whether an image is a multiframe image.
+
     The definition used is whether the IOD allows for multiple frames, not
     whether this particular instance has more than one frame.
 
@@ -300,6 +318,6 @@ def is_multiframe_image(dataset: Dataset):
 
     """
     return is_attribute_in_iod(
-        'PerFrameFunctionalGroupsSequence',
+        'NumberOfFrames',
         dataset.SOPClassUID,
     )

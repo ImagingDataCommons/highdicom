@@ -2,9 +2,12 @@
 from collections import Counter
 import datetime
 from copy import deepcopy
-from typing import cast, Dict, List, Optional, Union, Sequence, Tuple
+from typing import cast
+from collections.abc import Sequence
+from typing_extensions import Self
 
 import numpy as np
+from PIL import ImageColor
 from pydicom.dataset import Dataset
 from pydicom import DataElement
 from pydicom.sequence import Sequence as DataElementSequence
@@ -19,6 +22,15 @@ from highdicom.enum import (
     RescaleTypeValues,
     UniversalEntityIDTypeValues,
     VOILUTFunctionValues,
+)
+from highdicom.pixels import (
+    _check_rescale_dtype,
+    _get_combined_palette_color_lut,
+    _parse_palette_color_lut_attributes,
+    _select_voi_lut,
+    _select_voi_window_center_width,
+    apply_lut,
+    apply_voi_window,
 )
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.coding import CodedConcept
@@ -37,7 +49,8 @@ from highdicom.valuerep import (
 )
 from highdicom._module_utils import (
     check_required_attributes,
-    does_iod_have_pixel_data
+    does_iod_have_pixel_data,
+    is_multiframe_image,
 )
 
 
@@ -50,10 +63,10 @@ class AlgorithmIdentificationSequence(DataElementSequence):
     def __init__(
         self,
         name: str,
-        family: Union[Code, CodedConcept],
+        family: Code | CodedConcept,
         version: str,
-        source: Optional[str] = None,
-        parameters: Optional[Dict[str, str]] = None
+        source: str | None = None,
+        parameters: dict[str, str] | None = None
     ):
         """
         Parameters
@@ -97,7 +110,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         cls,
         sequence: DataElementSequence,
         copy: bool = True,
-    ) -> 'AlgorithmIdentificationSequence':
+    ) -> Self:
         """Construct instance from an existing data element sequence.
 
         Parameters
@@ -134,8 +147,8 @@ class AlgorithmIdentificationSequence(DataElementSequence):
             algo_id_sequence = deepcopy(sequence)
         else:
             algo_id_sequence = sequence
-        algo_id_sequence.__class__ = AlgorithmIdentificationSequence
-        return cast(AlgorithmIdentificationSequence, algo_id_sequence)
+        algo_id_sequence.__class__ = cls
+        return cast(Self, algo_id_sequence)
 
     @property
     def name(self) -> str:
@@ -155,7 +168,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         return self[0].AlgorithmVersion
 
     @property
-    def source(self) -> Optional[str]:
+    def source(self) -> str | None:
         """Union[str, None]:
                Source of the algorithm, e.g. name of the algorithm
                manufacturer, if any
@@ -164,7 +177,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         return getattr(self[0], 'AlgorithmSource', None)
 
     @property
-    def parameters(self) -> Optional[Dict[str, str]]:
+    def parameters(self) -> dict[str, str] | None:
         """Union[Dict[str, str], None]:
                Dictionary mapping algorithm parameter names to values,
                if any
@@ -189,19 +202,19 @@ class ContentCreatorIdentificationCodeSequence(DataElementSequence):
 
     def __init__(
         self,
-        person_identification_codes: Sequence[Union[Code, CodedConcept]],
+        person_identification_codes: Sequence[Code | CodedConcept],
         institution_name: str,
-        person_address: Optional[str] = None,
-        person_telephone_numbers: Optional[Sequence[str]] = None,
-        person_telecom_information: Optional[str] = None,
-        institution_code: Union[Code, CodedConcept, None] = None,
-        institution_address: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
-        institutional_department_type_code: Union[
-            Code,
-            CodedConcept,
+        person_address: str | None = None,
+        person_telephone_numbers: Sequence[str] | None = None,
+        person_telecom_information: str | None = None,
+        institution_code: Code | CodedConcept | None = None,
+        institution_address: str | None = None,
+        institutional_department_name: str | None = None,
+        institutional_department_type_code: (
+            Code |
+            CodedConcept |
             None
-        ] = None,
+        ) = None,
     ):
         """
 
@@ -311,8 +324,8 @@ class PixelMeasuresSequence(DataElementSequence):
     def __init__(
         self,
         pixel_spacing: Sequence[float],
-        slice_thickness: Optional[float],
-        spacing_between_slices: Optional[float] = None,
+        slice_thickness: float | None,
+        spacing_between_slices: float | None = None,
     ) -> None:
         """
         Parameters
@@ -343,7 +356,7 @@ class PixelMeasuresSequence(DataElementSequence):
         cls,
         sequence: DataElementSequence,
         copy: bool = True,
-    ) -> 'PixelMeasuresSequence':
+    ) -> Self:
         """Create a PixelMeasuresSequence from an existing Sequence.
 
         Parameters
@@ -388,8 +401,8 @@ class PixelMeasuresSequence(DataElementSequence):
             pixel_measures = deepcopy(sequence)
         else:
             pixel_measures = sequence
-        pixel_measures.__class__ = PixelMeasuresSequence
-        return cast(PixelMeasuresSequence, pixel_measures)
+        pixel_measures.__class__ = cls
+        return cast(Self, pixel_measures)
 
     def __eq__(self, other: DataElementSequence) -> bool:
         """Determine whether two sets of pixel measures are the same.
@@ -410,6 +423,11 @@ class PixelMeasuresSequence(DataElementSequence):
         if len(other) != 1:
             raise ValueError('Second item must have length 1.')
 
+        if (
+            hasattr(other[0], 'SliceThickness') !=
+            hasattr(self[0], 'SliceThickness')
+        ):
+            return False
         if other[0].SliceThickness != self[0].SliceThickness:
             return False
         if other[0].PixelSpacing != self[0].PixelSpacing:
@@ -436,9 +454,9 @@ class PlanePositionSequence(DataElementSequence):
 
     def __init__(
         self,
-        coordinate_system: Union[str, CoordinateSystemNames],
+        coordinate_system: str | CoordinateSystemNames,
         image_position: Sequence[float],
-        pixel_matrix_position: Optional[Tuple[int, int]] = None
+        pixel_matrix_position: tuple[int, int] | None = None
     ) -> None:
         """
         Parameters
@@ -548,7 +566,7 @@ class PlanePositionSequence(DataElementSequence):
         cls,
         sequence: DataElementSequence,
         copy: bool = True,
-    ) -> 'PlanePositionSequence':
+    ) -> Self:
         """Create a PlanePositionSequence from an existing Sequence.
 
         The coordinate system is inferred from the attributes in the sequence.
@@ -598,8 +616,8 @@ class PlanePositionSequence(DataElementSequence):
             plane_position = deepcopy(sequence)
         else:
             plane_position = sequence
-        plane_position.__class__ = PlanePositionSequence
-        return cast(PlanePositionSequence, plane_position)
+        plane_position.__class__ = cls
+        return cast(Self, plane_position)
 
 
 class PlaneOrientationSequence(DataElementSequence):
@@ -611,7 +629,7 @@ class PlaneOrientationSequence(DataElementSequence):
 
     def __init__(
         self,
-        coordinate_system: Union[str, CoordinateSystemNames],
+        coordinate_system: str | CoordinateSystemNames,
         image_orientation: Sequence[float]
     ) -> None:
         """
@@ -688,7 +706,7 @@ class PlaneOrientationSequence(DataElementSequence):
         cls,
         sequence: DataElementSequence,
         copy: bool = True,
-    ) -> 'PlaneOrientationSequence':
+    ) -> Self:
         """Create a PlaneOrientationSequence from an existing Sequence.
 
         The coordinate system is inferred from the attributes in the sequence.
@@ -735,8 +753,8 @@ class PlaneOrientationSequence(DataElementSequence):
             plane_orientation = deepcopy(sequence)
         else:
             plane_orientation = sequence
-        plane_orientation.__class__ = PlaneOrientationSequence
-        return cast(PlaneOrientationSequence, plane_orientation)
+        plane_orientation.__class__ = cls
+        return cast(Self, plane_orientation)
 
 
 class IssuerOfIdentifier(Dataset):
@@ -746,9 +764,9 @@ class IssuerOfIdentifier(Dataset):
     def __init__(
         self,
         issuer_of_identifier: str,
-        issuer_of_identifier_type: Optional[
-            Union[str, UniversalEntityIDTypeValues]
-        ] = None
+        issuer_of_identifier_type: None | (
+            str | UniversalEntityIDTypeValues
+        ) = None
     ):
         """
         Parameters
@@ -779,9 +797,9 @@ class IssuerOfIdentifier(Dataset):
         return self._issuer_of_identifier
 
     @property
-    def issuer_of_identifier_type(self) -> Union[
-        UniversalEntityIDTypeValues, None
-    ]:
+    def issuer_of_identifier_type(self) -> (
+        UniversalEntityIDTypeValues | None
+    ):
         """highdicom.UniversalEntityIDTypeValues: Type of the issuer."""
         return self._issuer_of_identifier_type
 
@@ -790,7 +808,7 @@ class IssuerOfIdentifier(Dataset):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'IssuerOfIdentifier':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -834,7 +852,7 @@ class IssuerOfIdentifier(Dataset):
         issuer_of_identifier._issuer_of_identifier = issuer_id
         issuer_of_identifier._issuer_of_identifier_type = issuer_type
 
-        return cast(IssuerOfIdentifier, issuer_of_identifier)
+        return cast(Self, issuer_of_identifier)
 
 
 class SpecimenCollection(ContentSequence):
@@ -844,7 +862,7 @@ class SpecimenCollection(ContentSequence):
 
     def __init__(
         self,
-        procedure: Union[Code, CodedConcept]
+        procedure: Code | CodedConcept
     ):
         """
         Parameters
@@ -882,10 +900,10 @@ class SpecimenSampling(ContentSequence):
 
     def __init__(
         self,
-        method: Union[Code, CodedConcept],
+        method: Code | CodedConcept,
         parent_specimen_id: str,
-        parent_specimen_type: Union[Code, CodedConcept],
-        issuer_of_parent_specimen_id: Optional[IssuerOfIdentifier] = None
+        parent_specimen_type: Code | CodedConcept,
+        issuer_of_parent_specimen_id: IssuerOfIdentifier | None = None
     ):
         """
         Parameters
@@ -971,7 +989,7 @@ class SpecimenStaining(ContentSequence):
 
     def __init__(
         self,
-        substances: Sequence[Union[Code, CodedConcept, str]]
+        substances: Sequence[Code | CodedConcept | str]
     ):
         """
         Parameters
@@ -1005,7 +1023,7 @@ class SpecimenStaining(ContentSequence):
             self.append(item)
 
     @property
-    def substances(self) -> List[CodedConcept]:
+    def substances(self) -> list[CodedConcept]:
         """List[highdicom.sr.CodedConcept]: Substances used for staining"""
         items = self.find(codes.SCT.UsingSubstance)
         return [item.value for item in items]
@@ -1019,7 +1037,7 @@ class SpecimenProcessing(ContentSequence):
 
     def __init__(
         self,
-        description: Union[Code, CodedConcept, str]
+        description: Code | CodedConcept | str
     ):
         """
         Parameters
@@ -1064,21 +1082,21 @@ class SpecimenPreparationStep(Dataset):
     def __init__(
         self,
         specimen_id: str,
-        processing_procedure: Union[
-            SpecimenCollection,
-            SpecimenSampling,
-            SpecimenStaining,
-            SpecimenProcessing,
-        ],
-        processing_description: Optional[
-            Union[str, Code, CodedConcept]
-        ] = None,
-        processing_datetime: Optional[datetime.datetime] = None,
-        issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None,
-        fixative: Optional[Union[Code, CodedConcept]] = None,
-        embedding_medium: Optional[Union[Code, CodedConcept]] = None,
-        specimen_container: Optional[Union[Code, CodedConcept]] = None,
-        specimen_type: Optional[Union[Code, CodedConcept]] = None,
+        processing_procedure: (
+            SpecimenCollection |
+            SpecimenSampling |
+            SpecimenStaining |
+            SpecimenProcessing
+        ),
+        processing_description: None | (
+            str | Code | CodedConcept
+        ) = None,
+        processing_datetime: datetime.datetime | None = None,
+        issuer_of_specimen_id: IssuerOfIdentifier | None = None,
+        fixative: Code | CodedConcept | None = None,
+        embedding_medium: Code | CodedConcept | None = None,
+        specimen_container: Code | CodedConcept | None = None,
+        specimen_type: Code | CodedConcept | None = None,
     ):
         """
         Parameters
@@ -1162,10 +1180,10 @@ class SpecimenPreparationStep(Dataset):
             )
             sequence.append(processing_datetime_item)
         if processing_description is not None:
-            processing_description_item: Union[
-                TextContentItem,
-                CodeContentItem,
-            ]
+            processing_description_item: (
+                TextContentItem |
+                CodeContentItem
+            )
             if isinstance(processing_description, str):
                 processing_description_item = TextContentItem(
                     name=codes.DCM.ProcessingStepDescription,
@@ -1231,12 +1249,12 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def processing_procedure(self) -> Union[
-        SpecimenCollection,
-        SpecimenSampling,
-        SpecimenStaining,
-        SpecimenProcessing,
-    ]:
+    def processing_procedure(self) -> (
+        SpecimenCollection |
+        SpecimenSampling |
+        SpecimenStaining |
+        SpecimenProcessing
+    ):
         """Union[highdicom.SpecimenCollection, highdicom.SpecimenSampling,
         highdicom.SpecimenStaining, highdicom.SpecimenProcessing]:
 
@@ -1246,7 +1264,7 @@ class SpecimenPreparationStep(Dataset):
         return self._processing_procedure
 
     @property
-    def fixative(self) -> Union[CodedConcept, None]:
+    def fixative(self) -> CodedConcept | None:
         """highdicom.sr.CodedConcept: Tissue fixative"""
         items = self.SpecimenPreparationStepContentItemSequence.find(
             codes.SCT.TissueFixative
@@ -1256,7 +1274,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def embedding_medium(self) -> Union[CodedConcept, None]:
+    def embedding_medium(self) -> CodedConcept | None:
         """highdicom.sr.CodedConcept: Tissue embedding medium"""
         items = self.SpecimenPreparationStepContentItemSequence.find(
             codes.SCT.TissueEmbeddingMedium
@@ -1266,7 +1284,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def processing_description(self) -> Union[str, CodedConcept, None]:
+    def processing_description(self) -> str | CodedConcept | None:
         """Union[str, highdicom.sr.CodedConcept]: Processing description"""
         if isinstance(self._processing_procedure, SpecimenProcessing):
             return None
@@ -1278,7 +1296,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def processing_datetime(self) -> Union[datetime.datetime, None]:
+    def processing_datetime(self) -> datetime.datetime | None:
         """datetime.datetime: Processing datetime"""
 
         items = self.SpecimenPreparationStepContentItemSequence.find(
@@ -1289,7 +1307,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def issuer_of_specimen_id(self) -> Union[str, None]:
+    def issuer_of_specimen_id(self) -> str | None:
         """str: Issuer of specimen id"""
 
         items = self.SpecimenPreparationStepContentItemSequence.find(
@@ -1300,7 +1318,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def specimen_container(self) -> Union[CodedConcept, None]:
+    def specimen_container(self) -> CodedConcept | None:
         """highdicom.sr.CodedConcept: Specimen container"""
 
         items = self.SpecimenPreparationStepContentItemSequence.find(
@@ -1311,7 +1329,7 @@ class SpecimenPreparationStep(Dataset):
         return items[0].value
 
     @property
-    def specimen_type(self) -> Union[CodedConcept, None]:
+    def specimen_type(self) -> CodedConcept | None:
         """highdicom.sr.CodedConcept: Specimen type"""
 
         items = self.SpecimenPreparationStepContentItemSequence.find(
@@ -1325,7 +1343,7 @@ class SpecimenPreparationStep(Dataset):
     def from_dataset(
         cls,
         dataset: Dataset,
-    ) -> 'SpecimenPreparationStep':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1362,12 +1380,12 @@ class SpecimenPreparationStep(Dataset):
             )
         processing_type = processing_type_items[0].value
 
-        instance._processing_procedure: Union[  # noqa: B032
-            SpecimenCollection,
-            SpecimenSampling,
-            SpecimenStaining,
-            SpecimenProcessing,
-        ]
+        instance._processing_procedure: (  # noqa: B032
+            SpecimenCollection |
+            SpecimenSampling |
+            SpecimenStaining |
+            SpecimenProcessing
+        )
         if processing_type == codes.SCT.SpecimenCollection:
             collection_items = sequence.find(codes.SCT.SpecimenCollection)
             if len(collection_items) != 1:
@@ -1465,19 +1483,19 @@ class SpecimenDescription(Dataset):
         self,
         specimen_id: str,
         specimen_uid: str,
-        specimen_location: Optional[
-            Union[str, Tuple[float, float, float]]
-        ] = None,
-        specimen_preparation_steps: Optional[
+        specimen_location: None | (
+            str | tuple[float, float, float]
+        ) = None,
+        specimen_preparation_steps: None | (
             Sequence[SpecimenPreparationStep]
-        ] = None,
-        issuer_of_specimen_id: Optional[IssuerOfIdentifier] = None,
-        primary_anatomic_structures: Optional[
-            Sequence[Union[Code, CodedConcept]]
-        ] = None,
-        specimen_type: Optional[Union[Code, CodedConcept]] = None,
-        specimen_short_description: Optional[str] = None,
-        specimen_detailed_description: Optional[str] = None,
+        ) = None,
+        issuer_of_specimen_id: IssuerOfIdentifier | None = None,
+        primary_anatomic_structures: None | (
+            Sequence[Code | CodedConcept]
+        ) = None,
+        specimen_type: Code | CodedConcept | None = None,
+        specimen_short_description: str | None = None,
+        specimen_detailed_description: str | None = None,
     ):
         """
         Parameters
@@ -1511,7 +1529,7 @@ class SpecimenDescription(Dataset):
         super().__init__()
         self.SpecimenIdentifier = specimen_id
         self.SpecimenUID = specimen_uid
-        self.SpecimenPreparationSequence: List[Dataset] = []
+        self.SpecimenPreparationSequence: list[Dataset] = []
         if specimen_preparation_steps is not None:
             for step_item in specimen_preparation_steps:
                 if not isinstance(step_item, SpecimenPreparationStep):
@@ -1521,7 +1539,7 @@ class SpecimenDescription(Dataset):
                     )
                 self.SpecimenPreparationSequence.append(step_item)
         if specimen_location is not None:
-            loc_seq: List[Union[TextContentItem, NumContentItem]] = []
+            loc_seq: list[TextContentItem | NumContentItem] = []
             if isinstance(specimen_location, str):
                 loc_item = TextContentItem(
                     name=codes.DCM.LocationOfSpecimen,
@@ -1558,7 +1576,7 @@ class SpecimenDescription(Dataset):
             self.SpecimenShortDescription = specimen_short_description
         if specimen_detailed_description is not None:
             self.SpecimenDetailedDescription = specimen_detailed_description
-        self.IssuerOfTheSpecimenIdentifierSequence: List[Dataset] = []
+        self.IssuerOfTheSpecimenIdentifierSequence: list[Dataset] = []
         if issuer_of_specimen_id is not None:
             self.IssuerOfTheSpecimenIdentifierSequence.append(
                 issuer_of_specimen_id
@@ -1575,7 +1593,7 @@ class SpecimenDescription(Dataset):
                     'Argument "primary_anatomic_structures" must not be '
                     'empty.'
                 )
-            self.PrimaryAnatomicStructureSequence: List[Dataset] = []
+            self.PrimaryAnatomicStructureSequence: list[Dataset] = []
             for structure in primary_anatomic_structures:
                 if isinstance(structure, CodedConcept):
                     self.PrimaryAnatomicStructureSequence.append(structure)
@@ -1600,7 +1618,7 @@ class SpecimenDescription(Dataset):
         return UID(self.SpecimenUID)
 
     @property
-    def specimen_location(self) -> Union[str, Tuple[float, float, float], None]:
+    def specimen_location(self) -> str | tuple[float, float, float] | None:
         """Tuple[float, float, float]: Specimen location in container."""
         sequence = self.get("SpecimenLocalizationContentItemSequence")
         if sequence is None:
@@ -1610,12 +1628,12 @@ class SpecimenDescription(Dataset):
         return tuple(item.value for item in sequence)
 
     @property
-    def specimen_preparation_steps(self) -> List[SpecimenPreparationStep]:
+    def specimen_preparation_steps(self) -> list[SpecimenPreparationStep]:
         """highdicom.SpecimenPreparationStep: Specimen preparation steps."""
         return list(self.SpecimenPreparationSequence)
 
     @property
-    def specimen_type(self) -> Union[CodedConcept, None]:
+    def specimen_type(self) -> CodedConcept | None:
         """highdicom.sr.CodedConcept: Specimen type."""
         sequence = self.get("SpecimenTypeCodeSequence")
         if sequence is None:
@@ -1623,17 +1641,17 @@ class SpecimenDescription(Dataset):
         return sequence[0]
 
     @property
-    def specimen_short_description(self) -> Union[str, None]:
+    def specimen_short_description(self) -> str | None:
         """str: Short description of specimen."""
         return self.get("SpecimenShortDescription")
 
     @property
-    def specimen_detailed_description(self) -> Union[str, None]:
+    def specimen_detailed_description(self) -> str | None:
         """str: Detailed description of specimen."""
         return self.get("SpecimenDetailedDescription")
 
     @property
-    def issuer_of_specimen_id(self) -> Union[IssuerOfIdentifier, None]:
+    def issuer_of_specimen_id(self) -> IssuerOfIdentifier | None:
         """IssuerOfIdentifier: Issuer of identifier for the specimen."""
         sequence = self.get("IssuerOfTheSpecimenIdentifierSequence")
         if len(sequence) == 0:
@@ -1641,13 +1659,13 @@ class SpecimenDescription(Dataset):
         return sequence[0]
 
     @property
-    def primary_anatomic_structures(self) -> Union[List[CodedConcept], None]:
+    def primary_anatomic_structures(self) -> list[CodedConcept] | None:
         """List[highdicom.sr.CodedConcept]: List of anatomic structures of the
          specimen."""
         return self.get("PrimaryAnatomicStructureSequence")
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'SpecimenDescription':
+    def from_dataset(cls, dataset: Dataset) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1716,9 +1734,9 @@ class ReferencedImageSequence(DataElementSequence):
 
     def __init__(
         self,
-        referenced_images: Optional[Sequence[Dataset]] = None,
-        referenced_frame_number: Union[int, Sequence[int], None] = None,
-        referenced_segment_number: Union[int, Sequence[int], None] = None,
+        referenced_images: Sequence[Dataset] | None = None,
+        referenced_frame_number: int | Sequence[int] | None = None,
+        referenced_segment_number: int | Sequence[int] | None = None,
     ):
         """
 
@@ -1764,7 +1782,10 @@ class ReferencedImageSequence(DataElementSequence):
                     'Specifying "referenced_frame_number" is not supported '
                     'with multiple referenced images.'
                 )
-            if not hasattr(referenced_images[0], 'NumberOfFrames'):
+            # note cannot use the highdicom.utils function here due to
+            # circular import issues
+            is_multiframe = is_multiframe_image(referenced_images[0])
+            if not is_multiframe:
                 raise TypeError(
                     'Specifying "referenced_frame_number" is not valid '
                     'when the referenced image is not a multi-frame image.'
@@ -1785,7 +1806,11 @@ class ReferencedImageSequence(DataElementSequence):
                     'Specifying "referenced_segment_number" is not '
                     'supported with multiple referenced images.'
                 )
-            if referenced_images[0].SOPClassUID != SegmentationStorage:
+            if referenced_images[0].SOPClassUID not in (
+                SegmentationStorage,
+                # Label Map Segmentation Storage
+                "1.2.840.10008.5.1.4.1.1.66.7",
+            ):
                 raise TypeError(
                     '"referenced_segment_number" is only valid when the '
                     'referenced image is a segmentation image.'
@@ -1841,7 +1866,7 @@ class LUT(Dataset):
         self,
         first_mapped_value: int,
         lut_data: np.ndarray,
-        lut_explanation: Optional[str] = None
+        lut_explanation: str | None = None
     ):
         """
 
@@ -1851,7 +1876,7 @@ class LUT(Dataset):
             Pixel value that will be mapped to the first value in the
             lookup-table.
         lut_data: numpy.ndarray
-            Lookup table data. Must be of type uint16.
+            Lookup table data. Must be of type uint8 or uint16.
         lut_explanation: Union[str, None], optional
             Free-form text explanation of the meaning of the LUT.
 
@@ -1892,16 +1917,16 @@ class LUT(Dataset):
         elif len_data == 2**16:
             # Per the standard, this is recorded as 0
             len_data = 0
-        # Note 8 bit LUT data is unsupported pending clarification on the
-        # standard
         if lut_data.dtype.type == np.uint16:
             bits_per_entry = 16
+        elif lut_data.dtype.type == np.uint8:
+            bits_per_entry = 8
         else:
             raise ValueError(
-                "Numpy array must have dtype uint16."
+                "Numpy array must have dtype uint8 or uint16."
             )
         # The LUT data attribute has VR OW (16-bit other words)
-        self.LUTData = lut_data.astype(np.uint16).tobytes()
+        self.LUTData = lut_data.tobytes()
 
         self.LUTDescriptor = [
             len_data,
@@ -1916,18 +1941,28 @@ class LUT(Dataset):
     @property
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: LUT data"""
-        if self.bits_per_entry == 8:
-            raise RuntimeError("8 bit LUTs are currently unsupported.")
-        elif self.bits_per_entry == 16:
+        bits_per_entry = self.bits_per_entry
+        if bits_per_entry == 8:
+            dtype = np.uint8
+        elif bits_per_entry == 16:
             dtype = np.uint16
         else:
             raise RuntimeError("Invalid LUT descriptor.")
         length = self.LUTDescriptor[0]
         data = self.LUTData
-        # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=np.uint16)
-        # Needs to be casted according to third descriptor value.
-        array = array.astype(dtype)
+
+        # Account for a zero-padding byte in the case of an 8 bit LUT
+        if bits_per_entry == 8 and length % 2 == 1 and len(data) == length + 1:
+            data = data[:-1]
+
+        # LUT Data may have value representation of either US (which pydicom
+        # will return as a list of ints) or OW, which pydicom will return as a
+        # bytes object
+        if self['LUTData'].VR == 'US':
+            array = np.array(data, dtype=dtype)
+        else:
+            # The LUT data attributes have VR OW (16-bit other words)
+            array = np.frombuffer(data, dtype=dtype)
         if len(array) != length:
             raise RuntimeError(
                 'Length of LUTData does not match the value expected from the '
@@ -1961,6 +1996,168 @@ class LUT(Dataset):
         """int: Bits allocated for the lookup table data. 8 or 16."""
         return int(self.LUTDescriptor[2])
 
+    @classmethod
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> Self:
+        """Create a LUT from an existing Dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset representing a LUT.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
+
+        Returns
+        -------
+        highdicom.LUT
+            Constructed object
+
+        """
+        # TODO should this be an extract_from_dataset?
+        attrs = [
+            'LUTDescriptor',
+            'LUTData'
+        ]
+        for attr in attrs:
+            if attr not in dataset:
+                raise AttributeError(
+                    f"Required attribute '{attr}' is not present in dataset."
+                )
+
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+
+        dataset_copy = dataset
+        dataset_copy.__class__ = cls
+        return cast(Self, dataset_copy)
+
+    def get_scaled_lut_data(
+        self,
+        output_range: tuple[float, float] = (0.0, 1.0),
+        dtype: type | str | np.dtype | None = np.float64,
+        invert: bool = False,
+    ) -> np.ndarray:
+        """Get LUT data array with output values scaled to a given range.
+
+        Parameters
+        ----------
+        output_range: Tuple[float, float], optional
+            Tuple containing (lower, upper) value of the range into which to
+            scale the output values. The lowest value in the LUT data will be
+            mapped to the lower limit, and the highest value will be mapped to
+            the upper limit, with a linear scaling used elsewhere.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Data type of the returned array (must be a floating point NumPy
+            data type).
+        invert: bool, optional
+            Invert the returned array such that the lowest original value in
+            the LUT is mapped to the upper limit and the highest original value
+            is mapped to the lower limit. This may be used to efficiently
+            combined a LUT with a Resentation transform that inverts the range.
+
+        Returns
+        -------
+        numpy.ndarray:
+            Rescaled LUT data array.
+
+        """
+        dtype = np.dtype(dtype)
+
+        # Check dtype is suitable
+        if dtype.kind != 'f':
+            raise ValueError(
+                f'Data type "{dtype}" is not suitable.'
+            )
+
+        lut_data = self.lut_data
+        min = lut_data.min()
+        max = lut_data.max()
+        output_min, output_max = output_range
+        output_scale = output_max - output_min
+        if output_scale <= 0.0:
+            raise ValueError('Invalid output range.')
+
+        input_scale = max - min
+        scale_factor = output_scale / input_scale
+
+        scale_factor = dtype.type(scale_factor)
+        output_min = dtype.type(output_min)
+
+        lut_data = lut_data.astype(dtype, casting='safe')
+        if invert:
+            lut_data = -lut_data
+            min = -max.astype(dtype)
+
+        if min != 0:
+            lut_data = lut_data - min
+
+        lut_data = lut_data * scale_factor
+
+        if output_min != 0.0:
+            lut_data = lut_data + output_min
+
+        return lut_data
+
+    def get_inverted_lut_data(
+        self,
+    ) -> np.ndarray:
+        """Get LUT data array with output values inverted within the same range.
+
+        This returns the LUT data inverted within its original range. So if the
+        original LUT data has output values in the range 10-20 inclusive, then
+        the entries with output value 10 will be mapped to 20, the entries with
+        output value 11 will be mapped to value 19, and so on until the entries
+        with value 20 are mapped to 10.
+
+        Returns
+        -------
+        numpy.ndarray:
+            Inverted LUT data array, with the same size and data type as the
+            original array.
+
+        """
+        lut_data = self.lut_data
+        return lut_data.min() + lut_data.max() - lut_data
+
+    def apply(
+        self,
+        array: np.ndarray,
+        dtype: type | str | np.dtype | None = None,
+    ) -> np.ndarray:
+        """Apply the LUT to a pixel array.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the LUT should be applied. Can be of any shape
+            but must have an integer datatype.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Datatype of the output array. If ``None``, an unsigned integer
+            datatype corresponding to the number of bits in the LUT will be
+            used (either ``numpy.uint8`` or ``numpy.uint16``). Only safe casts
+            are permitted.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with LUT applied.
+
+        """
+        return apply_lut(
+            array=array,
+            lut_data=self.lut_data,
+            first_mapped_value=self.first_mapped_value,
+            dtype=dtype,
+        )
+
 
 class ModalityLUT(LUT):
 
@@ -1968,10 +2165,10 @@ class ModalityLUT(LUT):
 
     def __init__(
         self,
-        lut_type: Union[RescaleTypeValues, str],
+        lut_type: RescaleTypeValues | str,
         first_mapped_value: int,
         lut_data: np.ndarray,
-        lut_explanation: Optional[str] = None
+        lut_explanation: str | None = None
     ):
         """
 
@@ -2009,7 +2206,7 @@ class VOILUT(LUT):
         self,
         first_mapped_value: int,
         lut_data: np.ndarray,
-        lut_explanation: Optional[str] = None
+        lut_explanation: str | None = None
     ):
         """
 
@@ -2041,11 +2238,11 @@ class VOILUTTransformation(Dataset):
 
     def __init__(
         self,
-        window_center: Union[float, Sequence[float], None] = None,
-        window_width: Union[float, Sequence[float], None] = None,
-        window_explanation: Union[str, Sequence[str], None] = None,
-        voi_lut_function: Union[VOILUTFunctionValues, str, None] = None,
-        voi_luts: Optional[Sequence[VOILUT]] = None,
+        window_center: float | Sequence[float] | None = None,
+        window_width: float | Sequence[float] | None = None,
+        window_explanation: str | Sequence[str] | None = None,
+        voi_lut_function: VOILUTFunctionValues | str | None = None,
+        voi_luts: Sequence[VOILUT] | None = None,
     ):
         """
 
@@ -2173,6 +2370,141 @@ class VOILUTTransformation(Dataset):
                     'provided.'
                 )
 
+    def has_lut(self) -> bool:
+        """Determine whether the transformation contains a lookup table.
+
+        Returns
+        -------
+        bool:
+            True if the transformation contains a look-up table. False
+            otherwise, when the mapping is represented by window center and
+            width defining a linear relationship. Note that it is possible for
+            a transformation to contain both a LUT and window parameters.
+
+        """
+        return 'VOILUTSequence' in self
+
+    def has_window(self) -> bool:
+        """Determine whether the transformation contains window parameters.
+
+        Returns
+        -------
+        bool:
+            True if the transformation contains one or more sets of window
+            parameters defining a linear relationship. False otherwise, when
+            the mapping is represented by a lookup table. Note that it is
+            possible for a transformation to contain both a LUT and window
+            parameters.
+
+        """
+        return 'WindowCenter' in self
+
+    def apply(
+        self,
+        array: np.ndarray,
+        output_range: tuple[float, float] = (0.0, 1.0),
+        voi_transform_selector: int | str = 0,
+        dtype: type | str | np.dtype | None = None,
+        invert: bool = False,
+        prefer_lut: bool = False,
+    ) -> np.ndarray:
+        """Apply the transformation to an array.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the transformation should be applied. Can be
+            of any shape but must have an integer datatype if the
+            transformation uses a LUT.
+        output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped.
+        voi_transform_selector: int | str, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpreted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the Window Center Width
+            Explanation or the LUT Explanation to choose from multiple VOI
+            transforms. Note that such explanations are optional according to
+            the standard and therefore may not be present.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Data type the output array. Should be a floating point data type.
+            If not specified, ``numpy.float64`` is used.
+        invert: bool, optional
+            Invert the returned array such that the lowest original value in
+            the LUT or input window is mapped to the upper limit and the
+            highest original value is mapped to the lower limit. This may be
+            used to efficiently combined a VOI LUT transformation with a
+            presentation transform that inverts the range.
+        prefer_lut: bool, optional
+            If True and the transformation contains both a LUT and a window
+            parameters, apply the LUT. If False and both a LUT and window
+            parameters are present, apply the window.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with transformation applied.
+
+        """
+        if dtype is None:
+            dtype = np.dtype(np.float64)
+        else:
+            dtype = np.dtype(dtype)
+
+            # Check dtype is suitable
+            if dtype.kind != 'f':
+                raise ValueError(
+                    f'Data type "{dtype}" is not suitable.'
+                )
+
+        if not self.has_window() or (self.has_lut() and prefer_lut):
+            voi_lut = _select_voi_lut(self, voi_transform_selector)
+
+            if voi_lut is None:
+                raise IndexError(
+                    "Requested 'voi_transform_selector' is "
+                    "not present."
+                )
+
+            scaled_lut_data = voi_lut.get_scaled_lut_data(
+                output_range=output_range,
+                dtype=dtype,
+                invert=invert,
+            )
+            array = apply_lut(
+                array=array,
+                lut_data=scaled_lut_data,
+                first_mapped_value=voi_lut.first_mapped_value,
+            )
+        else:
+            voi_lut_function = self.get('VOILUTFunction', 'LINEAR')
+
+            center_width = _select_voi_window_center_width(
+                self,
+                voi_transform_selector
+            )
+
+            if center_width is None:
+                raise IndexError(
+                    "Requested 'voi_transform_selector' is not present."
+                )
+
+            window_center, window_width = center_width
+
+            array = apply_voi_window(
+                array,
+                window_center=window_center,
+                window_width=window_width,
+                voi_lut_function=voi_lut_function,
+                output_range=output_range,
+                dtype=dtype,
+                invert=invert,
+            )
+
+        return array
+
 
 class ModalityLUTTransformation(Dataset):
 
@@ -2185,10 +2517,10 @@ class ModalityLUTTransformation(Dataset):
 
     def __init__(
         self,
-        rescale_intercept: Optional[Union[int, float]] = None,
-        rescale_slope: Optional[Union[int, float]] = None,
-        rescale_type: Optional[Union[RescaleTypeValues, str]] = None,
-        modality_lut: Optional[ModalityLUT] = None,
+        rescale_intercept: int | float | None = None,
+        rescale_slope: int | float | None = None,
+        rescale_type: RescaleTypeValues | str | None = None,
+        modality_lut: ModalityLUT | None = None,
     ):
         """
 
@@ -2259,6 +2591,75 @@ class ModalityLUTTransformation(Dataset):
                 _check_long_string(rescale_type)
                 self.RescaleType = rescale_type
 
+    def has_lut(self) -> bool:
+        """Determine whether the transformation contains a lookup table.
+
+        Returns
+        -------
+        bool:
+            True if the transformation contains a look-up table. False
+            otherwise, when the mapping is represented by slope and intercept
+            defining a linear relationship.
+
+        """
+        return 'ModalityLUTSequence' in self
+
+    def apply(
+        self,
+        array: np.ndarray,
+        dtype: type | str | np.dtype | None = None,
+    ) -> np.ndarray:
+        """Apply the transformation to a pixel array.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the transformation should be applied. Can be
+            of any shape but must have an integer datatype if the
+            transformation uses a LUT.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Ensure the output type has this value. By default, this will have
+            type ``numpy.float64`` if the transformation uses a rescale
+            operation, or the datatype of the Modality LUT (``numpy.uint8`` or
+            ``numpy.uint16``) if it uses a LUT. An integer datatype may be
+            specified if a rescale operation is used, however if Rescale Slope
+            or Rescale Intecept are non-integer values an error will be raised.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with transformation applied.
+
+        """
+        if 'ModalityLUTSequence' in self:
+            return self.ModalityLUTSequence[0].apply(array, dtype=dtype)
+        else:
+            slope = self.get('RescaleSlope', 1.0)
+            intercept = self.get('RescaleIntercept', 0.0)
+
+            if dtype is None:
+                dtype = np.dtype(np.float64)
+            dtype = np.dtype(dtype)
+
+            _check_rescale_dtype(
+                input_dtype=array.dtype,
+                output_dtype=dtype,
+                intercept=intercept,
+                slope=slope,
+            )
+
+            # Avoid unnecessary array operations for efficiency
+            if slope != 1.0:
+                slope = np.float64(slope).astype(dtype)
+                array = array * slope
+            if intercept != 0.0:
+                intercept = np.float64(intercept).astype(dtype)
+                array = array + intercept
+            if array.dtype != dtype:
+                array = array.astype(dtype)
+
+            return array
+
 
 class PresentationLUT(LUT):
 
@@ -2268,7 +2669,7 @@ class PresentationLUT(LUT):
         self,
         first_mapped_value: int,
         lut_data: np.ndarray,
-        lut_explanation: Optional[str] = None
+        lut_explanation: str | None = None
     ):
         """
 
@@ -2300,10 +2701,10 @@ class PresentationLUTTransformation(Dataset):
 
     def __init__(
         self,
-        presentation_lut_shape: Optional[
-            Union[PresentationLUTShapeValues, str]
-        ] = None,
-        presentation_lut: Optional[PresentationLUT] = None,
+        presentation_lut_shape: None | (
+            PresentationLUTShapeValues | str
+        ) = None,
+        presentation_lut: PresentationLUT | None = None,
     ):
         """
 
@@ -2361,7 +2762,7 @@ class PaletteColorLUT(Dataset):
             Pixel value that will be mapped to the first value in the
             lookup table.
         lut_data: numpy.ndarray
-            Lookup table data. Must be of type uint16.
+            Lookup table data. Must be of type uint8 or uint16.
         color: str
             Text representing the color (``red``, ``green``, or
             ``blue``).
@@ -2375,15 +2776,26 @@ class PaletteColorLUT(Dataset):
 
         """
         super().__init__()
+        # Note 8 bit LUT data is unsupported for presentation states pending
+        # clarification on the standard, but is valid for segmentations
+        if lut_data.dtype.type == np.uint8:
+            bits_per_entry = 8
+        elif lut_data.dtype.type == np.uint16:
+            bits_per_entry = 16
+        else:
+            raise ValueError(
+                "Numpy array must have dtype uint8 or uint16."
+            )
         if not isinstance(first_mapped_value, int):
             raise TypeError('Argument "first_mapped_value" must be an integer.')
         if first_mapped_value < 0:
             raise ValueError(
                 'Argument "first_mapped_value" must be non-negative.'
             )
-        if first_mapped_value >= 2 ** 16:
+        if first_mapped_value >= 2 ** bits_per_entry:
             raise ValueError(
-                'Argument "first_mapped_value" must be less than 2^16.'
+                'Argument "first_mapped_value" must be less than '
+                '2^(bits per entry).'
             )
 
         if not isinstance(lut_data, np.ndarray):
@@ -2395,24 +2807,16 @@ class PaletteColorLUT(Dataset):
         len_data = lut_data.shape[0]
         if len_data == 0:
             raise ValueError('Argument "lut_data" must not be empty.')
-        if len_data > 2**16:
+        if len_data > 2 ** bits_per_entry:
             raise ValueError(
                 'Length of argument "lut_data" must be no greater than '
-                '2^16 elements.'
+                '2^(bits per entry) elements.'
             )
-        elif len_data == 2**16:
+        elif len_data == 2 ** 16:
             # Per the standard, this is recorded as 0
             number_of_entries = 0
         else:
             number_of_entries = len_data
-        # Note 8 bit LUT data is unsupported pending clarification on the
-        # standard
-        if lut_data.dtype.type == np.uint16:
-            bits_per_entry = 16
-        else:
-            raise ValueError(
-                "Numpy array must have dtype uint16."
-            )
 
         if color.lower() not in ('red', 'green', 'blue'):
             raise ValueError(
@@ -2420,12 +2824,18 @@ class PaletteColorLUT(Dataset):
             )
         self._attr_name_prefix = f'{color.title()}PaletteColorLookupTable'
 
+        if bits_per_entry == 8 and len(lut_data) % 2 != 0:
+            # Need to pad so that the resulting value has even length
+            lut_data = np.concatenate(
+                [lut_data, np.array([0], lut_data.dtype)]
+            )
+
         # The Palette Color Lookup Table Data attributes have VR OW
         # (16-bit other words)
         setattr(
             self,
             f'{self._attr_name_prefix}Data',
-            lut_data.astype(np.uint16).tobytes()
+            lut_data.tobytes()
         )
         setattr(
             self,
@@ -2436,16 +2846,22 @@ class PaletteColorLUT(Dataset):
     @property
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: lookup table data"""
-        if self.bits_per_entry == 8:
-            raise RuntimeError("8 bit LUTs are currently unsupported.")
-        elif self.bits_per_entry == 16:
+        bits_per_entry = self.bits_per_entry
+        if bits_per_entry == 8:
+            dtype = np.uint8
+        elif bits_per_entry == 16:
             dtype = np.uint16
         else:
             raise RuntimeError("Invalid LUT descriptor.")
         length = self.number_of_entries
         data = getattr(self, f'{self._attr_name_prefix}Data')
+
+        # Account for a zero-padding byte in the case of an 8 bit LUT
+        if bits_per_entry == 8 and length % 2 == 1 and len(data) == length + 1:
+            data = data[:-1]
+
         # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=np.uint16)
+        array = np.frombuffer(data, dtype=dtype)
         # Needs to be casted according to third descriptor value.
         array = array.astype(dtype)
         if len(array) != length:
@@ -2462,7 +2878,7 @@ class PaletteColorLUT(Dataset):
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
         value = int(descriptor[0])
         if value == 0:
-            return 2**16
+            return 2 ** 16
         return value
 
     @property
@@ -2478,6 +2894,73 @@ class PaletteColorLUT(Dataset):
         """int: Bits allocated for the lookup table data. 8 or 16."""
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
         return int(descriptor[2])
+
+    def apply(
+        self,
+        array: np.ndarray,
+        dtype: type | str | np.dtype | None = None,
+    ) -> np.ndarray:
+        """Apply the LUT to a pixel array.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the LUT should be applied. Can be of any shape
+            but must have an integer datatype.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Datatype of the output array. If ``None``, an unsigned integer
+            datatype corresponding to the number of bits in the LUT will be
+            used (either ``numpy.uint8`` or ``numpy.uint16``). Only safe casts
+            are permitted.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with LUT applied.
+
+        """
+        return apply_lut(
+            array=array,
+            lut_data=self.lut_data,
+            first_mapped_value=self.first_mapped_value,
+            dtype=dtype,
+        )
+
+    @classmethod
+    def extract_from_dataset(cls, dataset: Dataset, color: str) -> Self:
+        """Construct from an existing dataset.
+
+        Note that unlike many other ``from_dataset()`` methods, this method
+        extracts only the attributes it needs from the original dataset, and
+        always returns a new object.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset containing the attributes of the Palette Color Lookup Table
+            Transformation.
+        color: str
+            Text representing the color (``red``, ``green``, or
+            ``blue``).
+
+        Returns
+        -------
+        highdicom.PaletteColorLUT
+            New object containing attributes found in ``dataset``.
+
+        """
+        kw_prefix = f'{color.title()}PaletteColorLookupTable'
+        descriptor_kw = kw_prefix + 'Descriptor'
+        data_kw = kw_prefix + 'Data'
+
+        new_ds = Dataset()
+        new_ds._attr_name_prefix = kw_prefix
+
+        for kw in [descriptor_kw, data_kw]:
+            setattr(new_ds, kw, getattr(dataset, kw))
+
+        new_ds.__class__ = cls
+        return cast(Self, new_ds)
 
 
 class SegmentedPaletteColorLUT(Dataset):
@@ -2498,7 +2981,7 @@ class SegmentedPaletteColorLUT(Dataset):
             Pixel value that will be mapped to the first value in the
             lookup table.
         segmented_lut_data: numpy.ndarray
-            Segmented lookup table data. Must be of type uint16.
+            Segmented lookup table data. Must be of type uint8 or uint16.
         color: str
             Free-form text explanation of the color (``red``, ``green``, or
             ``blue``).
@@ -2516,13 +2999,22 @@ class SegmentedPaletteColorLUT(Dataset):
 
         """
         super().__init__()
+        if segmented_lut_data.dtype.type == np.uint8:
+            bits_per_entry = 8
+        elif segmented_lut_data.dtype.type == np.uint16:
+            bits_per_entry = 16
+        else:
+            raise ValueError(
+                "Numpy array must have dtype uint8 or uint16."
+            )
+
         if not isinstance(first_mapped_value, int):
             raise TypeError('Argument "first_mapped_value" must be an integer.')
         if first_mapped_value < 0:
             raise ValueError(
                 'Argument "first_mapped_value" must be non-negative.'
             )
-        if first_mapped_value >= 2 ** 16:
+        if first_mapped_value >= 2 ** bits_per_entry:
             raise ValueError(
                 'Argument "first_mapped_value" must be less than 2^16.'
             )
@@ -2539,23 +3031,14 @@ class SegmentedPaletteColorLUT(Dataset):
         len_data = segmented_lut_data.size
         if len_data == 0:
             raise ValueError('Argument "segmented_lut_data" must not be empty.')
-        if len_data > 2**16:
+        if len_data > 2 ** bits_per_entry:
             raise ValueError(
                 'Length of argument "segmented_lut_data" must be no greater '
                 'than 2^16 elements.'
             )
-        elif len_data == 2**16:
+        elif len_data == 2 ** bits_per_entry:
             # Per the standard, this is recorded as 0
             len_data = 0
-        # Note 8 bit LUT data is currently unsupported pending clarification on
-        # the standard
-        if segmented_lut_data.dtype.type == np.uint16:
-            bits_per_entry = 16
-            self._dtype = np.uint16
-        else:
-            raise ValueError(
-                "Numpy array must have dtype uint16."
-            )
 
         if color.lower() not in ('red', 'green', 'blue'):
             raise ValueError(
@@ -2568,7 +3051,7 @@ class SegmentedPaletteColorLUT(Dataset):
         setattr(
             self,
             f'Segmented{self._attr_name_prefix}Data',
-            segmented_lut_data.astype(np.uint16).tobytes()
+            segmented_lut_data.tobytes()
         )
 
         expanded_lut_values = []
@@ -2615,11 +3098,11 @@ class SegmentedPaletteColorLUT(Dataset):
 
         self._lut_data = np.array(
             expanded_lut_values,
-            dtype=self._dtype
+            dtype=segmented_lut_data.dtype,
         )
 
         len_data = len(expanded_lut_values)
-        if len_data == 2**16:
+        if len_data == 2 ** 16:
             number_of_entries = 0
         else:
             number_of_entries = len_data
@@ -2634,10 +3117,14 @@ class SegmentedPaletteColorLUT(Dataset):
         """numpy.ndarray: segmented lookup table data"""
         length = self.number_of_entries
         data = getattr(self, f'Segmented{self._attr_name_prefix}Data')
+        if self.bits_per_entry == 8:
+            dtype = np.uint8
+        elif self.bits_per_entry == 16:
+            dtype = np.uint16
+        else:
+            raise RuntimeError("Invalid LUT descriptor.")
         # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=np.uint16)
-        # Needs to be casted according to third descriptor value.
-        array = array.astype(self._dtype)
+        array = np.frombuffer(data, dtype=dtype)
         if len(array) != length:
             raise RuntimeError(
                 'Length of LUTData does not match the value expected from the '
@@ -2661,7 +3148,7 @@ class SegmentedPaletteColorLUT(Dataset):
         # That's because the descriptor attributes have VR US, which cannot
         # encode the value of 2^16, but only values in the range [0, 2^16 - 1].
         if value == 0:
-            return 2**16
+            return 2 ** 16
         else:
             return value
 
@@ -2679,6 +3166,42 @@ class SegmentedPaletteColorLUT(Dataset):
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
         return int(descriptor[2])
 
+    @classmethod
+    def extract_from_dataset(cls, dataset: Dataset, color: str) -> Self:
+        """Construct from an existing dataset.
+
+        Note that unlike many other ``from_dataset()`` methods, this method
+        extracts only the attributes it needs from the original dataset, and
+        always returns a new object.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset containing the attributes of the Palette Color Lookup Table
+            Transformation.
+        color: str
+            Text representing the color (``red``, ``green``, or
+            ``blue``).
+
+        Returns
+        -------
+        highdicom.SegmentedPaletteColorLUT
+            New object containing attributes found in ``dataset``.
+
+        """
+        kw_prefix = f'{color.title()}PaletteColorLookupTable'
+        descriptor_kw = kw_prefix + 'Descriptor'
+        data_kw = 'Segmented' + kw_prefix + 'Data'
+
+        new_ds = Dataset()
+        new_ds._attr_name_prefix = kw_prefix
+
+        for kw in [descriptor_kw, data_kw]:
+            setattr(new_ds, kw, getattr(dataset, kw))
+
+        new_ds.__class__ = cls
+        return cast(Self, new_ds)
+
 
 class PaletteColorLUTTransformation(Dataset):
 
@@ -2690,10 +3213,10 @@ class PaletteColorLUTTransformation(Dataset):
 
     def __init__(
         self,
-        red_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
-        green_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
-        blue_lut: Union[PaletteColorLUT, SegmentedPaletteColorLUT],
-        palette_color_lut_uid: Union[UID, str, None] = None
+        red_lut: PaletteColorLUT | SegmentedPaletteColorLUT,
+        green_lut: PaletteColorLUT | SegmentedPaletteColorLUT,
+        blue_lut: PaletteColorLUT | SegmentedPaletteColorLUT,
+        palette_color_lut_uid: UID | str | None = None
     ):
         """
 
@@ -2712,12 +3235,12 @@ class PaletteColorLUTTransformation(Dataset):
         super().__init__()
 
         # Checks on inputs
-        self._color_luts = {
+        _color_luts = {
             'Red': red_lut,
             'Green': green_lut,
             'Blue': blue_lut
         }
-        for lut in self._color_luts.values():
+        for lut in _color_luts.values():
             if not isinstance(lut, (PaletteColorLUT, SegmentedPaletteColorLUT)):
                 raise TypeError(
                     'Arguments "red_lut", "green_lut", and "blue_lut" must be '
@@ -2739,7 +3262,7 @@ class PaletteColorLUTTransformation(Dataset):
         red_length = red_lut.number_of_entries
         green_length = green_lut.number_of_entries
         blue_length = blue_lut.number_of_entries
-        if len(set([red_length, green_length, blue_length])) != 1:
+        if len({red_length, green_length, blue_length}) != 1:
             raise ValueError(
                 'All three palette color LUTs must have the same number of '
                 'entries.'
@@ -2747,7 +3270,7 @@ class PaletteColorLUTTransformation(Dataset):
         red_bits = red_lut.bits_per_entry
         green_bits = green_lut.bits_per_entry
         blue_bits = blue_lut.bits_per_entry
-        if len(set([red_bits, green_bits, blue_bits])) != 1:
+        if len({red_bits, green_bits, blue_bits}) != 1:
             raise ValueError(
                 'All three palette color LUTs must have the same number of '
                 'bits per entry.'
@@ -2755,13 +3278,13 @@ class PaletteColorLUTTransformation(Dataset):
         red_fmv = red_lut.first_mapped_value
         green_fmv = green_lut.first_mapped_value
         blue_fmv = blue_lut.first_mapped_value
-        if len(set([red_fmv, green_fmv, blue_fmv])) != 1:
+        if len({red_fmv, green_fmv, blue_fmv}) != 1:
             raise ValueError(
                 'All three palette color LUTs must have the same '
                 'first mapped value.'
             )
 
-        for name, lut in self._color_luts.items():
+        for name, lut in _color_luts.items():
             desc_attr = f'{name}PaletteColorLookupTableDescriptor'
             setattr(
                 self,
@@ -2784,26 +3307,346 @@ class PaletteColorLUTTransformation(Dataset):
         # To cache the array
         self._lut_data = None
 
+    @classmethod
+    def from_colors(
+        cls,
+        colors: Sequence[str],
+        first_mapped_value: int = 0,
+        palette_color_lut_uid: UID | str | None = None
+    ) -> Self:
+        """Create a palette color lookup table from a list of colors.
+
+        Parameters
+        ----------
+        colors: Sequence[str]
+            List of colors. Item ``i`` of the list will be used as the color
+            for input value ``first_mapped_value + i``. Each color should be a
+            string understood by PIL's ``getrgb()`` function (see `here
+            <https://pillow.readthedocs.io/en/stable/reference/ImageColor.html#color-names>`_
+            for the documentation of that function or `here
+            <https://drafts.csswg.org/css-color-4/#named-colors>`_) for the
+            original list of colors). This includes many case-insensitive color
+            names (e.g. ``"red"``, ``"Crimson"``, or ``"INDIGO"``), hex codes
+            (e.g. ``"#ff7733"``) or decimal integers in the format of this
+            example: ``"RGB(255, 255, 0)"``.
+        first_mapped_value: int
+            Pixel value that will be mapped to the first value in the
+            lookup table.
+        palette_color_lut_uid: Union[highdicom.UID, str, None], optional
+            Unique identifier for the palette color lookup table.
+
+        Examples
+        --------
+
+        Create a ``PaletteColorLUTTransformation`` for a small number of values
+        (4 in this case). This would be typical for a labelmap segmentation.
+
+        >>> import highdicom as hd
+        >>>
+        >>> lut = hd.PaletteColorLUTTransformation.from_colors(
+        >>>     colors=['black', 'red', 'orange', 'yellow'],
+        >>>     palette_color_lut_uid=hd.UID(),
+        >>> )
+
+        Returns
+        -------
+        highdicom.PaletteColorLUTTransformation:
+            Palette Color Lookup table created from the given colors. This will
+            always be an 8 bit LUT.
+
+        """  # noqa: E501
+        if len(colors) == 0:
+            raise ValueError("List 'colors' may not be empty.")
+
+        r_list, g_list, b_list = zip(
+            *[ImageColor.getrgb(c) for c in colors]
+        )
+
+        red_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=np.array(r_list, dtype=np.uint8),
+            color='red'
+        )
+        green_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=np.array(g_list, dtype=np.uint8),
+            color='green'
+        )
+        blue_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=np.array(b_list, dtype=np.uint8),
+            color='blue'
+        )
+
+        return cls(
+            red_lut=red_lut,
+            green_lut=green_lut,
+            blue_lut=blue_lut,
+            palette_color_lut_uid=palette_color_lut_uid,
+        )
+
+    @classmethod
+    def from_combined_lut(
+        cls,
+        lut_data: np.ndarray,
+        first_mapped_value: int = 0,
+        palette_color_lut_uid: UID | str | None = None
+    ) -> Self:
+        """Create a palette color lookup table from a combined LUT array.
+
+        Parameters
+        ----------
+        lut_data: numpy.ndarray
+            LUT array with shape ``(number_of_entries, 3)`` where the entries
+            are stacked as rows and the 3 columns represent the red, green, and
+            blue channels (in that order). Data type must be ``numpy.uint8`` or
+            ``numpy.uint16``.
+        first_mapped_value: int
+            Input pixel value that will be mapped to the first value in the
+            lookup table.
+        palette_color_lut_uid: Union[highdicom.UID, str, None], optional
+            Unique identifier for the palette color lookup table.
+
+        Returns
+        -------
+        highdicom.PaletteColorLUTTransformation:
+            Palette Color Lookup table created from the given colors. This will
+            be an 8-bit or 16-bit LUT depending on the data type of the input
+            ``lut_data``.
+
+
+        Examples
+        --------
+
+        Create a ``PaletteColorLUTTransformation`` from a built-in colormap
+        from the well-known ``matplotlib`` python package (must be installed
+        separately).
+
+        >>> import numpy as np
+        >>> from matplotlib import colormaps
+        >>> import highdicom as hd
+        >>>
+        >>> # Use matplotlib's built-in 'gist_rainbow_r' colormap as an example
+        >>> cmap = colormaps['gist_rainbow_r']
+        >>>
+        >>> # Create an 8-bit RGBA LUT array from the colormap
+        >>> num_entries = 10  # e.g. number of classes in a segmentation
+        >>> lut_data = cmap(np.arange(num_entries) / (num_entries + 1), bytes=True)
+        >>>
+        >>> # Remove the alpha channel (at index 3)
+        >>> lut_data = lut_data[:, :3]
+        >>>
+        >>> lut = hd.PaletteColorLUTTransformation.from_combined_lut(
+        >>>     lut_data,
+        >>>     palette_color_lut_uid=hd.UID(),
+        >>> )
+
+        """  # noqa: E501
+        if lut_data.ndim != 2 or lut_data.shape[1] != 3:
+            raise ValueError(
+                "Argument 'lut_data' must have shape (number_of_entries, 3)."
+            )
+
+        if lut_data.dtype not in (np.uint8, np.uint16):
+            raise ValueError(
+                "Argument 'lut_data' must have data type numpy.uint8 or "
+                'numpy.uint16.'
+            )
+
+        red_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data[:, 0],
+            color='red'
+        )
+        green_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data[:, 1],
+            color='green'
+        )
+        blue_lut = PaletteColorLUT(
+            first_mapped_value=first_mapped_value,
+            lut_data=lut_data[:, 2],
+            color='blue'
+        )
+
+        return cls(
+            red_lut=red_lut,
+            green_lut=green_lut,
+            blue_lut=blue_lut,
+            palette_color_lut_uid=palette_color_lut_uid,
+        )
+
     @property
-    def red_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+    def is_segmented(self) -> bool:
+        """bool: True if the transformation is a segmented LUT.
+        False otherwise."""
+        return 'SegmentedRedPaletteColorLookupTableData' in self
+
+    @property
+    def number_of_entries(self) -> int:
+        """int: Number of entries in the lookup table."""
+        value = int(self.RedPaletteColorLookupTableDescriptor[0])
+        # Part 3 Section C.7.6.3.1.5 Palette Color Lookup Table Descriptor
+        # "When the number of table entries is equal to 2^16
+        # then this value shall be 0".
+        # That's because the descriptor attributes have VR US, which cannot
+        # encode the value of 2^16, but only values in the range [0, 2^16 - 1].
+        if value == 0:
+            return 2**16
+        else:
+            return value
+
+    @property
+    def first_mapped_value(self) -> int:
+        """int: Pixel value that will be mapped to the first value in the
+        lookup table.
+        """
+        return int(self.RedPaletteColorLookupTableDescriptor[1])
+
+    @property
+    def bits_per_entry(self) -> int:
+        """int: Bits allocated for the lookup table data. 8 or 16."""
+        return int(self.RedPaletteColorLookupTableDescriptor[2])
+
+    def _get_lut(self, color: str):
+        """Get a LUT for a single given color channel.
+
+        Parameters
+        ----------
+        color: str
+            Name of the color, either ``'red'``, ``'green'``, or ``'blue'``.
+
+        Returns
+        -------
+        Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
+            Lookup table for the given output color channel
+
+        """
+        if self.is_segmented:
+            return SegmentedPaletteColorLUT.extract_from_dataset(
+                self,
+                color=color.lower(),
+            )
+        else:
+            return PaletteColorLUT.extract_from_dataset(
+                self,
+                color=color.lower(),
+            )
+
+    @property
+    def red_lut(self) -> PaletteColorLUT | SegmentedPaletteColorLUT:
         """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
             Lookup table for the red output color channel
 
         """
-        return self._color_luts['Red']
+        return self._get_lut('red')
 
     @property
-    def green_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+    def green_lut(self) -> PaletteColorLUT | SegmentedPaletteColorLUT:
         """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
             Lookup table for the green output color channel
 
         """
-        return self._color_luts['Green']
+        return self._get_lut('green')
 
     @property
-    def blue_lut(self) -> Union[PaletteColorLUT, SegmentedPaletteColorLUT]:
+    def blue_lut(self) -> PaletteColorLUT | SegmentedPaletteColorLUT:
         """Union[highdicom.PaletteColorLUT, highdicom.SegmentedPaletteColorLUT]:
             Lookup table for the blue output color channel
 
         """
-        return self._color_luts['Blue']
+        return self._get_lut('blue')
+
+    @property
+    def combined_lut_data(self) -> np.ndarray:
+        """numpy.ndarray:
+
+        An NumPy array of shape (number_of_entries, 3) containing the red,
+        green and blue lut data stacked along the final dimension of the
+        array. Data type with be 8 or 16 bit unsigned integer depending on
+        the number of bits per entry in the LUT.
+
+        """
+        if self._lut_data is None:
+            _, self._lut_data = _get_combined_palette_color_lut(self)
+        return cast(np.ndarray, self._lut_data)
+
+    @classmethod
+    def extract_from_dataset(cls, dataset: Dataset) -> Self:
+        """Construct from an existing dataset.
+
+        Note that unlike many other ``from_dataset()`` methods, this method
+        extracts only the attributes it needs from the original dataset, and
+        always returns a new object.
+
+        Parameters
+        ----------
+        dataset: pydicom.Dataset
+            Dataset containing Palette Color LUT information. Note that any
+            number of other attributes may be included and will be ignored (for
+            example allowing an entire image with Palette Color LUT information
+            at the top level to be passed).
+
+        Returns
+        -------
+        highdicom.PaletteColorLUTTransformation
+            New object containing attributes found in ``dataset``.
+
+        """
+        new_dataset = Dataset()
+
+        (
+            is_segmented,
+            descriptor,
+            lut_data,
+        ) = _parse_palette_color_lut_attributes(dataset)
+
+        for color, data in zip(['Red', 'Green', 'Blue'], lut_data):
+            desc_kw = f'{color}PaletteColorLookupTableDescriptor'
+            setattr(new_dataset, desc_kw, list(descriptor))
+
+            if is_segmented:
+                data_kw = f'Segmented{color}PaletteColorLookupTableData'
+            else:
+                data_kw = f'{color}PaletteColorLookupTableData'
+            setattr(new_dataset, data_kw, data)
+
+        new_dataset.__class__ = cls
+        return cast(Self, new_dataset)
+
+    def apply(
+        self,
+        array: np.ndarray,
+        dtype: type | str | np.dtype | None = None,
+    ) -> np.ndarray:
+        """Apply the LUT to a pixel array.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the LUT should be applied. Can be of any shape
+            but must have an integer datatype.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Datatype of the output array. If ``None``, an unsigned integer
+            datatype corresponding to the number of bits in the LUT will be
+            used (either ``numpy.uint8`` or ``numpy.uint16``). Only safe casts
+            are permitted.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with LUT applied. The RGB channels will be stacked along a
+            new final dimension.
+
+        """
+        if isinstance(self.red_lut, SegmentedPaletteColorLUT):
+            raise RuntimeError(
+                "The 'apply' method is not implemented for segmented LUTs."
+            )
+
+        return apply_lut(
+            array=array,
+            lut_data=self.combined_lut_data,
+            first_mapped_value=self.first_mapped_value,
+            dtype=dtype,
+        )

@@ -1,7 +1,7 @@
 from pathlib import Path
 import numpy as np
 import pydicom
-from pydicom.data import get_testdata_file
+from pydicom.data import get_testdata_file, get_testdata_files
 import pytest
 
 from highdicom.spatial import (
@@ -11,8 +11,15 @@ from highdicom.spatial import (
     PixelToReferenceTransformer,
     ReferenceToImageTransformer,
     ReferenceToPixelTransformer,
-    is_tiled_image,
     _are_images_coplanar,
+    _normalize_patient_orientation,
+    _transform_affine_matrix,
+    create_rotation_matrix,
+    get_closest_patient_orientation,
+    get_series_volume_positions,
+    get_volume_positions,
+    is_tiled_image,
+    rotation_for_patient_orientation,
 )
 
 
@@ -719,6 +726,71 @@ def test_map_coordinates_between_images(params, inputs, expected_outputs):
     np.testing.assert_array_almost_equal(outputs, expected_outputs)
 
 
+@pytest.mark.parametrize(
+    'image_orientation,orientation_str',
+    [
+        ([1, 0, 0, 0, 1, 0], 'LPH'),
+        ([0, 1, 0, 1, 0, 0], 'PLF'),
+        ([-1, 0, 0, 0, 1, 0], 'RPF'),
+        ([0, 0, -1, 1, 0, 0], 'FLA'),
+        (
+            [
+                np.cos(np.pi / 4),
+                -np.sin(np.pi / 4),
+                0,
+                np.sin(np.pi / 4),
+                np.cos(np.pi / 4),
+                0
+            ],
+            'LPH'
+        ),
+    ]
+)
+def test_get_closest_patient_orientation(
+    image_orientation,
+    orientation_str,
+):
+    codes = _normalize_patient_orientation(orientation_str)
+    rotation_matrix = create_rotation_matrix(image_orientation)
+    assert get_closest_patient_orientation(
+        rotation_matrix
+    ) == codes
+
+
+@pytest.mark.parametrize(
+    'orientation_str',
+    ['LPH', 'PLF', 'RPF', 'FLA']
+)
+def test_rotation_from_patient_orientation(
+    orientation_str,
+):
+    codes = _normalize_patient_orientation(orientation_str)
+    rotation_matrix = rotation_for_patient_orientation(
+        orientation_str
+    )
+    assert get_closest_patient_orientation(
+        rotation_matrix
+    ) == codes
+
+
+def test_rotation_from_patient_orientation_spacing():
+    rotation_matrix = rotation_for_patient_orientation(
+        ['F', 'P', 'L'],
+        spacing=(1.0, 2.0, 2.5)
+    )
+    expected = np.array(
+        [
+            [0.0, 0.0, 2.5],
+            [0.0, 2.0, 0.0],
+            [-1.0, 0.0, 0.0],
+        ]
+    )
+    assert np.array_equal(
+        rotation_matrix,
+        expected,
+    )
+
+
 all_single_image_transformer_classes = [
     ImageToReferenceTransformer,
     PixelToReferenceTransformer,
@@ -865,3 +937,260 @@ def test_are_images_coplanar(pos_a, ori_a, pos_b, ori_b, result):
         image_position_b=pos_b,
         image_orientation_b=ori_b,
     ) == result
+
+
+def test_get_series_slice_spacing_irregular():
+    # A series of single frame CT images
+    ct_series = [
+        pydicom.dcmread(f)
+        for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+    ]
+    spacing, _ = get_series_volume_positions(ct_series)
+    assert spacing is None
+
+
+def test_get_series_slice_spacing_regular():
+    # Use a subset of this test series that does have regular spacing
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+    ]
+    ct_series = [pydicom.dcmread(f) for f in ct_files]
+    spacing, _ = get_series_volume_positions(ct_series)
+    assert spacing == 1.25
+
+
+def test_get_spacing_duplicates():
+    # Test ability to determine spacing and volume positions with duplicate
+    # positions
+    position_indices = np.array(
+        [0, 1, 2, 3, 4, 5, 2, 5, 5, 3, 1, 1, 2, 4, 1, 2, 0]
+    )
+    expected_spacing = 0.2
+    positions = [
+        [0.0, 0.0, i * expected_spacing] for i in position_indices
+    ]
+    orientation = [1, 0, 0, 0, -1, 0]
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_duplicate_positions=False,
+    )
+    assert spacing is None
+    assert volume_positions is None
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_duplicate_positions=True,
+    )
+    assert np.isclose(spacing, expected_spacing)
+    assert volume_positions == position_indices.tolist()
+
+
+def test_get_spacing_missing():
+    # Test ability to determine spacing and volume positions with missing
+    # slices
+    position_indices = np.array(
+        [1, 3, 0, 9],  # an incomplete list of indices from 0 to 9
+    )
+    expected_spacing = 0.125
+    positions = [
+        [0.0, 0.0, i * expected_spacing] for i in position_indices
+    ]
+    orientation = [1, 0, 0, 0, -1, 0]
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing_positions=True
+    )
+
+    assert np.isclose(spacing, expected_spacing)
+    assert volume_positions == position_indices.tolist()
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing_positions=False
+    )
+    assert spacing is None
+    assert volume_positions is None
+
+
+def test_get_spacing_missing_duplicates():
+    # Test ability to determine spacing and volume positions with missing
+    # slices and duplicate positions
+    position_indices = np.array(
+        [1, 3, 0, 9, 3],
+    )
+    expected_spacing = 0.125
+    positions = [
+        [0.0, 0.0, i * expected_spacing] for i in position_indices
+    ]
+    orientation = [1, 0, 0, 0, -1, 0]
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing_positions=True,
+    )
+    assert spacing is None
+    assert volume_positions is None
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_duplicate_positions=True,
+    )
+    assert spacing is None
+    assert volume_positions is None
+
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing_positions=True,
+        allow_duplicate_positions=True,
+    )
+    assert np.isclose(spacing, expected_spacing)
+    assert volume_positions == position_indices.tolist()
+
+
+def test_get_spacing_missing_duplicates_non_consecutive():
+    # Test ability to determine spacing and volume positions with missing
+    # slices and duplicate positions, with no two positions from consecutive
+    # slices
+    position_indices = np.array([7, 3, 0, 9, 3])
+    expected_spacing = 0.125
+    positions = [
+        [0.0, 0.0, i * expected_spacing] for i in position_indices
+    ]
+    orientation = [1, 0, 0, 0, -1, 0]
+
+    # Without the spacing_hint, the positions do not appear to be a volume
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing_positions=True,
+        allow_duplicate_positions=True,
+    )
+    assert spacing is None
+    assert volume_positions is None
+
+    # With the hint, the positions should be correctly calculated
+    spacing, volume_positions = get_volume_positions(
+        positions,
+        orientation,
+        allow_missing_positions=True,
+        allow_duplicate_positions=True,
+        spacing_hint=expected_spacing,
+    )
+    assert np.isclose(spacing, expected_spacing)
+    assert volume_positions == position_indices.tolist()
+
+
+def test_get_spacing_coplanar():
+    # Check that coplanar points are not considered a volume
+    positions = [
+        [0.0, 0.0, 10.0],
+        [1.0, 1.0, 10.0],  # Coplanar position
+        [0.0, 0.0, 11.0],
+        [0.0, 0.0, 12.0],
+    ]
+    orientation = [1, 0, 0, 0, -1, 0]
+
+    # Regardless of values of allow_missing_positions and
+    # allow_duplicate_positions, this is not a volume
+    for allow_duplicate_positions in [False, True]:
+        for allow_missing_positions in [False, True]:
+            spacing, volume_positions = get_volume_positions(
+                positions,
+                orientation,
+                allow_missing_positions=allow_missing_positions,
+                allow_duplicate_positions=allow_duplicate_positions,
+            )
+            assert spacing is None
+            assert volume_positions is None
+
+
+def test_transform_affine_matrix():
+    affine = np.array(
+        [
+            [np.cos(np.radians(30)), -np.sin(np.radians(30)), 0.0, -34.0],
+            [np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0, 45.2],
+            [0.0, 0.0, 1.0, -1.2],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+
+    transformed = _transform_affine_matrix(
+        affine,
+        permute_indices=[1, 2, 0],
+        shape=[10, 10, 10],
+    )
+    expected = np.array(
+        [
+            [-np.sin(np.radians(30)), 0.0, np.cos(np.radians(30)), -34.0],
+            [np.cos(np.radians(30)), 0.0, np.sin(np.radians(30)), 45.2],
+            [0.0, 1.0, 0.0, -1.2],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    assert np.array_equal(transformed, expected)
+
+    transformed = _transform_affine_matrix(
+        affine,
+        permute_reference=[1, 2, 0],
+        shape=[10, 10, 10],
+    )
+    expected = np.array(
+        [
+            [np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0, 45.2],
+            [0.0, 0.0, 1.0, -1.2],
+            [np.cos(np.radians(30)), -np.sin(np.radians(30)), 0.0, -34.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    assert np.array_equal(transformed, expected)
+
+    transformed = _transform_affine_matrix(
+        affine,
+        flip_indices=[True, False, True],
+        shape=[10, 10, 10],
+    )
+    expected = np.array(
+        [
+            [
+                -np.cos(np.radians(30)),
+                -np.sin(np.radians(30)),
+                0.0,
+                -26.20577137,
+            ],
+            [
+                -np.sin(np.radians(30)),
+                np.cos(np.radians(30)),
+                0.0,
+                40.7,
+            ],
+            [0.0, 0.0, -1.0, 7.8],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    assert np.allclose(transformed, expected)
+
+    transformed = _transform_affine_matrix(
+        affine,
+        flip_reference=[True, False, True],
+        shape=[10, 10, 10],
+    )
+    expected = np.array(
+        [
+            [-np.cos(np.radians(30)), np.sin(np.radians(30)), 0.0, 34.0],
+            [np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0, 45.2],
+            [0.0, 0.0, -1.0, 1.2],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    assert np.array_equal(transformed, expected)

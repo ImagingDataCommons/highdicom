@@ -4,9 +4,11 @@ from copy import deepcopy
 import itertools
 import unittest
 from pathlib import Path
+import pkgutil
 import warnings
 
 import numpy as np
+from pydicom.multival import MultiValue
 import pytest
 from PIL import Image
 
@@ -22,6 +24,11 @@ from pydicom.uid import (
     JPEGLSLossless,
 )
 
+from highdicom import (
+    PaletteColorLUT,
+    PaletteColorLUTTransformation,
+)
+from highdicom.color import CIELabColor
 from highdicom.content import (
     AlgorithmIdentificationSequence,
     PlanePositionSequence,
@@ -31,6 +38,7 @@ from highdicom.content import (
 from highdicom.enum import (
     CoordinateSystemNames,
     DimensionOrganizationTypeValues,
+    PatientOrientationValuesBiped,
 )
 from highdicom.seg import (
     create_segmentation_pyramid,
@@ -44,8 +52,10 @@ from highdicom.seg import (
     SegmentationFractionalTypeValues,
 )
 from highdicom.seg.utils import iter_segments
+from highdicom.spatial import VOLUME_INDEX_CONVENTION, sort_datasets
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
+from highdicom.volume import RGB_COLOR_CHANNEL_DESCRIPTOR, Volume
 
 from .utils import write_and_read_dataset
 
@@ -169,6 +179,7 @@ class TestSegmentDescription(unittest.TestCase):
         self._tracking_uid = UID()
         self._anatomic_region = codes.SCT.Thorax
         self._anatomic_structure = codes.SCT.Lung
+        self._display_color = CIELabColor(50.0, 15.0, 20.0)
 
     def test_construction(self):
         item = SegmentDescription(
@@ -177,7 +188,8 @@ class TestSegmentDescription(unittest.TestCase):
             self._segmented_property_category,
             self._segmented_property_type,
             self._segment_algorithm_type,
-            self._algorithm_identification
+            self._algorithm_identification,
+            display_color=self._display_color,
         )
         assert item.SegmentNumber == self._segment_number
         assert item.SegmentLabel == self._segment_label
@@ -214,6 +226,9 @@ class TestSegmentDescription(unittest.TestCase):
         assert item.tracking_uid is None
         assert len(item.anatomic_regions) == 0
         assert len(item.primary_anatomic_structures) == 0
+        assert item.RecommendedDisplayCIELabValue == list(
+            self._display_color.value
+        )
 
     def test_construction_invalid_segment_number(self):
         with pytest.raises(ValueError):
@@ -639,6 +654,33 @@ class TestSegmentation:
         )
         self._ct_pixel_array[1:5, 10:15] = True
 
+        self._ct_volume_position = [4.3, 1.4, 8.7]
+        self._ct_volume_orientation = [1., 0., 0, 0., -1., 0.]
+        self._ct_volume_pixel_spacing = [1., 1.5]
+        self._ct_volume_slice_spacing = 3.0
+        self._ct_volume_array = np.zeros((4, 12, 12))
+        self._ct_volume_array[0, 1:4, 8:9] = True
+        self._ct_volume_array[1, 5:7, 1:4] = True
+        self._ct_seg_volume = Volume.from_attributes(
+            array=self._ct_volume_array,
+            image_position=self._ct_volume_position,
+            image_orientation=self._ct_volume_orientation,
+            pixel_spacing=self._ct_volume_pixel_spacing,
+            spacing_between_slices=self._ct_volume_slice_spacing,
+            frame_of_reference_uid=self._ct_image.FrameOfReferenceUID,
+            coordinate_system="PATIENT",
+        )
+        self._ct_seg_volume_with_channels = Volume.from_attributes(
+            array=self._ct_volume_array[:, :, :, None],
+            image_position=self._ct_volume_position,
+            image_orientation=self._ct_volume_orientation,
+            pixel_spacing=self._ct_volume_pixel_spacing,
+            spacing_between_slices=self._ct_volume_slice_spacing,
+            frame_of_reference_uid=self._ct_image.FrameOfReferenceUID,
+            channels={'SegmentNumber': [1]},
+            coordinate_system="PATIENT",
+        )
+
         # A single CR image
         self._cr_image = dcmread(
             get_testdata_file('dicomdirtests/77654033/CR1/6154')
@@ -709,10 +751,7 @@ class TestSegmentation:
         ]
         # Ensure the frames are in the right spatial order
         # (only 3rd dimension changes)
-        self._ct_series = sorted(
-            ct_series,
-            key=lambda x: x.ImagePositionPatient[2]
-        )
+        self._ct_series = sort_datasets(ct_series)
 
         # Hack around the fact that the images are too small to be encoded by
         # openjpeg
@@ -727,7 +766,7 @@ class TestSegmentation:
             (len(self._ct_series), ) + self._ct_series[0].pixel_array.shape,
             dtype=bool
         )
-        nonempty_slice = slice(1, 3)
+        nonempty_slice = slice(1, 4)
         self._ct_series_mask_array[nonempty_slice, 1:5, 7:9] = True
         self._ct_series_nonempty = self._ct_series[nonempty_slice]
 
@@ -747,6 +786,26 @@ class TestSegmentation:
                 [self._ct_multiframe], self._ct_multiframe_mask_array
             ),
         }
+
+        r_lut_data = np.arange(10, 120, dtype=np.uint16)
+        g_lut_data = np.arange(20, 130, dtype=np.uint16)
+        b_lut_data = np.arange(30, 140, dtype=np.uint16)
+        r_first_mapped_value = 0
+        g_first_mapped_value = 0
+        b_first_mapped_value = 0
+        r_lut = PaletteColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(b_first_mapped_value, b_lut_data, color='blue')
+        self._lut_transformation = PaletteColorLUTTransformation(
+            red_lut=r_lut,
+            green_lut=g_lut,
+            blue_lut=b_lut,
+            palette_color_lut_uid=UID(),
+        )
+        self._icc_profile = pkgutil.get_data(
+            'highdicom',
+            '_icc_profiles/sRGB_v4_ICC_preference.icc'
+        )
 
     # Fixtures to use to parametrize segmentation creation
     # Using this fixture mechanism, we can parametrize class methods
@@ -789,16 +848,31 @@ class TestSegmentation:
     @staticmethod
     def sort_frames(sources, mask):
         src = sources[0]
+        orientation = None
         if hasattr(src, 'ImageOrientationSlide'):
             coordinate_system = CoordinateSystemNames.SLIDE
         else:
             coordinate_system = CoordinateSystemNames.PATIENT
+            if 'SharedFunctionalGroupsSequence' in src:
+                orientation = (
+                    src
+                    .SharedFunctionalGroupsSequence[0]
+                    .PlaneOrientationSequence[0]
+                    .ImageOrientationPatient
+                )
+            else:
+                orientation = src.ImageOrientationPatient
+
         dim_index = DimensionIndexSequence(coordinate_system)
         if hasattr(src, 'NumberOfFrames'):
             plane_positions = dim_index.get_plane_positions_of_image(src)
         else:
             plane_positions = dim_index.get_plane_positions_of_series(sources)
-        _, index = dim_index.get_index_values(plane_positions)
+        _, index = dim_index.get_index_values(
+            plane_positions,
+            image_orientation=orientation,
+            index_convention=VOLUME_INDEX_CONVENTION
+        )
         return mask[index, ...]
 
     @staticmethod
@@ -818,7 +892,33 @@ class TestSegmentation:
     def check_dimension_index_vals(seg):
         # Function to apply some checks (necessary but not sufficient for
         # correctness) to ensure that the dimension indices are correct
-        is_patient_coord_system = hasattr(
+        if seg.SegmentationType != "LABELMAP":
+            all_segment_numbers = []
+            for f in seg.PerFrameFunctionalGroupsSequence:
+                dim_ind_vals = f.FrameContentSequence[0].DimensionIndexValues
+
+                if isinstance(dim_ind_vals, MultiValue):
+                    posn_index = dim_ind_vals[0]
+                else:
+                    # VM=1 so this is an int
+                    posn_index = dim_ind_vals
+
+                seg_number = (
+                    f.SegmentIdentificationSequence[0].ReferencedSegmentNumber
+                )
+
+                assert seg_number == posn_index
+                all_segment_numbers.append(seg_number)
+
+            # Probably this should be strict equality and we should adjust the
+            # dimension indices for unused segment numbers
+            assert (
+                set(all_segment_numbers) <=
+                set(range(1, max(all_segment_numbers) + 1))
+            )
+
+        has_frame_of_reference = 'FrameOfReferenceUID' in seg
+        is_patient_coord_system = has_frame_of_reference and hasattr(
             seg.PerFrameFunctionalGroupsSequence[0],
             'PlanePositionSequence'
         )
@@ -826,10 +926,15 @@ class TestSegmentation:
             # Build up the mapping from index to value
             index_mapping = defaultdict(list)
             for f in seg.PerFrameFunctionalGroupsSequence:
-                posn_index = f.FrameContentSequence[0].DimensionIndexValues[1]
-                # This is not general, but all the tests run here use axial
-                # images so just check the z coordinate
-                posn_val = f.PlanePositionSequence[0].ImagePositionPatient[2]
+                dim_ind_vals = f.FrameContentSequence[0].DimensionIndexValues
+
+                if isinstance(dim_ind_vals, MultiValue):
+                    posn_index = dim_ind_vals[1]
+                else:
+                    # VM=1 so this is an int
+                    posn_index = dim_ind_vals
+
+                posn_val = f.PlanePositionSequence[0].ImagePositionPatient
                 index_mapping[posn_index].append(posn_val)
 
             # Check that each index value found references a unique value
@@ -840,23 +945,41 @@ class TestSegmentation:
             expected_keys = range(1, len(index_mapping) + 1)
             assert set(index_mapping.keys()) == set(expected_keys)
 
-            # Check that values are sorted
-            old_v = float('-inf')
-            for k in expected_keys:
-                assert index_mapping[k][0] > old_v
-                old_v = index_mapping[k][0]
-        else:
+            # Check all three spatial dimensions are sorted one way or the
+            # other
+            for d in range(3):
+                values_array = np.array(
+                    [index_mapping[k][0][d] for k in expected_keys]
+                )
+                assert (
+                    (values_array[1:] >= values_array[:-1]).all() or
+                    (values_array[1:] <= values_array[:-1]).all()
+                )
+
+        elif has_frame_of_reference:
             # Build up the mapping from index to value
-            for dim_kw, dim_ind in zip([
-                'RowPositionInTotalImagePixelMatrix',
-                'ColumnPositionInTotalImagePixelMatrix',
-            ], [1, 2]):
+            for dim_kw, dim_ind in zip(
+                [
+                    'RowPositionInTotalImagePixelMatrix',
+                    'ColumnPositionInTotalImagePixelMatrix',
+                ],
+                [0, 1] if seg.SegmentationType == "LABELMAP" else [1, 2]
+            ):
                 index_mapping = defaultdict(list)
                 for f in seg.PerFrameFunctionalGroupsSequence:
-                    content_item = f.FrameContentSequence[0]
-                    posn_index = content_item.DimensionIndexValues[dim_ind]
-                    # This is not general, but all the tests run here use axial
-                    # images so just check the z coordinate
+                    dim_ind_vals = (
+                        f.FrameContentSequence[0]
+                        .DimensionIndexValues
+                    )
+
+                    if isinstance(dim_ind_vals, MultiValue):
+                        posn_index = dim_ind_vals[dim_ind]
+                    elif dim_ind == 0:
+                        # VM=1 so this is an int
+                        posn_index = dim_ind_vals
+                    else:
+                        assert False
+
                     posn_item = f.PlanePositionSlideSequence[0]
                     posn_val = getattr(posn_item, dim_kw)
                     index_mapping[posn_index].append(posn_val)
@@ -891,6 +1014,7 @@ class TestSegmentation:
             self._device_serial_number,
             content_label=self._content_label
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.SeriesInstanceUID == self._series_instance_uid
         assert instance.SeriesNumber == self._series_number
         assert instance.SOPInstanceUID == self._sop_instance_uid
@@ -972,7 +1096,16 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence  # noqa: B018
+        assert not hasattr(instance, "DimensionOrganizationType")
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_2(self):
         instance = Segmentation(
@@ -989,6 +1122,7 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.PatientID == self._sm_image.PatientID
         assert instance.AccessionNumber == self._sm_image.AccessionNumber
         assert instance.ContainerIdentifier == \
@@ -1043,7 +1177,16 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSequence  # noqa: B018
+        assert instance.DimensionOrganizationType == "TILED_SPARSE"
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_3(self):
         # Segmentation instance from a series of single-frame CT images
@@ -1061,6 +1204,7 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         src_im = self._ct_series_nonempty[0]
         assert instance.PatientID == src_im.PatientID
         assert instance.AccessionNumber == src_im.AccessionNumber
@@ -1113,6 +1257,8 @@ class TestSegmentation:
                     source_image_item,
                     'PurposeOfReferenceCodeSequence'
                 )
+            with pytest.raises(AttributeError):
+                frame_item.PlanePositionSlideSequence  # noqa: B018
         uid_to_plane_position = {}
         for fm in instance.PerFrameFunctionalGroupsSequence:
             src_img_item = fm.DerivationImageSequence[0].SourceImageSequence[0]
@@ -1126,9 +1272,16 @@ class TestSegmentation:
         assert source_uid_to_plane_position == uid_to_plane_position
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
-        with pytest.raises(AttributeError):
-            frame_item.PlanePositionSlideSequence  # noqa: B018
+        assert not hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_4(self):
         # Segmentation instance from an enhanced (multi-frame) CT image
@@ -1146,6 +1299,7 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.PatientID == self._ct_multiframe.PatientID
         assert instance.AccessionNumber == self._ct_multiframe.AccessionNumber
         assert len(instance.SegmentSequence) == 1
@@ -1207,7 +1361,17 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence  # noqa: B018
+
+        assert hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_5(self):
         # Segmentation instance from a series of single-frame CT images
@@ -1227,6 +1391,7 @@ class TestSegmentation:
             self._device_serial_number,
             omit_empty_frames=False
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         src_im = self._ct_series[0]
         assert instance.PatientID == src_im.PatientID
         assert instance.AccessionNumber == src_im.AccessionNumber
@@ -1291,7 +1456,16 @@ class TestSegmentation:
             SegmentsOverlapValues.NO
         with pytest.raises(AttributeError):
             frame_item.PlanePositionSlideSequence  # noqa: B018
+        assert not hasattr(instance, 'DimensionOrganizationType')
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_6(self):
         # A chest X-ray with no frame of reference
@@ -1310,6 +1484,7 @@ class TestSegmentation:
             self._device_serial_number,
             content_label=self._content_label
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.SeriesInstanceUID == self._series_instance_uid
         assert instance.SeriesNumber == self._series_number
         assert instance.SOPInstanceUID == self._sop_instance_uid
@@ -1377,6 +1552,16 @@ class TestSegmentation:
             assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
+        assert not hasattr(instance, 'DimensionOrganizationType')
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
+        self.check_dimension_index_vals(instance)
 
     def test_construction_7(self):
         # A chest X-ray with no frame of reference and multiple segments
@@ -1395,6 +1580,7 @@ class TestSegmentation:
             self._device_serial_number,
             content_label=self._content_label
         )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.SeriesInstanceUID == self._series_instance_uid
         assert instance.SeriesNumber == self._series_number
         assert instance.SOPInstanceUID == self._sop_instance_uid
@@ -1467,6 +1653,697 @@ class TestSegmentation:
                 assert len(derivation_image_item.SourceImageSequence) == 1
         assert SegmentsOverlapValues[instance.SegmentsOverlap] == \
             SegmentsOverlapValues.NO
+        assert not hasattr(instance, 'DimensionOrganizationType')
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert not hasattr(instance, 'PixelPaddingValue')
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_8(self):
+        # A chest X-ray with no frame of reference, LABELMAP
+        instance = Segmentation(
+            [self._cr_image],
+            self._cr_pixel_array,
+            SegmentationTypeValues.LABELMAP,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label
+        )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
+        assert (
+            instance.DimensionIndexSequence[0].DimensionIndexPointer ==
+            tag_for_keyword('FrameLabel')
+        )
+        assert instance.PhotometricInterpretation == 'MONOCHROME2'
+        dim_ind_vals = (
+            instance
+            .PerFrameFunctionalGroupsSequence[0]
+            .FrameContentSequence[0]
+            .DimensionIndexValues
+        )
+        assert dim_ind_vals == 1
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.PixelPaddingValue == 0
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_9(self):
+        # A label with a palette color LUT
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            palette_color_lut_transformation=self._lut_transformation,
+        )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
+        assert instance.PhotometricInterpretation == 'PALETTE COLOR'
+        assert hasattr(instance, 'ICCProfile')
+        assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.PixelPaddingValue == 0
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_10(self):
+        # A labelmap with a palette color LUT and ICC Profile
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            palette_color_lut_transformation=self._lut_transformation,
+            icc_profile=self._icc_profile,
+        )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
+        assert instance.PhotometricInterpretation == 'PALETTE COLOR'
+        assert hasattr(instance, 'ICCProfile')
+        assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.PixelPaddingValue == 0
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_no_coordinate_system(self):
+        # This image does have a frame of reference, but no spatial information
+        # or coordinate system
+        source_image = dcmread(get_testdata_file('JPEG2000.dcm'))
+        array = np.zeros(
+            (source_image.Rows, source_image.Columns),
+            np.uint8
+        )
+        array[40:300, 20:50] = 1
+
+        instance = Segmentation(
+            [source_image],
+            array,
+            SegmentationTypeValues.BINARY,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label
+        )
+        assert (
+            instance.FrameOfReferenceUID == source_image.FrameOfReferenceUID
+        )
+        assert (
+            instance
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing == source_image.PixelSpacing
+        )
+
+    def test_construction_large_labelmap_monochrome(self):
+        n_classes = 300  # force 16 bit
+        segment_descriptions = [
+            SegmentDescription(
+                segment_number=i,
+                segment_label=f'Segment #{i}',
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+                algorithm_identification=AlgorithmIdentificationSequence(
+                    name='bla',
+                    family=codes.DCM.ArtificialIntelligence,
+                    version='v1'
+                )
+            )
+            for i in range(1, n_classes)
+        ]
+
+        # A labelmap with a large number of classes to force 16 bit
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+        )
+        assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
+        assert instance.PhotometricInterpretation == 'MONOCHROME2'
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.pixel_array.dtype == np.uint16
+        self.check_dimension_index_vals(instance)
+        arr = self.get_array_after_writing(instance)
+        assert arr.dtype == np.uint16
+
+    def test_construction_large_labelmap_palettecolor(self):
+        n_classes = 300  # force 16 bit
+        segment_descriptions = [
+            SegmentDescription(
+                segment_number=i,
+                segment_label=f'Segment #{i}',
+                segmented_property_category=self._segmented_property_category,
+                segmented_property_type=self._segmented_property_type,
+                algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+                algorithm_identification=AlgorithmIdentificationSequence(
+                    name='bla',
+                    family=codes.DCM.ArtificialIntelligence,
+                    version='v1'
+                )
+            )
+            for i in range(1, n_classes)
+        ]
+
+        r_lut_data = np.arange(10, 10 + n_classes, dtype=np.uint16)
+        g_lut_data = np.arange(20, 20 + n_classes, dtype=np.uint16)
+        b_lut_data = np.arange(30, 30 + n_classes, dtype=np.uint16)
+        r_first_mapped_value = 0
+        g_first_mapped_value = 0
+        b_first_mapped_value = 0
+        r_lut = PaletteColorLUT(r_first_mapped_value, r_lut_data, color='red')
+        g_lut = PaletteColorLUT(g_first_mapped_value, g_lut_data, color='green')
+        b_lut = PaletteColorLUT(b_first_mapped_value, b_lut_data, color='blue')
+        self._lut_transformation = PaletteColorLUTTransformation(
+            red_lut=r_lut,
+            green_lut=g_lut,
+            blue_lut=b_lut,
+            palette_color_lut_uid=UID(),
+        )
+
+        # A labelmap with a large number of classes to force 16 bit
+        instance = Segmentation(
+            self._ct_series,
+            self._ct_series_mask_array,
+            SegmentationTypeValues.LABELMAP.value,
+            segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            palette_color_lut_transformation=self._lut_transformation,
+            icc_profile=self._icc_profile,
+        )
+        assert instance.PhotometricInterpretation == 'PALETTE COLOR'
+        assert hasattr(instance, 'ICCProfile')
+        assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert hasattr(instance, 'BluePaletteColorLookupTableData')
+        assert instance.pixel_array.dtype == np.uint16
+        self.check_dimension_index_vals(instance)
+        arr = self.get_array_after_writing(instance)
+        assert arr.dtype == np.uint16
+
+    def test_construction_volume(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume,
+            SegmentationTypeValues.BINARY.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            instance.pixel_array,
+            self._ct_seg_volume.array,
+        )
+
+        self.check_dimension_index_vals(instance)
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions(),
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
+    def test_construction_volume_channels(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in, as volume with channels
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume_with_channels,
+            SegmentationTypeValues.BINARY.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            instance.pixel_array,
+            self._ct_seg_volume.array,
+        )
+
+        self.check_dimension_index_vals(instance)
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions(),
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
+    def test_construction_volume_channels_invalid_channel_id(self):
+        # Make a new correctly shaped volume whose channels do not represent
+        # segments
+        new_volume = self._ct_seg_volume_with_channels.with_array(
+            self._ct_seg_volume_with_channels.array,
+            channels={'FrameLabel': ['label']}
+        )
+        msg = (
+            "Input volume should have no channels other than 'SegmentNumber'."
+        )
+        with pytest.raises(ValueError, match=msg):
+            Segmentation(
+                [self._ct_image],
+                new_volume,
+                SegmentationTypeValues.BINARY.value,
+                self._segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                omit_empty_frames=False
+            )
+
+    def test_construction_volume_channels_invalid_channel_values(self):
+        # Make a new correctly shaped volume whose segment numbers do not
+        # match the descriptions
+        new_volume = self._ct_seg_volume_with_channels.with_array(
+            self._ct_seg_volume_with_channels.array,
+            channels={'SegmentNumber': [15]}
+        )
+        msg = (
+            "Segment numbers in the input volume do not match "
+            "the described segments."
+        )
+        with pytest.raises(ValueError, match=msg):
+            Segmentation(
+                [self._ct_image],
+                new_volume,
+                SegmentationTypeValues.BINARY.value,
+                self._segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                omit_empty_frames=False
+            )
+
+    def test_construction_volume_fractional(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            instance.pixel_array,
+            self._ct_seg_volume.array,
+        )
+        self.check_dimension_index_vals(instance)
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions(),
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
+    def test_construction_volume_fractional_channels(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in, as a volume with channels
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume_with_channels,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            instance.pixel_array,
+            self._ct_seg_volume.array,
+        )
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions(),
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_volume_labelmap(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume,
+            SegmentationTypeValues.LABELMAP,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            instance.pixel_array,
+            self._ct_seg_volume.array,
+        )
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions(),
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_volume_labelmap_channels(self):
+        # Segmentation instance from a series of single-frame CT images
+        # with empty frames kept in, as a volume with channels
+        instance = Segmentation(
+            [self._ct_image],
+            self._ct_seg_volume_with_channels,
+            SegmentationTypeValues.LABELMAP,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            instance.pixel_array,
+            self._ct_seg_volume.array,
+        )
+
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == self._ct_volume_pixel_spacing
+        assert pm_item.SliceThickness == self._ct_volume_slice_spacing
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            self._ct_volume_orientation
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_seg_volume.get_plane_positions(),
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_3d_multiframe(self):
+        # The CT multiframe image is already a volume, but the frames are
+        # ordered the wrong way
+        volume_multiframe = deepcopy(self._ct_multiframe)
+        positions = [
+            fm.PlanePositionSequence[0].ImagePositionPatient
+            for fm in volume_multiframe.PerFrameFunctionalGroupsSequence
+        ]
+        positions = positions[::-1]
+        for pos, fm in zip(
+            positions,
+            volume_multiframe.PerFrameFunctionalGroupsSequence
+        ):
+            fm.PlanePositionSequence[0].ImagePositionPatient = pos
+
+        # Segmentation instance from an enhanced (multi-frame) CT image
+        instance = Segmentation(
+            [volume_multiframe],
+            self._ct_multiframe_mask_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number
+        )
+        # This is a "volume" image, so the output instance should have
+        # the DimensionOrganizationType set correctly and should have deduced
+        # the spacing between slices
+        assert instance.DimensionOrganizationType == "3D"
+        spacing = (
+            instance
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .SpacingBetweenSlices
+        )
+        assert spacing == 10.0
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_3d_singleframe(self):
+        # The CT single frame series is a volume if you omit one of the images
+        ct_series = self._ct_series[:3]
+
+        # Segmentation instance series of CT images
+        instance = Segmentation(
+            ct_series,
+            self._ct_series_mask_array[:3],
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+        )
+        # This is a "volume" image, so the output instance should have
+        # the DimensionOrganizationType set correctly and should have deduced
+        # the spacing between slices
+        assert instance.DimensionOrganizationType == "3D"
+        spacing = (
+            instance
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .SpacingBetweenSlices
+        )
+        assert spacing == 1.25
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_3d_singleframe_multisegment(self):
+        # The CT single frame series is a volume, but with multiple segments,
+        # it should no longer have "3D" dimension organization unless using
+        # LABELMAP
+        ct_series = self._ct_series[:3]
+
+        mask = self._ct_series_mask_array[:3]
+        multi_segment_exc = np.stack([mask, np.logical_not(mask)], axis=-1)
+
+        for segmentation_type in ["BINARY", "FRACTIONAL", "LABELMAP"]:
+            # Segmentation instance series of CT images
+            instance = Segmentation(
+                ct_series,
+                multi_segment_exc,
+                segmentation_type,
+                self._both_segment_descriptions,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+            )
+            # This is a "volume" image, so the output instance should have the
+            # DimensionOrganizationType set correctly and should have deduced
+            # the spacing between slices
+            spacing = (
+                instance
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .SpacingBetweenSlices
+            )
+            assert spacing == 1.25
+            if segmentation_type == "LABELMAP":
+                # Since there is no segment dimension, a labelmap seg is 3D
+                assert instance.DimensionOrganizationType == "3D"
+            else:
+                # The segment dimension means that otherwise the segmentation
+                # is not a simple spatial stack
+                assert 'DimensionOrganizationType' not in instance
+            self.check_dimension_index_vals(instance)
 
     def test_construction_workers(self):
         # Create a segmentation with multiple workers
@@ -1529,6 +2406,26 @@ class TestSegmentation:
         assert instance.DimensionOrganizationType == "TILED_FULL"
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
 
+    def test_construction_tiled_full_labelmap(self):
+        instance = Segmentation(
+            [self._sm_image],
+            pixel_array=self._sm_pixel_array,
+            segmentation_type=SegmentationTypeValues.LABELMAP,
+            segment_descriptions=self._segment_descriptions,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number,
+            dimension_organization_type="TILED_FULL",
+            omit_empty_frames=False,
+        )
+        assert instance.DimensionOrganizationType == "TILED_FULL"
+        assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
+
     def test_construction_further_source_images(self):
         further_source_image = deepcopy(self._ct_image)
         series_uid = UID()
@@ -1558,6 +2455,7 @@ class TestSegmentation:
         assert len(instance.ReferencedSeriesSequence) == 2
         further_item = instance.ReferencedSeriesSequence[1]
         assert further_item.SeriesInstanceUID == series_uid
+        self.check_dimension_index_vals(instance)
 
     @staticmethod
     @pytest.fixture(
@@ -1573,6 +2471,7 @@ class TestSegmentation:
         params=[
             SegmentationTypeValues.FRACTIONAL,
             SegmentationTypeValues.BINARY,
+            SegmentationTypeValues.LABELMAP,
         ])
     def segmentation_type(request):
         return request.param
@@ -1597,6 +2496,11 @@ class TestSegmentation:
     def num_segments(request):
         return request.param
 
+    @staticmethod
+    @pytest.fixture(params=[False, True])
+    def as_volume(request):
+        return request.param
+
     def test_construction_autotile(
         self,
         tile_size,
@@ -1604,6 +2508,7 @@ class TestSegmentation:
         segmentation_type,
         locations_preserved,
         num_segments,
+        as_volume,
     ):
         if num_segments == 1:
             pixel_array = self._sm_total_pixel_array
@@ -1612,7 +2517,22 @@ class TestSegmentation:
             pixel_array = self._sm_total_pixel_array_multiclass
             segment_descriptions = self._both_segment_descriptions
 
-        if locations_preserved:
+        if as_volume:
+            affine = np.array(
+                [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ]
+            )
+            input_volume = Volume(
+                affine=affine,
+                array=pixel_array[None],
+                coordinate_system="SLIDE",
+            )
+
+        if locations_preserved or as_volume:
             pixel_measures = None
             plane_orientation = None
             plane_positions = None
@@ -1666,7 +2586,7 @@ class TestSegmentation:
         ):
             instance = Segmentation(
                 [self._sm_image],
-                pixel_array=pixel_array,
+                pixel_array=input_volume if as_volume else pixel_array,
                 segmentation_type=segmentation_type,
                 segment_descriptions=segment_descriptions,
                 series_instance_uid=self._series_instance_uid,
@@ -1712,6 +2632,21 @@ class TestSegmentation:
                 reconstructed_array,
                 pixel_array,
             )
+            if dimension_organization_type.value != "TILED_FULL":
+                self.check_dimension_index_vals(instance)
+
+            volume = instance.get_volume(
+                combine_segments=True,
+            )
+            assert volume.shape == (
+                1,
+                self._sm_image.TotalPixelMatrixRows,
+                self._sm_image.TotalPixelMatrixColumns
+            )
+            assert np.array_equal(
+                volume.array,
+                pixel_array[None],
+            )
 
             def to_numpy(c):
                 # Move from our 1-based convention to numpy zero based
@@ -1747,6 +2682,26 @@ class TestSegmentation:
                 ]
                 assert np.array_equal(
                     reconstructed_array,
+                    expected_array,
+                )
+
+                volume = instance.get_volume(
+                    combine_segments=True,
+                    row_start=rs,
+                    row_end=re,
+                    column_start=cs,
+                    column_end=ce,
+                )
+
+                rs_np = to_numpy(rs)
+                re_np = to_numpy(re)
+                cs_np = to_numpy(cs)
+                ce_np = to_numpy(ce)
+                expected_array = pixel_array[
+                    (slice(rs_np, re_np), slice(cs_np, ce_np))
+                ][None]
+                assert np.array_equal(
+                    volume.array,
                     expected_array,
                 )
 
@@ -2056,6 +3011,96 @@ class TestSegmentation:
         ), f'{sources[0].Modality} {binary_transfer_syntax_uid}'
         self.check_dimension_index_vals(instance)
 
+    def test_pixel_types_labelmap(
+        self,
+        fractional_transfer_syntax_uid,
+        pix_type,
+        test_data,
+    ):
+        if fractional_transfer_syntax_uid == JPEG2000Lossless:
+            pytest.importorskip("openjpeg")
+        if fractional_transfer_syntax_uid == JPEGLSLossless:
+            pytest.importorskip("libjpeg")
+        sources, mask = self._tests[test_data]
+
+        # Two segments non-overlapping
+        multi_segment_exc = np.stack([mask, 1 - mask], axis=-1)
+
+        if multi_segment_exc.ndim == 3:
+            multi_segment_exc = multi_segment_exc[np.newaxis, ...]
+
+        # Find the expected encodings for the masks
+        if mask.ndim > 2:
+            sorted_mask = self.sort_frames(
+                sources,
+                mask
+            )
+
+            # Expected encoding of the mask
+            expected_encoding = self.remove_empty_frames(
+                sorted_mask
+            ).astype(np.uint8)
+        else:
+            sorted_mask = mask
+            expected_encoding = mask.astype(np.uint8)
+
+        expected_enc_exc = np.zeros(sorted_mask.shape, np.uint8)
+        expected_enc_exc[sorted_mask > 0] = 1
+        expected_enc_exc[sorted_mask == 0] = 2
+        expected_encoding = expected_encoding.squeeze()
+
+        instance = Segmentation(
+            sources,
+            mask.astype(pix_type),
+            SegmentationTypeValues.LABELMAP,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            transfer_syntax_uid=fractional_transfer_syntax_uid,
+        )
+
+        # Ensure the recovered pixel array matches what is expected
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_encoding
+        ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
+        self.check_dimension_index_vals(instance)
+
+        # Multi-segment (exclusive)
+        instance = Segmentation(
+            sources,
+            multi_segment_exc.astype(pix_type),
+            SegmentationTypeValues.LABELMAP,
+            self._both_segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            max_fractional_value=1,
+            transfer_syntax_uid=fractional_transfer_syntax_uid,
+        )
+        assert (
+            instance.SegmentsOverlap ==
+            SegmentsOverlapValues.NO.value
+        )
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            expected_enc_exc
+        ), f'{sources[0].Modality} {fractional_transfer_syntax_uid}'
+        self.check_dimension_index_vals(instance)
+
     def test_odd_number_pixels(self):
         # Test that an image with an odd number of pixels per frame is encoded
         # properly Including when additional segments are subsequently added
@@ -2216,7 +3261,7 @@ class TestSegmentation:
         # Encoding an empty segmentation with omit_empty_frames=True issues
         # a warning and encodes the full segmentation
         empty_pixel_array = np.zeros_like(self._ct_pixel_array)
-        seg = Segmentation(
+        instance = Segmentation(
             source_images=[self._ct_image],
             pixel_array=empty_pixel_array,
             segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
@@ -2234,7 +3279,8 @@ class TestSegmentation:
             omit_empty_frames=True,
         )
 
-        assert seg.pixel_array.shape == empty_pixel_array.shape
+        assert instance.pixel_array.shape == empty_pixel_array.shape
+        self.check_dimension_index_vals(instance)
 
     def test_construction_empty_seg_image(self):
         # Can encode an empty segmentation with omit_empty_frames=False
@@ -2365,11 +3411,57 @@ class TestSegmentation:
             )
 
     def test_construction_segment_numbers_start_wrong(self):
-        with pytest.raises(ValueError):
+        msg = (
+            'Segment descriptions should be numbered starting from 1. '
+            'Found 2.'
+        )
+        with pytest.raises(ValueError, match=msg):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=self._ct_pixel_array,
                 segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=(
+                    self._additional_segment_descriptions  # seg num 2
+                ),
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number
+            )
+
+    def test_construction_segment_numbers_start_wrong_labelmap(self):
+        # Labelmaps have fewer restrictions on segment numbers
+        array = (self._ct_pixel_array * 2).astype(np.uint8)
+        instance = Segmentation(
+            source_images=[self._ct_image],
+            pixel_array=array,
+            segmentation_type=SegmentationTypeValues.LABELMAP,
+            segment_descriptions=(
+                self._additional_segment_descriptions  # seg num 2
+            ),
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number
+        )
+        assert len(instance.SegmentSequence) == 2
+        self.check_dimension_index_vals(instance)
+
+        array_nonmatching = (self._ct_pixel_array * 4).astype(np.uint8)
+        msg = 'Pixel array contains segments that lack descriptions.'
+        with pytest.raises(ValueError, match=msg):
+            Segmentation(
+                source_images=[self._ct_image],
+                pixel_array=array_nonmatching,
+                segmentation_type=SegmentationTypeValues.LABELMAP,
                 segment_descriptions=(
                     self._additional_segment_descriptions  # seg num 2
                 ),
@@ -2484,7 +3576,8 @@ class TestSegmentation:
             )
 
     def test_construction_non_described_segment(self):
-        with pytest.raises(ValueError):
+        msg = 'Pixel array contains segments that lack descriptions.'
+        with pytest.raises(ValueError, match=msg):
             Segmentation(
                 source_images=[self._ct_image],
                 pixel_array=(self._ct_pixel_array * 3).astype(np.uint8),
@@ -2912,6 +4005,20 @@ class TestSegmentationParsing:
             self._sm_control_seg_ds
         )
 
+        self._sm_control_labelmap_seg_ds = dcmread(
+            'data/test_files/seg_image_sm_control_labelmap.dcm'
+        )
+        self._sm_control_labelmap_seg = Segmentation.from_dataset(
+            self._sm_control_labelmap_seg_ds
+        )
+
+        self._sm_control_labelmap_palette_color_seg_ds = dcmread(
+            'data/test_files/seg_image_sm_control_labelmap_palette_color.dcm'
+        )
+        self._sm_control_labelmap_palette_color_seg = Segmentation.from_dataset(
+            self._sm_control_labelmap_palette_color_seg_ds
+        )
+
         self._ct_binary_seg_ds = dcmread(
             'data/test_files/seg_image_ct_binary.dcm'
         )
@@ -2957,6 +4064,7 @@ class TestSegmentationParsing:
     @staticmethod
     @pytest.fixture(
         params=[
+            bool,
             np.int8,
             np.uint8,
             np.int16,
@@ -2983,6 +4091,11 @@ class TestSegmentationParsing:
     def relabel(request):
         return request.param
 
+    @staticmethod
+    @pytest.fixture(params=['_sm_control_seg', '_sm_control_labelmap_seg'])
+    def seg_attr_name(request):
+        return request.param
+
     def test_from_dataset(self):
         assert isinstance(self._sm_control_seg, Segmentation)
 
@@ -3002,6 +4115,12 @@ class TestSegmentationParsing:
         assert isinstance(seg, Segmentation)
         seg = segread('data/test_files/seg_image_sm_dots_tiled_full.dcm')
         assert isinstance(seg, Segmentation)
+        seg = segread('data/test_files/seg_image_sm_control_labelmap.dcm')
+        assert isinstance(seg, Segmentation)
+        seg = segread(
+            'data/test_files/seg_image_sm_control_labelmap_palette_color.dcm'
+        )
+        assert isinstance(seg, Segmentation)
 
     def test_properties(self):
         # SM segs
@@ -3009,7 +4128,7 @@ class TestSegmentationParsing:
         assert seg_type == SegmentationTypeValues.BINARY
         assert self._sm_control_seg.segmentation_fractional_type is None
         assert self._sm_control_seg.number_of_segments == 20
-        assert self._sm_control_seg.segment_numbers == range(1, 21)
+        assert self._sm_control_seg.segment_numbers == list(range(1, 21))
 
         assert len(self._sm_control_seg.segmented_property_categories) == 1
         seg_category = self._sm_control_seg.segmented_property_categories[0]
@@ -3021,7 +4140,7 @@ class TestSegmentationParsing:
         for seg in self._ct_segs:
             seg_type = seg.segmentation_type
             assert seg.number_of_segments == 1
-            assert seg.segment_numbers == range(1, 2)
+            assert seg.segment_numbers == list(range(1, 2))
 
             assert len(seg.segmented_property_categories) == 1
             seg_category = seg.segmented_property_categories[0]
@@ -3051,6 +4170,23 @@ class TestSegmentationParsing:
     def test_get_segment_description(self):
         desc1 = self._sm_control_seg.get_segment_description(1)
         desc20 = self._sm_control_seg.get_segment_description(20)
+        assert isinstance(desc1, SegmentDescription)
+        assert desc1.segment_number == 1
+        assert isinstance(desc20, SegmentDescription)
+        assert desc20.segment_number == 20
+
+    def test_get_segment_description_non_consecutive(self):
+        out_of_order = deepcopy(self._sm_control_seg)
+        out_of_order.SegmentSequence = [
+            out_of_order.SegmentSequence[i]
+            for i in range(
+                out_of_order.number_of_segments - 1,
+                -1,
+                -1
+            )
+        ]
+        desc1 = out_of_order.get_segment_description(1)
+        desc20 = out_of_order.get_segment_description(20)
         assert isinstance(desc1, SegmentDescription)
         assert desc1.segment_number == 1
         assert isinstance(desc20, SegmentDescription)
@@ -3233,6 +4369,7 @@ class TestSegmentationParsing:
 
     def test_get_pixels_with_dtype(
         self,
+        seg_attr_name,
         numpy_dtype,
         combine_segments,
         relabel,
@@ -3240,28 +4377,135 @@ class TestSegmentationParsing:
         source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
 
         source_frames_valid = [1, 2, 4, 5]
-        seg = self._sm_control_seg
-        pixels = seg.get_pixels_by_source_frame(
-            source_sop_instance_uid=source_sop_uid,
-            source_frame_numbers=source_frames_valid,
-            segment_numbers=[1, 4, 9],
-            combine_segments=combine_segments,
-            relabel=relabel,
-            dtype=numpy_dtype,
-        )
-        assert pixels.dtype == numpy_dtype
-        if combine_segments:
-            expected_shape = (len(source_frames_valid), seg.Rows, seg.Columns)
-            if relabel:
-                expected_vals = np.array([0, 3])  # only seg 9 in these frames
-            else:
-                expected_vals = np.array([0, 9])  # only seg 9 in these frames
-            assert np.array_equal(np.unique(pixels), expected_vals)
-        else:
-            expected_shape = (
-                len(source_frames_valid), seg.Rows, seg.Columns, 3
+        seg = getattr(self, seg_attr_name)
+
+        if numpy_dtype == bool and combine_segments:
+            max_val = 3 if relabel else 9
+            msg = (
+                "The maximum output value of the segmentation array is "
+                f"{max_val}, which is too large be represented using dtype "
+                f"bool."
             )
-        assert pixels.shape == expected_shape
+            with pytest.raises(ValueError, match=msg):
+                seg.get_pixels_by_source_frame(
+                    source_sop_instance_uid=source_sop_uid,
+                    source_frame_numbers=source_frames_valid,
+                    segment_numbers=[1, 4, 9],
+                    combine_segments=combine_segments,
+                    relabel=relabel,
+                    dtype=numpy_dtype,
+                )
+        else:
+            pixels = seg.get_pixels_by_source_frame(
+                source_sop_instance_uid=source_sop_uid,
+                source_frame_numbers=source_frames_valid,
+                segment_numbers=[1, 4, 9],
+                combine_segments=combine_segments,
+                relabel=relabel,
+                dtype=numpy_dtype,
+            )
+            assert pixels.dtype == numpy_dtype
+            if combine_segments:
+                expected_shape = (
+                    len(source_frames_valid), seg.Rows, seg.Columns
+                )
+                if relabel:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 3])
+                else:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 9])
+            else:
+                expected_shape = (
+                    len(source_frames_valid), seg.Rows, seg.Columns, 3
+                )
+                expected_vals = np.array([0, 1])
+            assert pixels.shape == expected_shape
+            assert np.array_equal(np.unique(pixels), expected_vals)
+
+    def test_get_total_pixel_matrix_with_dtype(
+        self,
+        seg_attr_name,
+        numpy_dtype,
+        combine_segments,
+        relabel,
+     ):
+        seg = getattr(self, seg_attr_name)
+        subregion_rows = 30
+        subregion_columns = 30
+
+        if numpy_dtype == bool and combine_segments:
+            max_val = 3 if relabel else 9
+            msg = (
+                "The maximum output value of the segmentation array is "
+                f"{max_val}, which is too large be represented using dtype "
+                f"bool."
+            )
+            with pytest.raises(ValueError, match=msg):
+                seg.get_total_pixel_matrix(
+                    segment_numbers=[1, 4, 9],
+                    row_end=1 + subregion_rows,
+                    column_end=1 + subregion_columns,
+                    combine_segments=combine_segments,
+                    relabel=relabel,
+                    dtype=numpy_dtype,
+                )
+        else:
+            pixels = seg.get_total_pixel_matrix(
+                row_end=1 + subregion_rows,
+                column_end=1 + subregion_columns,
+                segment_numbers=[1, 4, 9],
+                combine_segments=combine_segments,
+                relabel=relabel,
+                dtype=numpy_dtype,
+            )
+            assert pixels.dtype == numpy_dtype
+            if combine_segments:
+                expected_shape = (
+                    subregion_rows, subregion_columns,
+                )
+                if relabel:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 3])
+                else:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 9])
+            else:
+                expected_shape = (
+                    subregion_rows, subregion_columns, 3
+                )
+                expected_vals = np.array([0, 1])
+            assert pixels.shape == expected_shape
+            assert np.array_equal(np.unique(pixels), expected_vals)
+
+            volume = seg.get_volume(
+                row_end=1 + subregion_rows,
+                column_end=1 + subregion_columns,
+                segment_numbers=[1, 4, 9],
+                combine_segments=combine_segments,
+                relabel=relabel,
+                dtype=numpy_dtype,
+            )
+            assert volume.dtype == np.dtype(numpy_dtype)
+            if combine_segments:
+                expected_shape = (
+                    1, subregion_rows, subregion_columns,
+                )
+                if relabel:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 3])
+                else:
+                    # only seg 9 in these frames
+                    expected_vals = np.array([0, 9])
+            else:
+                expected_shape = (
+                    1, subregion_rows, subregion_columns, 3
+                )
+                expected_vals = np.array([0, 1])
+            assert volume.shape == expected_shape
+            if not np.array_equal(np.unique(volume.array), expected_vals):
+                print(seg_attr_name)
+            assert np.array_equal(np.unique(volume.array), expected_vals)
 
     def test_get_default_dimension_index_pointers(self):
         ptrs = self._sm_control_seg.get_default_dimension_index_pointers()
@@ -3722,6 +4966,611 @@ class TestSegmentationParsing:
         )
         assert np.array_equal(expected_array, out)
 
+    def test_allow_missing_positions(self):
+        all_source_sop_uids = [
+            tup[-1] for tup in
+            self._ct_binary_overlap_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids
+
+        # There are no missing frames when indexing with this limited number of
+        # source UIDs
+        self._ct_binary_overlap_seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=source_sop_uids,
+        )
+
+        # There are missing frames when indexing by volume position
+        msg = (
+            'Frame positions do not form a regularly-spaced volume.'
+        )
+        with pytest.raises(RuntimeError, match=msg):
+            self._ct_binary_overlap_seg.get_volume(
+                allow_missing_positions=False
+            )
+
+    def test_get_volume_binary(self):
+        vol = self._ct_binary_seg.get_volume()
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16, 1)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg
+            .get_volume_geometry()
+            .spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegments(self):
+        vol = self._ct_binary_overlap_seg.get_volume()
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (165, 16, 16)
+        assert vol.shape == (165, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment2(self):
+        vol = self._ct_binary_overlap_seg.get_volume(segment_numbers=[2])
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (165, 16, 16)
+        assert vol.shape == (165, 16, 16, 1)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_combine(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            combine_segments=True,
+            skip_overlap_checks=True,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (165, 16, 16)
+        assert vol.shape == (165, 16, 16)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_start(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_start=161,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (5, 16, 16)
+        assert vol.shape == (5, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_start_negative(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_start=-6,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (6, 16, 16)
+        assert vol.shape == (6, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg
+            .get_volume_geometry().spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_end(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_end=18,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (17, 16, 16)
+        assert vol.shape == (17, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_slice_end_negative(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_end=-10,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (155, 16, 16)
+        assert vol.shape == (155, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_overlap_seg
+            .get_volume_geometry()
+            .spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_center(self):
+        vol = self._ct_binary_overlap_seg.get_volume(
+            slice_start=50,
+            slice_end=57,
+        )
+        assert isinstance(vol, Volume)
+        # Note that this segmentation has a large number of missing slices
+        assert vol.spatial_shape == (7, 16, 16)
+        assert vol.shape == (7, 16, 16, 2)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg.get_volume_geometry().spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_overlap_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_binary_multisegment_cropped(self):
+        vol = self._ct_binary_overlap_seg.get_volume()
+        vol_cropped = self._ct_binary_overlap_seg.get_volume(
+            row_start=2,
+            row_end=-2,
+            column_start=3,
+            column_end=-5,
+        )
+
+        # Note that this segmentation has a large number of missing slices
+        assert vol_cropped.spatial_shape == (165, 13, 9)
+        assert vol_cropped.shape == (165, 13, 9, 2)
+
+        assert np.array_equal(
+            vol_cropped.array,
+            vol[:, 1:-2, 2:-5].array
+        )
+        assert np.array_equal(
+            vol_cropped.affine,
+            vol[:, 1:-2, 2:-5].affine
+        )
+
+        vol_cropped = self._ct_binary_overlap_seg.get_volume(
+            row_start=1,
+            row_end=-2,
+            column_start=2,
+            column_end=-5,
+            as_indices=True
+        )
+
+        # Note that this segmentation has a large number of missing slices
+        assert vol_cropped.spatial_shape == (165, 13, 9)
+        assert vol_cropped.shape == (165, 13, 9, 2)
+
+        assert np.array_equal(
+            vol_cropped.array,
+            vol[:, 1:-2, 2:-5].array
+        )
+        assert np.array_equal(
+            vol_cropped.affine,
+            vol[:, 1:-2, 2:-5].affine
+        )
+
+    def test_get_volume_binary_combine(self):
+        vol = self._ct_binary_seg.get_volume(combine_segments=True)
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16)
+        assert vol.pixel_spacing == tuple(
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_binary_seg.get_volume_geometry().spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_binary_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+
+    def test_get_volume_fractional(self):
+        vol = self._ct_true_fractional_seg.get_volume()
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16, 1)
+        assert vol.pixel_spacing == tuple(
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_true_fractional_seg
+            .get_volume_geometry()
+            .spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+        assert vol.dtype == np.float32
+
+    def test_get_volume_fractional_noscale(self):
+        vol = self._ct_true_fractional_seg.get_volume(rescale_fractional=False)
+        assert isinstance(vol, Volume)
+        assert vol.spatial_shape == (3, 16, 16)
+        assert vol.shape == (3, 16, 16, 1)
+        assert vol.pixel_spacing == tuple(
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        assert vol.spacing_between_slices == (
+            self._ct_true_fractional_seg
+            .get_volume_geometry()
+            .spacing_between_slices
+        )
+        assert vol.direction_cosines == tuple(
+            self._ct_true_fractional_seg
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        assert vol.get_closest_patient_orientation() == (
+            PatientOrientationValuesBiped.F,
+            PatientOrientationValuesBiped.P,
+            PatientOrientationValuesBiped.L,
+        )
+        assert vol.dtype == np.uint8
+
+    def test_total_pixel_matrix_palette_color(self):
+        seg = self._sm_control_labelmap_palette_color_seg
+
+        pixels = seg.get_total_pixel_matrix(
+            combine_segments=True,
+            apply_palette_color_lut=True,
+        )
+        assert pixels.shape == (
+            seg.TotalPixelMatrixRows,
+            seg.TotalPixelMatrixColumns,
+            3
+        )
+
+        vol = seg.get_volume(
+            combine_segments=True,
+            apply_palette_color_lut=True,
+        )
+        assert vol.shape == (
+            1,
+            seg.TotalPixelMatrixRows,
+            seg.TotalPixelMatrixColumns,
+            3
+        )
+        assert vol.channel_descriptors == (
+            RGB_COLOR_CHANNEL_DESCRIPTOR,
+        )
+
+        msg = (
+            "apply_palette_color_lut' requires that 'combine_segments' is "
+            "True and relabel is False."
+        )
+        with pytest.raises(ValueError, match=msg):
+            # Requires combine_segments
+            seg.get_total_pixel_matrix(apply_palette_color_lut=True)
+
+        msg = (
+            "apply_palette_color_lut' requires that 'combine_segments' is "
+            "True and relabel is False."
+        )
+        with pytest.raises(ValueError, match=msg):
+            # Requires relabel false
+            seg.get_total_pixel_matrix(
+                apply_palette_color_lut=True,
+                relabel=True,
+                combine_segments=True,
+            )
+
+        monochrome_seg = self._sm_control_labelmap_seg
+        msg = (
+            'Palette color transform is required but the image is not a '
+            'palette color image.'
+        )
+        with pytest.raises(ValueError, match=msg):
+            # Requires combine_segments
+            monochrome_seg.get_total_pixel_matrix(
+                combine_segments=True,
+                apply_palette_color_lut=True,
+            )
+
+    def test_parsing_nonconsecutive_segment_numbers(self):
+        # parsing a labelmap segmentation with non-consective segment numbers
+        seg_num = 4
+        other_seg_num = 8
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        ct_image = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+        array = np.zeros(
+            (ct_image.Rows, ct_image.Columns),
+            dtype=np.uint8,
+        )
+        array[20:30, 20:30] = seg_num
+        array[70:80, 70:80] = other_seg_num
+        abnormal_structure = codes.SCT.MorphologicallyAbnormalStructure
+        desc = SegmentDescription(
+            segment_number=seg_num,
+            segment_label=f'Segment #{seg_num}',
+            segmented_property_category=abnormal_structure,
+            segmented_property_type=codes.SCT.Neoplasm,
+            algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+            algorithm_identification=AlgorithmIdentificationSequence(
+                name='foo',
+                family=codes.DCM.ArtificialIntelligence,
+                version='v1'
+            )
+        )
+        other_desc = SegmentDescription(
+            segment_number=other_seg_num,
+            segment_label=f'Segment #{other_seg_num}',
+            segmented_property_category=abnormal_structure,
+            segmented_property_type=codes.SCT.Neoplasm,
+            algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC.value,
+            algorithm_identification=AlgorithmIdentificationSequence(
+                name='foo',
+                family=codes.DCM.ArtificialIntelligence,
+                version='v1'
+            )
+        )
+
+        seg = Segmentation(
+            source_images=[ct_image],
+            pixel_array=array,
+            segmentation_type=SegmentationTypeValues.LABELMAP,
+            segment_descriptions=[desc, other_desc],
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            manufacturer='manufacturer',
+            manufacturer_model_name='model_name',
+            software_versions='123',
+            device_serial_number='456',
+        )
+        assert len(seg.SegmentSequence) == 3  # includes bg
+        assert seg.segment_numbers == [seg_num, other_seg_num]
+
+        assert isinstance(seg.get_segment_description(4), SegmentDescription)
+        msg = '1 is an invalid segment number for this dataset.'
+        with pytest.raises(IndexError, match=msg):
+            seg.get_segment_description(1)
+
+        assert seg.get_segment_numbers() == [seg_num, other_seg_num]
+        assert seg.get_segment_numbers(
+            segment_label=f'Segment #{seg_num}'
+        ) == [seg_num]
+        assert seg.get_segment_numbers(
+            segment_label='not existing'
+        ) == []
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+            combine_segments=True,
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns)
+        assert np.array_equal(out[0], array)
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+            combine_segments=True,
+            relabel=True,
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns)
+        assert np.array_equal(np.unique(out), np.array([0, 1, 2]))
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+            combine_segments=True,
+            relabel=True,
+            segment_numbers=[seg_num]
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns)
+        assert np.array_equal(out[0], array == seg_num)
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns, 2)
+        assert np.array_equal(out[0, :, :, 0], array == seg_num)
+        assert np.array_equal(out[0, :, :, 1], array == other_seg_num)
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+            segment_numbers=[other_seg_num, seg_num]
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns, 2)
+        assert np.array_equal(out[0, :, :, 0], array == other_seg_num)
+        assert np.array_equal(out[0, :, :, 1], array == seg_num)
+
+        out = seg.get_pixels_by_source_instance(
+            source_sop_instance_uids=[ct_image.SOPInstanceUID],
+            segment_numbers=[other_seg_num]
+        )
+        assert out.shape == (1, ct_image.Rows, ct_image.Columns, 1)
+        assert np.array_equal(out[0, :, :, 0], array == other_seg_num)
+
+        msg = (
+            'Segment numbers array contains invalid values.'
+        )
+        with pytest.raises(ValueError, match=msg):
+            seg.get_pixels_by_source_instance(
+                source_sop_instance_uids=[ct_image.SOPInstanceUID],
+                segment_numbers=[5]  # not found
+            )
+
 
 class TestSegUtilities(unittest.TestCase):
 
@@ -4071,10 +5920,8 @@ class TestPyramid(unittest.TestCase):
         for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
             assert hasattr(seg, 'PyramidUID')
             seg_pix = seg.get_total_pixel_matrix()
-            print("pixel array", pix.shape, seg_pix.shape)
-            print("pixel array", pix.max(), seg_pix.max())
             assert np.array_equal(
-                seg.get_total_pixel_matrix(),
+                seg_pix,
                 pix[0]
             )
 
@@ -4176,7 +6023,9 @@ class TestPyramid(unittest.TestCase):
                 pix[0]
             )
 
-    def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(self):
+    def test_multiple_source_multiple_pixel_arrays_multisegment_from_labelmap(
+        self
+    ):
         # Test construction when given multiple source images and multiple
         # segmentation images
         mask = np.argmax(self._seg_pix_multisegment, axis=3).astype(np.uint8)
@@ -4184,6 +6033,32 @@ class TestPyramid(unittest.TestCase):
             source_images=self._source_pyramid,
             pixel_arrays=mask,
             segmentation_type=SegmentationTypeValues.BINARY,
+            segment_descriptions=self._segment_descriptions_multi,
+            series_instance_uid=UID(),
+            series_number=1,
+            manufacturer='Foo',
+            manufacturer_model_name='Bar',
+            software_versions='1',
+            device_serial_number='123',
+        )
+
+        assert len(segs) == len(self._source_pyramid)
+        for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
+            mask = np.argmax(pix, axis=3).astype(np.uint8)
+            assert hasattr(seg, 'PyramidUID')
+            assert np.array_equal(
+                seg.get_total_pixel_matrix(combine_segments=True),
+                mask[0]
+            )
+
+    def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(self):
+        # Test construction when given multiple source images and multiple
+        # segmentation images
+        mask = np.argmax(self._seg_pix_multisegment, axis=3).astype(np.uint8)
+        segs = create_segmentation_pyramid(
+            source_images=self._source_pyramid,
+            pixel_arrays=mask,
+            segmentation_type=SegmentationTypeValues.LABELMAP,
             segment_descriptions=self._segment_descriptions_multi,
             series_instance_uid=UID(),
             series_number=1,

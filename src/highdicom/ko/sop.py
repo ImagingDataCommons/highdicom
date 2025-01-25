@@ -1,6 +1,8 @@
 """Module for SOP Classes of Key Object (KO) IODs."""
 import logging
-from typing import Any, cast, List, Optional, Sequence, Tuple, Union
+from typing import Any, cast
+from collections.abc import Sequence
+from typing_extensions import Self
 from copy import deepcopy
 
 from pydicom.dataset import Dataset
@@ -33,11 +35,11 @@ class KeyObjectSelectionDocument(SOPClass):
         series_number: int,
         sop_instance_uid: str,
         instance_number: int,
-        manufacturer: Optional[str] = None,
-        institution_name: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
-        requested_procedures: Optional[Sequence[Dataset]] = None,
-        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
+        manufacturer: str | None = None,
+        institution_name: str | None = None,
+        institutional_department_name: str | None = None,
+        requested_procedures: Sequence[Dataset] | None = None,
+        transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
         **kwargs: Any
     ) -> None:
         """
@@ -140,7 +142,7 @@ class KeyObjectSelectionDocument(SOPClass):
         if requested_procedures is not None:
             self.ReferencedRequestSequence = requested_procedures
 
-        self.ReferencedPerformedProcedureStepSequence: List[Dataset] = []
+        self.ReferencedPerformedProcedureStepSequence: list[Dataset] = []
 
         # Cache copy of the content to facilitate subsequent access
         self._content = KeyObjectSelection.from_sequence(content, is_root=True)
@@ -161,7 +163,7 @@ class KeyObjectSelectionDocument(SOPClass):
         """highdicom.ko.KeyObjectSelection: document content"""
         return self._content
 
-    def resolve_reference(self, sop_instance_uid: str) -> Tuple[str, str, str]:
+    def resolve_reference(self, sop_instance_uid: str) -> tuple[str, str, str]:
         """Resolve reference for an object included in the document content.
 
         Parameters
@@ -184,7 +186,7 @@ class KeyObjectSelectionDocument(SOPClass):
             ) from e
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset) -> 'KeyObjectSelectionDocument':
+    def from_dataset(cls, dataset: Dataset) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -228,4 +230,4 @@ class KeyObjectSelectionDocument(SOPClass):
                         sop_instance_uid
                     )
 
-        return cast(KeyObjectSelectionDocument, sop_instance)
+        return cast(Self, sop_instance)

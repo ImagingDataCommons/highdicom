@@ -1,9 +1,9 @@
 """DICOM Information Object Definitions (IODs)
-auto-generated on 2021-09-26 at 20:07:37.
+auto-generated on 2024-10-04 at 14:31:17.
 """
 from typing import Dict, List
 
-IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
+IOD_MODULE_MAP: dict[str, list[dict[str, str]]] = {
     "12-lead-ecg": [
         {
             "ie": "Patient",
@@ -128,17 +128,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -248,6 +248,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Presentation State",
             "key": "common-instance-reference",
             "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "specimen",
+            "usage": "U"
         },
         {
             "ie": "Presentation State",
@@ -628,6 +633,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Presentation State",
+            "key": "specimen",
+            "usage": "U"
+        },
+        {
+            "ie": "Presentation State",
             "key": "sop-common",
             "usage": "M"
         }
@@ -674,17 +684,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -851,6 +861,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Presentation State",
             "key": "icc-profile",
             "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "specimen",
+            "usage": "U"
         },
         {
             "ie": "Presentation State",
@@ -1465,17 +1480,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -1527,17 +1542,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -1677,6 +1692,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Presentation State",
+            "key": "specimen",
+            "usage": "U"
+        },
+        {
+            "ie": "Presentation State",
             "key": "sop-common",
             "usage": "M"
         }
@@ -1728,17 +1748,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -1790,19 +1810,405 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
+        }
+    ],
+    "computed-radiography-image": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "cr-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "general-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "general-reference",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "image-pixel",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "contrast-bolus",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "display-shutter",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "device",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "specimen",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "cr-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "overlay-plane",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "modality-lut",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "voi-lut",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "common-instance-reference",
+            "usage": "U"
+        }
+    ],
+    "confocal-microscopy-image": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "general-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "general-reference",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "image-pixel",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "confocal-microscopy-image-multi-frame-functional-groups",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "multi-frame-dimension",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "specimen",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "acquisition-context",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "confocal-microscopy-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "cutaneous-confocal-microscopy-image-acquisition-parameters",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "optical-path",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "common-instance-reference",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "frame-extraction",
+            "usage": "C"
+        }
+    ],
+    "confocal-microscopy-tiled-pyramidal-image": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
+            "ie": "Multi-Resolution Pyramid",
+            "key": "multi-resolution-pyramid",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "general-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "general-reference",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "microscope-slide-layer-tile-organization",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "image-pixel",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "confocal-microscopy-tiled-pyramidal-image-multi-frame-functional-groups",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "multi-frame-dimension",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "specimen",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "acquisition-context",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "confocal-microscopy-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "confocal-microscopy-tiled-pyramidal-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "cutaneous-confocal-microscopy-image-acquisition-parameters",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "optical-path",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "common-instance-reference",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "frame-extraction",
+            "usage": "C"
         }
     ],
     "content-assessment-results": [
@@ -1924,6 +2330,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -1972,118 +2383,6 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Image",
             "key": "sop-common",
             "usage": "M"
-        }
-    ],
-    "cr-image": [
-        {
-            "ie": "Patient",
-            "key": "patient",
-            "usage": "M"
-        },
-        {
-            "ie": "Patient",
-            "key": "clinical-trial-subject",
-            "usage": "U"
-        },
-        {
-            "ie": "Study",
-            "key": "general-study",
-            "usage": "M"
-        },
-        {
-            "ie": "Study",
-            "key": "patient-study",
-            "usage": "U"
-        },
-        {
-            "ie": "Study",
-            "key": "clinical-trial-study",
-            "usage": "U"
-        },
-        {
-            "ie": "Series",
-            "key": "general-series",
-            "usage": "M"
-        },
-        {
-            "ie": "Series",
-            "key": "cr-series",
-            "usage": "M"
-        },
-        {
-            "ie": "Series",
-            "key": "clinical-trial-series",
-            "usage": "U"
-        },
-        {
-            "ie": "Equipment",
-            "key": "general-equipment",
-            "usage": "M"
-        },
-        {
-            "ie": "Image",
-            "key": "general-image",
-            "usage": "M"
-        },
-        {
-            "ie": "Image",
-            "key": "general-reference",
-            "usage": "U"
-        },
-        {
-            "ie": "Image",
-            "key": "image-pixel",
-            "usage": "M"
-        },
-        {
-            "ie": "Image",
-            "key": "contrast-bolus",
-            "usage": "C"
-        },
-        {
-            "ie": "Image",
-            "key": "display-shutter",
-            "usage": "U"
-        },
-        {
-            "ie": "Image",
-            "key": "device",
-            "usage": "U"
-        },
-        {
-            "ie": "Image",
-            "key": "specimen",
-            "usage": "U"
-        },
-        {
-            "ie": "Image",
-            "key": "cr-image",
-            "usage": "M"
-        },
-        {
-            "ie": "Image",
-            "key": "overlay-plane",
-            "usage": "U"
-        },
-        {
-            "ie": "Image",
-            "key": "modality-lut",
-            "usage": "U"
-        },
-        {
-            "ie": "Image",
-            "key": "voi-lut",
-            "usage": "U"
-        },
-        {
-            "ie": "Image",
-            "key": "sop-common",
-            "usage": "M"
-        },
-        {
-            "ie": "Image",
-            "key": "common-instance-reference",
-            "usage": "U"
         }
     ],
     "ct-defined-procedure-protocol": [
@@ -2197,6 +2496,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -2496,6 +2800,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "U"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -2600,6 +2909,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -2785,6 +3099,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -2959,6 +3278,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -3576,6 +3900,128 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "C"
         }
     ],
+    "enhanced-continuous-rt-image": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-rt-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "general-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "image-pixel",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "sparse-multi-frame-functional-groups",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "cardiac-synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "respiratory-synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "enhanced-contrast-bolus",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "device",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "enhanced-rt-image-device",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "enhanced-rt-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "radiotherapy-common-instance",
+            "usage": "M"
+        }
+    ],
     "enhanced-ct-image": [
         {
             "ie": "Patient",
@@ -4144,6 +4590,138 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "C"
         }
     ],
+    "enhanced-rt-image": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-rt-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "general-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "image-pixel",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "enhanced-rt-image-multi-frame-functional-groups",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "multi-frame-dimension",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "cardiac-synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "respiratory-synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "enhanced-contrast-bolus",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "device",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "enhanced-rt-image-device",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "enhanced-rt-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "radiotherapy-common-instance",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "frame-extraction",
+            "usage": "C"
+        }
+    ],
     "enhanced-sr": [
         {
             "ie": "Patient",
@@ -4191,17 +4769,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -4270,6 +4848,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -4368,7 +4951,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "C"
         }
     ],
-    "enhanced-x-ray-radiation-dose-structured-report": [
+    "enhanced-x-ray-radiation-dose-sr": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -4420,17 +5003,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -4826,17 +5409,94 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
+    "general-32-bit-ecg": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "U"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-identification",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "acquisition-context",
+            "usage": "M"
+        },
+        {
+            "ie": "Waveform",
+            "key": "waveform-annotation",
+            "usage": "C"
+        },
+        {
+            "ie": "Waveform",
             "key": "sop-common",
             "usage": "M"
         }
@@ -5160,6 +5820,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Presentation State",
+            "key": "specimen",
+            "usage": "U"
+        },
+        {
+            "ie": "Presentation State",
             "key": "sop-common",
             "usage": "M"
         }
@@ -5184,6 +5849,113 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Hanging Protocol",
             "key": "hanging-protocol-display",
             "usage": "M"
+        }
+    ],
+    "height-map-segmentation": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "segmentation-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "general-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "height-map-segmentation-multi-frame-functional-groups",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "multi-frame-dimension",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "floating-point-image-pixel",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "height-map-segmentation-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "icc-profile",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "frame-extraction",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "general-reference",
+            "usage": "U"
         }
     ],
     "hemodynamic-waveform": [
@@ -5329,17 +6101,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -5548,6 +6320,23 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "C"
         }
     ],
+    "inventory": [
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Inventory",
+            "key": "inventory",
+            "usage": "M"
+        },
+        {
+            "ie": "Inventory",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
     "keratometry-measurements": [
         {
             "ie": "Patient",
@@ -5657,17 +6446,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "key-object-document",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -6177,17 +6966,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -6234,17 +7023,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -6317,6 +7106,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Annotation",
+            "key": "specimen",
+            "usage": "U"
+        },
+        {
+            "ie": "Annotation",
             "key": "common-instance-reference",
             "usage": "M"
         },
@@ -6370,6 +7164,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -6642,7 +7441,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         }
     ],
-    "multi-frame-grayscale-byte-sc-image": [
+    "multi-frame-grayscale-byte-secondary-capture-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -6699,6 +7498,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "U"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -6735,7 +7539,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-grayscale-byte-sc-image-multi-frame-functional-groups",
+            "key": "multi-frame-grayscale-byte-secondary-capture-image-multi-frame-functional-groups",
             "usage": "U"
         },
         {
@@ -6784,7 +7588,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "C"
         }
     ],
-    "multi-frame-grayscale-word-sc-image": [
+    "multi-frame-grayscale-word-secondary-capture-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -6841,6 +7645,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "U"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -6877,7 +7686,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-grayscale-word-sc-image-multi-frame-functional-groups",
+            "key": "multi-frame-grayscale-word-secondary-capture-image-multi-frame-functional-groups",
             "usage": "U"
         },
         {
@@ -6926,7 +7735,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "C"
         }
     ],
-    "multi-frame-single-bit-sc-image": [
+    "multi-frame-single-bit-secondary-capture-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -6970,6 +7779,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "sc-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -7043,7 +7857,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "C"
         }
     ],
-    "multi-frame-true-color-sc-image": [
+    "multi-frame-true-color-secondary-capture-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -7100,6 +7914,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -7136,7 +7955,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Image",
-            "key": "multi-frame-true-color-sc-image-multi-frame-functional-groups",
+            "key": "multi-frame-true-color-secondary-capture-image-multi-frame-functional-groups",
             "usage": "U"
         },
         {
@@ -7185,7 +8004,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "C"
         }
     ],
-    "nm-image": [
+    "nuclear-medicine-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -7239,6 +8058,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -7573,6 +8397,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -7667,6 +8496,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -7802,6 +8636,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -7931,6 +8770,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -8260,6 +9104,16 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "U"
+        },
+        {
+            "ie": "Multi-Resolution Pyramid",
+            "key": "multi-resolution-pyramid",
+            "usage": "U"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -8268,6 +9122,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Image",
             "key": "general-reference",
             "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "microscope-slide-layer-tile-organization",
+            "usage": "C"
         },
         {
             "ie": "Image",
@@ -8350,7 +9209,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "C"
         }
     ],
-    "patient-radiation-dose-structured-report": [
+    "patient-radiation-dose-sr": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -8402,17 +9261,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -8469,22 +9328,22 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
     ],
-    "pet-image": [
+    "photoacoustic-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -8517,28 +9376,13 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Series",
+            "key": "enhanced-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
             "key": "clinical-trial-series",
             "usage": "U"
-        },
-        {
-            "ie": "Series",
-            "key": "pet-series",
-            "usage": "M"
-        },
-        {
-            "ie": "Series",
-            "key": "pet-isotope",
-            "usage": "M"
-        },
-        {
-            "ie": "Series",
-            "key": "pet-multi-gated-acquisition",
-            "usage": "C"
-        },
-        {
-            "ie": "Series",
-            "key": "nm-pet-patient-orientation",
-            "usage": "M"
         },
         {
             "ie": "Frame of Reference",
@@ -8547,12 +9391,22 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Frame of Reference",
+            "key": "ultrasound-frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
             "key": "synchronization",
-            "usage": "C"
+            "usage": "M"
         },
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
             "usage": "M"
         },
         {
@@ -8567,12 +9421,22 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Image",
-            "key": "image-plane",
+            "key": "image-pixel",
             "usage": "M"
         },
         {
             "ie": "Image",
-            "key": "image-pixel",
+            "key": "enhanced-contrast-bolus",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "photoacoustic-image-multi-frame-functional-groups",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "multi-frame-dimension",
             "usage": "M"
         },
         {
@@ -8587,23 +9451,38 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Image",
-            "key": "pet-image",
+            "key": "acquisition-context",
             "usage": "M"
         },
         {
             "ie": "Image",
-            "key": "overlay-plane",
+            "key": "supplemental-palette-color-lookup-table",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "photoacoustic-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "photoacoustic-acquisition-parameters",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "photoacoustic-transducer",
             "usage": "U"
         },
         {
             "ie": "Image",
-            "key": "voi-lut",
+            "key": "photoacoustic-reconstruction",
             "usage": "U"
         },
         {
             "ie": "Image",
-            "key": "acquisition-context",
-            "usage": "U"
+            "key": "icc-profile",
+            "usage": "C"
         },
         {
             "ie": "Image",
@@ -8614,6 +9493,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Image",
             "key": "common-instance-reference",
             "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "frame-extraction",
+            "usage": "C"
         }
     ],
     "planar-mpr-volumetric-presentation-state": [
@@ -8785,19 +9669,156 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
+        }
+    ],
+    "positron-emission-tomography-image": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "pet-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "pet-isotope",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "pet-multi-gated-acquisition",
+            "usage": "C"
+        },
+        {
+            "ie": "Series",
+            "key": "nm-pet-patient-orientation",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "general-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "general-reference",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "image-plane",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "image-pixel",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "device",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "specimen",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "pet-image",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "overlay-plane",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "voi-lut",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "acquisition-context",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Image",
+            "key": "common-instance-reference",
+            "usage": "U"
         }
     ],
     "procedure-log": [
@@ -8842,17 +9863,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -9017,6 +10038,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Presentation State",
+            "key": "specimen",
+            "usage": "U"
+        },
+        {
+            "ie": "Presentation State",
             "key": "sop-common",
             "usage": "M"
         }
@@ -9073,17 +10099,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -9294,6 +10320,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -9408,6 +10439,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Frame of Reference",
             "key": "synchronization",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -9585,17 +10621,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "key-object-document",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -10334,21 +11370,6 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Dose",
-            "key": "overlay-plane",
-            "usage": "U"
-        },
-        {
-            "ie": "Dose",
-            "key": "multi-frame-overlay",
-            "usage": "U"
-        },
-        {
-            "ie": "Dose",
-            "key": "modality-lut",
-            "usage": "U"
-        },
-        {
-            "ie": "Dose",
             "key": "rt-dose",
             "usage": "M"
         },
@@ -10356,21 +11377,6 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Dose",
             "key": "rt-dvh",
             "usage": "U"
-        },
-        {
-            "ie": "Dose",
-            "key": "structure-set",
-            "usage": "C"
-        },
-        {
-            "ie": "Dose",
-            "key": "roi-contour",
-            "usage": "C"
-        },
-        {
-            "ie": "Dose",
-            "key": "rt-dose-roi",
-            "usage": "C"
         },
         {
             "ie": "Dose",
@@ -10432,6 +11438,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -10692,6 +11703,88 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Plan",
             "key": "common-instance-reference",
             "usage": "U"
+        }
+    ],
+    "rt-patient-position-acquisition-instruction": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "enhanced-rt-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Plan",
+            "key": "general-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Plan",
+            "key": "rt-patient-position-acquisition-device",
+            "usage": "M"
+        },
+        {
+            "ie": "Plan",
+            "key": "rt-patient-position-acquisition-instruction",
+            "usage": "M"
+        },
+        {
+            "ie": "Plan",
+            "key": "sop-common",
+            "usage": "M"
+        },
+        {
+            "ie": "Plan",
+            "key": "common-instance-reference",
+            "usage": "M"
+        },
+        {
+            "ie": "Plan",
+            "key": "radiotherapy-common-instance",
+            "usage": "M"
         }
     ],
     "rt-physician-intent": [
@@ -11566,6 +12659,16 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "U"
         },
         {
+            "ie": "Frame of Reference",
+            "key": "frame-of-reference",
+            "usage": "C"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "U"
+        },
+        {
             "ie": "Equipment",
             "key": "general-equipment",
             "usage": "U"
@@ -11576,6 +12679,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -11583,6 +12691,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Image",
             "key": "general-reference",
+            "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "image-plane",
             "usage": "U"
         },
         {
@@ -11693,6 +12806,16 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "U"
+        },
+        {
+            "ie": "Multi-Resolution Pyramid",
+            "key": "multi-resolution-pyramid",
+            "usage": "U"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -11701,6 +12824,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Image",
             "key": "general-reference",
             "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "microscope-slide-layer-tile-organization",
+            "usage": "C"
         },
         {
             "ie": "Image",
@@ -11724,12 +12852,22 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Image",
+            "key": "palette-color-lookup-table",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
             "key": "specimen",
             "usage": "U"
         },
         {
             "ie": "Image",
             "key": "common-instance-reference",
+            "usage": "C"
+        },
+        {
+            "ie": "Image",
+            "key": "icc-profile",
             "usage": "C"
         },
         {
@@ -11795,22 +12933,22 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "timezone",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -12078,17 +13216,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -12744,7 +13882,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         }
     ],
-    "us-image": [
+    "ultrasound-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -12793,6 +13931,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -12866,7 +14009,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "U"
         }
     ],
-    "us-multi-frame-image": [
+    "ultrasound-multi-frame-image": [
         {
             "ie": "Patient",
             "key": "patient",
@@ -12915,6 +14058,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -13013,6 +14161,153 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "C"
         }
     ],
+    "variable-modality-lut-softcopy-presentation-state": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "general-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "presentation-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "presentation-state-identification",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "presentation-state-relationship",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "presentation-state-shutter",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "presentation-state-mask",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "mask",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "display-shutter",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "bitmap-display-shutter",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "overlay-plane",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "overlay-activation",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "displayed-area",
+            "usage": "M"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "graphic-annotation",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "spatial-transformation",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "graphic-layer",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "graphic-group",
+            "usage": "U"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "variable-modality-lut",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "softcopy-voi-lut",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "softcopy-presentation-lut",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "icc-profile",
+            "usage": "C"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "specimen",
+            "usage": "U"
+        },
+        {
+            "ie": "Presentation State",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
     "video-endoscopic-image": [
         {
             "ie": "Patient",
@@ -13052,6 +14347,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -13159,6 +14459,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -13271,6 +14576,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -13448,6 +14758,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -13542,6 +14857,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -13650,6 +14970,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Equipment",
             "key": "vl-photographic-equipment",
             "usage": "U"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
         },
         {
             "ie": "Image",
@@ -13761,6 +15086,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -13886,6 +15216,16 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
+            "ie": "Multi-Resolution Pyramid",
+            "key": "multi-resolution-pyramid",
+            "usage": "U"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -13894,6 +15234,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "ie": "Image",
             "key": "general-reference",
             "usage": "U"
+        },
+        {
+            "ie": "Image",
+            "key": "microscope-slide-layer-tile-organization",
+            "usage": "M"
         },
         {
             "ie": "Image",
@@ -14078,6 +15423,73 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         }
     ],
+    "waveform-annotation-sr": [
+        {
+            "ie": "Patient",
+            "key": "patient",
+            "usage": "M"
+        },
+        {
+            "ie": "Patient",
+            "key": "clinical-trial-subject",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "general-study",
+            "usage": "M"
+        },
+        {
+            "ie": "Study",
+            "key": "patient-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Study",
+            "key": "clinical-trial-study",
+            "usage": "U"
+        },
+        {
+            "ie": "Series",
+            "key": "sr-document-series",
+            "usage": "M"
+        },
+        {
+            "ie": "Series",
+            "key": "clinical-trial-series",
+            "usage": "U"
+        },
+        {
+            "ie": "Frame of Reference",
+            "key": "synchronization",
+            "usage": "C"
+        },
+        {
+            "ie": "Equipment",
+            "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Equipment",
+            "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "SR Document",
+            "key": "sr-document-general",
+            "usage": "M"
+        },
+        {
+            "ie": "SR Document",
+            "key": "sr-document-content",
+            "usage": "M"
+        },
+        {
+            "ie": "SR Document",
+            "key": "sop-common",
+            "usage": "M"
+        }
+    ],
     "wide-field-ophthalmic-photography-3d-coordinates-image": [
         {
             "ie": "Patient",
@@ -14137,6 +15549,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -14284,6 +15701,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "enhanced-general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -14718,6 +16140,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
+            "usage": "M"
+        },
+        {
             "ie": "Image",
             "key": "general-image",
             "usage": "M"
@@ -14895,17 +16322,17 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-general",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sr-document-content",
             "usage": "M"
         },
         {
-            "ie": "Document",
+            "ie": "SR Document",
             "key": "sop-common",
             "usage": "M"
         }
@@ -14954,6 +16381,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         {
             "ie": "Equipment",
             "key": "general-equipment",
+            "usage": "M"
+        },
+        {
+            "ie": "Acquisition",
+            "key": "general-acquisition",
             "usage": "M"
         },
         {
@@ -15379,6 +16811,11 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
         },
         {
             "ie": "Presentation State",
+            "key": "specimen",
+            "usage": "U"
+        },
+        {
+            "ie": "Presentation State",
             "key": "sop-common",
             "usage": "M"
         }
@@ -15387,7 +16824,7 @@ IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {
 
 SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.1.3.10": "basic-directory",
-    "1.2.840.10008.5.1.4.1.1.1": "cr-image",
+    "1.2.840.10008.5.1.4.1.1.1": "computed-radiography-image",
     "1.2.840.10008.5.1.4.1.1.1.1": "digital-x-ray-image",
     "1.2.840.10008.5.1.4.1.1.1.1.1": "digital-x-ray-image",
     "1.2.840.10008.5.1.4.1.1.1.2": "digital-mammography-x-ray-image",
@@ -15402,6 +16839,7 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.11.1": "grayscale-softcopy-presentation-state",
     "1.2.840.10008.5.1.4.1.1.11.10": "volume-rendering-volumetric-presentation-state",
     "1.2.840.10008.5.1.4.1.1.11.11": "volume-rendering-volumetric-presentation-state",
+    "1.2.840.10008.5.1.4.1.1.11.12": "variable-modality-lut-softcopy-presentation-state",
     "1.2.840.10008.5.1.4.1.1.11.2": "color-softcopy-presentation-state",
     "1.2.840.10008.5.1.4.1.1.11.3": "pseudo-color-softcopy-presentation-state",
     "1.2.840.10008.5.1.4.1.1.11.4": "blending-softcopy-presentation-state",
@@ -15414,7 +16852,7 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.12.1.1": "enhanced-xa-image",
     "1.2.840.10008.5.1.4.1.1.12.2": "x-ray-radiofluoroscopic-image",
     "1.2.840.10008.5.1.4.1.1.12.2.1": "enhanced-xrf-image",
-    "1.2.840.10008.5.1.4.1.1.128": "pet-image",
+    "1.2.840.10008.5.1.4.1.1.128": "positron-emission-tomography-image",
     "1.2.840.10008.5.1.4.1.1.128.1": "legacy-converted-enhanced-pet-image",
     "1.2.840.10008.5.1.4.1.1.13.1.1": "x-ray-3d-angiographic-image",
     "1.2.840.10008.5.1.4.1.1.13.1.2": "x-ray-3d-craniofacial-image",
@@ -15428,13 +16866,14 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.2": "ct-image",
     "1.2.840.10008.5.1.4.1.1.2.1": "enhanced-ct-image",
     "1.2.840.10008.5.1.4.1.1.2.2": "legacy-converted-enhanced-ct-image",
-    "1.2.840.10008.5.1.4.1.1.20": "nm-image",
+    "1.2.840.10008.5.1.4.1.1.20": "nuclear-medicine-image",
     "1.2.840.10008.5.1.4.1.1.200.1": "ct-defined-procedure-protocol",
     "1.2.840.10008.5.1.4.1.1.200.2": "ct-performed-procedure-protocol",
     "1.2.840.10008.5.1.4.1.1.200.3": "protocol-approval",
     "1.2.840.10008.5.1.4.1.1.200.7": "xa-defined-procedure-protocol",
     "1.2.840.10008.5.1.4.1.1.200.8": "xa-performed-procedure-protocol",
-    "1.2.840.10008.5.1.4.1.1.3.1": "us-multi-frame-image",
+    "1.2.840.10008.5.1.4.1.1.201.1": "inventory",
+    "1.2.840.10008.5.1.4.1.1.3.1": "ultrasound-multi-frame-image",
     "1.2.840.10008.5.1.4.1.1.30": "parametric-map",
     "1.2.840.10008.5.1.4.1.1.4": "mr-image",
     "1.2.840.10008.5.1.4.1.1.4.1": "enhanced-mr-image",
@@ -15456,6 +16895,9 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.481.20": "robotic-arm-radiation-record",
     "1.2.840.10008.5.1.4.1.1.481.21": "rt-radiation-set-delivery-instruction",
     "1.2.840.10008.5.1.4.1.1.481.22": "rt-treatment-preparation",
+    "1.2.840.10008.5.1.4.1.1.481.23": "enhanced-rt-image",
+    "1.2.840.10008.5.1.4.1.1.481.24": "enhanced-continuous-rt-image",
+    "1.2.840.10008.5.1.4.1.1.481.25": "rt-patient-position-acquisition-instruction",
     "1.2.840.10008.5.1.4.1.1.481.3": "rt-structure-set",
     "1.2.840.10008.5.1.4.1.1.481.4": "rt-beams-treatment-record",
     "1.2.840.10008.5.1.4.1.1.481.5": "rt-plan",
@@ -15463,8 +16905,9 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.481.7": "rt-treatment-summary-record",
     "1.2.840.10008.5.1.4.1.1.481.8": "rt-ion-plan",
     "1.2.840.10008.5.1.4.1.1.481.9": "rt-ion-beams-treatment-record",
-    "1.2.840.10008.5.1.4.1.1.6.1": "us-image",
+    "1.2.840.10008.5.1.4.1.1.6.1": "ultrasound-image",
     "1.2.840.10008.5.1.4.1.1.6.2": "enhanced-us-volume",
+    "1.2.840.10008.5.1.4.1.1.6.3": "photoacoustic-image",
     "1.2.840.10008.5.1.4.1.1.66": "raw-data",
     "1.2.840.10008.5.1.4.1.1.66.1": "spatial-registration",
     "1.2.840.10008.5.1.4.1.1.66.2": "spatial-fiducials",
@@ -15472,14 +16915,16 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.66.4": "segmentation",
     "1.2.840.10008.5.1.4.1.1.66.5": "surface-segmentation",
     "1.2.840.10008.5.1.4.1.1.66.6": "tractography-results",
+    "1.2.840.10008.5.1.4.1.1.66.7": "segmentation",
+    "1.2.840.10008.5.1.4.1.1.66.8": "height-map-segmentation",
     "1.2.840.10008.5.1.4.1.1.67": "real-world-value-mapping",
     "1.2.840.10008.5.1.4.1.1.68.1": "surface-scan-mesh",
     "1.2.840.10008.5.1.4.1.1.68.2": "surface-scan-point-cloud",
     "1.2.840.10008.5.1.4.1.1.7": "secondary-capture-image",
-    "1.2.840.10008.5.1.4.1.1.7.1": "multi-frame-single-bit-sc-image",
-    "1.2.840.10008.5.1.4.1.1.7.2": "multi-frame-grayscale-byte-sc-image",
-    "1.2.840.10008.5.1.4.1.1.7.3": "multi-frame-grayscale-word-sc-image",
-    "1.2.840.10008.5.1.4.1.1.7.4": "multi-frame-true-color-sc-image",
+    "1.2.840.10008.5.1.4.1.1.7.1": "multi-frame-single-bit-secondary-capture-image",
+    "1.2.840.10008.5.1.4.1.1.7.2": "multi-frame-grayscale-byte-secondary-capture-image",
+    "1.2.840.10008.5.1.4.1.1.7.3": "multi-frame-grayscale-word-secondary-capture-image",
+    "1.2.840.10008.5.1.4.1.1.7.4": "multi-frame-true-color-secondary-capture-image",
     "1.2.840.10008.5.1.4.1.1.77.1.1": "vl-endoscopic-image",
     "1.2.840.10008.5.1.4.1.1.77.1.1.1": "video-endoscopic-image",
     "1.2.840.10008.5.1.4.1.1.77.1.2": "vl-microscopic-image",
@@ -15497,6 +16942,8 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.77.1.5.8": "ophthalmic-optical-coherence-tomography-b-scan-volume-analysis",
     "1.2.840.10008.5.1.4.1.1.77.1.6": "vl-whole-slide-microscopy-image",
     "1.2.840.10008.5.1.4.1.1.77.1.7": "dermoscopic-photography-image",
+    "1.2.840.10008.5.1.4.1.1.77.1.8": "confocal-microscopy-image",
+    "1.2.840.10008.5.1.4.1.1.77.1.9": "confocal-microscopy-tiled-pyramidal-image",
     "1.2.840.10008.5.1.4.1.1.78.1": "lensometry-measurements",
     "1.2.840.10008.5.1.4.1.1.78.2": "autorefraction-measurements",
     "1.2.840.10008.5.1.4.1.1.78.3": "keratometry-measurements",
@@ -15524,12 +16971,15 @@ SOP_CLASS_UID_IOD_KEY_MAP = {
     "1.2.840.10008.5.1.4.1.1.88.70": "implantation-plan-sr-document",
     "1.2.840.10008.5.1.4.1.1.88.71": "acquisition-context-sr",
     "1.2.840.10008.5.1.4.1.1.88.72": "simplified-adult-echo-sr",
-    "1.2.840.10008.5.1.4.1.1.88.73": "patient-radiation-dose-structured-report",
+    "1.2.840.10008.5.1.4.1.1.88.73": "patient-radiation-dose-sr",
     "1.2.840.10008.5.1.4.1.1.88.74": "planned-imaging-agent-administration-sr",
     "1.2.840.10008.5.1.4.1.1.88.75": "performed-imaging-agent-administration-sr",
+    "1.2.840.10008.5.1.4.1.1.88.76": "enhanced-x-ray-radiation-dose-sr",
+    "1.2.840.10008.5.1.4.1.1.88.77": "waveform-annotation-sr",
     "1.2.840.10008.5.1.4.1.1.9.1.1": "12-lead-ecg",
     "1.2.840.10008.5.1.4.1.1.9.1.2": "general-ecg",
     "1.2.840.10008.5.1.4.1.1.9.1.3": "ambulatory-ecg",
+    "1.2.840.10008.5.1.4.1.1.9.1.4": "general-32-bit-ecg",
     "1.2.840.10008.5.1.4.1.1.9.2.1": "hemodynamic-waveform",
     "1.2.840.10008.5.1.4.1.1.9.3.1": "basic-cardiac-electrophysiology-waveform",
     "1.2.840.10008.5.1.4.1.1.9.4.1": "basic-voice-audio-waveform",

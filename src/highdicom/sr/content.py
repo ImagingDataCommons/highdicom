@@ -1,7 +1,9 @@
 """Content items for Structured Report document instances."""
 import logging
 from copy import deepcopy
-from typing import cast, List, Optional, Sequence, Union
+from typing import cast
+from collections.abc import Sequence
+from typing_extensions import Self
 
 import numpy as np
 from pydicom.uid import (
@@ -32,6 +34,7 @@ from highdicom.sr.value_types import (
     Scoord3DContentItem,
     UIDRefContentItem,
 )
+from highdicom._module_utils import is_multiframe_image
 
 
 logger = logging.getLogger(__name__)
@@ -87,10 +90,10 @@ def _check_valid_source_image_dataset(dataset: Dataset) -> None:
 
 def _check_frame_numbers_valid_for_dataset(
     dataset: Dataset,
-    referenced_frame_numbers: Optional[Sequence[int]]
+    referenced_frame_numbers: Sequence[int] | None
 ) -> None:
     if referenced_frame_numbers is not None:
-        if not hasattr(dataset, 'NumberOfFrames'):
+        if not is_multiframe_image(dataset):
             raise TypeError(
                 'The dataset does not represent a multi-frame dataset, so no '
                 'referenced frame numbers should be provided.'
@@ -116,8 +119,8 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
     def __init__(
         self,
         value: float,
-        unit: Union[CodedConcept, Code],
-        event_type: Union[CodedConcept, Code]
+        unit: CodedConcept | Code,
+        event_type: CodedConcept | Code
     ) -> None:
         """
         Parameters
@@ -157,7 +160,7 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'LongitudinalTemporalOffsetFromEvent':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -180,7 +183,7 @@ class LongitudinalTemporalOffsetFromEvent(NumContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(LongitudinalTemporalOffsetFromEvent, item)
+        return cast(Self, item)
 
 
 class SourceImageForMeasurementGroup(ImageContentItem):
@@ -193,7 +196,7 @@ class SourceImageForMeasurementGroup(ImageContentItem):
         self,
         referenced_sop_class_uid: str,
         referenced_sop_instance_uid: str,
-        referenced_frame_numbers: Optional[Sequence[int]] = None
+        referenced_frame_numbers: Sequence[int] | None = None
     ):
         """
         Parameters
@@ -234,8 +237,8 @@ class SourceImageForMeasurementGroup(ImageContentItem):
     def from_source_image(
         cls,
         image: Dataset,
-        referenced_frame_numbers: Optional[Sequence[int]] = None
-    ) -> 'SourceImageForMeasurementGroup':
+        referenced_frame_numbers: Sequence[int] | None = None
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -269,7 +272,7 @@ class SourceImageForMeasurementGroup(ImageContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'SourceImageForMeasurementGroup':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -292,7 +295,7 @@ class SourceImageForMeasurementGroup(ImageContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForMeasurementGroup, item)
+        return cast(Self, item)
 
 
 class SourceImageForMeasurement(ImageContentItem):
@@ -305,7 +308,7 @@ class SourceImageForMeasurement(ImageContentItem):
         self,
         referenced_sop_class_uid: str,
         referenced_sop_instance_uid: str,
-        referenced_frame_numbers: Optional[Sequence[int]] = None
+        referenced_frame_numbers: Sequence[int] | None = None
     ):
         """
         Parameters
@@ -346,8 +349,8 @@ class SourceImageForMeasurement(ImageContentItem):
     def from_source_image(
         cls,
         image: Dataset,
-        referenced_frame_numbers: Optional[Sequence[int]] = None
-    ) -> 'SourceImageForMeasurement':
+        referenced_frame_numbers: Sequence[int] | None = None
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -381,7 +384,7 @@ class SourceImageForMeasurement(ImageContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'SourceImageForMeasurement':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -404,7 +407,7 @@ class SourceImageForMeasurement(ImageContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForMeasurement, item)
+        return cast(Self, item)
 
 
 class SourceImageForRegion(ImageContentItem):
@@ -417,7 +420,7 @@ class SourceImageForRegion(ImageContentItem):
         self,
         referenced_sop_class_uid: str,
         referenced_sop_instance_uid: str,
-        referenced_frame_numbers: Optional[Sequence[int]] = None
+        referenced_frame_numbers: Sequence[int] | None = None
     ):
         """
         Parameters
@@ -443,11 +446,7 @@ class SourceImageForRegion(ImageContentItem):
                     '1-based.'
                 )
         super().__init__(
-            name=CodedConcept(
-                value='111040',
-                meaning='Original Source',
-                scheme_designator='DCM'
-            ),
+            name=codes.SCT.Source,
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
@@ -458,8 +457,8 @@ class SourceImageForRegion(ImageContentItem):
     def from_source_image(
         cls,
         image: Dataset,
-        referenced_frame_numbers: Optional[Sequence[int]] = None
-    ) -> 'SourceImageForRegion':
+        referenced_frame_numbers: Sequence[int] | None = None
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -493,7 +492,7 @@ class SourceImageForRegion(ImageContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'SourceImageForRegion':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -513,7 +512,7 @@ class SourceImageForRegion(ImageContentItem):
         """
         dataset_copy = deepcopy(dataset)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForRegion, item)
+        return cast(Self, item)
 
 
 class SourceImageForSegmentation(ImageContentItem):
@@ -526,7 +525,7 @@ class SourceImageForSegmentation(ImageContentItem):
         self,
         referenced_sop_class_uid: str,
         referenced_sop_instance_uid: str,
-        referenced_frame_numbers: Optional[Sequence[int]] = None
+        referenced_frame_numbers: Sequence[int] | None = None
     ) -> None:
         """
         Parameters
@@ -567,8 +566,8 @@ class SourceImageForSegmentation(ImageContentItem):
     def from_source_image(
         cls,
         image: Dataset,
-        referenced_frame_numbers: Optional[Sequence[int]] = None
-    ) -> 'SourceImageForSegmentation':
+        referenced_frame_numbers: Sequence[int] | None = None
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -602,7 +601,7 @@ class SourceImageForSegmentation(ImageContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'SourceImageForSegmentation':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -625,7 +624,7 @@ class SourceImageForSegmentation(ImageContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceImageForSegmentation, item)
+        return cast(Self, item)
 
 
 class SourceSeriesForSegmentation(UIDRefContentItem):
@@ -656,7 +655,7 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
     def from_source_image(
         cls,
         image: Dataset,
-    ) -> 'SourceSeriesForSegmentation':
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -681,7 +680,7 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'SourceSeriesForSegmentation':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -704,7 +703,138 @@ class SourceSeriesForSegmentation(UIDRefContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(SourceSeriesForSegmentation, item)
+        return cast(Self, item)
+
+
+class CoordinatesForMeasurement(ScoordContentItem):
+
+    """Content item representing spatial coordinates of a measurement"""
+
+    def __init__(
+            self,
+            graphic_type: GraphicTypeValues | str,
+            graphic_data: np.ndarray,
+            source_image: SourceImageForRegion,
+            purpose: CodedConcept | Code = codes.SCT.Source,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            Concept name
+        graphic_type: Union[highdicom.sr.GraphicTypeValues, str]
+            Name of the graphic type
+        graphic_data: numpy.ndarray
+            Array of ordered spatial coordinates, where each row of the array
+            represents a (Column,Row) pair
+        source_image: highdicom.sr.SourceImageForRegion
+            Source image to which `graphic_data` relates
+        """
+        graphic_type = GraphicTypeValues(graphic_type)
+        super().__init__(
+            name=purpose,
+            graphic_type=graphic_type,
+            graphic_data=graphic_data,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM,
+        )
+        self.ContentSequence = [source_image]
+
+    @classmethod
+    def from_dataset(
+            cls,
+            dataset: Dataset,
+            copy: bool = True,
+    ) -> 'CoordinatesForMeasurement':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
+
+        Returns
+        -------
+        highdicom.sr.CoordinatesForMeasurement
+            Constructed object
+
+        """
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
+        return cast(Self, item)
+
+
+class CoordinatesForMeasurement3D(Scoord3DContentItem):
+    """Content item representing spatial 3D coordinates of a measurement"""
+
+    def __init__(
+            self,
+            graphic_type: GraphicTypeValues3D | str,
+            graphic_data: np.ndarray,
+            frame_of_reference_uid: str | UID,
+            fiducial_uid: str | UID | None = None,
+            purpose: CodedConcept | Code = codes.SCT.Source,
+    ):
+        """
+        Parameters
+        ----------
+        purpose: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            Concept name
+        graphic_type: Union[highdicom.sr.GraphicTypeValues3D, str]
+            Name of the graphic type
+        graphic_data: numpy.ndarray[numpy.float]
+            Array of spatial coordinates, where each row of the array
+            represents a (x, y, z) coordinate triplet
+        frame_of_reference_uid: Union[highdicom.UID, str]
+            Unique identifier of the frame of reference within which the
+            coordinates are defined
+        fiducial_uid: Union[str, None], optional
+            Unique identifier for the content item
+        """
+        super().__init__(
+            name=purpose,
+            relationship_type=RelationshipTypeValues.INFERRED_FROM,
+            graphic_type=graphic_type,
+            graphic_data=graphic_data,
+            frame_of_reference_uid=frame_of_reference_uid,
+            fiducial_uid=fiducial_uid,
+        )
+
+    @classmethod
+    def from_dataset(
+            cls,
+            dataset: Dataset,
+            copy: bool = True,
+    ) -> 'CoordinatesForMeasurement3D':
+        """Construct object from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing an SR Content Item with value type SCOORD3D
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
+
+        Returns
+        -------
+        highdicom.sr.CoordinatesForMeasurement3D
+            Constructed object
+
+        """
+        if copy:
+            dataset_copy = deepcopy(dataset)
+        else:
+            dataset_copy = dataset
+        item = super()._from_dataset_base(dataset_copy)
+        return cast(Self, item)
 
 
 class ImageRegion(ScoordContentItem):
@@ -715,12 +845,12 @@ class ImageRegion(ScoordContentItem):
 
     def __init__(
         self,
-        graphic_type: Union[GraphicTypeValues, str],
+        graphic_type: GraphicTypeValues | str,
         graphic_data: np.ndarray,
         source_image: SourceImageForRegion,
-        pixel_origin_interpretation: Optional[
-            Union[PixelOriginInterpretationValues, str]
-        ] = None
+        pixel_origin_interpretation: None | (
+            PixelOriginInterpretationValues | str
+        ) = None
     ) -> None:
         """
         Parameters
@@ -782,7 +912,7 @@ class ImageRegion(ScoordContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ImageRegion':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -805,7 +935,7 @@ class ImageRegion(ScoordContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ImageRegion, item)
+        return cast(Self, item)
 
 
 class ImageRegion3D(Scoord3DContentItem):
@@ -816,7 +946,7 @@ class ImageRegion3D(Scoord3DContentItem):
 
     def __init__(
         self,
-        graphic_type: Union[GraphicTypeValues3D, str],
+        graphic_type: GraphicTypeValues3D | str,
         graphic_data: np.ndarray,
         frame_of_reference_uid: str
     ) -> None:
@@ -858,7 +988,7 @@ class ImageRegion3D(Scoord3DContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ImageRegion3D':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -881,7 +1011,7 @@ class ImageRegion3D(Scoord3DContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ImageRegion3D, item)
+        return cast(Self, item)
 
 
 class VolumeSurface(ContentSequence):
@@ -892,13 +1022,13 @@ class VolumeSurface(ContentSequence):
 
     def __init__(
         self,
-        graphic_type: Union[GraphicTypeValues3D, str],
-        graphic_data: Union[np.ndarray, Sequence[np.ndarray]],
+        graphic_type: GraphicTypeValues3D | str,
+        graphic_data: np.ndarray | Sequence[np.ndarray],
         frame_of_reference_uid: str,
-        source_images: Optional[
+        source_images: None | (
             Sequence[SourceImageForSegmentation]
-        ] = None,
-        source_series: Optional[SourceSeriesForSegmentation] = None
+        ) = None,
+        source_series: SourceSeriesForSegmentation | None = None
     ) -> None:
         """
         Parameters
@@ -1010,7 +1140,7 @@ class VolumeSurface(ContentSequence):
     def from_sequence(
         cls,
         sequence: Sequence[Dataset]
-    ) -> 'VolumeSurface':
+    ) -> Self:
         """Construct an object from an existing content sequence.
 
         Parameters
@@ -1030,9 +1160,9 @@ class VolumeSurface(ContentSequence):
             of the original content items.
 
         """
-        vol_surface_items: List[ContentItem] = []
-        source_image_items: List[ContentItem] = []
-        source_series_items: List[ContentItem] = []
+        vol_surface_items: list[ContentItem] = []
+        source_image_items: list[ContentItem] = []
+        source_series_items: list[ContentItem] = []
         for item in sequence:
             name_item = item.ConceptNameCodeSequence[0]
             name = Code(
@@ -1144,7 +1274,7 @@ class VolumeSurface(ContentSequence):
     @property
     def source_images_for_segmentation(
         self
-    ) -> List[SourceImageForSegmentation]:
+    ) -> list[SourceImageForSegmentation]:
         """List[highdicom.sr.SourceImageForSegmentation]:
             Source images for the volume surface.
         """
@@ -1153,7 +1283,7 @@ class VolumeSurface(ContentSequence):
     @property
     def source_series_for_segmentation(
         self
-    ) -> Optional[SourceSeriesForSegmentation]:
+    ) -> SourceSeriesForSegmentation | None:
         """Optional[highdicom.sr.SourceSeriesForSegmentation]:
             Source series for the volume surface.
         """
@@ -1164,17 +1294,17 @@ class VolumeSurface(ContentSequence):
             return cast(SourceSeriesForSegmentation, items[0])
 
     @property
-    def _graphic_data_items(self) -> List[Scoord3DContentItem]:
+    def _graphic_data_items(self) -> list[Scoord3DContentItem]:
         """List[highdicom.sr.Scoord3DContentItem]:
             Graphic data elements that comprise the volume surface.
         """
         return cast(
-            List[Scoord3DContentItem],
+            list[Scoord3DContentItem],
             self._lut[codes.DCM.VolumeSurface]
         )
 
     @property
-    def graphic_data(self) -> List[np.ndarray]:
+    def graphic_data(self) -> list[np.ndarray]:
         """Union[np.ndarray, List[np.ndarray]]:
             Graphic data arrays that comprise the volume surface.
             For volume surfaces with graphic type ``"ELLIPSOID"``
@@ -1218,7 +1348,7 @@ class RealWorldValueMap(CompositeContentItem):
     def from_source_value_map(
         cls,
         value_map_dataset: Dataset,
-    ) -> 'RealWorldValueMap':
+    ) -> Self:
         """Construct the content item directly from an image dataset
 
         Parameters
@@ -1246,7 +1376,7 @@ class RealWorldValueMap(CompositeContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'RealWorldValueMap':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1269,7 +1399,7 @@ class RealWorldValueMap(CompositeContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(RealWorldValueMap, item)
+        return cast(Self, item)
 
 
 class FindingSite(CodeContentItem):
@@ -1278,9 +1408,9 @@ class FindingSite(CodeContentItem):
 
     def __init__(
         self,
-        anatomic_location: Union[CodedConcept, Code],
-        laterality: Optional[Union[CodedConcept, Code]] = None,
-        topographical_modifier: Optional[Union[CodedConcept, Code]] = None
+        anatomic_location: CodedConcept | Code,
+        laterality: CodedConcept | Code | None = None,
+        topographical_modifier: CodedConcept | Code | None = None
     ) -> None:
         """
         Parameters
@@ -1330,7 +1460,7 @@ class FindingSite(CodeContentItem):
             self.ContentSequence = content
 
     @property
-    def topographical_modifier(self) -> Union[CodedConcept, None]:
+    def topographical_modifier(self) -> CodedConcept | None:
         if not hasattr(self, 'ContentSequence'):
             return None
         matches = find_content_items(
@@ -1348,7 +1478,7 @@ class FindingSite(CodeContentItem):
         return None
 
     @property
-    def laterality(self) -> Union[CodedConcept, None]:
+    def laterality(self) -> CodedConcept | None:
         if not hasattr(self, 'ContentSequence'):
             return None
         matches = find_content_items(
@@ -1370,7 +1500,7 @@ class FindingSite(CodeContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'FindingSite':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1393,7 +1523,7 @@ class FindingSite(CodeContentItem):
         else:
             dataset_copy = dataset
         item = super()._from_dataset_base(dataset_copy)
-        return cast(FindingSite, item)
+        return cast(Self, item)
 
 
 class ReferencedSegmentationFrame(ContentSequence):
@@ -1407,7 +1537,7 @@ class ReferencedSegmentationFrame(ContentSequence):
         self,
         sop_class_uid: str,
         sop_instance_uid: str,
-        frame_number: Union[int, Sequence[int]],
+        frame_number: int | Sequence[int],
         segment_number: int,
         source_image: SourceImageForSegmentation
     ) -> None:
@@ -1453,7 +1583,7 @@ class ReferencedSegmentationFrame(ContentSequence):
     def from_sequence(
         cls,
         sequence: Sequence[Dataset]
-    ) -> 'ReferencedSegmentationFrame':
+    ) -> Self:
         """Construct an object from items within an existing content sequence.
 
         Parameters
@@ -1515,15 +1645,15 @@ class ReferencedSegmentationFrame(ContentSequence):
 
         new_seq = ContentSequence([seg_frame_items[0], source_image_items[0]])
         new_seq.__class__ = cls
-        return cast(ReferencedSegmentationFrame, new_seq)
+        return cast(Self, new_seq)
 
     @classmethod
     def from_segmentation(
         cls,
         segmentation: Dataset,
-        frame_number: Optional[Union[int, Sequence[int]]] = None,
-        segment_number: Optional[int] = None
-    ) -> 'ReferencedSegmentationFrame':
+        frame_number: int | Sequence[int] | None = None,
+        segment_number: int | None = None
+    ) -> Self:
         """Construct the content item directly from a segmentation dataset
 
         Parameters
@@ -1567,7 +1697,10 @@ class ReferencedSegmentationFrame(ContentSequence):
             attributes are absent from the dataset.
 
         """
-        if segmentation.SOPClassUID != SegmentationStorage:
+        if segmentation.SOPClassUID not in (
+            SegmentationStorage,
+            "1.2.840.10008.5.1.4.1.1.66.7",  # Label Map Segmentation Storage
+        ):
             raise ValueError(
                 'Argument "segmentation" should represent a Segmentation.'
             )
@@ -1706,14 +1839,14 @@ class ReferencedSegmentationFrame(ContentSequence):
         return self[0].referenced_sop_instance_uid
 
     @property
-    def referenced_frame_numbers(self) -> Union[List[int], None]:
+    def referenced_frame_numbers(self) -> list[int] | None:
         """Union[List[int], None]
             referenced frame numbers
         """
         return self[0].referenced_frame_numbers
 
     @property
-    def referenced_segment_numbers(self) -> Union[List[int], None]:
+    def referenced_segment_numbers(self) -> list[int] | None:
         """Union[List[int], None]
             referenced segment numbers
         """
@@ -1739,11 +1872,11 @@ class ReferencedSegment(ContentSequence):
         sop_class_uid: str,
         sop_instance_uid: str,
         segment_number: int,
-        frame_numbers: Optional[Sequence[int]] = None,
-        source_images: Optional[
+        frame_numbers: Sequence[int] | None = None,
+        source_images: None | (
             Sequence[SourceImageForSegmentation]
-        ] = None,
-        source_series: Optional[SourceSeriesForSegmentation] = None
+        ) = None,
+        source_series: SourceSeriesForSegmentation | None = None
     ) -> None:
         """
         Parameters
@@ -1807,7 +1940,7 @@ class ReferencedSegment(ContentSequence):
     def from_sequence(
         cls,
         sequence: Sequence[Dataset]
-    ) -> 'ReferencedSegment':
+    ) -> Self:
         """Construct an object from items within an existing content sequence.
 
         Parameters
@@ -1827,9 +1960,9 @@ class ReferencedSegment(ContentSequence):
             of the original content items.
 
         """
-        seg_frame_items: List[ContentItem] = []
-        source_image_items: List[ContentItem] = []
-        source_series_items: List[ContentItem] = []
+        seg_frame_items: list[ContentItem] = []
+        source_image_items: list[ContentItem] = []
+        source_series_items: list[ContentItem] = []
         for item in sequence:
             name_item = item.ConceptNameCodeSequence[0]
             name = Code(
@@ -1901,15 +2034,15 @@ class ReferencedSegment(ContentSequence):
             )
 
         new_seq.__class__ = cls
-        return cast(ReferencedSegment, new_seq)
+        return cast(Self, new_seq)
 
     @classmethod
     def from_segmentation(
         cls,
         segmentation: Dataset,
         segment_number: int,
-        frame_numbers: Optional[Sequence[int]] = None
-    ) -> 'ReferencedSegment':
+        frame_numbers: Sequence[int] | None = None
+    ) -> Self:
         """Construct the content item directly from a segmentation dataset
 
         Parameters
@@ -1942,7 +2075,10 @@ class ReferencedSegment(ContentSequence):
         instance.
 
         """
-        if segmentation.SOPClassUID != SegmentationStorage:
+        if segmentation.SOPClassUID not in (
+            SegmentationStorage,
+            "1.2.840.10008.5.1.4.1.1.66.7",  # Label Map Segmentation Storage
+        ):
             raise ValueError(
                 'Input dataset should be a segmentation storage instance'
             )
@@ -2106,14 +2242,14 @@ class ReferencedSegment(ContentSequence):
         return self[0].referenced_sop_instance_uid
 
     @property
-    def referenced_frame_numbers(self) -> Union[List[int], None]:
+    def referenced_frame_numbers(self) -> list[int] | None:
         """Union[List[int], None]
             referenced frame numbers
         """
         return self[0].referenced_frame_numbers
 
     @property
-    def referenced_segment_numbers(self) -> Union[List[int], None]:
+    def referenced_segment_numbers(self) -> list[int] | None:
         """Union[List[int], None]
             referenced segment numbers
         """
@@ -2122,7 +2258,7 @@ class ReferencedSegment(ContentSequence):
     @property
     def source_images_for_segmentation(
         self
-    ) -> List[SourceImageForSegmentation]:
+    ) -> list[SourceImageForSegmentation]:
         """List[highdicom.sr.SourceImageForSegmentation]
             Source images for the referenced segmentation
         """
@@ -2132,10 +2268,10 @@ class ReferencedSegment(ContentSequence):
             return []
 
     @property
-    def source_series_for_segmentation(self) -> Union[
-        SourceSeriesForSegmentation,
+    def source_series_for_segmentation(self) -> (
+        SourceSeriesForSegmentation |
         None
-    ]:
+    ):
         """Union[highdicom.sr.SourceSeriesForSegmentation, None]
             Source series for the referenced segmentation
         """

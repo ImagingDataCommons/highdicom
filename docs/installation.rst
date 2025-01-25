@@ -16,7 +16,7 @@ Requirements
 Installation
 ------------
 
-Pre-build package available at PyPi:
+Pre-built package available at PyPi:
 
 .. code-block:: none
 

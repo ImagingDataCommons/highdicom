@@ -1,5 +1,5 @@
 """Utilities for working with SEG image instances."""
-from typing import Iterator
+from collections.abc import Iterator
 
 import numpy as np
 from pydicom.dataset import Dataset

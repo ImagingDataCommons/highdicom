@@ -10,7 +10,7 @@ from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.multival import MultiValue
 from pydicom.valuerep import DA, PersonName, TM
-from typing import Optional, Union, Sequence, Tuple
+from collections.abc import Sequence
 
 from highdicom.color import CIELabColor
 from highdicom.content import (
@@ -41,6 +41,8 @@ from highdicom.valuerep import (
     _check_long_string,
     _check_short_text
 )
+from highdicom._module_utils import is_multiframe_image
+
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +55,8 @@ class GraphicLayer(Dataset):
         self,
         layer_name: str,
         order: int,
-        description: Optional[str] = None,
-        display_color: Optional[CIELabColor] = None
+        description: str | None = None,
+        display_color: CIELabColor | None = None
     ):
         """
 
@@ -69,7 +71,7 @@ class GraphicLayer(Dataset):
             Lower values are rendered first.
         description: Union[str, None], optional
             A description of the contents of this graphic layer.
-        display_color: Union[CIELabColor, None], optional
+        display_color: Union[highdicom.color.CIELabColor, None], optional
             A default color value for rendering this layer.
 
         """
@@ -85,7 +87,7 @@ class GraphicLayer(Dataset):
         if display_color is not None:
             if not isinstance(display_color, CIELabColor):
                 raise TypeError(
-                    '"recommended_display_color" must be of type '
+                    '"display_color" must be of type '
                     'highdicom.color.CIELabColor.'
                 )
             self.GraphicLayerRecommendedDisplayCIELabValue = list(
@@ -125,7 +127,7 @@ class GraphicGroup(Dataset):
         self,
         graphic_group_id: int,
         label: str,
-        description: Optional[str] = None
+        description: str | None = None
     ):
         """
 
@@ -167,13 +169,13 @@ class GraphicObject(Dataset):
 
     def __init__(
         self,
-        graphic_type: Union[GraphicTypeValues, str],
+        graphic_type: GraphicTypeValues | str,
         graphic_data: np.ndarray,
-        units: Union[AnnotationUnitsValues, str],
+        units: AnnotationUnitsValues | str,
         is_filled: bool = False,
-        tracking_id: Optional[str] = None,
-        tracking_uid: Optional[str] = None,
-        graphic_group: Optional[GraphicGroup] = None,
+        tracking_id: str | None = None,
+        tracking_uid: str | None = None,
+        graphic_group: GraphicGroup | None = None,
     ):
         """
 
@@ -310,19 +312,19 @@ class GraphicObject(Dataset):
         return AnnotationUnitsValues(self.GraphicAnnotationUnits)
 
     @property
-    def tracking_id(self) -> Union[str, None]:
+    def tracking_id(self) -> str | None:
         """Union[str, None]: tracking identifier"""
         return getattr(self, 'TrackingID', None)
 
     @property
-    def tracking_uid(self) -> Union[UID, None]:
+    def tracking_uid(self) -> UID | None:
         """Union[highdicom.UID, None]: tracking UID"""
         if hasattr(self, 'TrackingUID'):
             return UID(self.TrackingUID)
         return None
 
     @property
-    def graphic_group_id(self) -> Union[int, None]:
+    def graphic_group_id(self) -> int | None:
         """Union[int, None]: The ID of the graphic group, if any."""
         return getattr(self, 'GraphicGroupID', None)
 
@@ -334,16 +336,16 @@ class TextObject(Dataset):
     def __init__(
         self,
         text_value: str,
-        units: Union[AnnotationUnitsValues, str],
-        bounding_box: Optional[Tuple[float, float, float, float]] = None,
-        anchor_point: Optional[Tuple[float, float]] = None,
-        text_justification: Union[
-            TextJustificationValues, str
-        ] = TextJustificationValues.CENTER,
+        units: AnnotationUnitsValues | str,
+        bounding_box: tuple[float, float, float, float] | None = None,
+        anchor_point: tuple[float, float] | None = None,
+        text_justification: (
+            TextJustificationValues | str
+        ) = TextJustificationValues.CENTER,
         anchor_point_visible: bool = True,
-        tracking_id: Optional[str] = None,
-        tracking_uid: Optional[str] = None,
-        graphic_group: Optional[GraphicGroup] = None,
+        tracking_id: str | None = None,
+        tracking_uid: str | None = None,
+        graphic_group: GraphicGroup | None = None,
     ):
         """
 
@@ -461,7 +463,7 @@ class TextObject(Dataset):
         return self.UnformattedTextValue
 
     @property
-    def bounding_box(self) -> Union[Tuple[float, float, float, float], None]:
+    def bounding_box(self) -> tuple[float, float, float, float] | None:
         """Union[Tuple[float, float, float, float], None]:
         bounding box in the format [left, top, right, bottom]
 
@@ -473,7 +475,7 @@ class TextObject(Dataset):
         )
 
     @property
-    def anchor_point(self) -> Union[Tuple[float, float], None]:
+    def anchor_point(self) -> tuple[float, float] | None:
         """Union[Tuple[float, float], None]:
         anchor point as a (Row, Column) pair of image coordinates
 
@@ -490,19 +492,19 @@ class TextObject(Dataset):
         return AnnotationUnitsValues(self.AnchorPointAnnotationUnits)
 
     @property
-    def tracking_id(self) -> Union[str, None]:
+    def tracking_id(self) -> str | None:
         """Union[str, None]: tracking identifier"""
         return getattr(self, 'TrackingID', None)
 
     @property
-    def tracking_uid(self) -> Union[UID, None]:
+    def tracking_uid(self) -> UID | None:
         """Union[highdicom.UID, None]: tracking UID"""
         if hasattr(self, 'TrackingUID'):
             return UID(self.TrackingUID)
         return None
 
     @property
-    def graphic_group_id(self) -> Union[int, None]:
+    def graphic_group_id(self) -> int | None:
         """Union[int, None]: The ID of the graphic group, if any."""
         return getattr(self, 'GraphicGroupID', None)
 
@@ -515,10 +517,10 @@ class GraphicAnnotation(Dataset):
         self,
         referenced_images: Sequence[Dataset],
         graphic_layer: GraphicLayer,
-        referenced_frame_number: Union[int, Sequence[int], None] = None,
-        referenced_segment_number: Union[int, Sequence[int], None] = None,
-        graphic_objects: Optional[Sequence[GraphicObject]] = None,
-        text_objects: Optional[Sequence[TextObject]] = None,
+        referenced_frame_number: int | Sequence[int] | None = None,
+        referenced_segment_number: int | Sequence[int] | None = None,
+        graphic_objects: Sequence[GraphicObject] | None = None,
+        text_objects: Sequence[TextObject] | None = None,
     ):
         """
         Parameters
@@ -553,7 +555,7 @@ class GraphicAnnotation(Dataset):
             )
         self.GraphicLayer = graphic_layer.GraphicLayer
 
-        is_multiframe = hasattr(referenced_images[0], 'NumberOfFrames')
+        is_multiframe = is_multiframe_image(referenced_images[0])
         if is_multiframe and len(referenced_images) > 1:
             raise ValueError(
                 'If referenced images are multi-frame, only a single image '
@@ -716,12 +718,12 @@ class SoftcopyVOILUTTransformation(VOILUTTransformation):
 
     def __init__(
         self,
-        window_center: Union[float, Sequence[float], None] = None,
-        window_width: Union[float, Sequence[float], None] = None,
-        window_explanation: Union[str, Sequence[str], None] = None,
-        voi_lut_function: Union[VOILUTFunctionValues, str, None] = None,
-        voi_luts: Optional[Sequence[VOILUT]] = None,
-        referenced_images: Optional[ReferencedImageSequence] = None,
+        window_center: float | Sequence[float] | None = None,
+        window_width: float | Sequence[float] | None = None,
+        window_explanation: str | Sequence[str] | None = None,
+        voi_lut_function: VOILUTFunctionValues | str | None = None,
+        voi_luts: Sequence[VOILUT] | None = None,
+        referenced_images: ReferencedImageSequence | None = None,
     ):
         """
 
@@ -770,12 +772,12 @@ class SoftcopyVOILUTTransformation(VOILUTTransformation):
 def _add_presentation_state_identification_attributes(
     dataset: Dataset,
     content_label: str,
-    content_description: Optional[str] = None,
-    concept_name: Union[Code, CodedConcept, None] = None,
-    content_creator_name: Optional[Union[str, PersonName]] = None,
-    content_creator_identification: Optional[
+    content_description: str | None = None,
+    concept_name: Code | CodedConcept | None = None,
+    content_creator_name: str | PersonName | None = None,
+    content_creator_identification: None | (
         ContentCreatorIdentificationCodeSequence
-    ] = None,
+    ) = None,
 ) -> None:
     """Add attributes of module Presentation State Identification.
 
@@ -889,9 +891,9 @@ def _add_presentation_state_relationship_attributes(
 def _add_graphic_group_annotation_layer_attributes(
     dataset: Dataset,
     referenced_images: Sequence[Dataset],
-    graphic_groups: Optional[Sequence[GraphicGroup]] = None,
-    graphic_annotations: Optional[Sequence[GraphicAnnotation]] = None,
-    graphic_layers: Optional[Sequence[GraphicLayer]] = None
+    graphic_groups: Sequence[GraphicGroup] | None = None,
+    graphic_annotations: Sequence[GraphicAnnotation] | None = None,
+    graphic_layers: Sequence[GraphicLayer] | None = None
 ) -> None:
     """Add attributes of modules Graphic Group/Annotation/Layer.
 
@@ -1064,7 +1066,7 @@ def _add_modality_lut_attributes(
 
 def _get_modality_lut_transformation(
     referenced_images: Sequence[Dataset]
-) -> Union[ModalityLUTTransformation, None]:
+) -> ModalityLUTTransformation | None:
     """Get Modality LUT Transformation from the referenced images.
 
     Parameters
@@ -1087,7 +1089,7 @@ def _get_modality_lut_transformation(
 
     """
     # Multframe images
-    if any(hasattr(im, 'NumberOfFrames') for im in referenced_images):
+    if any(is_multiframe_image(im) for im in referenced_images):
         im = referenced_images[0]
         if len(referenced_images) > 1 and not is_tiled_image(im):
             raise ValueError(
@@ -1201,7 +1203,7 @@ def _get_modality_lut_transformation(
             if intercept is None:
                 rescale_type = None
             else:
-                rescale_type = RescaleTypeValues.HU.value
+                rescale_type = RescaleTypeValues.US.value
 
     if intercept is None:
         return None
@@ -1277,10 +1279,7 @@ def _add_softcopy_voi_lut_attributes(
                         'included in "referenced_images".'
                     )
                 ref_im = ref_images_lut[uids]
-                is_multiframe = hasattr(
-                    ref_im,
-                    'NumberOfFrames',
-                )
+                is_multiframe = is_multiframe_image(ref_im)
                 if uids in prev_ref_frames and not is_multiframe:
                     raise ValueError(
                         f'Instance with SOP Instance UID {uids[1]} '
@@ -1333,7 +1332,7 @@ def _add_softcopy_voi_lut_attributes(
     dataset.SoftcopyVOILUTSequence = voi_lut_transformations
 
 
-def _get_softcopy_voi_lut_transformations(
+def _get_voi_lut_transformations(
     referenced_images: Sequence[Dataset]
 ) -> Sequence[SoftcopyVOILUTTransformation]:
     """Get Softcopy VOI LUT Transformation from referenced images.
@@ -1358,7 +1357,7 @@ def _get_softcopy_voi_lut_transformations(
 
     """
     transformations = []
-    if any(hasattr(im, 'NumberOfFrames') for im in referenced_images):
+    if any(is_multiframe_image(im) for im in referenced_images):
         if len(referenced_images) > 1:
             raise ValueError(
                 "If multiple images are passed and any of them are multiframe, "
@@ -1693,15 +1692,15 @@ class AdvancedBlending(Dataset):
         self,
         referenced_images: Sequence[Dataset],
         blending_input_number: int,
-        modality_lut_transformation: Optional[
+        modality_lut_transformation: None | (
             ModalityLUTTransformation
-        ] = None,
-        voi_lut_transformations: Optional[
+        ) = None,
+        voi_lut_transformations: None | (
             Sequence[SoftcopyVOILUTTransformation]
-        ] = None,
-        palette_color_lut_transformation: Optional[
+        ) = None,
+        palette_color_lut_transformation: None | (
             PaletteColorLUTTransformation
-        ] = None,
+        ) = None,
     ) -> None:
         """
 
@@ -1829,7 +1828,7 @@ class AdvancedBlending(Dataset):
                 voi_lut_transformations=voi_lut_transformations
             )
         else:
-            voi_lut_transformations = _get_softcopy_voi_lut_transformations(
+            voi_lut_transformations = _get_voi_lut_transformations(
                 referenced_images
             )
             if len(voi_lut_transformations) > 0:
@@ -1878,10 +1877,10 @@ class BlendingDisplay(Dataset):
 
     def __init__(
         self,
-        blending_mode: Union[BlendingModeValues, str],
+        blending_mode: BlendingModeValues | str,
         blending_display_inputs: Sequence[BlendingDisplayInput],
-        blending_input_number: Optional[int] = None,
-        relative_opacity: Optional[float] = None,
+        blending_input_number: int | None = None,
+        relative_opacity: float | None = None,
     ) -> None:
         """
 

@@ -1,5 +1,16 @@
-"""Enumerated values."""
+"""Enumerated halues."""
 from enum import Enum
+
+
+class RGBColorChannels(Enum):
+    R = 'R'
+    """Red color channel."""
+
+    G = 'G'
+    """Green color channel."""
+
+    B = 'B'
+    """Blue color channel."""
 
 
 class CoordinateSystemNames(Enum):
@@ -8,6 +19,43 @@ class CoordinateSystemNames(Enum):
 
     PATIENT = 'PATIENT'
     SLIDE = 'SLIDE'
+
+
+class PixelIndexDirections(Enum):
+
+    """
+
+    Enumerated values used to describe indexing conventions of pixel arrays.
+
+    """
+
+    L = 'L'
+    """
+
+    Left: Pixel index that increases moving across the rows from right to left.
+
+    """
+
+    R = 'R'
+    """
+
+    Right: Pixel index that increases moving across the rows from left to right.
+
+    """
+
+    U = 'U'
+    """
+
+    Up: Pixel index that increases moving up the columns from bottom to top.
+
+    """
+
+    D = 'D'
+    """
+
+    Down: Pixel index that increases moving down the columns from top to bottom.
+
+    """
 
 
 class ContentQualificationValues(Enum):
@@ -267,3 +315,57 @@ class UniversalEntityIDTypeValues(Enum):
 
     X500 = 'X500'
     """An X.500 directory name."""
+
+
+class PadModes(Enum):
+
+    """Enumerated values of modes to pad an array."""
+
+    CONSTANT = 'CONSTANT'
+    """Pad with a specified constant value."""
+
+    EDGE = 'EDGE'
+    """Pad with the edge value."""
+
+    MINIMUM = 'MINIMUM'
+    """Pad with the minimum value."""
+
+    MAXIMUM = 'MAXIMUM'
+    """Pad with the maximum value."""
+
+    MEAN = 'MEAN'
+    """Pad with the mean value."""
+
+    MEDIAN = 'MEDIAN'
+    """Pad with the median value."""
+
+
+class AxisHandedness(Enum):
+
+    """Enumerated values for axis handedness.
+
+    Axis handedness refers to a property of a mapping between voxel indices and
+    their corresponding coordinates in the frame-of-reference coordinate
+    system, as represented by the affine matrix.
+
+    """
+
+    LEFT_HANDED = "LEFT_HANDED"
+    """
+
+    The unit vectors of the first, second and third axes form a left hand when
+    drawn in the frame-of-reference coordinate system with the thumb
+    representing the first vector, the index finger representing the second
+    vector, and the middle finger representing the third vector.
+
+    """
+
+    RIGHT_HANDED = "RIGHT_HANDED"
+    """
+
+    The unit vectors of the first, second and third axes form a right hand when
+    drawn in the frame-of-reference coordinate system with the thumb
+    representing the first vector, the index finger representing the second
+    vector, and the middle finger representing the third vector.
+
+    """

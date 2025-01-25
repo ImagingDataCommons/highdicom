@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from pydicom.dataset import Dataset
 
@@ -31,13 +31,13 @@ class CodingSchemeIdentificationItem(Dataset):
     def __init__(
         self,
         designator: str,
-        name: Optional[str] = None,
-        version: Optional[str] = None,
-        registry: Optional[str] = None,
-        uid: Optional[str] = None,
-        external_id: Optional[str] = None,
-        responsible_organization: Optional[str] = None,
-        resources: Optional[Sequence[CodingSchemeResourceItem]] = None
+        name: str | None = None,
+        version: str | None = None,
+        registry: str | None = None,
+        uid: str | None = None,
+        external_id: str | None = None,
+        responsible_organization: str | None = None,
+        resources: Sequence[CodingSchemeResourceItem] | None = None
     ) -> None:
         """
         Parameters

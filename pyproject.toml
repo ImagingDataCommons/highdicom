@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "highdicom"
-version = "0.23.1"
+version = "0.24.0"
 description = "High-level DICOM abstractions."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
     { name = "Markus D. Herrmann" },
+    { name = "Christopher P. Bridge" },
 ]
 maintainers = [
     { name = "Markus D. Herrmann" },
@@ -27,6 +28,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Graphics",
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
@@ -35,6 +37,7 @@ dependencies = [
     "pillow>=8.3",
     "pydicom>=3.0.1",
     "pyjpegls>=1.0.0",
+    "typing-extensions>=4.0.0",
 ]
 
 [project.optional-dependencies]
@@ -61,6 +64,12 @@ docs = [
 homepage = "https://github.com/imagingdatacommons/highdicom"
 documentation = "https://highdicom.readthedocs.io/"
 repository = "https://github.com/ImagingDataCommons/highdicom.git"
+
+[tool.setuptools.packages.find]
+where = [ "src" ]
+
+[tool.setuptools.package-data]
+highdicom = [ "**/*.icc" ]
 
 [tool.pytest.ini_options]
 minversion = "7"

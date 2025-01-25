@@ -447,7 +447,7 @@ segments. Note that passing a "label map" is purely a convenience provided by
 (`highdicom` splits the label map into multiple single-segment frames and
 stores these, as required by the standard).
 
-Therefore, The following snippet produces an equivalent SEG image to the
+Therefore, the following snippet produces an equivalent SEG image to the
 previous snippet, but passes the mask as a label map rather than as a stack of
 segments.
 

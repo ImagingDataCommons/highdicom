@@ -1,5 +1,5 @@
 import itertools
-from typing import List, Optional, Sequence
+from collections.abc import Sequence
 import warnings
 
 from pydicom.dataset import Dataset
@@ -38,9 +38,9 @@ def compute_plane_position_tiled_full(
     columns: int,
     image_orientation: Sequence[float],
     pixel_spacing: Sequence[float],
-    slice_thickness: Optional[float] = None,  # unused (deprecated)
-    spacing_between_slices: Optional[float] = None,
-    slice_index: Optional[int] = None
+    slice_thickness: float | None = None,  # unused (deprecated)
+    spacing_between_slices: float | None = None,
+    slice_index: int | None = None
 ) -> PlanePositionSequence:
     """Compute the position of a frame (image plane) in the frame of reference
     defined by the three-dimensional slide coordinate system.
@@ -147,7 +147,7 @@ def compute_plane_position_tiled_full(
 
 def compute_plane_position_slide_per_frame(
     dataset: Dataset
-) -> List[PlanePositionSequence]:
+) -> list[PlanePositionSequence]:
     """Computes the plane position for each frame in given dataset with
     respect to the slide coordinate system for an image using the TILED_FULL
     DimensionOrganizationType.

@@ -1,7 +1,15 @@
 from io import BytesIO
 
+from pathlib import Path
+from pydicom.data import get_testdata_files
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.filereader import dcmread
+from pydicom import uid
+
+
+from highdicom._module_utils import (
+    does_iod_have_pixel_data,
+)
 
 
 def write_and_read_dataset(dataset: Dataset):
@@ -21,3 +29,93 @@ def write_and_read_dataset(dataset: Dataset):
             little_endian=little_endian,
         )
         return dcmread(fp, force=True)
+
+
+def find_readable_images() -> list[tuple[str, str | None]]:
+    """Get a list of all images in highdicom and pydicom test data that should
+    be expected to work with image reading routines.
+
+    Returns a list of tuples (path, dependency), where path is the filepath,
+    and dependency is either None if the file can be read using only required
+    dependencies, or a str that can be used with pytest.importorskip if an
+    optional dependency is required to decode pixel data.
+
+    """
+    # All pydicom test files
+    all_files = get_testdata_files()
+
+    # Add highdicom test files
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data/test_files')
+    hd_files = [str(f) for f in data_dir.glob("*.dcm")]
+
+    all_files.extend(hd_files)
+
+    # Various files are not expected to work and should be excluded
+    exclusions = [
+        # cannot be read due to bad VFR
+        "badVR.dcm",
+        # pixel data is truncated
+        "MR_truncated.dcm",
+        # missing number of frames
+        "liver_1frame.dcm",
+        # pydicom cannot decode pixels
+        "JPEG2000-embedded-sequence-delimiter.dcm",
+        # deflated transfer syntax cannot be read lazily
+        "image_dfl.dcm",
+        # pydicom cannot decode pixels
+        "JPEG-lossy.dcm",
+        # no pixels
+        "TINY_ALPHA",
+        # messed up transfer syntax
+        "SC_rgb_jpeg.dcm",
+        # Incorrect source image sequence. This can hopefully be added back
+        # after https://github.com/pydicom/pydicom/pull/2204
+        "SC_rgb_small_odd.dcm",
+    ]
+
+    files_to_use = []
+
+    for f in all_files:
+        try:
+            # Skip image files that can't even be opened (the test files
+            # include some deliberately corrupted files)
+            dcm = dcmread(f)
+        except Exception:
+            continue
+
+        excluded = False
+        if 'SOPClassUID' not in dcm:
+            # Some are missing this...
+            continue
+        if not does_iod_have_pixel_data(dcm.SOPClassUID):
+            # Exclude non images
+            continue
+        if not dcm.file_meta.TransferSyntaxUID.is_little_endian:
+            # We don't support little endian
+            continue
+
+        for exc in exclusions:
+            if exc in f:
+                excluded = True
+                break
+
+        if excluded:
+            continue
+
+        dependency = None
+        if dcm.file_meta.TransferSyntaxUID in (
+            uid.JPEGExtended12Bit,
+            uid.JPEGLosslessSV1,
+        ):
+            dependency = "libjpeg"
+
+        if dcm.file_meta.TransferSyntaxUID in (
+            uid.JPEG2000,
+            uid.JPEG2000Lossless,
+        ):
+            dependency = "openjpeg"
+
+        files_to_use.append((f, dependency))
+
+    return files_to_use

@@ -2,7 +2,9 @@
 
 import logging
 import datetime
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any
+from collections.abc import Sequence
+from typing_extensions import Self
 
 import numpy as np
 from pydicom.uid import SecondaryCaptureImageStorage
@@ -54,50 +56,48 @@ class SCImage(SOPClass):
     def __init__(
             self,
             pixel_array: np.ndarray,
-            photometric_interpretation: Union[
-                str,
+            photometric_interpretation: (
+                str |
                 PhotometricInterpretationValues
-            ],
+            ),
             bits_allocated: int,
-            coordinate_system: Union[str, CoordinateSystemNames],
+            coordinate_system: str | CoordinateSystemNames,
             study_instance_uid: str,
             series_instance_uid: str,
             series_number: int,
             sop_instance_uid: str,
             instance_number: int,
             manufacturer: str,
-            patient_id: Optional[str] = None,
-            patient_name: Optional[Union[str, PersonName]] = None,
-            patient_birth_date: Optional[str] = None,
-            patient_sex: Union[str, PatientSexValues, None] = None,
-            accession_number: Optional[str] = None,
-            study_id: Optional[str] = None,
-            study_date: Optional[Union[str, datetime.date]] = None,
-            study_time: Optional[Union[str, datetime.time]] = None,
-            referring_physician_name: Optional[Union[str, PersonName]] = None,
-            pixel_spacing: Optional[Tuple[float, float]] = None,
-            laterality: Optional[Union[str, LateralityValues]] = None,
-            patient_orientation: Optional[
-                Union[
-                    Tuple[str, str],
-                    Tuple[
-                        PatientOrientationValuesBiped,
-                        PatientOrientationValuesBiped,
-                    ],
-                    Tuple[
-                        PatientOrientationValuesQuadruped,
-                        PatientOrientationValuesQuadruped,
-                    ]
+            patient_id: str | None = None,
+            patient_name: str | PersonName | None = None,
+            patient_birth_date: str | None = None,
+            patient_sex: str | PatientSexValues | None = None,
+            accession_number: str | None = None,
+            study_id: str | None = None,
+            study_date: str | datetime.date | None = None,
+            study_time: str | datetime.time | None = None,
+            referring_physician_name: str | PersonName | None = None,
+            pixel_spacing: tuple[float, float] | None = None,
+            laterality: str | LateralityValues | None = None,
+            patient_orientation: (
+                tuple[str, str] |
+                tuple[
+                    PatientOrientationValuesBiped,
+                    PatientOrientationValuesBiped,
+                ] |
+                tuple[
+                    PatientOrientationValuesQuadruped,
+                    PatientOrientationValuesQuadruped,
                 ]
-            ] = None,
-            anatomical_orientation_type: Optional[
-                Union[str, AnatomicalOrientationTypeValues]
-            ] = None,
-            container_identifier: Optional[str] = None,
-            issuer_of_container_identifier: Optional[IssuerOfIdentifier] = None,
-            specimen_descriptions: Optional[
+            ) | None = None,
+            anatomical_orientation_type: None | (
+                str | AnatomicalOrientationTypeValues
+            ) = None,
+            container_identifier: str | None = None,
+            issuer_of_container_identifier: IssuerOfIdentifier | None = None,
+            specimen_descriptions: None | (
                 Sequence[SpecimenDescription]
-            ] = None,
+            ) = None,
             transfer_syntax_uid: str = ExplicitVRLittleEndian,
             **kwargs: Any
         ):
@@ -288,7 +288,7 @@ class SCImage(SOPClass):
 
             # Specimen
             self.ContainerIdentifier = container_identifier
-            self.IssuerOfTheContainerIdentifierSequence: List[Dataset] = []
+            self.IssuerOfTheContainerIdentifierSequence: list[Dataset] = []
             if issuer_of_container_identifier is not None:
                 self.IssuerOftheContainerIdentifierSequence.append(
                     issuer_of_container_identifier
@@ -416,43 +416,41 @@ class SCImage(SOPClass):
         cls,
         ref_dataset: Dataset,
         pixel_array: np.ndarray,
-        photometric_interpretation: Union[
-            str,
+        photometric_interpretation: (
+            str |
             PhotometricInterpretationValues
-        ],
+        ),
         bits_allocated: int,
-        coordinate_system: Union[str, CoordinateSystemNames],
+        coordinate_system: str | CoordinateSystemNames,
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
         instance_number: int,
         manufacturer: str,
-        pixel_spacing: Optional[Tuple[int, int]] = None,
-        laterality: Optional[Union[str, LateralityValues]] = None,
-        patient_orientation: Optional[
-            Union[
-                Tuple[str, str],
-                Tuple[
-                    PatientOrientationValuesBiped,
-                    PatientOrientationValuesBiped,
-                ],
-                Tuple[
-                    PatientOrientationValuesQuadruped,
-                    PatientOrientationValuesQuadruped,
-                ]
+        pixel_spacing: tuple[int, int] | None = None,
+        laterality: str | LateralityValues | None = None,
+        patient_orientation: (
+            tuple[str, str] |
+            tuple[
+                PatientOrientationValuesBiped,
+                PatientOrientationValuesBiped,
+            ] |
+            tuple[
+                PatientOrientationValuesQuadruped,
+                PatientOrientationValuesQuadruped,
             ]
-        ] = None,
-        anatomical_orientation_type: Optional[
-            Union[str, AnatomicalOrientationTypeValues]
-        ] = None,
-        container_identifier: Optional[str] = None,
-        issuer_of_container_identifier: Optional[IssuerOfIdentifier] = None,
-        specimen_descriptions: Optional[
+        ) | None = None,
+        anatomical_orientation_type: None | (
+            str | AnatomicalOrientationTypeValues
+        ) = None,
+        container_identifier: str | None = None,
+        issuer_of_container_identifier: IssuerOfIdentifier | None = None,
+        specimen_descriptions: None | (
             Sequence[SpecimenDescription]
-        ] = None,
+        ) = None,
         transfer_syntax_uid: str = ImplicitVRLittleEndian,
         **kwargs: Any
-    ) -> 'SCImage':
+    ) -> Self:
         """Constructor that copies patient and study from an existing dataset.
 
         This provides a more concise way to construct an SCImage when an
@@ -475,13 +473,13 @@ class SCImage(SOPClass):
             Array of unsigned integer pixel values representing a single-frame
             image; either a 2D grayscale image or a 3D color image
             (RGB color space)
-        photometric_interpretation: Union[str, highdicom.enum.PhotometricInterpretationValues]
+        photometric_interpretation: Union[str, highdicom.PhotometricInterpretationValues]
             Interpretation of pixel data; either ``"MONOCHROME1"`` or
             ``"MONOCHROME2"`` for 2D grayscale images or ``"RGB"`` or
             ``"YBR_FULL"`` for 3D color images
         bits_allocated: int
             Number of bits that should be allocated per pixel value
-        coordinate_system: Union[str, highdicom.enum.CoordinateSystemNames]
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames]
             Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
             imaging
         series_instance_uid: str
@@ -499,13 +497,12 @@ class SCImage(SOPClass):
         pixel_spacing: Union[Tuple[int, int]], optional
             Physical spacing in millimeter between pixels along the row and
             column dimension
-        laterality: Union[str, highdicom.enum.LateralityValues, None], optional
+        laterality: Union[str, highdicom.LateralityValues, None], optional
             Laterality of the examined body part
-        patient_orientation:
-                Union[Tuple[str, str], Tuple[highdicom.enum.PatientOrientationValuesBiped, highdicom.enum.PatientOrientationValuesBiped], Tuple[highdicom.enum.PatientOrientationValuesQuadruped, highdicom.enum.PatientOrientationValuesQuadruped], None], optional
+        patient_orientation: Union[Tuple[str, str], Tuple[highdicom.PatientOrientationValuesBiped, highdicom.PatientOrientationValuesBiped], Tuple[highdicom.PatientOrientationValuesQuadruped, highdicom.PatientOrientationValuesQuadruped], None], optional
             Orientation of the patient along the row and column axes of the
             image (required if `coordinate_system` is ``"PATIENT"``)
-        anatomical_orientation_type: Union[str, highdicom.enum.AnatomicalOrientationTypeValues, None], optional
+        anatomical_orientation_type: Union[str, highdicom.AnatomicalOrientationTypeValues, None], optional
             Type of anatomical orientation of patient relative to image (may be
             provide if `coordinate_system` is ``"PATIENT"`` and patient is
             an animal)

@@ -1,6 +1,6 @@
 """Utilities for working with SR document instances."""
 from collections import defaultdict
-from typing import List, Mapping, Optional, Sequence, Tuple, Union
+from collections.abc import Mapping, Sequence
 
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
@@ -12,11 +12,11 @@ from highdicom.sr.value_types import ContentItem
 
 def find_content_items(
     dataset: Dataset,
-    name: Optional[Union[CodedConcept, Code]] = None,
-    value_type: Optional[Union[ValueTypeValues, str]] = None,
-    relationship_type: Optional[Union[RelationshipTypeValues, str]] = None,
+    name: CodedConcept | Code | None = None,
+    value_type: ValueTypeValues | str | None = None,
+    relationship_type: RelationshipTypeValues | str | None = None,
     recursive: bool = False
-) -> List[Dataset]:
+) -> list[Dataset]:
     """Finds content items in a Structured Report document that match a given
     query.
 
@@ -49,7 +49,7 @@ def find_content_items(
     """  # noqa: E501
     def has_name(
         item: ContentItem,
-        name: Optional[Union[Code, CodedConcept]]
+        name: Code | CodedConcept | None
     ) -> bool:
         if name is None:
             return True
@@ -57,7 +57,7 @@ def find_content_items(
 
     def has_value_type(
         item: ContentItem,
-        value_type: Optional[Union[ValueTypeValues, str]]
+        value_type: ValueTypeValues | str | None
     ) -> bool:
         if value_type is None:
             return True
@@ -66,7 +66,7 @@ def find_content_items(
 
     def has_relationship_type(
             item: ContentItem,
-            relationship_type: Optional[Union[RelationshipTypeValues, str]]
+            relationship_type: RelationshipTypeValues | str | None
     ) -> bool:
         if relationship_type is None:
             return True
@@ -82,11 +82,11 @@ def find_content_items(
 
     def search_tree(
         node: Dataset,
-        name: Optional[Union[CodedConcept, Code]],
-        value_type: Optional[Union[ValueTypeValues, str]],
-        relationship_type: Optional[Union[RelationshipTypeValues, str]],
+        name: CodedConcept | Code | None,
+        value_type: ValueTypeValues | str | None,
+        relationship_type: RelationshipTypeValues | str | None,
         recursive: bool
-    ) -> List:
+    ) -> list:
         matched_content_items = []
         for content_item in node.ContentSequence:
             name_code = content_item.ConceptNameCodeSequence[0]
@@ -200,8 +200,8 @@ class _ReferencedSOPInstance(Dataset):
 
 
 def _create_references(
-    collection: Mapping[Tuple[str, str], Sequence[_ReferencedSOPInstance]]
-) -> List[Dataset]:
+    collection: Mapping[tuple[str, str], Sequence[_ReferencedSOPInstance]]
+) -> list[Dataset]:
     """Create references.
 
     Parameters
@@ -216,7 +216,7 @@ def _create_references(
         Referenced Series Sequence attributes
 
     """  # noqa: E501
-    study_collection: Mapping[str, List[Dataset]] = defaultdict(list)
+    study_collection: Mapping[str, list[Dataset]] = defaultdict(list)
     for (study_uid, series_uid), instance_items in collection.items():
         series_item = Dataset()
         series_item.SeriesInstanceUID = series_uid
@@ -236,7 +236,7 @@ def _create_references(
 def collect_evidence(
     evidence: Sequence[Dataset],
     content: Dataset
-) -> Tuple[List[Dataset], List[Dataset]]:
+) -> tuple[list[Dataset], list[Dataset]]:
     """Collect evidence for a SR document.
 
     Any `evidence` that is referenced in `content` via IMAGE or
@@ -276,13 +276,13 @@ def collect_evidence(
         value_type=ValueTypeValues.COMPOSITE,
         recursive=True
     )
-    ref_uids = set([
+    ref_uids = {
         ref.ReferencedSOPSequence[0].ReferencedSOPInstanceUID
         for ref in references
-    ])
+    }
     evd_uids = set()
-    ref_group: Mapping[Tuple[str, str], List[Dataset]] = defaultdict(list)
-    unref_group: Mapping[Tuple[str, str], List[Dataset]] = defaultdict(list)
+    ref_group: Mapping[tuple[str, str], list[Dataset]] = defaultdict(list)
+    unref_group: Mapping[tuple[str, str], list[Dataset]] = defaultdict(list)
     for evd in evidence:
         if evd.SOPInstanceUID in evd_uids:
             # Skip potential duplicates

@@ -7,16 +7,11 @@ from copy import deepcopy
 from os import PathLike
 from typing import (
     Any,
-    Generator,
     cast,
-    Mapping,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
     BinaryIO,
 )
+from collections.abc import Generator, Mapping, Sequence
+from typing_extensions import Self
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset
@@ -58,27 +53,27 @@ class _SR(SOPClass):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Union[Dataset, DataElementSequence],
+        content: Dataset | DataElementSequence,
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
         sop_class_uid: str,
         instance_number: int,
-        manufacturer: Optional[str] = None,
+        manufacturer: str | None = None,
         is_complete: bool = False,
         is_final: bool = False,
         is_verified: bool = False,
-        institution_name: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
-        verifying_observer_name: Optional[Union[str, PersonName]] = None,
-        verifying_organization: Optional[str] = None,
-        performed_procedure_codes: Optional[
-            Sequence[Union[Code, CodedConcept]]
-        ] = None,
-        requested_procedures: Optional[Sequence[Dataset]] = None,
-        previous_versions: Optional[Sequence[Dataset]] = None,
+        institution_name: str | None = None,
+        institutional_department_name: str | None = None,
+        verifying_observer_name: str | PersonName | None = None,
+        verifying_organization: str | None = None,
+        performed_procedure_codes: None | (
+            Sequence[Code | CodedConcept]
+        ) = None,
+        requested_procedures: Sequence[Dataset] | None = None,
+        previous_versions: Sequence[Dataset] | None = None,
         record_evidence: bool = True,
-        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
+        transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
         **kwargs: Any
     ) -> None:
         """
@@ -261,14 +256,14 @@ class _SR(SOPClass):
             self.PerformedProcedureCodeSequence = []
 
         # TODO: unclear how this would work
-        self.ReferencedPerformedProcedureStepSequence: List[Dataset] = []
+        self.ReferencedPerformedProcedureStepSequence: list[Dataset] = []
 
         self.copy_patient_and_study_information(evidence[0])
 
     def _collect_predecessors(
         self,
         previous_versions: Sequence[Dataset]
-    ) -> List[Dataset]:
+    ) -> list[Dataset]:
         """Collect predecessors of the SR document.
 
         Parameters
@@ -283,7 +278,7 @@ class _SR(SOPClass):
             Items of the Predecessor Documents Sequence
 
         """
-        group: Mapping[Tuple[str, str], List[Dataset]] = defaultdict(list)
+        group: Mapping[tuple[str, str], list[Dataset]] = defaultdict(list)
         for pre in previous_versions:
             pre_instance_item = Dataset()
             pre_instance_item.ReferencedSOPClassUID = pre.SOPClassUID
@@ -356,7 +351,7 @@ class _SR(SOPClass):
     def get_evidence(
         self,
         current_procedure_only: bool = False,
-    ) -> List[Tuple[UID, UID, UID, UID]]:
+    ) -> list[tuple[UID, UID, UID, UID]]:
         """Get a list of all SOP Instances listed as evidence in this SR.
 
         Parameters
@@ -378,7 +373,7 @@ class _SR(SOPClass):
         """
         def extract_evidence(
             sequence: DataElementSequence,
-        ) -> Generator[Tuple[UID, UID, UID, UID], None, None]:
+        ) -> Generator[tuple[UID, UID, UID, UID], None, None]:
             for item in sequence:
                 for series_ds in item.ReferencedSeriesSequence:
                     for instance_ds in series_ds.ReferencedSOPSequence:
@@ -413,7 +408,7 @@ class _SR(SOPClass):
     def get_evidence_series(
         self,
         current_procedure_only: bool = False,
-    ) -> List[Tuple[UID, UID]]:
+    ) -> list[tuple[UID, UID]]:
         """Get a list of all series listed as evidence in this SR.
 
         Parameters
@@ -434,7 +429,7 @@ class _SR(SOPClass):
         """
         def extract_evidence_series(
             sequence: DataElementSequence,
-        ) -> Generator[Tuple[UID, UID], None, None]:
+        ) -> Generator[tuple[UID, UID], None, None]:
             for item in sequence:
                 for series_ds in item.ReferencedSeriesSequence:
                     yield (
@@ -476,26 +471,26 @@ class EnhancedSR(_SR):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Union[Dataset, DataElementSequence],
+        content: Dataset | DataElementSequence,
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
         instance_number: int,
-        manufacturer: Optional[str] = None,
+        manufacturer: str | None = None,
         is_complete: bool = False,
         is_final: bool = False,
         is_verified: bool = False,
-        institution_name: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
-        verifying_observer_name: Optional[Union[str, PersonName]] = None,
-        verifying_organization: Optional[str] = None,
-        performed_procedure_codes: Optional[
-            Sequence[Union[Code, CodedConcept]]
-        ] = None,
-        requested_procedures: Optional[Sequence[Dataset]] = None,
-        previous_versions: Optional[Sequence[Dataset]] = None,
+        institution_name: str | None = None,
+        institutional_department_name: str | None = None,
+        verifying_observer_name: str | PersonName | None = None,
+        verifying_organization: str | None = None,
+        performed_procedure_codes: None | (
+            Sequence[Code | CodedConcept]
+        ) = None,
+        requested_procedures: Sequence[Dataset] | None = None,
+        previous_versions: Sequence[Dataset] | None = None,
         record_evidence: bool = True,
-        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
+        transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
         **kwargs: Any
     ) -> None:
         """
@@ -607,26 +602,26 @@ class ComprehensiveSR(_SR):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Union[Dataset, DataElementSequence],
+        content: Dataset | DataElementSequence,
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
         instance_number: int,
-        manufacturer: Optional[str] = None,
+        manufacturer: str | None = None,
         is_complete: bool = False,
         is_final: bool = False,
         is_verified: bool = False,
-        institution_name: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
-        verifying_observer_name: Optional[str] = None,
-        verifying_organization: Optional[str] = None,
-        performed_procedure_codes: Optional[
-            Sequence[Union[Code, CodedConcept]]
-        ] = None,
-        requested_procedures: Optional[Sequence[Dataset]] = None,
-        previous_versions: Optional[Sequence[Dataset]] = None,
+        institution_name: str | None = None,
+        institutional_department_name: str | None = None,
+        verifying_observer_name: str | None = None,
+        verifying_organization: str | None = None,
+        performed_procedure_codes: None | (
+            Sequence[Code | CodedConcept]
+        ) = None,
+        requested_procedures: Sequence[Dataset] | None = None,
+        previous_versions: Sequence[Dataset] | None = None,
         record_evidence: bool = True,
-        transfer_syntax_uid: Union[str, UID] = ExplicitVRLittleEndian,
+        transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
         **kwargs: Any
     ) -> None:
         """
@@ -734,7 +729,7 @@ class ComprehensiveSR(_SR):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ComprehensiveSR':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -755,8 +750,8 @@ class ComprehensiveSR(_SR):
         if dataset.SOPClassUID != ComprehensiveSRStorage:
             raise ValueError('Dataset is not a Comprehensive SR document.')
         sop_instance = super().from_dataset(dataset, copy=copy)
-        sop_instance.__class__ = ComprehensiveSR
-        return cast(ComprehensiveSR, sop_instance)
+        sop_instance.__class__ = cls
+        return cast(Self, sop_instance)
 
 
 class Comprehensive3DSR(_SR):
@@ -770,24 +765,24 @@ class Comprehensive3DSR(_SR):
     def __init__(
         self,
         evidence: Sequence[Dataset],
-        content: Union[Dataset, DataElementSequence],
+        content: Dataset | DataElementSequence,
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
         instance_number: int,
-        manufacturer: Optional[str] = None,
+        manufacturer: str | None = None,
         is_complete: bool = False,
         is_final: bool = False,
         is_verified: bool = False,
-        institution_name: Optional[str] = None,
-        institutional_department_name: Optional[str] = None,
-        verifying_observer_name: Optional[str] = None,
-        verifying_organization: Optional[str] = None,
-        performed_procedure_codes: Optional[
-            Sequence[Union[Code, CodedConcept]]
-        ] = None,
-        requested_procedures: Optional[Sequence[Dataset]] = None,
-        previous_versions: Optional[Sequence[Dataset]] = None,
+        institution_name: str | None = None,
+        institutional_department_name: str | None = None,
+        verifying_observer_name: str | None = None,
+        verifying_organization: str | None = None,
+        performed_procedure_codes: None | (
+            Sequence[Code | CodedConcept]
+        ) = None,
+        requested_procedures: Sequence[Dataset] | None = None,
+        previous_versions: Sequence[Dataset] | None = None,
         record_evidence: bool = True,
         **kwargs: Any
     ) -> None:
@@ -885,7 +880,7 @@ class Comprehensive3DSR(_SR):
         cls,
         dataset: Dataset,
         copy: bool = True
-    ) -> 'Comprehensive3DSR':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -906,13 +901,13 @@ class Comprehensive3DSR(_SR):
         if dataset.SOPClassUID != Comprehensive3DSRStorage:
             raise ValueError('Dataset is not a Comprehensive 3D SR document.')
         sop_instance = super().from_dataset(dataset, copy=copy)
-        sop_instance.__class__ = Comprehensive3DSR
-        return cast(Comprehensive3DSR, sop_instance)
+        sop_instance.__class__ = cls
+        return cast(Self, sop_instance)
 
 
 def srread(
-    fp: Union[str, bytes, PathLike, BinaryIO],
-) -> Union[EnhancedSR, ComprehensiveSR, Comprehensive3DSR]:
+    fp: str | bytes | PathLike | BinaryIO,
+) -> EnhancedSR | ComprehensiveSR | Comprehensive3DSR:
     """Read a Structured Report (SR) document in DICOM File format.
 
     The object is returned as an instance of the highdicom class corresponding

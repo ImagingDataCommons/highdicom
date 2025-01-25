@@ -4,16 +4,11 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import (
     cast,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
     overload,
-    Sequence,
-    Tuple,
     Union,
 )
+from collections.abc import Iterable, Iterator, Sequence
+from typing_extensions import Self
 
 import numpy as np
 from pydicom.dataelem import DataElement
@@ -45,9 +40,9 @@ def _assert_value_type(
 
     Parameters
     ----------
-    dataset: pydicom.dataset.Dataset
+    dataset: pydicom.Dataset
         Dataset representing an SR Content Item
-    value_type: highdicom.sr.enum.ValueTypeValues
+    value_type: highdicom.sr.ValueTypeValues
         Expected value of Value Type attribute
 
     Raises
@@ -118,9 +113,9 @@ class ContentItem(Dataset):
 
     def __init__(
         self,
-        value_type: Union[str, ValueTypeValues],
-        name: Union[Code, CodedConcept],
-        relationship_type: Union[str, RelationshipTypeValues, None]
+        value_type: str | ValueTypeValues,
+        name: Code | CodedConcept,
+        relationship_type: str | RelationshipTypeValues | None
     ) -> None:
         """
         Parameters
@@ -150,7 +145,7 @@ class ContentItem(Dataset):
     def __setattr__(
         self,
         name: str,
-        value: Union[DataElement, DataElementSequence]
+        value: DataElement | DataElementSequence
     ) -> None:
         if name == 'ContentSequence':
             super().__setattr__(name, ContentSequence(value))
@@ -158,7 +153,7 @@ class ContentItem(Dataset):
             super().__setattr__(name, value)
 
     @classmethod
-    def _from_dataset_derived(cls, dataset: Dataset) -> 'ContentItem':
+    def _from_dataset_derived(cls, dataset: Dataset) -> Self:
         """Construct object of derived type from an existing dataset.
 
         Parameters
@@ -184,7 +179,7 @@ class ContentItem(Dataset):
         )  # type: ignore
 
     @classmethod
-    def _from_dataset_base(cls, dataset: Dataset) -> 'ContentItem':
+    def _from_dataset_base(cls, dataset: Dataset) -> Self:
         if not hasattr(dataset, 'ValueType'):
             raise AttributeError(
                 'Dataset is not an SR Content Item because it lacks '
@@ -226,7 +221,7 @@ class ContentItem(Dataset):
                 copy=False
             )
         ]
-        return cast(ContentItem, item)
+        return cast(Self, item)
 
     @property
     def name(self) -> CodedConcept:
@@ -242,7 +237,7 @@ class ContentItem(Dataset):
         return ValueTypeValues(self.ValueType)
 
     @property
-    def relationship_type(self) -> Optional[RelationshipTypeValues]:
+    def relationship_type(self) -> RelationshipTypeValues | None:
         """RelationshipTypeValues: type of relationship the content item has
         with its parent (see `highdicom.sr.RelationshipTypeValues`)
 
@@ -259,9 +254,9 @@ class ContentSequence(DataElementSequence):
 
     def __init__(
         self,
-        items: Optional[
+        items: None | (
             Union[Sequence[ContentItem], 'ContentSequence']
-        ] = None,
+        ) = None,
         is_root: bool = False,
         is_sr: bool = True
     ) -> None:
@@ -308,9 +303,9 @@ class ContentSequence(DataElementSequence):
         # (to put it kindly), but we currently don't see a better way without
         # having to change the implementation in the pydicom library.
 
-        self._lut: Dict[
-            Union[Code, CodedConcept],
-            List[ContentItem]
+        self._lut: dict[
+            Code | CodedConcept,
+            list[ContentItem]
         ] = defaultdict(list)
         if items is not None:
             super().__init__(items)
@@ -362,8 +357,8 @@ class ContentSequence(DataElementSequence):
 
     def __setitem__(
         self,
-        idx: Union[slice, int],
-        val: Union[Iterable[ContentItem], ContentItem]
+        idx: slice | int,
+        val: Iterable[ContentItem] | ContentItem
     ) -> None:   # type: ignore[override]
         if isinstance(val, Iterable):
             items = val
@@ -379,7 +374,7 @@ class ContentSequence(DataElementSequence):
 
     def __delitem__(
         self,
-        idx: Union[slice, int]
+        idx: slice | int
     ) -> None:   # type: ignore[override]
         if isinstance(idx, slice):
             items = self[idx]
@@ -430,7 +425,7 @@ class ContentSequence(DataElementSequence):
             raise ValueError(error_message) from e
         return index
 
-    def find(self, name: Union[Code, CodedConcept]) -> 'ContentSequence':
+    def find(self, name: Code | CodedConcept) -> Self:
         """Find contained content items given their name.
 
         Parameters
@@ -450,7 +445,7 @@ class ContentSequence(DataElementSequence):
             is_sr=self._is_sr
         )
 
-    def get_nodes(self) -> 'ContentSequence':
+    def get_nodes(self) -> Self:
         """Get content items that represent nodes in the content tree.
 
         A node is hereby defined as a content item that has a `ContentSequence`
@@ -556,7 +551,7 @@ class ContentSequence(DataElementSequence):
         is_root: bool = False,
         is_sr: bool = True,
         copy: bool = True,
-    ) -> 'ContentSequence':
+    ) -> Self:
         """Construct object from a sequence of datasets.
 
         Parameters
@@ -652,9 +647,9 @@ class CodeContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[Code, CodedConcept],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None,
+        name: Code | CodedConcept,
+        value: Code | CodedConcept,
+        relationship_type: str | RelationshipTypeValues | None = None,
     ) -> None:
         """
         Parameters
@@ -688,7 +683,7 @@ class CodeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'CodeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -715,7 +710,7 @@ class CodeContentItem(ContentItem):
         item.ConceptCodeSequence = DataElementSequence([
             CodedConcept.from_dataset(item.ConceptCodeSequence[0], copy=False)
         ])
-        return cast(CodeContentItem, item)
+        return cast(Self, item)
 
 
 class PnameContentItem(ContentItem):
@@ -724,9 +719,9 @@ class PnameContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[str, PersonName],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        value: str | PersonName,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -755,7 +750,7 @@ class PnameContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'PnameContentItem':
+    ) -> Self:
         """Construct object from existing dataset.
 
         Parameters
@@ -779,7 +774,7 @@ class PnameContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.PNAME)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(PnameContentItem, item)
+        return cast(Self, item)
 
 
 class TextContentItem(ContentItem):
@@ -788,9 +783,9 @@ class TextContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
+        name: Code | CodedConcept,
         value: str,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -818,7 +813,7 @@ class TextContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'TextContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -842,7 +837,7 @@ class TextContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TEXT)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(TextContentItem, item)
+        return cast(Self, item)
 
 
 class TimeContentItem(ContentItem):
@@ -851,9 +846,9 @@ class TimeContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[str, datetime.time, TM],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        value: str | datetime.time | TM,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -890,7 +885,7 @@ class TimeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'TimeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -914,7 +909,7 @@ class TimeContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TIME)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(TimeContentItem, item)
+        return cast(Self, item)
 
 
 class DateContentItem(ContentItem):
@@ -923,9 +918,9 @@ class DateContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[str, datetime.date, DA],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        value: str | datetime.date | DA,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -962,7 +957,7 @@ class DateContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'DateContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -986,7 +981,7 @@ class DateContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.DATE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(DateContentItem, item)
+        return cast(Self, item)
 
 
 class DateTimeContentItem(ContentItem):
@@ -995,9 +990,9 @@ class DateTimeContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[str, datetime.datetime, DT],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        value: str | datetime.datetime | DT,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1034,7 +1029,7 @@ class DateTimeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'DateTimeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1058,7 +1053,7 @@ class DateTimeContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.DATETIME)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(DateTimeContentItem, item)
+        return cast(Self, item)
 
 
 class UIDRefContentItem(ContentItem):
@@ -1067,9 +1062,9 @@ class UIDRefContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        value: Union[str, UID],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        value: str | UID,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1097,7 +1092,7 @@ class UIDRefContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'UIDRefContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1121,7 +1116,7 @@ class UIDRefContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.UIDREF)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(UIDRefContentItem, item)
+        return cast(Self, item)
 
 
 class NumContentItem(ContentItem):
@@ -1130,11 +1125,11 @@ class NumContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
+        name: Code | CodedConcept,
         value: float,
-        unit: Union[Code, CodedConcept],
-        qualifier: Optional[Union[Code, CodedConcept]] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None,
+        unit: Code | CodedConcept,
+        qualifier: Code | CodedConcept | None = None,
+        relationship_type: str | RelationshipTypeValues | None = None,
     ) -> None:
         """
         Parameters
@@ -1158,7 +1153,7 @@ class NumContentItem(ContentItem):
         super().__init__(
             ValueTypeValues.NUM, name, relationship_type
         )
-        self.MeasuredValueSequence: List[Dataset] = []
+        self.MeasuredValueSequence: list[Dataset] = []
         measured_value_sequence_item = Dataset()
         if not isinstance(value, (int, float, )):
             raise TypeError(
@@ -1189,7 +1184,7 @@ class NumContentItem(ContentItem):
             self.NumericValueQualifierCodeSequence = [qualifier]
 
     @property
-    def value(self) -> Union[int, float]:
+    def value(self) -> int | float:
         """Union[int, float]: measured value"""
         item = self.MeasuredValueSequence[0]
         try:
@@ -1204,7 +1199,7 @@ class NumContentItem(ContentItem):
         return item.MeasurementUnitsCodeSequence[0]
 
     @property
-    def qualifier(self) -> Union[CodedConcept, None]:
+    def qualifier(self) -> CodedConcept | None:
         """Union[highdicom.sr.CodedConcept, None]: qualifier"""
         try:
             return self.NumericValueQualifierCodeSequence[0]
@@ -1216,7 +1211,7 @@ class NumContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'NumContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1253,7 +1248,7 @@ class NumContentItem(ContentItem):
             item.NumericValueQualifierCodeSequence = DataElementSequence([
                 CodedConcept.from_dataset(qualifier_item, copy=False)
             ])
-        return cast(NumContentItem, item)
+        return cast(Self, item)
 
 
 class ContainerContentItem(ContentItem):
@@ -1262,10 +1257,10 @@ class ContainerContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
+        name: Code | CodedConcept,
         is_content_continuous: bool = True,
-        template_id: Optional[str] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        template_id: str | None = None,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1295,7 +1290,7 @@ class ContainerContentItem(ContentItem):
             self.ContentTemplateSequence = [item]
 
     @property
-    def template_id(self) -> Union[str, None]:
+    def template_id(self) -> str | None:
         """Union[str, None]: template identifier"""
         try:
             item = self.ContentTemplateSequence[0]
@@ -1308,7 +1303,7 @@ class ContainerContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ContainerContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1332,7 +1327,7 @@ class ContainerContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.CONTAINER)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ContainerContentItem, item)
+        return cast(Self, item)
 
 
 class CompositeContentItem(ContentItem):
@@ -1341,10 +1336,10 @@ class CompositeContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        referenced_sop_class_uid: Union[str, UID],
-        referenced_sop_instance_uid: Union[str, UID],
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        referenced_sop_class_uid: str | UID,
+        referenced_sop_instance_uid: str | UID,
+        relationship_type: str | RelationshipTypeValues | None = None
     ):
         """
         Parameters
@@ -1368,7 +1363,7 @@ class CompositeContentItem(ContentItem):
         self.ReferencedSOPSequence = [item]
 
     @property
-    def value(self) -> Tuple[UID, UID]:
+    def value(self) -> tuple[UID, UID]:
         """Tuple[highdicom.UID, highdicom.UID]:
             referenced SOP Class UID and SOP Instance UID
         """
@@ -1393,7 +1388,7 @@ class CompositeContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'CompositeContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1417,7 +1412,7 @@ class CompositeContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.COMPOSITE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(CompositeContentItem, item)
+        return cast(Self, item)
 
 
 class ImageContentItem(ContentItem):
@@ -1426,16 +1421,16 @@ class ImageContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        referenced_sop_class_uid: Union[str, UID],
-        referenced_sop_instance_uid: Union[str, UID],
-        referenced_frame_numbers: Optional[
-            Union[int, Sequence[int]]
-        ] = None,
-        referenced_segment_numbers: Optional[
-            Union[int, Sequence[int]]
-        ] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None,
+        name: Code | CodedConcept,
+        referenced_sop_class_uid: str | UID,
+        referenced_sop_instance_uid: str | UID,
+        referenced_frame_numbers: None | (
+            int | Sequence[int]
+        ) = None,
+        referenced_segment_numbers: None | (
+            int | Sequence[int]
+        ) = None,
+        relationship_type: str | RelationshipTypeValues | None = None,
     ) -> None:
         """
         Parameters
@@ -1469,7 +1464,7 @@ class ImageContentItem(ContentItem):
         self.ReferencedSOPSequence = [item]
 
     @property
-    def value(self) -> Tuple[UID, UID]:
+    def value(self) -> tuple[UID, UID]:
         """Tuple[highdicom.UID, highdicom.UID]:
             referenced SOP Class UID and SOP Instance UID
         """
@@ -1490,7 +1485,7 @@ class ImageContentItem(ContentItem):
         return UID(self.ReferencedSOPSequence[0].ReferencedSOPInstanceUID)
 
     @property
-    def referenced_frame_numbers(self) -> Union[List[int], None]:
+    def referenced_frame_numbers(self) -> list[int] | None:
         """Union[List[int], None]: referenced frame numbers"""
         if not hasattr(
             self.ReferencedSOPSequence[0],
@@ -1504,7 +1499,7 @@ class ImageContentItem(ContentItem):
             return [int(val)]
 
     @property
-    def referenced_segment_numbers(self) -> Union[List[int], None]:
+    def referenced_segment_numbers(self) -> list[int] | None:
         """Union[List[int], None]
             referenced segment numbers
         """
@@ -1524,7 +1519,7 @@ class ImageContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ImageContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1548,7 +1543,7 @@ class ImageContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ImageContentItem, item)
+        return cast(Self, item)
 
 
 class ScoordContentItem(ContentItem):
@@ -1563,15 +1558,15 @@ class ScoordContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        graphic_type: Union[str, GraphicTypeValues],
+        name: Code | CodedConcept,
+        graphic_type: str | GraphicTypeValues,
         graphic_data: np.ndarray,
-        pixel_origin_interpretation: Union[
-            str,
+        pixel_origin_interpretation: (
+            str |
             PixelOriginInterpretationValues
-        ] = None,
-        fiducial_uid: Optional[Union[str, UID]] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        ) = None,
+        fiducial_uid: str | UID | None = None,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1654,7 +1649,7 @@ class ScoordContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'ScoordContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1678,7 +1673,7 @@ class ScoordContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.SCOORD)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(ScoordContentItem, item)
+        return cast(Self, item)
 
 
 class Scoord3DContentItem(ContentItem):
@@ -1694,12 +1689,12 @@ class Scoord3DContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        graphic_type: Union[GraphicTypeValues3D, str],
+        name: Code | CodedConcept,
+        graphic_type: GraphicTypeValues3D | str,
         graphic_data: np.ndarray,
-        frame_of_reference_uid: Union[str, UID],
-        fiducial_uid: Optional[Union[str, UID]] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        frame_of_reference_uid: str | UID,
+        fiducial_uid: str | UID | None = None,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1799,7 +1794,7 @@ class Scoord3DContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'Scoord3DContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1823,7 +1818,7 @@ class Scoord3DContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.SCOORD3D)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(Scoord3DContentItem, item)
+        return cast(Self, item)
 
 
 class TcoordContentItem(ContentItem):
@@ -1832,12 +1827,12 @@ class TcoordContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        temporal_range_type: Union[str, TemporalRangeTypeValues],
-        referenced_sample_positions: Optional[Sequence[int]] = None,
-        referenced_time_offsets: Optional[Sequence[float]] = None,
-        referenced_date_time: Optional[Sequence[datetime.datetime]] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None
+        name: Code | CodedConcept,
+        temporal_range_type: str | TemporalRangeTypeValues,
+        referenced_sample_positions: Sequence[int] | None = None,
+        referenced_time_offsets: Sequence[float] | None = None,
+        referenced_date_time: Sequence[datetime.datetime] | None = None,
+        relationship_type: str | RelationshipTypeValues | None = None
     ) -> None:
         """
         Parameters
@@ -1883,7 +1878,7 @@ class TcoordContentItem(ContentItem):
             )
 
     @property
-    def value(self) -> Union[List[int], List[float], List[datetime.datetime]]:
+    def value(self) -> list[int] | list[float] | list[datetime.datetime]:
         """Union[List[int], List[float], List[datetime.datetime]]: time points
         """
         try:
@@ -1904,7 +1899,7 @@ class TcoordContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'TcoordContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -1928,7 +1923,7 @@ class TcoordContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TCOORD)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(TcoordContentItem, item)
+        return cast(Self, item)
 
 
 class WaveformContentItem(ContentItem):
@@ -1937,13 +1932,13 @@ class WaveformContentItem(ContentItem):
 
     def __init__(
         self,
-        name: Union[Code, CodedConcept],
-        referenced_sop_class_uid: Union[str, UID],
-        referenced_sop_instance_uid: Union[str, UID],
-        referenced_waveform_channels: Optional[
-            Union[int, Sequence[int]]
-        ] = None,
-        relationship_type: Union[str, RelationshipTypeValues, None] = None,
+        name: Code | CodedConcept,
+        referenced_sop_class_uid: str | UID,
+        referenced_sop_instance_uid: str | UID,
+        referenced_waveform_channels: None | (
+            int | Sequence[int]
+        ) = None,
+        relationship_type: str | RelationshipTypeValues | None = None,
     ) -> None:
         """
         Parameters
@@ -1978,7 +1973,7 @@ class WaveformContentItem(ContentItem):
         self.ReferencedSOPSequence = [item]
 
     @property
-    def value(self) -> Tuple[UID, UID]:
+    def value(self) -> tuple[UID, UID]:
         """Tuple[highdicom.UID, highdicom.UID]:
             referenced SOP Class UID and SOP Instance UID
         """
@@ -1999,10 +1994,10 @@ class WaveformContentItem(ContentItem):
         return UID(self.ReferencedSOPSequence[0].ReferencedSOPInstanceUID)
 
     @property
-    def referenced_waveform_channels(self) -> Union[
-        List[Tuple[int, int]],
+    def referenced_waveform_channels(self) -> (
+        list[tuple[int, int]] |
         None
-    ]:
+    ):
         """Union[List[Tuple[int, int]], None]: referenced waveform channels"""
         if not hasattr(
             self.ReferencedSOPSequence[0],
@@ -2023,7 +2018,7 @@ class WaveformContentItem(ContentItem):
         cls,
         dataset: Dataset,
         copy: bool = True,
-    ) -> 'WaveformContentItem':
+    ) -> Self:
         """Construct object from an existing dataset.
 
         Parameters
@@ -2047,4 +2042,4 @@ class WaveformContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(WaveformContentItem, item)
+        return cast(Self, item)
