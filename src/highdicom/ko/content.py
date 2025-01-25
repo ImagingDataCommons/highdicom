@@ -177,7 +177,7 @@ class KeyObjectSelection(ContentSequence):
             )
         instance = ContentSequence.from_sequence(sequence, is_root=True)
         instance.__class__ = cls
-        return cast(cls, instance)
+        return cast(Self, instance)
 
     def get_observer_contexts(
         self,

@@ -751,7 +751,7 @@ class ComprehensiveSR(_SR):
             raise ValueError('Dataset is not a Comprehensive SR document.')
         sop_instance = super().from_dataset(dataset, copy=copy)
         sop_instance.__class__ = cls
-        return cast(cls, sop_instance)
+        return cast(Self, sop_instance)
 
 
 class Comprehensive3DSR(_SR):
@@ -902,7 +902,7 @@ class Comprehensive3DSR(_SR):
             raise ValueError('Dataset is not a Comprehensive 3D SR document.')
         sop_instance = super().from_dataset(dataset, copy=copy)
         sop_instance.__class__ = cls
-        return cast(cls, sop_instance)
+        return cast(Self, sop_instance)
 
 
 def srread(

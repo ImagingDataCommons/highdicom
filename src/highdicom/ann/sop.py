@@ -453,7 +453,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             for item in ann.AnnotationGroupSequence
         ]
 
-        return cast(cls, ann)
+        return cast(Self, ann)
 
 
 def annread(

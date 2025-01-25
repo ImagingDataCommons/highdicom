@@ -2910,7 +2910,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
             )
         instance = ContentSequence.from_sequence(sequence)
         instance.__class__ = cls
-        return cast(cls, instance)
+        return cast(Self, instance)
 
     @property
     def method(self) -> CodedConcept | None:
@@ -3631,7 +3631,7 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         """
         instance = super().from_sequence(sequence)
         instance.__class__ = cls
-        return cast(cls, instance)
+        return cast(Self, instance)
 
 
 class VolumetricROIMeasurementsAndQualitativeEvaluations(
@@ -3905,7 +3905,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         """
         instance = super().from_sequence(sequence)
         instance.__class__ = cls
-        return cast(cls, instance)
+        return cast(Self, instance)
 
 
 class ImageLibraryEntryDescriptors(Template):
@@ -4361,7 +4361,7 @@ class MeasurementReport(Template):
             copy=copy
         )
         instance.__class__ = cls
-        return cast(cls, instance)
+        return cast(Self, instance)
 
     def get_observer_contexts(
         self,

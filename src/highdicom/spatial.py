@@ -136,7 +136,7 @@ def get_tile_array(
 
     Returns
     -------
-    np.ndarray:
+    numpy.ndarray:
         Returned pixel array for the requested tile.
 
     """
@@ -278,7 +278,7 @@ def iter_tiled_full_frame_data(
 
     Unlike :func:`highdicom.utils.compute_plane_position_slide_per_frame`,
     this functions returns the data in their basic Python types rather than
-    wrapping as :class:`highdicom.PlanePositionSequence`
+    wrapping as instances of :class:`highdicom.PlanePositionSequence`.
 
     Parameters
     ----------
@@ -888,7 +888,7 @@ def get_normal_vector(
         PixelIndexDirections.D,
     ),
     handedness: AxisHandedness | str = AxisHandedness.RIGHT_HANDED,
-):
+) -> np.ndarray:
     """Get a vector normal to an imaging plane.
 
     Parameters
@@ -927,7 +927,7 @@ def get_normal_vector(
 
     Returns
     -------
-    np.ndarray:
+    numpy.ndarray:
         Unit normal vector as a NumPy array with shape (3, ).
 
     """  # noqa: E501

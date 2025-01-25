@@ -232,7 +232,7 @@ class SegmentDescription(Dataset):
                 CodedConcept.from_dataset(ds, copy=False)
                 for ds in desc.PrimaryAnatomicStructureSequence
             ]
-        return cast(cls, desc)
+        return cast(Self, desc)
 
     @property
     def segment_number(self) -> int:

@@ -221,7 +221,7 @@ class ContentItem(Dataset):
                 copy=False
             )
         ]
-        return cast(cls, item)
+        return cast(Self, item)
 
     @property
     def name(self) -> CodedConcept:
@@ -710,7 +710,7 @@ class CodeContentItem(ContentItem):
         item.ConceptCodeSequence = DataElementSequence([
             CodedConcept.from_dataset(item.ConceptCodeSequence[0], copy=False)
         ])
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class PnameContentItem(ContentItem):
@@ -774,7 +774,7 @@ class PnameContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.PNAME)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class TextContentItem(ContentItem):
@@ -837,7 +837,7 @@ class TextContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TEXT)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class TimeContentItem(ContentItem):
@@ -909,7 +909,7 @@ class TimeContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TIME)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class DateContentItem(ContentItem):
@@ -981,7 +981,7 @@ class DateContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.DATE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class DateTimeContentItem(ContentItem):
@@ -1053,7 +1053,7 @@ class DateTimeContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.DATETIME)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class UIDRefContentItem(ContentItem):
@@ -1116,7 +1116,7 @@ class UIDRefContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.UIDREF)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class NumContentItem(ContentItem):
@@ -1248,7 +1248,7 @@ class NumContentItem(ContentItem):
             item.NumericValueQualifierCodeSequence = DataElementSequence([
                 CodedConcept.from_dataset(qualifier_item, copy=False)
             ])
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class ContainerContentItem(ContentItem):
@@ -1327,7 +1327,7 @@ class ContainerContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.CONTAINER)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class CompositeContentItem(ContentItem):
@@ -1412,7 +1412,7 @@ class CompositeContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.COMPOSITE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class ImageContentItem(ContentItem):
@@ -1543,7 +1543,7 @@ class ImageContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class ScoordContentItem(ContentItem):
@@ -1673,7 +1673,7 @@ class ScoordContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.SCOORD)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class Scoord3DContentItem(ContentItem):
@@ -1818,7 +1818,7 @@ class Scoord3DContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.SCOORD3D)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class TcoordContentItem(ContentItem):
@@ -1923,7 +1923,7 @@ class TcoordContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TCOORD)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)
 
 
 class WaveformContentItem(ContentItem):
@@ -2042,4 +2042,4 @@ class WaveformContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
         item = super()._from_dataset_base(dataset_copy)
-        return cast(cls, item)
+        return cast(Self, item)

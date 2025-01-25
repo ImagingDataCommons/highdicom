@@ -1147,7 +1147,7 @@ class _Image(SOPClass):
         else:
             im = dataset
         im.__class__ = cls
-        im = cast(cls, im)
+        im = cast(Self, im)
 
         im._build_luts()
         return im

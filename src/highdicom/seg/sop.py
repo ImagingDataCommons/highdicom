@@ -2855,7 +2855,7 @@ class Segmentation(_Image):
 
         seg = super().from_dataset(seg, copy=False)
 
-        return cast(cls, seg)
+        return cast(Self, seg)
 
     @property
     def segmentation_type(self) -> SegmentationTypeValues:

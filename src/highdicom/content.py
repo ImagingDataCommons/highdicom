@@ -148,7 +148,7 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         else:
             algo_id_sequence = sequence
         algo_id_sequence.__class__ = cls
-        return cast(cls, algo_id_sequence)
+        return cast(Self, algo_id_sequence)
 
     @property
     def name(self) -> str:
@@ -402,7 +402,7 @@ class PixelMeasuresSequence(DataElementSequence):
         else:
             pixel_measures = sequence
         pixel_measures.__class__ = cls
-        return cast(cls, pixel_measures)
+        return cast(Self, pixel_measures)
 
     def __eq__(self, other: DataElementSequence) -> bool:
         """Determine whether two sets of pixel measures are the same.
@@ -617,7 +617,7 @@ class PlanePositionSequence(DataElementSequence):
         else:
             plane_position = sequence
         plane_position.__class__ = cls
-        return cast(cls, plane_position)
+        return cast(Self, plane_position)
 
 
 class PlaneOrientationSequence(DataElementSequence):
@@ -754,7 +754,7 @@ class PlaneOrientationSequence(DataElementSequence):
         else:
             plane_orientation = sequence
         plane_orientation.__class__ = cls
-        return cast(cls, plane_orientation)
+        return cast(Self, plane_orientation)
 
 
 class IssuerOfIdentifier(Dataset):
@@ -852,7 +852,7 @@ class IssuerOfIdentifier(Dataset):
         issuer_of_identifier._issuer_of_identifier = issuer_id
         issuer_of_identifier._issuer_of_identifier_type = issuer_type
 
-        return cast(cls, issuer_of_identifier)
+        return cast(Self, issuer_of_identifier)
 
 
 class SpecimenCollection(ContentSequence):
@@ -2037,7 +2037,7 @@ class LUT(Dataset):
 
         dataset_copy = dataset
         dataset_copy.__class__ = cls
-        return cast(cls, dataset_copy)
+        return cast(Self, dataset_copy)
 
     def get_scaled_lut_data(
         self,
@@ -2960,7 +2960,7 @@ class PaletteColorLUT(Dataset):
             setattr(new_ds, kw, getattr(dataset, kw))
 
         new_ds.__class__ = cls
-        return cast(cls, new_ds)
+        return cast(Self, new_ds)
 
 
 class SegmentedPaletteColorLUT(Dataset):
@@ -3200,7 +3200,7 @@ class SegmentedPaletteColorLUT(Dataset):
             setattr(new_ds, kw, getattr(dataset, kw))
 
         new_ds.__class__ = cls
-        return cast(cls, new_ds)
+        return cast(Self, new_ds)
 
 
 class PaletteColorLUTTransformation(Dataset):
@@ -3612,7 +3612,7 @@ class PaletteColorLUTTransformation(Dataset):
             setattr(new_dataset, data_kw, data)
 
         new_dataset.__class__ = cls
-        return cast(cls, new_dataset)
+        return cast(Self, new_dataset)
 
     def apply(
         self,

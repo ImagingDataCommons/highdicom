@@ -13,6 +13,7 @@
 import os
 import sys
 import pkg_resources
+import datetime
 
 source_dir = os.path.dirname(__file__)
 pkg_dir = os.path.join(source_dir, '..', '..', 'src', 'highdicom')
@@ -21,7 +22,7 @@ sys.path.insert(0, os.path.abspath(pkg_dir))
 # -- Project information -----------------------------------------------------
 
 project = 'highdicom'
-copyright = '2020-2022, Herrmann Lab'
+copyright = f'2020-{datetime.datetime.now().year}, highdicom contributors'
 author = 'Markus D. Herrmann'
 
 # The full version, including alpha/beta/rc tags
