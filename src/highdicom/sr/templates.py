@@ -4077,12 +4077,6 @@ class ImageLibraryEntryDescriptors(Template):
                 unit=codes.UCUM.Millimeter
             ),
             NumContentItem(
-                name=codes.DCM.SpacingBetweenSlices,
-                value=dataset.SpacingBetweenSlices,
-                relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
-                unit=codes.UCUM.Millimeter
-            ),
-            NumContentItem(
                 name=codes.DCM.SliceThickness,
                 value=dataset.SliceThickness,
                 relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
@@ -4167,6 +4161,16 @@ class ImageLibraryEntryDescriptors(Template):
                 )
             )
         ]
+        if hasattr(dataset, 'SpacingBetweenSlices'):
+            descriptors.append(
+                NumContentItem(
+                    name=codes.DCM.SpacingBetweenSlices,
+                    value=dataset.SpacingBetweenSlices,
+                    relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT,
+                    unit=codes.UCUM.Millimeter
+                ),
+            )
+
         return descriptors
 
     def _is_cross_sectional(self, ds: Dataset) -> bool:

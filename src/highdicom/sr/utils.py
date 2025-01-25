@@ -90,10 +90,17 @@ def find_content_items(
         matched_content_items = []
         for content_item in node.ContentSequence:
             name_code = content_item.ConceptNameCodeSequence[0]
+            if hasattr(name_code, "CodeValue"):
+                code_value = name_code.CodeValue
+            elif hasattr(name_code, "LongCodeValue"):
+                code_value = name_code.LongCodeValue
+            else:
+                code_value = name_code.URNCodeValue
+
             item = ContentItem(
                 value_type=content_item.ValueType,
                 name=CodedConcept(
-                    value=name_code.CodeValue,
+                    value=code_value,
                     scheme_designator=name_code.CodingSchemeDesignator,
                     meaning=name_code.CodeMeaning
                 ),
