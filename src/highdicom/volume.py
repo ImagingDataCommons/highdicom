@@ -1249,7 +1249,7 @@ class _VolumeBase(ABC):
                 'Argument "axis" must contain only values 0, 1, and/or 2.'
             )
 
-        # We will re-use the existing __getitem__ implementation, which has all
+        # We will reuse the existing __getitem__ implementation, which has all
         # this logic figured out already
         index = []
         for d in range(3):

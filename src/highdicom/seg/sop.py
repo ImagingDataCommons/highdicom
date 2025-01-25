@@ -2156,7 +2156,7 @@ class Segmentation(_Image):
         # As a result, this method is optimized for runtime efficiency at the
         # expense of simplicity. In particular, there are several common
         # special cases that have optimized implementations, and intermediate
-        # results are re-used wherever possible
+        # results are reused wherever possible
         number_of_segments = len(segment_numbers)
 
         if pixel_array.ndim == 4:
