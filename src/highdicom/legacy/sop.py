@@ -405,7 +405,8 @@ def _convert_legacy_to_enhanced(
             bits_allocated=ds.BitsAllocated,
             bits_stored=ds.BitsStored,
             photometric_interpretation=ds.PhotometricInterpretation,
-            pixel_representation=ds.PixelRepresentation
+            pixel_representation=ds.PixelRepresentation,
+            planar_configuration = ds.PlanarConfiguration
         )
         for ds in sf_datasets
     ]
