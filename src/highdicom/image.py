@@ -4547,14 +4547,14 @@ class Image(_Image):
         Parameters
         ----------
         slice_start: int | none, optional
-            zero-based index of the "volume position" of the first slice of the
+            1-based index of the "volume position" of the first slice of the
             returned volume. the "volume position" refers to the position of
             slices after sorting spatially, and may correspond to any frame in
             the segmentation file, depending on its construction. may be
             negative, in which case standard python indexing behavior is
             followed (-1 corresponds to the last volume position, etc).
         slice_end: union[int, none], optional
-            zero-based index of the "volume position" one beyond the last slice
+            1-based index of the "volume position" one beyond the last slice
             of the returned volume. the "volume position" refers to the
             position of slices after sorting spatially, and may correspond to
             any frame in the segmentation file, depending on its construction.

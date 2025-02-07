@@ -132,59 +132,97 @@ we must first provide more information about the algorithm used in an
         anatomic_regions=[codes.SCT.Kidney]
     )
 
-Binary and Fractional SEGs
---------------------------
+Segmentation Type (Binary, Fractional and Labelmap)
+---------------------------------------------------
 
 One particularly important characteristic of a segmentation image is its
-"Segmentation Type" (0062,0001), which may take the value of either
-``"BINARY"`` or ``"FRACTIONAL"`` and describes the values that pixels within the
-segmentation may take.  Pixels in a ``"BINARY"`` segmentation image may only
-take values 0 or 1, i.e.  each pixel either belongs to the segment or does not.
+"Segmentation Type" (0062,0001). There are three options here, contained within
+the highdicom enum :class:`highdicom.seg.SegmentationTypeValues`:
 
-By contrast, pixels in a ``"FRACTIONAL"`` segmentation image lie in the range 0
-to 1. A second attribute, "Segmentation Fractional Type" (0062,0010) specifies
-how these values should be interpreted. There are two options, represented by
-the enumerated type :class:`highdicom.seg.SegmentationFractionalTypeValues`:
+- ``"BINARY"`` segmentations stores each segment in a separate set of frames.
+  Within each segment, pixels can only take the value 0 (meaning that the pixel
+  does not belong to the segment) or 1 (meaning that the pixel does belong to
+  the segment). Note that although the name may suggest that only one segment
+  is present, in fact there is no limit on the number of segments (i.e.
+  "binary" refers to the possible values of pixels within a segment, not the
+  number of segments). Because each segment is stored using a separate set of
+  frames, segments are not constrained to be mutually exclusive: a single pixel
+  can belong to any number of segments. In other words, segments may overlap
+  with each other.
 
-- ``"PROBABILITY"``, i.e. the number between 0 and 1 represents a probability
-  that a pixel belongs to the segment
-- ``"OCCUPANCY"`` i.e. the number represents the fraction of the volume of the
-  pixel's (or voxel's) area (or volume) that belongs to the segment
+  ``"BINARY"`` segmentations are the most widely supported and used. However
+  they also have some important downsides. Storing each segment separately
+  means that ``"BINARY"`` segmentations can have a very large number of frames
+  if there are a large number of segments. Furthermore, because they are stored
+  as single bit images, the options for compression are very limited. As a
+  result, the segmentation objects can get very large and unweildy. Lastly,
+  having separate frames is simply not a convenient form to work with for many
+  applications.
 
-A potential source of confusion is that having a Segmentation Type of
-``"BINARY"`` only limits the range of values *within a given segment*. It is
-perfectly valid for a ``"BINARY"`` segmentation to have multiple segments. It
-is therefore not the same sense of the word *binary* that distinguishes *binary*
-from *multiclass* segmentations.
+- ``"FRACTIONAL"`` segmentations also store each segment as a separate set of
+  frames, but within each segment pixel values lie in the range 0 to 1. A
+  second attribute, "Segmentation Fractional Type" (0062,0010) specifies how
+  these values should be interpreted. There are two options, represented by the
+  enumerated type :class:`highdicom.seg.SegmentationFractionalTypeValues`:
 
-*Highdicom* provides the Python enumerations
-:class:`highdicom.seg.SegmentationTypeValues` and
-:class:`highdicom.seg.SegmentationFractionalTypeValues` for the valid values of
-the "Segmentation Type" and "Segmentation Fractional Type" attributes,
-respectively.
+  - ``"PROBABILITY"``, i.e. the number between 0 and 1 represents a probability
+    that a pixel belongs to the segment
+  - ``"OCCUPANCY"`` i.e. the number represents the fraction of the volume of the
+    pixel's (or voxel's) area (or volume) that belongs to the segment
 
-Constructing Basic Binary SEG Images
-------------------------------------
+- ``"LABELMAP"`` segmentations are a new type of segmentation introduced to the
+  standard in 2024 and supported in highdicom since version 0.24.0. They are
+  designed to address the shortcomings of ``"BINARY"`` segmentations described
+  above by combining all segments into a single set of frames. The pixel values
+  are unsigned 8 or 16 bit integers that encode the segment membership of the
+  pixel. This means that a single pixel cannot belong to multiple segments
+  (segments must be mutually exclusive and cannot overlap). This represents a
+  limitation of the ``"LABELMAP"`` representation, relative to ``"BINARY"``,
+  but in practice non-overlapping segments are a very common case.
 
-We have now covered enough to construct a basic binary segmentation image. We
-use the :class:`highdicom.seg.Segmentation` class and provide a description of
-each segment, a pixel array of the segmentation mask, the source images as a
-list of ``pydicom.Dataset`` objects, and some other basic information. The
-segmentation pixel array is provided as a numpy array with a boolean or
-unsigned integer data type containing only the values 0 and 1.
+  Since they use 8 or 16 bit pixels, there are also many more options for
+  compression of ``"LABELMAP"`` segmentations than ``"BINARY"`` ones. The
+  combination of fewer frames and better compression of each frame can lead to
+  ``"LABELMAP"`` segmentations being smaller than the equivalent ``"BINARY"``
+  segmentation by 2 orders of magnitude in extreme cases.
+
+  Unfortunately, support for ``"LABELMAP"`` segmentations is currently very
+  limited (highdicom is the first software to support them to our knowledge).
+  We hope that more applications and libraries will begin to support them in
+  the near future. We encourage you to request that other tools you use add
+  support for them.
+
+  Advanced users should note that labelmap segmentations are actually encoded
+  using a different SOP class (but the same IOD) to fractional or binary
+  segmentations. Highdicom handles this for you and uses the
+  :class:`highdicom.seg.Segmentation` class for both SOP classes such that this
+  distinction should not matter in most situations.
+
+Constructing Basic Binary and Labelmap SEG Images
+-------------------------------------------------
+
+We have now covered enough to construct a basic binary or labelmap segmentation
+image. We use the :class:`highdicom.seg.Segmentation` class and provide a
+description of each segment, a pixel array of the segmentation mask, the source
+images as a list of ``pydicom.Dataset`` objects, and some other basic
+information. The segmentation pixel array is provided as a numpy array with a
+boolean or unsigned integer data type containing only the values 0 and 1.
+
+In this example, we encode this segmentation using the ``"BINARY"`` segmentation
+type, however we could straightforwardly change this to ``"LABELMAP"`` and keep
+everything else the same.
 
 .. code-block:: python
 
     import numpy as np
 
-    from pydicom import dcmread
     from pydicom.sr.codedict import codes
     from pydicom.data import get_testdata_file
 
     import highdicom as hd
 
     # Load a CT image
-    source_image = dcmread(get_testdata_file('CT_small.dcm'))
+    source_image = hd.imread(get_testdata_file('CT_small.dcm'))
 
     # Description of liver segment produced by a manual algorithm
     liver_description = hd.seg.SegmentDescription(
@@ -215,8 +253,8 @@ unsigned integer data type containing only the values 0 and 1.
         device_serial_number='1234567890',
     )
 
-Constructing Binary SEG Images with Multiple Frames
----------------------------------------------------
+Constructing Binary/Labelmap SEG Images with Multiple Frames
+------------------------------------------------------------
 
 DICOM SEGs are multiframe objects, which means that they may contain more than
 one frame within the same object. For example, a single SEG image may contain
@@ -230,12 +268,14 @@ attempt to sort the input source images in any way. It is the responsibility of
 the user to ensure that they pass the source images in a meaningful order, and
 that the source images and segmentation frames at the same index correspond.
 
+Again, we could straightforwardly swap ``"BINARY"`` for ``"LABELMAP"`` in this
+example to use the labelmap segmentation type.
+
 
 .. code-block:: python
 
     import numpy as np
 
-    from pydicom import dcmread
     from pydicom.sr.codedict import codes
     from pydicom.data import get_testdata_files
 
@@ -243,17 +283,15 @@ that the source images and segmentation frames at the same index correspond.
 
     # Load a series of CT images as a list of pydicom.Datasets
     source_images = [
-        dcmread(f) for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+        hd.imread(f) for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
     ]
 
-    # Sort source frames by instance number (note that this is illustrative
-    # only, sorting by instance number is not generally recommended as this
-    # attribute is not guaranteed to be present in all types of source image)
-    source_images = sorted(source_images, key=lambda x: x.InstanceNumber)
+    # Sort source frames spatially
+    source_images = hd.spatial.sort_datasets(source_images)
 
     # Create a segmentation by thresholding the CT image at 1000 HU
     thresholded = [
-        im.pixel_array * im.RescaleSlope + im.RescaleIntercept > 1000
+        im.get_frame(1) > 1000
         for im in source_images
     ]
 
@@ -292,8 +330,8 @@ a convenient shorthand for the special case where there is only a single source
 frame and a single segment. It is equivalent in every way to passing a 3D array
 with a single frame down axis 0.
 
-Constructing Binary SEG Images of Multiframe Source Images
-----------------------------------------------------------
+Constructing Binary/Labelmap SEG Images of Multiframe Source Images
+-------------------------------------------------------------------
 
 Alternatively, we could create a segmentation of a source image that is itself
 a multiframe image (such as an Enhanced CT, Enhanced MR image, or a Whole Slide
@@ -302,27 +340,28 @@ and the ``pixel_array`` input with one segmentation frame in axis 0 for each
 frame of the source file, listed in ascending order by frame number. I.e.
 ``pixel_array[i, ...]`` is the segmentation of frame ``i + 1`` of the single
 source image (the offset of +1 is because numpy indexing starts at 0 whereas
-DICOM frame indices start at 1).
+DICOM frame indices start at 1). This is also valid for the ``"LABELMAP"``
+segmentation type.
 
 .. code-block:: python
 
     import numpy as np
 
-    from pydicom import dcmread
     from pydicom.sr.codedict import codes
     from pydicom.data import get_testdata_file
 
     import highdicom as hd
 
     # Load an enhanced (multiframe) CT image
-    source_dcm = dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+    source_image = hd.imread(get_testdata_file('eCT_Supplemental.dcm'))
 
-    # Apply some basic processing to correctly scale the source images
-    pixel_xform_seq = source_dcm.SharedFunctionalGroupsSequence[0]\
-        .PixelValueTransformationSequence[0]
-    slope = pixel_xform_seq.RescaleSlope
-    intercept = pixel_xform_seq.RescaleIntercept
-    image_array = source_dcm.pixel_array * slope + intercept
+    # Stack all the frames of the image
+    image_array = np.stack(
+        [
+            source_image.get_frame(i + 1)
+            for i in range(source_image.number_of_frames)
+        ]
+    )
 
     # Create a segmentation by thresholding the CT image at 0 HU
     mask = image_array > 0
@@ -339,7 +378,7 @@ DICOM frame indices start at 1).
 
     # Construct the Segmentation Image
     seg = hd.seg.Segmentation(
-        source_images=[source_dcm],
+        source_images=[source_image],
         pixel_array=mask,
         segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
         segment_descriptions=[liver_description],
@@ -365,30 +404,38 @@ ordered consecutively by their ``segment_number``, starting with
 
 The second change is to include the segmentation mask of each segment within
 the ``pixel_array`` passed to the constructor. There are two methods of doing
-this.  The first is to stack the masks for the multiple segments down axis 3
-(the fourth axis) of the ``pixel_array``. The shape of the resulting
-``pixel_array`` with *F* source frames of height *H* and width *W*, with *S*
-segments, is then (*F* x *H* x *W* x *S*). The segmentation mask for the segment
-with ``segment_number=i`` should be found at ``pixel_array[:, :, :, i - 1]``
-(the offset of -1 is because segments are numbered starting at 1 but numpy
-array indexing starts at 0).
+this.  The first (the "stacked segments" form) is to stack the masks for the
+multiple segments down axis 3 (the fourth axis) of the ``pixel_array``. The
+shape of the resulting ``pixel_array`` with *F* source frames of height *H* and
+width *W*, with *S* segments, is then (*F* x *H* x *W* x *S*). The segmentation
+mask for the segment with ``segment_number=i`` should be found at
+``pixel_array[:, :, :, i - 1]`` (the offset of -1 is because segments are
+numbered starting at 1 but numpy array indexing starts at 0).
 
 Note that when multiple segments are used, the first dimension (*F*) must
 always be present even if there is a single source frame.
 
 .. code-block:: python
 
+   import numpy as np
+
+   from pydicom.sr.codedict import codes
+   from pydicom.data import get_testdata_files
+
+   import highdicom as hd
+
     # Load a series of CT images as a list of pydicom.Datasets
     source_images = [
-        dcmread(f) for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+        hd.imread(f) for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
     ]
 
-    # Sort source frames by instance number
-    source_images = sorted(source_images, key=lambda x: x.InstanceNumber)
-    image_array = np.stack([
-        im.pixel_array * im.RescaleSlope + im.RescaleIntercept
-        for im in source_images
-    ], axis=0)
+    # Sort source frames spatially
+    source_images = hd.spatial.sort_datasets(source_images)
+    image_array = np.stack(
+        [
+            im.get_frame(1) for im in source_images
+        ]
+    )
 
     # Create a segmentation by thresholding the CT image at 1000 HU
     thresholded_0 = image_array > 1000
@@ -437,15 +484,7 @@ The second way to pass segmentation masks for multiple labels is as a "label
 map". A label map is a 3D array (or 2D in the case of a single frame) in which
 each pixel's value determines which segment it belongs to, i.e. a pixel with
 value 1 belongs to segment 1 (which is the first item in the
-``segment_descriptions``). A pixel with value 0 belongs to no segments. The
-label map form is more convenient to work with in many applications, however it
-is limited to representing segmentations that do not overlap (i.e. those in
-which a single pixel can belong to at most one segment). The more general form
-does not have this limitation: a given pixel may belong to any number of
-segments. Note that passing a "label map" is purely a convenience provided by
-`highdicom`, it makes no difference to how the segmentation is actually stored
-(`highdicom` splits the label map into multiple single-segment frames and
-stores these, as required by the standard).
+``segment_descriptions``). A pixel with value 0 belongs to no segments.
 
 Therefore, the following snippet produces an equivalent SEG image to the
 previous snippet, but passes the mask as a label map rather than as a stack of
@@ -453,17 +492,25 @@ segments.
 
 .. code-block:: python
 
-    # Load a CT image
+   import numpy as np
+
+   from pydicom.sr.codedict import codes
+   from pydicom.data import get_testdata_files
+
+   import highdicom as hd
+
+    # Load a series of CT images as a list of pydicom.Datasets
     source_images = [
-        dcmread(f) for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+        hd.imread(f) for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
     ]
 
-    # Sort source frames by instance number
-    source_images = sorted(source_images, key=lambda x: x.InstanceNumber)
-    image_array = np.stack([
-        im.pixel_array * im.RescaleSlope + im.RescaleIntercept
-        for im in source_images
-    ], axis=0)
+    # Sort source frames spatially
+    source_images = hd.spatial.sort_datasets(source_images)
+    image_array = np.stack(
+        [
+            im.get_frame(1) for im in source_images
+        ]
+    )
 
     # Create the same two segments as above as a label map
     mask = np.zeros_like(image_array, np.uint8)
@@ -482,6 +529,190 @@ segments.
         instance_number=1,
         manufacturer='Foo Corp.',
         manufacturer_model_name='Multi-Organ Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+    )
+
+These two forms for the ``pixel_array`` argument ("stacked segments" and "label
+map") correspond to the way pixels are stored in segmentations with
+``"BINARY"`` and ``"LABELMAP"`` segmentation types, respectively. However, it
+is important to understand that the form you provide to the constructor and the
+segmentation type used to store it are separate (and largely decoupled)
+considerations. *Highdicom* infers which of the two forms you are passing to it
+according to the number of dimensions in the ``pixel_array`` (4 dimensions for
+"stacked segment" form and 3 for "label map" form), and stores the segmentation
+according to the value you provide for ``segmentation_type``. If the two do not
+match, *highdicom* will transparently convert between the two forms for you. As
+a result, you can provide an array in "label map" form and request that it be
+stored as a ``"BINARY"`` segmentation with separate segments. Similarly, you
+can provide an array in "stacked segments" form and request that it be stored
+with segmentation type ``"LABELMAP"``. However in this latter case the segments
+must not overlap or an error will be raised. Similarly, segmentations that do
+contain overlapping segments can only be passed in "stacked segment" form, and
+can only be stored using the ``"BINARY"`` segmentation type.
+
+Spatially Non-aligned SEG Images
+--------------------------------
+
+In the simple cases we have seen so far, the geometry of the segmentation
+``pixel_array`` has matched that of the source images, i.e. there is a spatial
+correspondence between a given pixel in the ``pixel_array`` and the
+corresponding pixel in the relevant source frame. While this covers most use
+cases, DICOM SEGs actually allow for more general segmentations in which there
+is a more complicated geometrical relationship between the source frames and
+the segmentation masks. This could arise when a source image is resampled or
+transformed before the segmentation method is applied, such that there is no
+longer a simple correspondence between pixels in the segmentation mask and
+pixels in the original source DICOM image.
+
+`Highdicom` supports such cases in two ways. The first, possible when the
+segmentation array is defined on a regularly-sampled 3D grid, is to pass the
+segmentation array as an instance of the :class:`highdicom.Volume` class
+instead of a plain NumPy array. (see :doc:`volume` for an overview of volumes).
+Since the :class:`highdicom.Volume` class specifies its position within the
+frame of reference coordinate system, the position of each plane can be
+inferred automatically. The volume can have an arbitrary size, spacing, and
+orientation and these properties do not need to match those of the source
+images. Just like a standard NumPy array, the volume can be either in the
+"label map" form, where each pixel values specifies segment membership, or
+"stacked segment" form, with a further array dimension along which binary
+segments are stacked. In the "label map" case the volume must have no channel
+dimensions. In the "stacked segments" case, the volume must have exactly one
+channel dimension with the descriptor being the "SegmentNumber" tag.
+
+.. code-block:: python
+
+    import numpy as np
+
+    from pydicom.sr.codedict import codes
+    from pydicom.data import get_testdata_files
+
+    import highdicom as hd
+
+    # Load a series of CT images
+    source_images = [
+        hd.imread(f)
+        for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+    ]
+
+    # Now the shape and size of the mask does not have to match the source
+    # images
+    mask = np.zeros((2, 100, 100), np.uint8)
+    mask[0, 50:60, 50:60] = 1
+
+    volume = hd.Volume.from_components(
+        array=mask,
+        spacing=[1.25, 1.25, 5.0],
+        direction=np.eye(3),
+        position=[10.0, 20.0, 30.0],
+        frame_of_reference_uid=source_images[0].FrameOfReferenceUID,
+        coordinate_system=hd.CoordinateSystemNames.PATIENT,
+    )
+
+    # Description of liver segment produced by a manual algorithm
+    liver_description = hd.seg.SegmentDescription(
+        segment_number=1,
+        segment_label='liver',
+        segmented_property_category=codes.SCT.Organ,
+        segmented_property_type=codes.SCT.Liver,
+        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+    )
+
+    # Construct the Segmentation Image
+    seg = hd.seg.Segmentation(
+        source_images=source_images,
+        pixel_array=volume,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions=[liver_description],
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Liver Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+    )
+
+The second way to specify a segmentation that does not align spatially with the
+source images is by manually specifying the plane positions of the each frame
+in the segmentation mask, and also the orientations and pixel spacings of these
+planes if they do not match that in the source images. This is more flexible
+but less convenient than using the ``Volumes`` class. In this case, the
+correspondence between the items of the ``source_images`` list and axis 0 of
+the segmentation ``pixel_array`` is broken and the number of frames in each may
+differ.
+
+.. code-block:: python
+
+    import numpy as np
+
+    from pydicom.sr.codedict import codes
+    from pydicom.data import get_testdata_files
+
+    import highdicom as hd
+
+    # Load a CT image
+    source_images = [
+        hd.imread(f)
+        for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+    ]
+
+    # Sort source frames spatially
+    source_images = hd.spatial.sort_datasets(source_images)
+
+    # Now the shape and size of the mask does not have to match the source
+    # images
+    mask = np.zeros((2, 100, 100), np.uint8)
+    mask[0, 50:60, 50:60] = 1
+
+    # Define custom positions for each frame
+    positions = [
+        hd.PlanePositionSequence(
+            hd.CoordinateSystemNames.PATIENT,
+            [100.0, 50.0, -50.0]
+        ),
+        hd.PlanePositionSequence(
+            hd.CoordinateSystemNames.PATIENT,
+            [100.0, 50.0, -48.0]
+        ),
+    ]
+
+    # Define a custom orientation and spacing for the segmentation mask
+    orientation = hd.PlaneOrientationSequence(
+        hd.CoordinateSystemNames.PATIENT,
+        [0.0, 1.0, 0.0, -1.0, 0.0, 0.0]
+    )
+    spacings = hd.PixelMeasuresSequence(
+        slice_thickness=2.0,
+        pixel_spacing=[2.0, 2.0]
+    )
+
+    # Description of liver segment produced by a manual algorithm
+    # Note that now there are multiple frames but still only a single segment
+    liver_description = hd.seg.SegmentDescription(
+        segment_number=1,
+        segment_label='liver',
+        segmented_property_category=codes.SCT.Organ,
+        segmented_property_type=codes.SCT.Liver,
+        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+    )
+
+    # Construct the Segmentation Image
+    seg = hd.seg.Segmentation(
+        source_images=source_images,
+        pixel_array=mask,
+        plane_positions=positions,
+        plane_orientation=orientation,
+        pixel_measures=spacings,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions=[liver_description],
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Liver Segmentation Algorithm',
         software_versions='0.0.1',
         device_serial_number='1234567890',
     )
@@ -521,7 +752,7 @@ options are available to you.
 
     # Use an example slide microscopy image from the highdicom test data
     # directory
-    sm_image = dcmread('data/test_files/sm_image.dcm')
+    sm_image = hd.imread('data/test_files/sm_image.dcm')
 
     # The source image has multiple frames/tiles, but here we create a mask
     # corresponding to the entire total pixel matrix
@@ -668,13 +899,12 @@ series at user-specified downsample factors.
 .. code-block:: python
 
     import highdicom as hd
-    from pydicom import dcmread
     import numpy as np
 
 
     # Use an example slide microscopy image from the highdicom test data
     # directory
-    sm_image = dcmread('data/test_files/sm_image.dcm')
+    sm_image = hd.imread('data/test_files/sm_image.dcm')
 
     # The source image has multiple frames/tiles, but here we create a mask
     # corresponding to the entire total pixel matrix
@@ -743,9 +973,9 @@ Similarly, *highdicom* will rescale stored values back down to the range 0-1 by
 default in its methods for retrieving pixel arrays (more on this below).
 
 Otherwise, constructing ``"FRACTIONAL"`` segs is identical to constructing
-binary ones ``"BINARY"``, with the limitation that fractional SEGs may not use
-the "label map" method to pass multiple segments but must instead stack them
-along axis 3.
+``"BINARY"``/``"LABELMAP"`` ones, with the limitation that fractional SEGs may
+not use the "label map" form to pass multiple segments but must instead stack
+them along axis 3.
 
 The example below shows a simple example of constructing a fractional seg
 representing a probabilistic segmentation of the liver.
@@ -754,14 +984,13 @@ representing a probabilistic segmentation of the liver.
 
     import numpy as np
 
-    from pydicom import dcmread
     from pydicom.sr.codedict import codes
     from pydicom.data import get_testdata_file
 
     import highdicom as hd
 
     # Load a CT image
-    source_image = dcmread(get_testdata_file('CT_small.dcm'))
+    source_image = hd.imread(get_testdata_file('CT_small.dcm'))
 
     # Description of liver segment produced by a manual algorithm
     liver_description = hd.seg.SegmentDescription(
@@ -797,21 +1026,28 @@ representing a probabilistic segmentation of the liver.
 Implicit Conversion to Fractional
 ---------------------------------
 
-Note that any segmentation pixel array that `highdicom` allows you to store as a
-``"BINARY"`` SEG (i.e. a binary segmentation with segments stacked down axis 3,
-or a label-map style segmentation) may also be stored as a ``"FRACTIONAL"``
-SEG. You just pass the integer array, specify the ``segmentaton_type`` as
-``"FRACTIONAL"`` and `highdicom` does the conversion for you. Input pixels
-with value 1 will be automatically stored with value ``max_fractional_value``.
-We recommend that if you do this, you specify ``max_fractional_value=1`` to
-clearly communicate that the segmentation is inherently binary in nature.
+Note that any segmentation pixel array that `highdicom` allows you to store as
+a ``"BINARY"``/``"LABELMAP"`` SEG (i.e. a binary segmentation array with
+segments stacked down axis 3, or a label-map style segmentation array) may also
+be stored as a ``"FRACTIONAL"`` SEG. You just pass the integer array, specify
+the ``segmentaton_type`` as ``"FRACTIONAL"`` and `highdicom` does the
+conversion for you. Input pixels with value 1 will be automatically stored with
+value ``max_fractional_value``. We recommend that if you do this, you specify
+``max_fractional_value=1`` to clearly communicate that the segmentation is
+inherently binary in nature.
 
 Why would you want to make this seemingly rather strange choice? Well,
-``"FRACTIONAL"`` SEGs tend to compress better than ``"BINARY"`` ones (see next
-section). Note however, that this is arguably an misuse of the intent of the
-standard, so *caveat emptor*. Also note that while this used to be a more
-serious issue it is less serious now that ``"JPEG2000Lossless"`` compression is
-now supported for ``"BINARY"`` segmentations as of highdicom v0.23.0.
+``"FRACTIONAL"`` SEGs tend to compress much better than ``"BINARY"`` ones (see
+next section) and be more widely supported than ``"LABELMAP"`` ones. Note
+however, that this is a misuse of the intent of the standard, so this is
+strongly discouraged in all but controlled internal research/development
+settings. Since the introduction of ``"LABELMAP"`` segmentations in highdicom
+0.24.0, they should be always be preferred unless the segmentations are truly
+fractional in nature.
+
+Also note that while this used to be a more serious issue it is less serious
+now that ``"JPEG2000Lossless"`` compression is now supported for ``"BINARY"``
+segmentations as of highdicom v0.23.0.
 
 Compression
 -----------
@@ -827,22 +1063,27 @@ will be padded with zeroes of there are no further frames. This means that
 retrieving individual frames from segmentation images in which each frame size
 is not divisible by 8 becomes problematic. For this reason, as well as for
 space efficiency (sparse segmentations tend to compress very well), we
-therefore strongly recommend using ``"JPEG2000Lossless"`` compression with
-``"BINARY"`` segmentations. This is the only compression method currently
-supported for ``"BINARY"`` segmentations. However, beware that reading these
-single-bit JPEG 2000 images may not be supported by all other tools and
-viewers.
+recommend favoring ``"LABELMAP"`` segmentations where this is possible, or
+using ``"JPEG2000Lossless"`` compression with ``"BINARY"`` segmentations if it
+is not. This is the only compression method currently supported for
+``"BINARY"`` segmentations. However, beware that reading these single-bit JPEG
+2000 images may not be supported by all other tools and viewers.
 
-Pixels in ``"FRACTIONAL"`` segmentation images may be compressed using one of
+Pixels in ``"LABELMAP"``/``"FRACTIONAL"`` segmentation images may be compressed using one of
 the lossless compression methods available within DICOM. Currently *highdicom*
 supports the following compressed transfer syntaxes when creating
-``"FRACTIONAL"`` segmentation images: ``"RLELossless"``,
+``"LABELMAP"``/``"FRACTIONAL"``  segmentation images: ``"RLELossless"``,
 ``"JPEG2000Lossless"``, and ``"JPEGLSLossless"``.
+
+In our experience, ``"JPEG2000Lossless"`` offers excellent compression and is
+well supported by other tools, but is also somewhat slow. ``"JPEGLSLossless"``
+gives much better compression and decomression times for similar or slightly
+worse compression rates, but is also less widely supported.
 
 Multiprocessing
 ---------------
 
-When creating large, multiframe ``"FRACTIONAL"`` segmentations using a
+When creating large, multiframe segmentations using a
 compressed transfer syntax, the time taken to compress the frames can become
 large and dominate the time taken to create the segmentation. By default,
 frames are compressed in series using the main process, however the ``workers``
@@ -853,101 +1094,6 @@ likely to result in significantly lower creations times for segmentations with
 a very large number of frames, for segmentations with only a few frames the
 additional overhead of spawning processes may in fact slow the entire
 segmentation creation process down.
-
-Geometry of SEG Images
-----------------------
-
-In the simple cases we have seen so far, the geometry of the segmentation
-``pixel_array`` has matched that of the source images, i.e. there is a spatial
-correspondence between a given pixel in the ``pixel_array`` and the
-corresponding pixel in the relevant source frame. While this covers most use
-cases, DICOM SEGs actually allow for more general segmentations in which there
-is a more complicated geometrical relationship between the source frames and
-the segmentation masks. This could arise when a source image is resampled or
-transformed before the segmentation method is applied, such that there is no
-longer a simple correspondence between pixels in the segmentation mask and
-pixels in the original source DICOM image.
-
-`Highdicom` supports this case by allowing you to manually specify the plane
-positions of the each frame in the segmentation mask, and further the
-orientations and pixel spacings of these planes if they do not match that in the
-source images. In this case, the correspondence between the items of the
-``source_images`` list and axis 0 of the segmentation ``pixel_array`` is broken
-and the number of frames in each may differ.
-
-.. code-block:: python
-
-    import numpy as np
-
-    from pydicom import dcmread
-    from pydicom.sr.codedict import codes
-    from pydicom.data import get_testdata_files
-
-    import highdicom as hd
-
-    # Load a CT image
-    source_images = [
-        dcmread(f) for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
-    ]
-
-    # Sort source frames by instance number
-    source_images = sorted(source_images, key=lambda x: x.InstanceNumber)
-
-    # Now the shape and size of the mask does not have to match the source
-    # images
-    mask = np.zeros((2, 100, 100), np.uint8)
-    mask[0, 50:60, 50:60] = 1
-
-    # Define custom positions for each frame
-    positions = [
-        hd.PlanePositionSequence(
-            hd.CoordinateSystemNames.PATIENT,
-            [100.0, 50.0, -50.0]
-        ),
-        hd.PlanePositionSequence(
-            hd.CoordinateSystemNames.PATIENT,
-            [100.0, 50.0, -48.0]
-        ),
-    ]
-
-    # Define a custom orientation and spacing for the segmentation mask
-    orientation = hd.PlaneOrientationSequence(
-        hd.CoordinateSystemNames.PATIENT,
-        [0.0, 1.0, 0.0, -1.0, 0.0, 0.0]
-    )
-    spacings = hd.PixelMeasuresSequence(
-        slice_thickness=2.0,
-        pixel_spacing=[2.0, 2.0]
-    )
-
-    # Description of liver segment produced by a manual algorithm
-    # Note that now there are multiple frames but still only a single segment
-    liver_description = hd.seg.SegmentDescription(
-        segment_number=1,
-        segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
-        segmented_property_type=codes.SCT.Liver,
-        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
-    )
-
-    # Construct the Segmentation Image
-    seg = hd.seg.Segmentation(
-        source_images=source_images,
-        pixel_array=mask,
-        plane_positions=positions,
-        plane_orientation=orientation,
-        pixel_measures=spacings,
-        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
-        segment_descriptions=[liver_description],
-        series_instance_uid=hd.UID(),
-        series_number=1,
-        sop_instance_uid=hd.UID(),
-        instance_number=1,
-        manufacturer='Foo Corp.',
-        manufacturer_model_name='Liver Segmentation Algorithm',
-        software_versions='0.0.1',
-        device_serial_number='1234567890',
-    )
 
 Organization of Frames in SEGs
 ------------------------------
@@ -1108,20 +1254,25 @@ single-frame instances, while
 the segmentation is derived from a single multiframe source instance.
 
 When reconstructing a segmentation mask using
-:meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()`, the user must
-provide a list of SOP Instance UIDs of the source images for which the
+:meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()`, the user
+must provide a list of SOP Instance UIDs of the source images for which the
 segmentation mask should be constructed. Whatever order is chosen here will be
 used to order the frames of the output segmentation mask, so it is up to the
 user to sort them according to their needs. The default behavior is that the
 output pixel array is of shape (*F* x *H* x *W* x *S*), where *F* is the number
 of source instance UIDs, *H* and *W* are the height and width of the frames,
 and *S* is the number of segments included in the segmentation. In this way,
-the output of this method matches the input `pixel_array` to the constructor
-that would create the SEG object if it were created with `highdicom`.
+the output of this method matches the "stacked segments" format `pixel_array`
+to the constructor that would create the SEG object if it were created with
+`highdicom`. This behavior is consistent for segmentations stored with
+``"BINARY"`` and ``"LABELMAP"`` segmentation types, even though the underlying
+format in which the arrays are stored differs. In the case of ``"LABELMAP"``
+segmentations, this means that *highdicom* actually splits apart the different
+segments from the stored labelmap.
 
 The following example (and those in later sections) use DICOM files from the
-`highdicom` test data, which may be found in the 
-`highdicom repository <https://github.com/herrmannlab/highdicom/tree/master/data/test_files>`_
+`highdicom` test data, which may be found in the
+`highdicom repository <https://github.com/ImagingDataCommons/highdicom/tree/master/data/test_files>`_
 on GitHub.
 
 .. code-block:: python
@@ -1243,10 +1394,17 @@ overlap, `highdicom` will raise a ``RuntimeError``. Alternatively, if you
 specify the ``skip_overlap_checks`` parameter as ``True``, no error will be
 raised and each pixel will be given the value of the highest segment number of
 those present in the pixel (or the highest segment value after relabelling has
-been applied if you pass ``relabel=True``, see below). Note that combining
-segments is only possible when the segmentation type is ``"BINARY"``, or the
-segmentation type is ``"FRACTIONAL"`` but the only two values are actually
-present in the image.
+been applied if you pass ``relabel=True``, see below).
+
+Note that combining segments is only possible when either:
+
+* The segmentation type is ``"LABELMAP"`` or ``"BINARY"``
+* The segmentation type is ``"FRACTIONAL"`` but the only two values are actually
+  present in the image.
+
+For ``"LABELMAP"`` segmentations, using the ``combine_segments`` option is
+actually just returning the stored frames, and will therefore be more effcient
+that the default behavior.
 
 Here, we repeat the above example but request the output as a label map:
 
@@ -1347,6 +1505,34 @@ as stored in the SEG will be returned.
 
     print(np.unique(pixels))
     # [0.        0.2509804 0.5019608]
+
+Reconstructing Volumes
+----------------------
+
+If the segmentation is defined on a regularly-sampled 3D grid (possibly with
+omittted frames, tiled frames, and/or multiple segments), the
+:meth:`highdicom.seg.Segmentation.get_volume()` method may be used to create a
+:class:`highdicom.Volume` from its frames. The options we have already seen
+(``segment_numbers``, combine_segments``, ``relabel``, ``rescale_fractional``)
+are also available here.
+
+.. code-block:: python
+
+    import highdicom as hd
+
+
+    # This is a test file in the highdicom git repository
+    seg = hd.seg.segread('data/test_files/seg_image_ct_binary.dcm')
+
+    vol = seg.get_volume(combine_segments=True)
+    print(vol.spatial_shape)
+    # (3, 16, 16)
+
+    print(vol.affine)
+    # [[   0.          0.          0.488281 -125.      ]
+    # [   0.          0.488281    0.       -128.100006]
+    # [  -1.25        0.          0.        105.519997]
+    # [   0.          0.          0.          1.      ]]
 
 
 Reconstructing Total Pixel Matrices from Tiled Segmentations

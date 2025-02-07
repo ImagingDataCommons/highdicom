@@ -10,4 +10,7 @@ parts of the library.
    :maxdepth: 2
    :caption: Contents:
 
+   image
+   pixel_transforms
+   volume
    coding

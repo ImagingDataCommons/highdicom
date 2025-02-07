@@ -7,6 +7,99 @@ This section gives simple examples of how to create various types of DICOM
 object with *highdicom*. See :doc:`iods` for more detail on the
 options available within each.
 
+.. _accessing-frames:
+
+Loading Images and Accessing Frames
+-----------------------------------
+
+Load an existing DICOM file and access an individual frame, with and without
+the value-of-interest (VOI) transform applied.
+
+.. code-block:: python
+
+    import highdicom as hd
+
+
+    # This is a test file in the highdicom git repository
+    im = hd.imread('data/test_files/dx_image.dcm')
+
+    # Get pixels with rescale/slope applied (default behavior)
+    # Note that in DICOM, frame numbers are 1-based
+    first_frame = im.get_frame(1)
+
+    # Get pixels with rescale/slope and VOI applied
+    first_frame = im.get_frame(1, apply_voi_transform=True)
+
+See :doc:`image` for an overview of the :class:`highdicom.Image` class and
+:doc:`pixel_transforms` for an overview of pixel transforms.
+
+Constructing Total Pixel Matrices
+---------------------------------
+
+Load an existing tiled digital pathology image in a DICOM file and access its
+total pixel matrix.
+
+.. code-block:: python
+
+    import highdicom as hd
+
+
+    # This is a test file in the highdicom git repository
+    im = hd.imread('data/test_files/sm_image.dcm')
+
+    # Returns a (50, 50, 3) numpy array of the total pixel matrix
+    total_pixel_matrix = im.get_total_pixel_matrix()
+
+
+See :doc:`image` for an overview of the :class:`highdicom.Image` class.
+
+Working with Volumes
+--------------------
+
+If a DICOM image contains frames that can be arranged into a regular 3D
+volumetric grid, a :class:`highdicom.Volume` object cn be created from it and
+used to preprocess an image.
+
+.. code-block:: python
+
+    import numpy as np
+    from pydicom.data import get_testdata_file
+
+    import highdicom as hd
+
+    # Load an enhanced (multiframe) CT image from the pydicom test files
+    im = hd.imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    # Get a Volume object
+    volume = im.get_volume()
+
+    # Access the volume's affine matrix and other properties
+    print(volume.affine)
+    # [[   0.          0.         -0.388672   99.5     ]
+    #  [  -0.          0.388672    0.       -301.5     ]
+    #  [  10.          0.          0.       -159.      ]
+    #  [   0.          0.          0.          1.      ]]
+
+    print(volume.spatial_shape)
+    # (2, 512, 512)
+
+    print(volume.spacing)
+    # (10.0, 0.388672, 0.388672)
+
+    print(volume.unit_vectors())
+    # (array([ 0., -0.,  1.]), array([0., 1., 0.]), array([-1.,  0.,  0.]))
+
+    # Ensure the volume is arranged in foot-posterior-left orientation
+    volume = volume.to_patient_orientation("FPL")
+
+    # Center-crop to a given shape
+    volume = volume.crop_to_spatial_shape((2, 224, 224))
+
+    # Access the numpy array
+    assert isinstance(volume.array, np.ndarray)
+
+See :doc:`volume` for an overview of the :class:`highdicom.Volume` class.
+
 .. _creating-seg:
 
 Creating Segmentation (SEG) images
@@ -22,7 +115,6 @@ Derive a Segmentation image from a series of single-frame Computed Tomography
     import highdicom as hd
     import numpy as np
     from pydicom.sr.codedict import codes
-    from pydicom.filereader import dcmread
 
     # Path to directory containing single-frame legacy CT Image instances
     # stored as PS3.10 files
@@ -30,7 +122,7 @@ Derive a Segmentation image from a series of single-frame Computed Tomography
     image_files = series_dir.glob('*.dcm')
 
     # Read CT Image data sets from PS3.10 files on disk
-    image_datasets = [dcmread(str(f)) for f in image_files]
+    image_datasets = [hd.imread(str(f)) for f in image_files]
 
     # Create a binary segmentation mask
     mask = np.zeros(
@@ -92,13 +184,12 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
     import highdicom as hd
     import numpy as np
     from pydicom.sr.codedict import codes
-    from pydicom.filereader import dcmread
 
     # Path to multi-frame SM image instance stored as PS3.10 file
     image_file = Path('/path/to/image/file')
 
     # Read SM Image data set from PS3.10 files on disk
-    image_dataset = dcmread(str(image_file))
+    image_dataset = hd.imread(str(image_file))
 
     # Create a binary segmentation mask
     mask = np.max(image_dataset.pixel_array, axis=3) > 1
@@ -223,7 +314,6 @@ image:
 
     import highdicom as hd
     import numpy as np
-    from pydicom.filereader import dcmread
     from pydicom.sr.codedict import codes
     from pydicom.uid import generate_uid
     from highdicom.sr.content import FindingSite
@@ -233,7 +323,7 @@ image:
     image_file = Path('/path/to/image/file')
 
     # Read CT Image data set from PS3.10 files on disk
-    image_dataset = dcmread(str(image_file))
+    image_dataset = hd.imread(str(image_file))
 
     # Describe the context of reported observations: the person that reported
     # the observations and the device that was used to make the observations
@@ -484,7 +574,6 @@ items in the content tree of any structured report documents:
     from pathlib import Path
 
     import highdicom as hd
-    from pydicom.filereader import dcmread
     from pydicom.sr.codedict import codes
 
     # Path to SR document instance stored as PS3.10 file
@@ -547,7 +636,6 @@ objects in microscopy images in a space-efficient way.
 
 .. code-block:: python
 
-    from pydicom import dcmread
     from pydicom.sr.codedict import codes
     from pydicom.sr.coding import Code
     import highdicom as hd
@@ -555,7 +643,7 @@ objects in microscopy images in a space-efficient way.
 
     # Load a slide microscopy image from the highdicom test data (if you have
     # cloned the highdicom git repo)
-    sm_image = dcmread('data/test_files/sm_image.dcm')
+    sm_image = hd.imread('data/test_files/sm_image.dcm')
 
     # Graphic data containing two nuclei, each represented by a single point
     # expressed in 2D image coordinates
@@ -620,14 +708,12 @@ measurements corresponding to those annotations.
 
 .. code-block:: python
 
-    from pydicom import dcmread
     from pydicom.sr.codedict import codes
     from pydicom.sr.coding import Code
     import highdicom as hd
 
     # Load a bulk annotation file and convert to highdicom object
-    ann_dataset = dcmread('data/test_files/sm_annotations.dcm')
-    ann = hd.ann.MicroscopyBulkSimpleAnnotations.from_dataset(ann_dataset)
+    ann_dataset = hd.ann.annread('data/test_files/sm_annotations.dcm')
 
     # Search for annotation groups by filtering for annotated property type of
     # 'nucleus', and take the first such group
@@ -682,18 +768,15 @@ labeled bounding box region drawn over a CT image.
 
     import highdicom as hd
     import numpy as np
-    from pydicom import dcmread
     from pydicom.uid import RLELossless
     from PIL import Image, ImageDraw
 
     # Read in the source CT image
-    image_dataset = dcmread('/path/to/image.dcm')
+    image_dataset = hd.imread('/path/to/image.dcm')
 
     # Create an image for display by windowing the original image and drawing a
     # bounding box over it using Pillow's ImageDraw module
-    slope = getattr(image_dataset, 'RescaleSlope', 1)
-    intercept = getattr(image_dataset, 'RescaleIntercept', 0)
-    original_image = image_dataset.pixel_array * slope + intercept
+    original_image = image_dataset.get_frame(1)
 
     # Window the image to a soft tissue window (center 40, width 400)
     # and rescale to the range 0 to 255
@@ -829,12 +912,11 @@ preferred for storing annotations for clinical or research purposes.
     import highdicom as hd
 
     import numpy as np
-    from pydicom import dcmread
     from pydicom.valuerep import PersonName
 
 
     # Read in an example CT image
-    image_dataset = dcmread('path/to/image.dcm')
+    image_dataset = hd.imread('path/to/image.dcm')
 
     # Create an annotation containing a polyline
     polyline = hd.pr.GraphicObject(
