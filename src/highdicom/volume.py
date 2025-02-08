@@ -1801,8 +1801,6 @@ class _VolumeBase(ABC):
         if requires_crop:
             new_volume = new_volume[tuple(crop_slices)]
 
-        breakpoint()
-
         return new_volume
 
 
