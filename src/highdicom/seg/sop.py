@@ -974,8 +974,10 @@ class Segmentation(_Image):
                             'orientation.'
                         )
 
-                    source_plane_orientation = deepcopy(
-                        src_sfg.PlaneOrientationSequence
+                    source_plane_orientation = (
+                        PlaneOrientationSequence.from_sequence(
+                            src_sfg.PlaneOrientationSequence
+                        )
                     )
                 else:
                     iop = src_img.ImageOrientationPatient
