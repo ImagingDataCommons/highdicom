@@ -170,7 +170,11 @@ def _check_numpy_value_representation(
 
 class Segmentation(_Image):
 
-    """SOP class for the Segmentation IOD."""
+    """SOP class for the Segmentation IOD.
+
+    See :doc:`seg` for an overview of working with Segmentations.
+
+    """
 
     def __init__(
         self,

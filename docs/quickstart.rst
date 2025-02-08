@@ -3,17 +3,19 @@
 Quick Start
 ===========
 
-This section gives simple examples of how to create various types of DICOM
-object with *highdicom*. See :doc:`iods` for more detail on the
-options available within each.
+This section gives simple examples of how to perform various tasks with
+*highdicom*.
 
 .. _accessing-frames:
 
 Loading Images and Accessing Frames
 -----------------------------------
 
-Load an existing DICOM file and access an individual frame, with and without
-the value-of-interest (VOI) transform applied.
+The :class:`highdicom.Image` class is used to work with general DICOM images,
+including accessing and arranging their frames.
+
+This basic example loads an existing DICOM file and accesses an individual frame,
+with and without the value-of-interest (VOI) transform applied.
 
 .. code-block:: python
 
@@ -36,7 +38,7 @@ See :doc:`image` for an overview of the :class:`highdicom.Image` class and
 Constructing Total Pixel Matrices
 ---------------------------------
 
-Load an existing tiled digital pathology image in a DICOM file and access its
+Load an existing tiled digital pathology image from a DICOM file and access its
 total pixel matrix.
 
 .. code-block:: python
@@ -57,7 +59,7 @@ Working with Volumes
 --------------------
 
 If a DICOM image contains frames that can be arranged into a regular 3D
-volumetric grid, a :class:`highdicom.Volume` object cn be created from it and
+volumetric grid, a :class:`highdicom.Volume` object can be created from it and
 used to preprocess an image.
 
 .. code-block:: python
@@ -106,7 +108,7 @@ Creating Segmentation (SEG) images
 ----------------------------------
 
 Derive a Segmentation image from a series of single-frame Computed Tomography
-(CT) images:
+(CT) images using the :class:`highdicom.seg.Segmentation` class:
 
 .. code-block:: python
 
@@ -694,7 +696,8 @@ objects in microscopy images in a space-efficient way.
 
     bulk_annotations.save_as('nuclei_annotations.dcm')
 
-For more information see :ref:`ann`.
+For more information see :ref:`ann` and the documentation of the
+:class:`highdicom.ann.MicroscopyBulkSimpleAnnotations` class.
 
 .. _parsing-ann:
 
@@ -776,14 +779,18 @@ labeled bounding box region drawn over a CT image.
 
     # Create an image for display by windowing the original image and drawing a
     # bounding box over it using Pillow's ImageDraw module
-    original_image = image_dataset.get_frame(1)
 
-    # Window the image to a soft tissue window (center 40, width 400)
-    # and rescale to the range 0 to 255
-    lower = -160
-    upper = 240
-    windowed_image = np.clip(original_image, lower, upper)
-    windowed_image = (windowed_image - lower) * 255 / (upper - lower)
+    # First get the original image with a soft tissue window (center 40, width 400)
+    # applied, rescaled to the range 0 to 255.
+    windowed_image = image_dataset.get_frame(
+        1,
+        apply_voi_transform=True,
+        voi_transform_selector=hd.VOILUTTransformation(
+            window_center=40,
+            window_width=400,
+        ),
+        voi_output_range=(0, 255),
+    )
     windowed_image = windowed_image.astype(np.uint8)
 
     # Create RGB channels
@@ -862,10 +869,12 @@ overlay a segmentation that is stored in a NumPy array called "seg_out".
 
         # Window the image to a soft tissue window (center 40, width 400)
         # and rescale to the range 0 to 255
-        lower = -160
-        upper = 240
-        windowed_image = np.clip(this_slice, lower, upper)
-        windowed_image = (windowed_image - lower) * 255 / (upper - lower)
+        windowed_image = hd.pixels.apply_voi_window(
+            this_slice,
+            window_center=40,
+            window_width=400,
+
+        )
 
         # Create RGB channels
         pixel_array = np.tile(windowed_image[:, :, np.newaxis], [1, 1, 3])

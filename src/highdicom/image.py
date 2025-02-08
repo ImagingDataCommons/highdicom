@@ -239,7 +239,7 @@ class _CombinedPixelTransform:
             transform will be applied if it is present and no real world value
             map takes precedence, but no error will be raised if it is not
             present.
-        voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
+        voi_transform_selector: int | str | highdicom.VOILUTTransformation, optional
             Specification of the VOI transform to select (multiple may be
             present). May either be an int or a str. If an int, it is
             interpreted as a (zero-based) index of the list of VOI transforms
@@ -253,7 +253,7 @@ class _CombinedPixelTransform:
             or no VOI transform is included in the datasets.
 
             Alternatively, a user-defined
-            :class:`highdicom.content.VOILUTTransformation` may be supplied.
+            :class:`highdicom.VOILUTTransformation` may be supplied.
             This will override any such transform specified in the dataset.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
@@ -306,7 +306,7 @@ class _CombinedPixelTransform:
         ):
             raise TypeError(
                 "Parameter 'voi_transform_selector' must have type 'int', "
-                "'str', or 'highdicom.content.VOILUTTransformation'."
+                "'str', or 'highdicom.VOILUTTransformation'."
             )
 
         self._color_type = _deduce_color_type(image)
@@ -1438,7 +1438,7 @@ class _Image(SOPClass):
             transform will be applied if it is present and no real world value
             map takes precedence, but no error will be raised if it is not
             present.
-        voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
+        voi_transform_selector: int | str | highdicom.VOILUTTransformation, optional
             Specification of the VOI transform to select (multiple may be
             present). May either be an int or a str. If an int, it is
             interpreted as a (zero-based) index of the list of VOI transforms
@@ -1452,7 +1452,7 @@ class _Image(SOPClass):
             or no VOI transform is included in the datasets.
 
             Alternatively, a user-defined
-            :class:`highdicom.content.VOILUTTransformation` may be supplied.
+            :class:`highdicom.VOILUTTransformation` may be supplied.
             This will override any such transform specified in the dataset.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
@@ -3202,7 +3202,7 @@ class _Image(SOPClass):
             transform will be applied if it is present and no real world value
             map takes precedence, but no error will be raised if it is not
             present.
-        voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
+        voi_transform_selector: int | str | highdicom.VOILUTTransformation, optional
             Specification of the VOI transform to select (multiple may be
             present). May either be an int or a str. If an int, it is
             interpreted as a (zero-based) index of the list of VOI transforms
@@ -3216,7 +3216,7 @@ class _Image(SOPClass):
             or no VOI transform is included in the datasets.
 
             Alternatively, a user-defined
-            :class:`highdicom.content.VOILUTTransformation` may be supplied.
+            :class:`highdicom.VOILUTTransformation` may be supplied.
             This will override any such transform specified in the dataset.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
@@ -4645,7 +4645,7 @@ class Image(_Image):
             transform will be applied if it is present and no real world value
             map takes precedence, but no error will be raised if it is not
             present.
-        voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
+        voi_transform_selector: int | str | highdicom.VOILUTTransformation, optional
             Specification of the VOI transform to select (multiple may be
             present). May either be an int or a str. If an int, it is
             interpreted as a (zero-based) index of the list of VOI transforms
@@ -4659,7 +4659,7 @@ class Image(_Image):
             or no VOI transform is included in the dataset.
 
             Alternatively, a user-defined
-            :class:`highdicom.content.VOILUTTransformation` may be supplied.
+            :class:`highdicom.VOILUTTransformation` may be supplied.
             This will override any such transform specified in the dataset.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
@@ -4962,7 +4962,7 @@ class Image(_Image):
             transform will be applied if it is present and no real world value
             map takes precedence, but no error will be raised if it is not
             present.
-        voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
+        voi_transform_selector: int | str | highdicom.VOILUTTransformation, optional
             Specification of the VOI transform to select (multiple may be
             present). May either be an int or a str. If an int, it is
             interpreted as a (zero-based) index of the list of VOI transforms
@@ -4976,7 +4976,7 @@ class Image(_Image):
             or no VOI transform is included in the datasets.
 
             Alternatively, a user-defined
-            :class:`highdicom.content.VOILUTTransformation` may be supplied.
+            :class:`highdicom.VOILUTTransformation` may be supplied.
             This will override any such transform specified in the dataset.
         voi_output_range: Tuple[float, float], optional
             Range of output values to which the VOI range is mapped. Only
@@ -5165,7 +5165,7 @@ def get_volume_from_series(
         transform will be applied if it is present and no real world value
         map takes precedence, but no error will be raised if it is not
         present.
-    voi_transform_selector: int | str | highdicom.content.VOILUTTransformation, optional
+    voi_transform_selector: int | str | highdicom.VOILUTTransformation, optional
         Specification of the VOI transform to select (multiple may be
         present). May either be an int or a str. If an int, it is
         interpreted as a (zero-based) index of the list of VOI transforms

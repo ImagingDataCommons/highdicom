@@ -36,7 +36,11 @@ from highdicom.valuerep import check_person_name, _check_code_string
 
 class MicroscopyBulkSimpleAnnotations(SOPClass):
 
-    """SOP class for the Microscopy Bulk Simple Annotations IOD."""
+    """SOP class for the Microscopy Bulk Simple Annotations IOD.
+
+    See :doc:`ann` for an overview of working with these objects.
+
+    """
 
     def __init__(
         self,

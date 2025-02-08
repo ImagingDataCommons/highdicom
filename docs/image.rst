@@ -120,7 +120,7 @@ prefer to use 0-based indexing, you can specify ``as_index=True``.
     first_frame = im.get_frame(0, as_index=True)
 
 These three methods process the raw pixel data "lazily" as needed to avoid
-processing unecessary frames. If you know that you are likely to access frames
+processing unnecessary frames. If you know that you are likely to access frames
 multiple times, you can force caching of the stored values by accessing the
 ``.pixel_array`` property (inherited from ``pydicom.Dataset``).
 

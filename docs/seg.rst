@@ -1403,7 +1403,7 @@ Note that combining segments is only possible when either:
   present in the image.
 
 For ``"LABELMAP"`` segmentations, using the ``combine_segments`` option is
-actually just returning the stored frames, and will therefore be more effcient
+actually just returning the stored frames, and will therefore be more efficient
 that the default behavior.
 
 Here, we repeat the above example but request the output as a label map:

@@ -411,7 +411,7 @@ spatial metadata in the output object is correct.
     # Load the input volume
     original_volume = im.get_volume()
 
-    # Manupulate the original volume to give a suitable input for the tool
+    # Manipulate the original volume to give a suitable input for the tool
     input_volume = (
         original_volume
         .to_patient_orientation("PRF")
