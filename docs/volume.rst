@@ -368,6 +368,189 @@ Patient orientations may be represented as strings or as tuples of the
 Channels
 --------
 
+In addition to the three spatial dimensions, a volume may have further
+non-spatial dimensions that are referred to as "channels". Channel dimensions
+are stacked after the spatial dimensions in the volume's pixel array. The
+meaning of each channel is explicitly described in the volume. Common uses for
+channels include RGB channels in color images, optical paths in microscopy
+images, or contrast phases in radiology images.
+
+The :class:`highdicom.ChannelDescriptor` class is used to describe the meaning
+of a single channel dimension. Where possible, it is recommended to use DICOM
+attributes to describe channels. A DICOM keyword or the corresponding tag value
+may be passed to the :class:`highdicom.ChannelDescriptor` constructor.
+
+When using a DICOM attribute, each channel of the volume is associated with a
+particular value for that attribute. For example, if the descriptor uses the
+"OpticalPathIdentifier" attribute, each channel will be associated with a
+string. Alternatively if an integer-valued attribute like "SegmentNumber" is
+used, each channel will be associated with an integer. We refer to this type as
+the descriptor's "value type".
+
+This code snippet creates channel descriptors using some DICOM attribute, and
+checks the corresponding value types:
+
+.. code-block:: python
+
+    import highdicom as hd
+
+
+    # Channel descriptor using the "OpticalPathIdentifier"
+    optical_path_descriptor = hd.ChannelDescriptor('OpticalPathIdentifier')
+
+    # Using the hexcode for the attribute is equivalent
+    optical_path_descriptor = hd.ChannelDescriptor(0x0048_0106)
+
+    # Channel descriptor using the "DiffusionBValue"
+    bvalue_descriptor = hd.ChannelDescriptor('DiffusionBValue')
+
+    # Check that the value types are as expected
+    print(optical_path_descriptor.value_type)
+    # <class 'str'>
+
+    print(bvalue_descriptor.value_type)
+    # <class 'float'>
+
+Alternatively, it is possible to define custom identifiers that do not use a
+DICOM attribute. In this case, you must specify the value type yourself. The
+value type must be either ``int``, ``str``, or ``float`` (or a sub-type of one
+of these types), or an enumerated type derived from the Python standard library
+``enum.Enum``.
+
+.. code-block:: python
+
+   from enum import Enum
+   import highdicom as hd
+
+   # A custom descriptor using integer values
+   custom_int_descriptor = hd.ChannelDescriptor(
+       'my_int_descriptor',
+       is_custom=True,
+       value_type=int,
+   )
+
+   # A custom descriptor using an enumerated type
+   class MyEnum(Enum):
+       VALUE1 = "VALUE1"
+       VALUE2 = "VALUE2"
+
+   custom_enum_descriptor = hd.ChannelDescriptor(
+       'my_enum_descriptor',
+       is_custom=True,
+       value_type=MyEnum,
+   )
+
+One very common channel descriptor that does not correspond to a DICOM
+attribute is RGB color channels. The enum :class:`highdicom.RGBColorChannels`
+is used as the value type for volumes with color channels, and the descriptor
+for this channel is provided as a constant in
+``highdicom.RGB_COLOR_CHANNEL_DESCRIPTOR``.
+
+To create a volume with channels, you must provide a dictionary that contains,
+for each channel dimension, the channel descriptor and the values of each
+channel along that dimension:
+
+.. code-block:: python
+
+    import numpy as np
+    import highdicom as hd
+
+    # Array with three spatial dimensions plus 3 color channels and 4 optical
+    # paths
+    array = np.random.randint(0, 10, size=(1, 50, 50, 3, 4))
+
+    # Names of the 4 optical paths
+    path_names = ['path1', 'path2', 'path3', 'path4']
+
+    vol = hd.Volume.from_components(
+        direction=np.eye(3),
+        center_position=[98.1, 78.4, 23.1],
+        spacing=[2.0, 0.5, 0.5],
+        coordinate_system="SLIDE",
+        array=array,
+        channels={
+            hd.RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B'],
+            'OpticalPathIdentifier': path_names
+        },
+    )
+
+    # The total shape of the volume includes the channel dimensions
+    assert vol.shape == (1, 50, 50, 3, 4)
+
+    # But the spatial shape excludes them
+    assert vol.spatial_shape == (1, 50, 50)
+
+    # The channel shape includes only the channel dimensions, not the spatial
+    # dimensions
+    assert vol.channel_shape == (3, 4)
+    assert vol.number_of_channel_dimensions == 2
+
+    # You can access the descriptors like this
+    assert vol.channel_descriptors == (
+        hd.RGB_COLOR_CHANNEL_DESCRIPTOR,
+        hd.ChannelDescriptor('OpticalPathIdentifier'),
+    )
+
+The order of the items in the dictionary is significant and must match the
+order of the channel dimensions in the array.
+
+For most purposes, a volume with channels can be treated just like one without.
+All spatial operations (including indexing) only alter the array along the
+spatial dimensions and leave the channel dimensions unchanged. A separate set
+of methods are used to alter the channel dimensions:
+
+* :meth:`highdicom.Volume.get_channel()`: Get a new volume containing just one
+  channel of the original volume for a given channel value.
+* :meth:`highdicom.Volume.get_channel_values()`: Get the channel values for a
+  given channel dimension.
+* :meth:`highdicom.Volume.permute_channel_axes()`: Permute the channels
+  dimensions to a given order specified by the descriptors.
+* :meth:`highdicom.Volume.permute_channel_axes_by_index()`: Permute the channel
+  dimensions to a given order specified by the channel dimension index.
+
+This snippet, using the same volume as above, demonstrates how to use these
+methods:
+
+.. code-block:: python
+
+    import numpy as np
+    import highdicom as hd
+
+    # Array with three spatial dimensions plus 3 color channels and 4 optical
+    # paths
+    array = np.random.randint(0, 10, size=(1, 50, 50, 3, 4))
+
+    # Names of the 4 optical paths
+    path_names = ['path1', 'path2', 'path3', 'path4']
+
+    vol = hd.Volume.from_components(
+        direction=np.eye(3),
+        center_position=[98.1, 78.4, 23.1],
+        spacing=[2.0, 0.5, 0.5],
+        coordinate_system="SLIDE",
+        array=array,
+        channels={
+            hd.RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B'],
+            'OpticalPathIdentifier': path_names
+        },
+    )
+
+    assert (
+        vol.get_channel_values('OpticalPathIdentifier') ==
+        path_names
+    )
+
+    # Get a new volume containing just optical path 'path2'
+    path_2_vol = vol.get_channel(OpticalPathIdentifier='path2')
+
+    # Swap the two channel axes by descriptor
+    permuted_vol = vol.permute_channel_axes(
+        ['OpticalPathIdentifier', 'RGBColorChannel']
+    )
+
+    # Swap the two channel axes by index
+    permuted_vol = vol.permute_channel_axes_by_index([1, 0])
+
 Full Example
 ------------
 
