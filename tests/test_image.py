@@ -1240,6 +1240,39 @@ def test_instantiation():
         Image()
 
 
+def test_get_frames():
+    f = get_testdata_file('eCT_Supplemental.dcm')
+    im = imread(f)
+    dcm = pydicom.dcmread(f)
+
+    all_frames = im.get_frames()
+    all_frames_reversed = im.get_frames([2, 1])
+    assert np.array_equal(all_frames, all_frames_reversed[::-1])
+
+    all_frames_reversed = im.get_frames(
+        (i for i in [1, 0]),  # generator rather than list
+        as_indices=True
+    )
+    assert np.array_equal(all_frames, all_frames_reversed[::-1])
+
+    all_stored_frames = im.get_stored_frames()
+    assert np.array_equal(all_stored_frames, dcm.pixel_array)
+    all_stored_frames_reversed = im.get_stored_frames([2, 1])
+    assert np.array_equal(
+        all_stored_frames,
+        all_stored_frames_reversed[::-1]
+    )
+
+    all_stored_frames_reversed = im.get_stored_frames(
+        (i for i in [1, 0]),  # generator rather than list
+        as_indices=True
+    )
+    assert np.array_equal(
+        all_stored_frames,
+        all_stored_frames_reversed[::-1]
+    )
+
+
 @pytest.mark.parametrize(
     'f,dependency',
     find_readable_images(),
@@ -1253,16 +1286,27 @@ def test_imread_all_test_files(f, dependency):
     im = imread(f)
     im_lazy = imread(f, lazy_frame_retrieval=True)
 
+    all_frames = im.get_frames()
+    all_frames_lazy = im_lazy.get_frames()
+    assert np.array_equal(all_frames, all_frames_lazy)
+
     # Check first frames match between lazy and normal
     frame = im.get_frame(1)
     frame_lazy = im_lazy.get_frame(1)
     assert np.array_equal(frame, frame_lazy)
+    assert np.array_equal(frame, all_frames[0])
+
+    frame_2 = im.get_frames([1])
+    assert np.array_equal(frame_2[0], frame)
 
     # If multiple frames, also check the last frame
     if im.number_of_frames > 1:
         frame = im.get_frame(im.number_of_frames)
         frame_lazy = im_lazy.get_frame(im.number_of_frames)
         assert np.array_equal(frame, frame_lazy)
+
+        frame_2 = im.get_frames([im.number_of_frames])
+        assert np.array_equal(frame_2[0], frame)
 
     # Skip segmentations as Image doesn't know how to handle segments as a
     # dimension

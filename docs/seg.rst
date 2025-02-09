@@ -345,8 +345,6 @@ segmentation type.
 
 .. code-block:: python
 
-    import numpy as np
-
     from pydicom.sr.codedict import codes
     from pydicom.data import get_testdata_file
 
@@ -355,13 +353,8 @@ segmentation type.
     # Load an enhanced (multiframe) CT image
     source_image = hd.imread(get_testdata_file('eCT_Supplemental.dcm'))
 
-    # Stack all the frames of the image
-    image_array = np.stack(
-        [
-            source_image.get_frame(i + 1)
-            for i in range(source_image.number_of_frames)
-        ]
-    )
+    # Get a stack of all the frames of the image
+    image_array = source_image.get_frames()
 
     # Create a segmentation by thresholding the CT image at 0 HU
     mask = image_array > 0

@@ -1353,6 +1353,96 @@ class _Image(SOPClass):
 
         return frame
 
+    def get_stored_frames(
+        self,
+        frame_numbers: Iterable[int] | None = None,
+        as_indices: bool = False,
+    ):
+        """Get a stack of frames of stored values.
+
+        Parameters
+        ----------
+        frame_numbers: Iterable[int] | None
+            Iterable yielding the frame numbers. The returned array will have
+            the specified frames stacked down the first dimension. Under the
+            default behavior, the frame numbers are interpreted as a 1-based
+            frame numbers (i.e. the first frame is numbered 1). This matches
+            the convention used within DICOM when referring to frames within an
+            image. To use 0-based indices instead (as is more common in
+            Python), use the `as_indices` parameter. If ``None``, all frames
+            are retrieved in the order they are stored in the image.
+        as_indices: bool
+            Interpret each item in the input `frame_numbers` as a 0-based
+            index, instead of the default behavior of interpreting them as
+            1-based frame numbers.
+
+        Returns
+        -------
+        numpy.ndarray
+            Numpy array of stored values. This will have shape (N, Rows,
+            Columns) for a grayscale image, or (N, Rows, Columns, 3) for a
+            color image, where ``N`` is the length of the input
+            ``frame_numbers`` (or the number of frames in the image if
+            ``frame_numbers`` is ``None``). The data type will depend on how
+            the pixels are stored in the file, and may be signed or unsigned
+            integers or float.
+
+        """  # noqa; E501
+        if frame_numbers is None:
+            if as_indices:
+                frame_numbers = range(0, self.number_of_frames)
+            else:
+                frame_numbers = range(1, self.number_of_frames + 1)
+
+        context_manager = (
+            self._file_reader
+            if self._file_reader is not None
+            else nullcontext()
+        )
+
+        output_frames = []
+        with context_manager:
+
+            # loop through output frames
+            for frame_number in frame_numbers:
+
+                frame_index = self._standardize_frame_index(
+                    frame_number,
+                    as_indices,
+                )
+                if self._pixel_array is None:
+                    raw_frame = self.get_raw_frame(
+                        frame_number,
+                        as_index=as_indices
+                    )
+                    frame = decode_frame(
+                        value=raw_frame,
+                        transfer_syntax_uid=self.transfer_syntax_uid,
+                        rows=self.Rows,
+                        columns=self.Columns,
+                        samples_per_pixel=self.SamplesPerPixel,
+                        bits_allocated=self.BitsAllocated,
+                        bits_stored=self.get(
+                            'BitsAllocated',
+                            self.BitsAllocated
+                        ),
+                        photometric_interpretation=(
+                            self.PhotometricInterpretation
+                        ),
+                        pixel_representation=self.PixelRepresentation,
+                        planar_configuration=self.get('PlanarConfiguration'),
+                        index=frame_index,
+                    )
+                else:
+                    if self.number_of_frames == 1:
+                        frame = self.pixel_array
+                    else:
+                        frame = self.pixel_array[frame_index]
+
+                output_frames.append(frame)
+
+        return np.stack(output_frames)
+
     def get_frame(
         self,
         frame_number: int,
@@ -1480,10 +1570,10 @@ class _Image(SOPClass):
         Returns
         -------
         numpy.ndarray
-            Numpy array of stored values. This will have shape (Rows, Columns)
-            for a grayscale image, or (Rows, Columns, 3) for a color image. The
-            data type will depend on how the pixels are stored in the file, and
-            may be signed or unsigned integers or float.
+            Numpy array of frame with pixel transforms applied. This will have
+            shape (Rows, Columns) for a grayscale image, or (Rows, Columns, 3)
+            for a color image. The data type is controlled by the ``dtype``
+            parameter.
 
         """  # noqa; E501
         frame_index = self._standardize_frame_index(frame_number, as_index)
@@ -1506,6 +1596,225 @@ class _Image(SOPClass):
         )
 
         return frame_transform(frame)
+
+    def get_frames(
+        self,
+        frame_numbers: Iterable[int] | None = None,
+        as_indices: bool = False,
+        *,
+        dtype: type | str | np.dtype = np.float64,
+        apply_real_world_transform: bool | None = None,
+        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
+        apply_modality_transform: bool | None = None,
+        apply_voi_transform: bool | None = False,
+        voi_transform_selector: int | str | VOILUTTransformation = 0,
+        voi_output_range: tuple[float, float] = (0.0, 1.0),
+        apply_presentation_lut: bool = True,
+        apply_palette_color_lut: bool | None = None,
+        apply_icc_profile: bool | None = None,
+    ):
+        """Get a stack of frames, with transforms applied.
+
+        This method retrieves frames of stored values and applies various
+        intensity transforms specified within the dataset to them, depending on
+        the options provided.
+
+        Parameters
+        ----------
+        frame_numbers: Iterable[int] | None
+            Iterable yielding the frame numbers. The returned array will have
+            the specified frames stacked down the first dimension. Under the
+            default behavior, the frame numbers are interpreted as a 1-based
+            frame numbers (i.e. the first frame is numbered 1). This matches
+            the convention used within DICOM when referring to frames within an
+            image. To use 0-based indices instead (as is more common in
+            Python), use the `as_indices` parameter. If ``None``, all frames
+            are retrieved in the order they are stored in the image.
+        as_indices: bool
+            Interpret each item in the input `frame_numbers` as a 0-based
+            index, instead of the default behavior of interpreting them as
+            1-based frame numbers.
+        dtype: Union[type, str, numpy.dtype],
+            Data type of the output array.
+        apply_real_world_transform: bool | None, optional
+            Whether to apply a real-world value map to the frame.
+            A real-world value maps converts stored pixel values to output
+            values with a real-world meaning, either using a LUT or a linear
+            slope and intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if present but no error will be raised if
+            it is not present.
+
+            Note that if the dataset contains both a modality LUT and a real
+            world value map, the real world value map will be applied
+            preferentially. This also implies that specifying both
+            ``apply_real_world_transform`` and ``apply_modality_transform`` to
+            True is not permitted.
+        real_world_value_map_selector: int | str | pydicom.sr.coding.Code | highdicom.sr.coding.CodedConcept, optional
+            Specification of the real world value map to use (multiple may be
+            present in the dataset). If an int, it is used to index the list of
+            available maps. A negative integer may be used to index from the
+            end of the list following standard Python indexing convention. If a
+            str, the string will be used to match the ``"LUTLabel"`` attribute
+            to select the map. If a ``pydicom.sr.coding.Code`` or
+            ``highdicom.sr.coding.CodedConcept``, this will be used to match
+            the units (contained in the ``"MeasurementUnitsCodeSequence"``
+            attribute).
+        apply_modality_transform: bool | None, optional
+            Whether to apply the modality transform (if present in the
+            dataset) to the frame. The modality transform maps stored pixel
+            values to output values, either using a LUT or rescale slope and
+            intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        apply_voi_transform: bool | None, optional
+            Apply the value-of-interest (VOI) transform (if present in the
+            dataset) which limits the range of pixel values to a particular
+            range of interest, using either a windowing operation or a LUT.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        voi_transform_selector: int | str | highdicom.VOILUTTransformation, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpreted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the
+            ``"WindowCenterWidthExplanation"`` or the ``"LUTExplanation"``
+            attributes to choose from multiple VOI transforms. Note that such
+            explanations are optional according to the standard and therefore
+            may not be present. Ignored if ``apply_voi_transform`` is ``False``
+            or no VOI transform is included in the datasets.
+
+            Alternatively, a user-defined
+            :class:`highdicom.VOILUTTransformation` may be supplied.
+            This will override any such transform specified in the dataset.
+        voi_output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped. Only
+            relevant if ``apply_voi_transform`` is True and a VOI transform is
+            present.
+        apply_palette_color_lut: bool | None, optional
+            Apply the palette color LUT, if present in the dataset. The palette
+            color LUT maps a single sample for each pixel stored in the dataset
+            to a 3 sample-per-pixel color image.
+        apply_presentation_lut: bool, optional
+            Apply the presentation LUT transform to invert the pixel values. If
+            the PresentationLUTShape is present with the value ``'INVERSE'``,
+            or the PresentationLUTShape is not present but the Photometric
+            Interpretation is MONOCHROME1, convert the range of the output
+            pixels corresponds to MONOCHROME2 (in which high values are
+            represent white and low values represent black). Ignored if
+            PhotometricInterpretation is not MONOCHROME1 and the
+            PresentationLUTShape is not present, or if a real world value
+            transform is applied.
+        apply_icc_profile: bool | None, optional
+            Whether colors should be corrected by applying an ICC
+            transform. Will only be performed if metadata contain an
+            ICC Profile.
+
+        Returns
+        -------
+        numpy.ndarray
+            Numpy array of frames with pixel transforms applied. This will have
+            shape (N, Rows, Columns) for a grayscale image, or (N, Rows,
+            Columns, 3) for a color image, where ``N`` is the length of the
+            input ``frame_numbers`` (or the number of frames in the image if
+            ``frame_numbers`` is ``None``). The data type is controlled by the
+            ``dtype`` parameter.
+
+        """  # noqa; E501
+        if frame_numbers is None:
+            if as_indices:
+                frame_numbers = range(0, self.number_of_frames)
+            else:
+                frame_numbers = range(1, self.number_of_frames + 1)
+
+        shared_frame_transform = _CombinedPixelTransform(
+            self,
+            apply_real_world_transform=apply_real_world_transform,
+            real_world_value_map_selector=real_world_value_map_selector,
+            apply_modality_transform=apply_modality_transform,
+            apply_voi_transform=apply_voi_transform,
+            voi_transform_selector=voi_transform_selector,
+            voi_output_range=voi_output_range,
+            apply_presentation_lut=apply_presentation_lut,
+            apply_palette_color_lut=apply_palette_color_lut,
+            apply_icc_profile=apply_icc_profile,
+            output_dtype=dtype,
+        )
+
+        context_manager = (
+            self._file_reader
+            if self._file_reader is not None
+            else nullcontext()
+        )
+
+        output_frames = []
+        with context_manager:
+
+            # loop through output frames
+            for frame_number in frame_numbers:
+
+                frame_index = self._standardize_frame_index(
+                    frame_number,
+                    as_indices,
+                )
+
+                if shared_frame_transform.applies_to_all_frames:
+                    frame_transform = shared_frame_transform
+                else:
+                    frame_transform = _CombinedPixelTransform(
+                        self,
+                        frame_index=frame_index,
+                        apply_real_world_transform=apply_real_world_transform,
+                        real_world_value_map_selector=real_world_value_map_selector,  # noqa: E501
+                        apply_modality_transform=apply_modality_transform,
+                        apply_voi_transform=apply_voi_transform,
+                        voi_transform_selector=voi_transform_selector,
+                        voi_output_range=voi_output_range,
+                        apply_presentation_lut=apply_presentation_lut,
+                        apply_palette_color_lut=apply_palette_color_lut,
+                        apply_icc_profile=apply_icc_profile,
+                        output_dtype=dtype,
+                    )
+
+                if self._pixel_array is None:
+                    if self._file_reader is not None:
+                        frame_bytes = self._file_reader.read_frame_raw(
+                            frame_index
+                        )
+                    else:
+                        frame_bytes = self.get_raw_frame(frame_index + 1)
+                    frame = frame_transform(frame_bytes, frame_index)
+                else:
+                    if self.pixel_array.ndim == 2:
+                        if frame_index == 0:
+                            frame = self.pixel_array
+                        else:
+                            raise IndexError(
+                                f'Index {frame_index} is out of bounds for '
+                                'an image with a single frame.'
+                            )
+                    else:
+                        frame = self.pixel_array[frame_index]
+                    frame = frame_transform(frame, frame_index)
+
+                output_frames.append(frame)
+
+        return np.stack(output_frames)
 
     @property
     def pixel_array(self):
@@ -1531,12 +1840,7 @@ class _Image(SOPClass):
                 if self.number_of_frames == 1:
                     pixel_array = self.get_stored_frame(1)
                 else:
-                    pixel_array = np.stack(
-                        [
-                            self.get_stored_frame(i, as_index=True)
-                            for i in range(self.number_of_frames)
-                        ]
-                    )
+                    pixel_array = self.get_stored_frames()
                 self._pixel_array = pixel_array
             else:
                 # pydicom will complain about missing PixelData even if
