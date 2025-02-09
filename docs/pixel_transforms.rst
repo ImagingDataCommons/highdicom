@@ -50,6 +50,7 @@ The :class:`highdicom.Image` class has several methods that return frames or
 arrangements of frames from a DICOM image:
 
 * :meth:`highdicom.Image.get_frame()`
+* :meth:`highdicom.Image.get_frames()`
 * :meth:`highdicom.Image.get_volume()`
 * :meth:`highdicom.Image.get_total_pixel_matrix()`
 

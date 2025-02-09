@@ -124,6 +124,17 @@ processing unnecessary frames. If you know that you are likely to access frames
 multiple times, you can force caching of the stored values by accessing the
 ``.pixel_array`` property (inherited from ``pydicom.Dataset``).
 
+Additionally, there are two methods for accessing multiple frames at a time:
+
+* :meth:`highdicom.Image.get_stored_frames()`: Returns a stack of multiple
+  stored frames. The first parameter is a list (or other iterable) of frame
+  numbers. If omitted, all frames are returned in the order they are stored in
+  the image.
+* :meth:`highdicom.Image.get_frames()`: Returns a stack of multiple
+  frames with pixel transforms applied. The first parameter is a list (or other
+  iterable) of frame numbers. If omitted, all frames are returned in the order
+  they are stored in the image.
+
 Accessing Total Pixel Matrices
 ------------------------------
 
