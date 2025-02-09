@@ -1952,6 +1952,58 @@ class TestSegmentation:
                 pp[0].ImagePositionPatient
             )
 
+    def test_construction_volume_multiframe(self):
+        # Construction with a multiiframe source image and non-spatially
+        # aligned volume
+        arr = np.zeros((50, 50, 10), np.uint8)
+        arr[40:45, 34:39, 2:9] = 1
+        volume = Volume(
+            arr,
+            np.eye(4),
+            coordinate_system="PATIENT",
+            frame_of_reference_uid=self._ct_multiframe.FrameOfReferenceUID,
+        )
+
+        instance = Segmentation(
+            [self._ct_multiframe],
+            volume,
+            SegmentationTypeValues.BINARY.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        assert np.array_equal(
+            instance.pixel_array,
+            arr,
+        )
+
+        self.check_dimension_index_vals(instance)
+        assert instance.DimensionOrganizationType == '3D'
+        shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.PixelMeasuresSequence) == 1
+        pm_item = shared_item.PixelMeasuresSequence[0]
+        assert pm_item.PixelSpacing == [1.0, 1.0]
+        assert pm_item.SliceThickness == 1.0
+        assert len(shared_item.PlaneOrientationSequence) == 1
+        po_item = shared_item.PlaneOrientationSequence[0]
+        assert po_item.ImageOrientationPatient == \
+            [0.0, 0.0, 1.0, 0.0, 1.0, 0.0]
+        for plane_item, pp in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            volume.get_plane_positions(),
+        ):
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                pp[0].ImagePositionPatient
+            )
+
     def test_construction_volume_channels(self):
         # Segmentation instance from a series of single-frame CT images
         # with empty frames kept in, as volume with channels

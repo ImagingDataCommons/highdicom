@@ -1097,14 +1097,14 @@ class _VolumeBase(ABC):
                 "Argument 'axes' should contain unique values."
             )
 
-        if set(axes) <= {0, 1, 2}:
+        if not set(axes) <= {0, 1, 2}:
             raise ValueError(
                 "Argument 'axes' should contain only 0, 1, and 2."
             )
 
         indices = np.random.permutation(axes).tolist()
         if len(indices) == 2:
-            missing_index = {0, 1, 2} - set(indices)
+            missing_index = list({0, 1, 2} - set(indices))[0]
             indices.insert(missing_index, missing_index)
 
         return self.permute_spatial_axes(indices)
@@ -1289,7 +1289,7 @@ class _VolumeBase(ABC):
                 "Argument 'axes' should contain unique values."
             )
 
-        if set(axes) <= {0, 1, 2}:
+        if not set(axes) <= {0, 1, 2}:
             raise ValueError(
                 "Argument 'axes' should contain only 0, 1, and 2."
             )
@@ -1692,9 +1692,9 @@ class _VolumeBase(ABC):
 
         permute_indices = []
         step_sizes = []
-        for u, s in zip(self.unit_vectors(), self.spacing):
+        for u, s in zip(other.unit_vectors(), other.spacing):
             for j, (v, t) in enumerate(
-                zip(other.unit_vectors(), other.spacing)
+                zip(self.unit_vectors(), self.spacing)
             ):
                 dot_product = u @ v
                 if (
@@ -1703,7 +1703,7 @@ class _VolumeBase(ABC):
                 ):
                     permute_indices.append(j)
 
-                    scale_factor = t / s
+                    scale_factor = s / t
                     step = int(np.round(scale_factor))
                     if abs(scale_factor - step) > tol:
                         raise RuntimeError(
@@ -1724,7 +1724,6 @@ class _VolumeBase(ABC):
         requires_permute = permute_indices != [0, 1, 2]
         if requires_permute:
             new_volume = self.permute_spatial_axes(permute_indices)
-            step_sizes = [step_sizes[i] for i in permute_indices]
         else:
             new_volume = self
 
@@ -2789,10 +2788,13 @@ class Volume(_VolumeBase):
         """
         new_affine = self._permute_affine(indices)
 
-        if self._array.ndim == 3:
-            new_array = np.transpose(self._array, indices)
-        else:
-            new_array = np.transpose(self._array, [*indices, 3])
+        new_array = np.transpose(
+            self._array,
+            [
+                *indices,
+                *[d + 3 for d in range(self.number_of_channel_dimensions)]
+            ]
+        )
 
         return self.__class__(
             array=new_array,
