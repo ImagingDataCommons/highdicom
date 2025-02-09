@@ -2,19 +2,25 @@ import numpy as np
 import pydicom
 from pydicom.sr.codedict import codes
 from pydicom.data import get_testdata_file
+from pydicom.datadict import tag_for_keyword
+from pydicom.tag import BaseTag
 import pytest
 
 from highdicom import (
     AlgorithmIdentificationSequence,
     ChannelDescriptor,
+    PadModes,
+    PlanePositionSequence,
+    PlaneOrientationSequence,
     Volume,
     VolumeGeometry,
     VolumeToVolumeTransformer,
     imread,
     get_volume_from_series,
     UID,
+    RGB_COLOR_CHANNEL_DESCRIPTOR,
 )
-from highdicom.enum import PatientOrientationValuesBiped
+from highdicom.enum import PadModes, PatientOrientationValuesBiped, RGBColorChannels
 from highdicom.seg import (
     Segmentation,
     SegmentDescription,
@@ -46,25 +52,48 @@ def read_ct_series_volume():
 
 def test_transforms():
     array = np.zeros((25, 50, 50))
+    orientation = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
     volume = Volume.from_attributes(
         array=array,
         image_position=[0.0, 0.0, 0.0],
-        image_orientation=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+        image_orientation=orientation,
         pixel_spacing=[1.0, 1.0],
         spacing_between_slices=10.0,
         coordinate_system="PATIENT",
     )
     plane_positions = volume.get_plane_positions()
     for i, pos in enumerate(plane_positions):
+        assert isinstance(pos, PlanePositionSequence)
         assert np.array_equal(
             pos[0].ImagePositionPatient,
             [0.0, 0.0, -10.0 * i]
         )
 
+        # Same thing but retrieve plane position individually
+        pos_2 = volume.get_plane_position(i)
+        assert isinstance(pos_2, PlanePositionSequence)
+        assert np.array_equal(
+            pos_2[0].ImagePositionPatient,
+            [0.0, 0.0, -10.0 * i]
+        )
+
+    ori = volume.get_plane_orientation()
+    assert isinstance(ori, PlaneOrientationSequence)
+    assert np.array_equal(
+        ori[0].ImageOrientationPatient,
+        orientation,
+    )
+
     indices = np.array([[1, 2, 3]])
     coords = volume.map_indices_to_reference(indices)
     assert np.array_equal(coords, np.array([[3.0, 2.0, -10.0]]))
     round_trip = volume.map_reference_to_indices(coords)
+    assert np.array_equal(round_trip, indices)
+    round_trip = volume.map_reference_to_indices(
+        coords,
+        check_bounds=True,
+        round_output=True,
+    )
     assert np.array_equal(round_trip, indices)
     index_center = volume.center_indices
     assert np.array_equal(index_center, [12.0, 24.5, 24.5])
@@ -73,6 +102,19 @@ def test_transforms():
     coord_center = volume.center_position
     assert np.array_equal(coord_center, [24.5, 24.5, -120])
 
+    ras_affine = volume.get_affine("RAH")
+    expected = np.array(
+        [
+            [0.0, 0.0, -1.0, 0.0],
+            [0.0, -1.0, 0.0, 0.0],
+            [-10.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ],
+    )
+    assert np.array_equal(ras_affine, expected)
+
+    geom = volume.get_geometry()
+    assert isinstance(geom, VolumeGeometry)
 
 @pytest.mark.parametrize(
     'image_position,image_orientation,pixel_spacing,spacing_between_slices',
@@ -129,6 +171,9 @@ def test_volume_from_attributes(
     assert volume.spatial_shape == (10, 10, 10)
     assert volume.channel_shape == ()
     assert volume.channel_descriptors == ()
+    assert volume.physical_extent == tuple(
+        [n * s for n, s in zip(volume.spatial_shape, volume.spacing)]
+    )
 
 
 def test_volume_from_components():
@@ -542,6 +587,10 @@ def test_geometry_from_attributes():
     assert geom.pixel_spacing == pixel_spacing
     assert geom.spatial_shape == (number_of_frames, rows, columns)
 
+    array = np.zeros((number_of_frames, rows, columns))
+    vol = geom.with_array(array)
+    assert isinstance(vol, Volume)
+
 
 def test_geometry_from_components():
 
@@ -826,6 +875,300 @@ def test_match_geometry_failure_rotation():
 
     with pytest.raises(RuntimeError):
         vol.match_geometry(geometry)
+
+
+def test_swap_axes():
+    vol, _ = read_multiframe_ct_volume()
+
+    swapped = vol.swap_spatial_axes(1, 2)
+    assert swapped.spatial_shape == (2, 512, 512)
+
+    u1, u2, u3 = vol.spacing_vectors()
+    v1, v2, v3 = swapped.spacing_vectors()
+
+    assert np.array_equal(u1, v1)
+    assert np.array_equal(u2, v3)
+    assert np.array_equal(u3, v2)
+
+
+def test_random_operations():
+    vol = Volume.from_components(
+        direction=np.eye(3),
+        center_position=[98.1, 78.4, 23.1],
+        spacing=[0.5, 0.5, 2.0],
+        coordinate_system="PATIENT",
+        array=np.random.randint(0, 10, size=(20, 20, 50)),
+    )
+
+    vol_2 = (
+        vol
+        .random_flip_spatial()
+        .random_permute_spatial_axes()
+        .random_spatial_crop([10, 10, 10])
+    )
+
+    matched = vol.match_geometry(vol_2)
+    assert np.allclose(matched.affine, vol_2.affine)
+    assert np.array_equal(matched.array, vol_2.array)
+
+
+def test_random_operations_subset_axes():
+    vol = Volume.from_components(
+        direction=np.eye(3),
+        center_position=[98.1, 78.4, 23.1],
+        spacing=[0.5, 0.5, 2.0],
+        coordinate_system="PATIENT",
+        array=np.random.randint(0, 10, size=(20, 20, 50)),
+    )
+
+    vol_2 = (
+        vol
+        .random_flip_spatial([0, 1])
+        .random_permute_spatial_axes([0, 1])
+        .random_spatial_crop([10, 10, 10])
+    )
+
+    matched = vol.match_geometry(vol_2)
+    assert np.allclose(matched.affine, vol_2.affine)
+    assert np.array_equal(matched.array, vol_2.array)
+
+
+def test_random_operations_geometry():
+    vol = VolumeGeometry.from_components(
+        direction=np.eye(3),
+        center_position=[98.1, 78.4, 23.1],
+        spacing=[0.5, 0.5, 2.0],
+        coordinate_system="PATIENT",
+        spatial_shape=[20, 20, 50],
+    )
+
+    vol_2 = (
+        vol
+        .random_flip_spatial()
+        .random_permute_spatial_axes()
+        .random_spatial_crop([10, 10, 10])
+    )
+
+    matched = vol.match_geometry(vol_2)
+    assert np.allclose(matched.affine, vol_2.affine)
+
+
+@pytest.mark.parametrize('mode', list(PadModes))
+def test_pad(mode):
+    vol = Volume.from_components(
+        direction=np.eye(3),
+        center_position=[98.1, 78.4, 23.1],
+        spacing=[0.5, 0.5, 2.0],
+        coordinate_system="PATIENT",
+        array=np.random.randint(0, 10, size=(20, 20, 50)),
+    )
+
+    padded = vol.pad(10, mode=mode)
+    assert padded.spatial_shape == (40, 40, 70)
+
+    padded = vol.pad([5, 10], mode=mode)
+    assert padded.spatial_shape == (35, 35, 65)
+
+    padded = vol.pad([[5, 10], [10, 10], [25, 15]], mode=mode)
+    assert padded.spatial_shape == (35, 40, 90)
+
+
+@pytest.mark.parametrize('mode', list(PadModes))
+@pytest.mark.parametrize('per_channel', [False, True])
+def test_pad_with_channels(mode, per_channel):
+    vol = Volume.from_components(
+        direction=np.eye(3),
+        center_position=[98.1, 78.4, 23.1],
+        spacing=[0.5, 0.5, 2.0],
+        coordinate_system="PATIENT",
+        array=np.random.randint(0, 10, size=(20, 20, 50, 3)),
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B']},
+    )
+
+    padded = vol.pad(10, mode=mode, per_channel=per_channel)
+    assert padded.spatial_shape == (40, 40, 70)
+    assert padded.match_geometry(vol).geometry_equal(vol)
+
+    padded = vol.pad([5, 10], mode=mode, per_channel=per_channel)
+    assert padded.spatial_shape == (35, 35, 65)
+    assert padded.match_geometry(vol).geometry_equal(vol)
+
+    padded = vol.pad(
+        [[5, 10], [10, 10], [25, 15]],
+        mode=mode,
+        per_channel=per_channel
+    )
+    assert padded.spatial_shape == (35, 40, 90)
+    assert padded.match_geometry(vol).geometry_equal(vol)
+
+
+def test_pad_to_spatial_shape():
+    vol, _ = read_multiframe_ct_volume()
+
+    shape = (10, 600, 600)
+    padded = vol.pad_to_spatial_shape(shape)
+    assert padded.spatial_shape == shape
+
+    assert padded.match_geometry(vol).geometry_equal(vol)
+
+
+def test_pad_or_crop_to_spatial_shape():
+    vol, _ = read_multiframe_ct_volume()
+
+    shape = (10, 240, 240)
+    padded = vol.pad_or_crop_to_spatial_shape(shape)
+    assert padded.spatial_shape == shape
+
+    assert padded.match_geometry(vol).geometry_equal(vol)
+
+
+def test_normalize():
+    vol, _ = read_multiframe_ct_volume()
+
+    normed = vol.normalize_mean_std()
+    assert np.isclose(normed.array.mean(), 0.0)
+    assert np.isclose(np.std(normed.array), 1.0)
+
+    normed = vol.normalize_min_max()
+    assert np.isclose(normed.array.min(), 0.0)
+    assert np.isclose(normed.array.max(), 1.0)
+
+
+@pytest.mark.parametrize(
+    'kw,pytype',
+    [
+        ('DiffusionBValue', float),
+        ('SegmentNumber', int),
+        ('SegmentLabel', str),
+    ]
+)
+def test_channel_descriptors(kw, pytype):
+    tag = tag_for_keyword(kw)
+
+    d1 = ChannelDescriptor(kw)
+    d2 = ChannelDescriptor(tag)
+    d3 = ChannelDescriptor(BaseTag(tag))
+    d4 = ChannelDescriptor(d1)
+
+    for d in [d1, d2, d3, d4]:
+        assert d.tag == tag
+        assert isinstance(d.tag, BaseTag)
+        assert d.keyword == kw
+        assert not d.is_custom
+        assert not d.is_enumerated
+        assert d.value_type is pytype
+        assert hash(d) == hash(kw)
+        assert str(d) == kw
+        assert repr(d) == kw
+
+
+def test_channel_descriptors_custom():
+    d = ChannelDescriptor('name', is_custom=True, value_type=int)
+
+    assert d.tag is None
+    assert d.keyword == 'name'
+    assert d.is_custom
+    assert not d.is_enumerated
+    assert d.value_type is int
+
+
+def test_channel_descriptors_enum():
+    d = ChannelDescriptor(
+        'name',
+        is_custom=True,
+        value_type=SegmentationTypeValues
+    )
+
+    assert d.tag is None
+    assert d.keyword == 'name'
+    assert d.is_custom
+    assert d.is_enumerated
+    assert d.value_type is SegmentationTypeValues
+
+
+def test_multi_channels():
+
+    optical_path_desc = ChannelDescriptor('OpticalPathIdentifier')
+    path_names = ['path1', 'path2', 'path3', 'path4']
+
+    vol = Volume.from_components(
+        direction=np.eye(3),
+        center_position=[98.1, 78.4, 23.1],
+        spacing=[0.5, 0.5, 2.0],
+        coordinate_system="PATIENT",
+        array=np.random.randint(0, 10, size=(20, 20, 50, 3, 4)),
+        channels={
+            RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B'],
+            optical_path_desc: path_names
+        },
+    )
+
+    assert vol.shape == (20, 20, 50, 3, 4)
+    assert vol.spatial_shape == (20, 20, 50)
+    assert vol.channel_shape == (3, 4)
+    assert vol.number_of_channel_dimensions == 2
+    assert vol.channel_descriptors == (
+        RGB_COLOR_CHANNEL_DESCRIPTOR,
+        optical_path_desc,
+    )
+    assert vol.get_channel_values(optical_path_desc) == path_names
+    assert vol.get_channel_values('OpticalPathIdentifier') == path_names
+    assert vol.get_channel_values(optical_path_desc.tag) == path_names
+    rgb = [RGBColorChannels.R, RGBColorChannels.G, RGBColorChannels.B]
+    assert vol.get_channel_values(RGB_COLOR_CHANNEL_DESCRIPTOR) == rgb
+    assert vol.get_channel_values(
+        RGB_COLOR_CHANNEL_DESCRIPTOR.keyword
+    ) == rgb
+
+    permuted = vol.permute_channel_axes(
+        [optical_path_desc, RGB_COLOR_CHANNEL_DESCRIPTOR]
+    )
+    assert permuted.shape == (20, 20, 50, 4, 3)
+    assert permuted.channel_shape == (4, 3)
+    assert permuted.channel_descriptors == (
+        optical_path_desc,
+        RGB_COLOR_CHANNEL_DESCRIPTOR,
+    )
+
+    permuted = vol.permute_channel_axes_by_index([1, 0])
+    assert permuted.shape == (20, 20, 50, 4, 3)
+    assert permuted.channel_shape == (4, 3)
+    assert permuted.channel_descriptors == (
+        optical_path_desc,
+        RGB_COLOR_CHANNEL_DESCRIPTOR,
+    )
+
+    path1 = vol.get_channel(OpticalPathIdentifier='path1')
+    assert path1.channel_shape == (3, )
+    assert path1.number_of_channel_dimensions == 1
+    assert path1.channel_descriptors == (RGB_COLOR_CHANNEL_DESCRIPTOR, )
+    assert np.array_equal(path1.array, vol.array[:, :, :, :, 0])
+
+    path2 = vol.get_channel(OpticalPathIdentifier='path2', keepdims=True)
+    assert path2.channel_shape == (3, 1)
+    assert path2.number_of_channel_dimensions == 2
+    assert path2.channel_descriptors == (
+        RGB_COLOR_CHANNEL_DESCRIPTOR,
+        optical_path_desc
+    )
+    assert np.array_equal(path2.array, vol.array[:, :, :, :, 1:2])
+    squeezed = path2.squeeze_channel()
+    assert squeezed.channel_shape == (3, )
+    assert squeezed.number_of_channel_dimensions == 1
+    assert squeezed.channel_descriptors == (RGB_COLOR_CHANNEL_DESCRIPTOR, )
+    assert np.array_equal(squeezed.array, vol.array[:, :, :, :, 1])
+
+    red_channel = vol.get_channel(RGBColorChannel='R')
+    assert red_channel.channel_shape == (4, )
+    assert red_channel.number_of_channel_dimensions == 1
+    assert red_channel.channel_descriptors == (optical_path_desc, )
+    assert np.array_equal(red_channel.array, vol.array[:, :, :, 0, :])
+
+    red_channel = vol.get_channel(RGBColorChannel=RGBColorChannels.R)
+    assert red_channel.channel_shape == (4, )
+    assert red_channel.number_of_channel_dimensions == 1
+    assert red_channel.channel_descriptors == (optical_path_desc, )
+    assert np.array_equal(red_channel.array, vol.array[:, :, :, 0, :])
 
 
 def test_match_geometry_segmentation():

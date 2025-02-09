@@ -1097,14 +1097,14 @@ class _VolumeBase(ABC):
                 "Argument 'axes' should contain unique values."
             )
 
-        if set(axes) <= {0, 1, 2}:
+        if not set(axes) <= {0, 1, 2}:
             raise ValueError(
                 "Argument 'axes' should contain only 0, 1, and 2."
             )
 
         indices = np.random.permutation(axes).tolist()
         if len(indices) == 2:
-            missing_index = {0, 1, 2} - set(indices)
+            missing_index = list({0, 1, 2} - set(indices))[0]
             indices.insert(missing_index, missing_index)
 
         return self.permute_spatial_axes(indices)
@@ -1289,7 +1289,7 @@ class _VolumeBase(ABC):
                 "Argument 'axes' should contain unique values."
             )
 
-        if set(axes) <= {0, 1, 2}:
+        if not set(axes) <= {0, 1, 2}:
             raise ValueError(
                 "Argument 'axes' should contain only 0, 1, and 2."
             )
@@ -2788,10 +2788,13 @@ class Volume(_VolumeBase):
         """
         new_affine = self._permute_affine(indices)
 
-        if self._array.ndim == 3:
-            new_array = np.transpose(self._array, indices)
-        else:
-            new_array = np.transpose(self._array, [*indices, 3])
+        new_array = np.transpose(
+            self._array,
+            [
+                *indices,
+                *[d + 3 for d in range(self.number_of_channel_dimensions)]
+            ]
+        )
 
         return self.__class__(
             array=new_array,
