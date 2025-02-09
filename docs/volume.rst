@@ -373,7 +373,7 @@ non-spatial dimensions that are referred to as "channels". Channel dimensions
 are stacked after the spatial dimensions in the volume's pixel array. The
 meaning of each channel is explicitly described in the volume. Common uses for
 channels include RGB channels in color images, optical paths in microscopy
-images, or constrast phases in radiology images.
+images, or contrast phases in radiology images.
 
 The :class:`highdicom.ChannelDescriptor` class is used to describe the meaning
 of a single channel dimension. Where possible, it is recommended to use DICOM
