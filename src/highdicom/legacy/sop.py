@@ -68,6 +68,14 @@ def _convert_legacy_to_enhanced(
             'No data sets of single-frame legacy images provided.'
         ) from e
 
+    if not all(
+        ds.PhotometricInterpretation == 'MONOCHROME2' for ds in sf_datasets
+    ):
+        raise ValueError(
+            "Legacy datasets must have a photometric interpretation of "
+            "'MONOCHROME2'."
+        )
+
     if mf_dataset is None:
         mf_dataset = Dataset()
 
