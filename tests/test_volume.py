@@ -10,17 +10,18 @@ from highdicom import (
     AlgorithmIdentificationSequence,
     ChannelDescriptor,
     PadModes,
-    PlanePositionSequence,
+    PatientOrientationValuesBiped,
     PlaneOrientationSequence,
+    PlanePositionSequence,
+    RGBColorChannels,
+    RGB_COLOR_CHANNEL_DESCRIPTOR,
+    UID,
     Volume,
     VolumeGeometry,
     VolumeToVolumeTransformer,
-    imread,
     get_volume_from_series,
-    UID,
-    RGB_COLOR_CHANNEL_DESCRIPTOR,
+    imread,
 )
-from highdicom.enum import PadModes, PatientOrientationValuesBiped, RGBColorChannels
 from highdicom.seg import (
     Segmentation,
     SegmentDescription,
@@ -115,6 +116,7 @@ def test_transforms():
 
     geom = volume.get_geometry()
     assert isinstance(geom, VolumeGeometry)
+
 
 @pytest.mark.parametrize(
     'image_position,image_orientation,pixel_spacing,spacing_between_slices',
