@@ -394,8 +394,8 @@ spatial metadata in the output object is correct.
         """This is a stand-in for a generic segmentation tool.
 
         We assume that the tool has certain requirements on the input array, in
-        this case that it has patient orientation "PRF" and a shape of (400, 400,
-        2).
+        this case that it has patient orientation "FLP" and a shape of (2, 400,
+        400).
 
         Further, we assume that the tool takes in a numpy array and returns a
         binary segmentation that is pixel-for-pixel aligned with its input array
@@ -414,8 +414,8 @@ spatial metadata in the output object is correct.
     # Manipulate the original volume to give a suitable input for the tool
     input_volume = (
         original_volume
-        .to_patient_orientation("PRF")
-        .crop_to_spatial_shape((400, 400, 2))
+        .to_patient_orientation("FLP")
+        .crop_to_spatial_shape((2, 400, 400))
     )
 
     # Run the "complex segmentation tool"

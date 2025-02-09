@@ -1,21 +1,32 @@
 import numpy as np
 import pydicom
+from pydicom.sr.codedict import codes
 from pydicom.data import get_testdata_file
 import pytest
 
 from highdicom import (
+    AlgorithmIdentificationSequence,
     ChannelDescriptor,
     Volume,
     VolumeGeometry,
     VolumeToVolumeTransformer,
     imread,
     get_volume_from_series,
+    UID,
 )
 from highdicom.enum import PatientOrientationValuesBiped
+from highdicom.seg import (
+    Segmentation,
+    SegmentDescription,
+    SegmentAlgorithmTypeValues,
+    SegmentationTypeValues,
+)
 from highdicom.spatial import (
     _normalize_patient_orientation,
     _translate_affine_matrix,
 )
+
+from tests.utils import write_and_read_dataset
 
 
 def read_multiframe_ct_volume():
@@ -815,3 +826,114 @@ def test_match_geometry_failure_rotation():
 
     with pytest.raises(RuntimeError):
         vol.match_geometry(geometry)
+
+
+def test_match_geometry_segmentation():
+    # Test that creates a segmentation from a manipulated volume and ensures
+    # that the result can be matched back to the input image
+
+    # Load an enhanced (multiframe) CT image
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    # Load the input volume
+    original_volume = im.get_volume()
+
+    # Manipulate the original volume
+    input_volume = (
+        original_volume
+        .to_patient_orientation("PRF")
+        .crop_to_spatial_shape((400, 400, 2))
+    )
+
+    # Form a segmentation from the manpulated array
+    seg_array = input_volume.array > 0
+
+    # Since the seg array shares its geometry with the inupt array, we can
+    # combine the two to create a volume of the segmentation array
+    seg_volume = input_volume.with_array(seg_array)
+
+    algorithm_identification = AlgorithmIdentificationSequence(
+        name='Complex Segmentation Tool',
+        version='v1.0',
+        family=codes.cid7162.ArtificialIntelligence
+    )
+
+    # metadata needed for a segmentation
+    brain_description = SegmentDescription(
+        segment_number=1,
+        segment_label='brain',
+        segmented_property_category=codes.SCT.Organ,
+        segmented_property_type=codes.SCT.Brain,
+        algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
+        algorithm_identification=algorithm_identification,
+    )
+
+    # Use the segmentation volume as input to create a DICOM Segmentation
+    seg_dataset = Segmentation(
+        pixel_array=seg_volume,
+        source_images=[im],
+        segmentation_type=SegmentationTypeValues.LABELMAP,
+        segment_descriptions=[brain_description],
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        manufacturer='Complex Segmentations Plc.',
+        manufacturer_model_name='Complex Segmentation Tool',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+        omit_empty_frames=False,
+    )
+
+    seg_dataset = write_and_read_dataset(seg_dataset)
+    seg_dataset = Segmentation.from_dataset(seg_dataset, copy=False)
+
+    # The reconstructed volume should be the same as the input volume, but may
+    # have a different handedness
+    seg_volume_recon = (
+        seg_dataset
+        .get_volume(combine_segments=True)
+        .ensure_handedness(seg_volume.handedness, flip_axis=0)
+    )
+
+    assert np.array_equal(seg_volume_recon.affine, seg_volume.affine)
+    assert np.array_equal(seg_volume_recon.array, seg_volume.array)
+
+    # Alternatively, it may be desirable to match the geometry of the output
+    # segmentation image to that of the input image
+    seg_volume_matched = seg_volume.match_geometry(original_volume)
+
+    assert np.array_equal(original_volume.affine, seg_volume_matched.affine)
+
+    # Use the segmentation volume as input to create a DICOM Segmentation
+    seg_dataset_matched = Segmentation(
+        pixel_array=seg_volume_matched,
+        source_images=[im],
+        segmentation_type=SegmentationTypeValues.LABELMAP,
+        segment_descriptions=[brain_description],
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        manufacturer='Complex Segmentations Plc.',
+        manufacturer_model_name='Complex Segmentation Tool',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+    )
+    seg_dataset_matched = write_and_read_dataset(seg_dataset_matched)
+    seg_dataset_matched = Segmentation.from_dataset(
+        seg_dataset_matched,
+        copy=False
+    )
+    seg_vol_from_matched_dataset = seg_dataset_matched.get_volume(
+        combine_segments=True
+    )
+
+    assert np.array_equal(
+        seg_vol_from_matched_dataset.affine,
+        original_volume.affine
+    )
+    assert np.array_equal(
+        seg_vol_from_matched_dataset.array,
+        seg_volume_matched.array
+    )
