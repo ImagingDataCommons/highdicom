@@ -26,8 +26,9 @@ Please refer to the online documentation at [highdicom.readthedocs.io](https://h
 
 For more information about the motivation of the library and the design of highdicom's API, please see the following article:
 
-> [Highdicom: A Python library for standardized encoding of image annotations and machine learning model outputs in pathology and radiology](https://arxiv.org/abs/2106.07806)
+> [Highdicom: A Python library for standardized encoding of image annotations and machine learning model outputs in pathology and radiology](https://link.springer.com/article/10.1007/s10278-022-00683-y)
 > C.P. Bridge, C. Gorman, S. Pieper, S.W. Doyle, J.K. Lennerz, J. Kalpathy-Cramer, D.A. Clunie, A.Y. Fedorov, and M.D. Herrmann
+> Journal of Digital Imaging, August 2022
 
 If you use highdicom in your research, please cite the above article.
 
