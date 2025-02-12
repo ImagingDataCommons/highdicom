@@ -4269,31 +4269,46 @@ class MeasurementReport(Template):
             PlanarROIMeasurementsAndQualitativeEvaluations |
             VolumetricROIMeasurementsAndQualitativeEvaluations
         )
-        if imaging_measurements is not None:
-            measurement_types = (
-                PlanarROIMeasurementsAndQualitativeEvaluations,
-                VolumetricROIMeasurementsAndQualitativeEvaluations,
-                MeasurementsAndQualitativeEvaluations,
+
+        # Since only imaging meansurements are currently supported, at least
+        # one is required. This could be relaxed in the future if evaluations
+        # or derived measurements (rows 10 or 12 of the TID1500 table) are
+        # supported
+        if imaging_measurements is None:
+            raise TypeError(
+                "Argument 'imaging_measurements' is required."
             )
-            container_item = ContainerContentItem(
-                name=codes.DCM.ImagingMeasurements,
-                relationship_type=RelationshipTypeValues.CONTAINS
+
+        if len(imaging_measurements) == 0:
+            raise ValueError(
+                "Argument 'imaging_measurements' must contain at least "
+                "one item."
             )
-            container_item.ContentSequence = ContentSequence()
-            for measurements in imaging_measurements:
-                if not isinstance(measurements, measurement_types):
-                    raise TypeError(
-                        'Measurements must have one of the following types: '
-                        '"{}"'.format(
-                            '", "'.join(
-                                [
-                                    t.__name__
-                                    for t in measurement_types
-                                ]
-                            )
+
+        measurement_types = (
+            PlanarROIMeasurementsAndQualitativeEvaluations,
+            VolumetricROIMeasurementsAndQualitativeEvaluations,
+            MeasurementsAndQualitativeEvaluations,
+        )
+        container_item = ContainerContentItem(
+            name=codes.DCM.ImagingMeasurements,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        container_item.ContentSequence = ContentSequence()
+        for measurements in imaging_measurements:
+            if not isinstance(measurements, measurement_types):
+                raise TypeError(
+                    'Measurements must have one of the following types: '
+                    '"{}"'.format(
+                        '", "'.join(
+                            [
+                                t.__name__
+                                for t in measurement_types
+                            ]
                         )
                     )
-                container_item.ContentSequence.extend(measurements)
+                )
+            container_item.ContentSequence.extend(measurements)
         item.ContentSequence.append(container_item)
         super().__init__([item], is_root=True)
 

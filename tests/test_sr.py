@@ -3851,6 +3851,18 @@ class TestMeasurementReport(unittest.TestCase):
         assert len(qualitative_evaluations) == 1
         assert isinstance(qualitative_evaluations[0], QualitativeEvaluation)
 
+    def test_construction_none(self):
+        # Since only imaging meansurements are currently supported, at least
+        # one is required. This could be relaxed in the future if evaluations
+        # or derived measurements (rows 10 or 12 of the TID1500 table) are
+        # supported
+        msg = ("Argument 'imaging_measurements' is required.")
+        with pytest.raises(TypeError, match=msg):
+            _ = MeasurementReport(
+                observation_context=self._observation_context,
+                procedure_reported=self._procedure_reported,
+            )
+
 
 class TestEnhancedSR(unittest.TestCase):
 
