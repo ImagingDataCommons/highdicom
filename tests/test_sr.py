@@ -5729,7 +5729,9 @@ class TestImageLibrary(unittest.TestCase):
 
         library_items = ImageLibrary([self._ref_sm_dataset])
         assert len(library_items) == 1
-        library_group_item = library_items[0].ContentSequence[0]
+        library_groups = library_items[0].ContentSequence
+        assert len(library_groups) == 1
+        library_group_item = library_groups[0]
         assert len(library_group_item.ContentSequence) == 1
         assert library_group_item.name == codes.DCM.ImageLibraryGroup
         content_item = library_group_item.ContentSequence[0]
@@ -5742,3 +5744,48 @@ class TestImageLibrary(unittest.TestCase):
                self._ref_sm_dataset.SOPInstanceUID
         assert ref_sop_class_uid == \
                self._ref_sm_dataset.SOPClassUID
+
+    def test_construction_multiple_groups(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._ref_sm_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
+        )
+        self._ref_ct_dataset = dcmread(
+            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+        )
+
+        library_items = ImageLibrary(
+            [self._ref_sm_dataset, self._ref_ct_dataset]
+        )
+        assert len(library_items) == 1
+        library_groups = library_items[0].ContentSequence
+        assert len(library_groups) == 2
+
+        sm_group_item = library_items[0].ContentSequence[0]
+        assert len(sm_group_item.ContentSequence) == 1
+        assert sm_group_item.name == codes.DCM.ImageLibraryGroup
+        content_item = sm_group_item.ContentSequence[0]
+        assert isinstance(content_item, ImageContentItem)
+        ref_sop_instance_uid = \
+            content_item.ReferencedSOPSequence[0].ReferencedSOPInstanceUID
+        ref_sop_class_uid = \
+            content_item.ReferencedSOPSequence[0].ReferencedSOPClassUID
+        assert ref_sop_instance_uid == \
+               self._ref_sm_dataset.SOPInstanceUID
+        assert ref_sop_class_uid == \
+               self._ref_sm_dataset.SOPClassUID
+
+        ct_group_item = library_items[0].ContentSequence[1]
+        assert len(ct_group_item.ContentSequence) == 1
+        assert ct_group_item.name == codes.DCM.ImageLibraryGroup
+        content_item = ct_group_item.ContentSequence[0]
+        assert isinstance(content_item, ImageContentItem)
+        ref_sop_instance_uid = \
+            content_item.ReferencedSOPSequence[0].ReferencedSOPInstanceUID
+        ref_sop_class_uid = \
+            content_item.ReferencedSOPSequence[0].ReferencedSOPClassUID
+        assert ref_sop_instance_uid == \
+               self._ref_ct_dataset.SOPInstanceUID
+        assert ref_sop_class_uid == \
+               self._ref_ct_dataset.SOPClassUID
