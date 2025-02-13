@@ -4269,31 +4269,46 @@ class MeasurementReport(Template):
             PlanarROIMeasurementsAndQualitativeEvaluations |
             VolumetricROIMeasurementsAndQualitativeEvaluations
         )
-        if imaging_measurements is not None:
-            measurement_types = (
-                PlanarROIMeasurementsAndQualitativeEvaluations,
-                VolumetricROIMeasurementsAndQualitativeEvaluations,
-                MeasurementsAndQualitativeEvaluations,
+
+        # Since only imaging meansurements are currently supported, at least
+        # one is required. This could be relaxed in the future if evaluations
+        # or derived measurements (rows 10 or 12 of the TID1500 table) are
+        # supported
+        if imaging_measurements is None:
+            raise TypeError(
+                "Argument 'imaging_measurements' is required."
             )
-            container_item = ContainerContentItem(
-                name=codes.DCM.ImagingMeasurements,
-                relationship_type=RelationshipTypeValues.CONTAINS
+
+        if len(imaging_measurements) == 0:
+            raise ValueError(
+                "Argument 'imaging_measurements' must contain at least "
+                "one item."
             )
-            container_item.ContentSequence = ContentSequence()
-            for measurements in imaging_measurements:
-                if not isinstance(measurements, measurement_types):
-                    raise TypeError(
-                        'Measurements must have one of the following types: '
-                        '"{}"'.format(
-                            '", "'.join(
-                                [
-                                    t.__name__
-                                    for t in measurement_types
-                                ]
-                            )
+
+        measurement_types = (
+            PlanarROIMeasurementsAndQualitativeEvaluations,
+            VolumetricROIMeasurementsAndQualitativeEvaluations,
+            MeasurementsAndQualitativeEvaluations,
+        )
+        container_item = ContainerContentItem(
+            name=codes.DCM.ImagingMeasurements,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        container_item.ContentSequence = ContentSequence()
+        for measurements in imaging_measurements:
+            if not isinstance(measurements, measurement_types):
+                raise TypeError(
+                    'Measurements must have one of the following types: '
+                    '"{}"'.format(
+                        '", "'.join(
+                            [
+                                t.__name__
+                                for t in measurement_types
+                            ]
                         )
                     )
-                container_item.ContentSequence.extend(measurements)
+                )
+            container_item.ContentSequence.extend(measurements)
         item.ContentSequence.append(container_item)
         super().__init__([item], is_root=True)
 
@@ -5119,58 +5134,63 @@ class ImageLibrary(Template):
 
         """
         super().__init__()
+
+        if len(datasets) == 0:
+            raise ValueError(
+                "Argument 'datasets' must contain at least one item."
+            )
+
         library_item = ContainerContentItem(
             name=codes.DCM.ImageLibrary,
             relationship_type=RelationshipTypeValues.CONTAINS
         )
         library_item.ContentSequence = ContentSequence()
-        if datasets is not None:
-            groups = collections.defaultdict(list)
-            for ds in datasets:
-                modality = _get_coded_modality(ds.SOPClassUID)
-                image_item = ImageContentItem(
-                    name=CodedConcept(
-                        value='260753009',
-                        meaning='Source',
-                        scheme_designator='SCT'
-                    ),
-                    referenced_sop_instance_uid=ds.SOPInstanceUID,
-                    referenced_sop_class_uid=ds.SOPClassUID,
-                    relationship_type=RelationshipTypeValues.CONTAINS
+        groups = collections.defaultdict(list)
+        for ds in datasets:
+            modality = _get_coded_modality(ds.SOPClassUID)
+            image_item = ImageContentItem(
+                name=CodedConcept(
+                    value='260753009',
+                    meaning='Source',
+                    scheme_designator='SCT'
+                ),
+                referenced_sop_instance_uid=ds.SOPInstanceUID,
+                referenced_sop_class_uid=ds.SOPClassUID,
+                relationship_type=RelationshipTypeValues.CONTAINS
+            )
+            descriptors = ImageLibraryEntryDescriptors(ds)
+
+            image_item.ContentSequence = ContentSequence()
+            image_item.ContentSequence.extend(descriptors)
+            if 'FrameOfReferenceUID' in ds:
+                # Only type 1 attributes
+                shared_descriptors = (
+                    modality,
+                    ds.FrameOfReferenceUID,
                 )
-                descriptors = ImageLibraryEntryDescriptors(ds)
-
-                image_item.ContentSequence = ContentSequence()
-                image_item.ContentSequence.extend(descriptors)
-                if 'FrameOfReferenceUID' in ds:
-                    # Only type 1 attributes
-                    shared_descriptors = (
-                        modality,
-                        ds.FrameOfReferenceUID,
-                    )
-                else:
-                    shared_descriptors = (
-                        modality,
-                    )
-                groups[shared_descriptors].append(image_item)
-
-            for shared_descriptors, image_items in groups.items():
-                image = image_items[0]
-                group_item = ContainerContentItem(
-                    name=codes.DCM.ImageLibraryGroup,
-                    relationship_type=RelationshipTypeValues.CONTAINS
+            else:
+                shared_descriptors = (
+                    modality,
                 )
-                group_item.ContentSequence = ContentSequence()
+            groups[shared_descriptors].append(image_item)
 
-                if 'FrameOfReferenceUID' in image:
-                    group_item.ContentSequence.append(
-                        UIDRefContentItem(
-                            name=codes.DCM.FrameOfReferenceUID,
-                            value=shared_descriptors[1],
-                            relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT  # noqa: E501
-                        )
+        for shared_descriptors, image_items in groups.items():
+            image = image_items[0]
+            group_item = ContainerContentItem(
+                name=codes.DCM.ImageLibraryGroup,
+                relationship_type=RelationshipTypeValues.CONTAINS
+            )
+            group_item.ContentSequence = ContentSequence()
+
+            if 'FrameOfReferenceUID' in image:
+                group_item.ContentSequence.append(
+                    UIDRefContentItem(
+                        name=codes.DCM.FrameOfReferenceUID,
+                        value=shared_descriptors[1],
+                        relationship_type=RelationshipTypeValues.HAS_ACQ_CONTEXT  # noqa: E501
                     )
-                group_item.ContentSequence.extend(image_items)
+                )
+            group_item.ContentSequence.extend(image_items)
             if len(group_item) > 0:
                 library_item.ContentSequence.append(group_item)
 
