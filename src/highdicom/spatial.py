@@ -2164,7 +2164,7 @@ class PixelToPixelTransformer:
             of the "from" image expressed in the three-dimensional patient or
             slide coordinate system defined by the frame of reference
         pixel_spacing_from: Sequence[float]
-            Spacing between pixels of the "from" imagem in millimeter unit
+            Spacing between pixels of the "from" images in millimeter unit
             along the column direction (first value: spacing between rows,
             vertical, top to bottom, increasing row index) and the rows
             direction (second value: spacing between columns: horizontal, left
@@ -2285,18 +2285,34 @@ class PixelToPixelTransformer:
 
         Parameters
         ----------
-        dataset: pydicom.Dataset
-            Dataset representing an image.
-        frame_number: Union[int, None], optional
-            Frame number (using 1-based indexing) of the frame for which to get
-            the transformer. This should be provided if and only if the dataset
-            is a multi-frame image.
-        for_total_pixel_matrix: bool, optional
+        dataset_from: pydicom.Dataset
+            Dataset representing the image whose pixel indices will be the
+            input to the transformer.
+        dataset_to: pydicom.Dataset
+            Dataset representing the image whose pixel indices will be the
+            output of the transformer.
+        frame_number_from: Union[int, None], optional
+            Frame number (using 1-based indexing) of the frame of
+            ``dataset_from`` for which to construct the transformer. This
+            should be provided if and only if the dataset is a multi-frame
+            image.
+        frame_number_to: Union[int, None], optional
+            Frame number (using 1-based indexing) of the frame of
+            ``dataset_to`` for which to construct the transformer. This
+            should be provided if and only if the dataset is a multi-frame
+            image.
+        for_total_pixel_matrix_from: bool, optional
             If True, use the spatial information for the total pixel matrix of
-            a tiled image. The result will be a transformer that maps pixel
-            indices of the total pixel matrix to frame of reference
-            coordinates. This should only be True if the image is a tiled image
-            and is incompatible with specifying a frame number.
+            the "from" image. The result will be a transformer that whose
+            inputs are pixel indices of the total pixel matrix of the "from"
+            image. This should only be True if the "from" image is a tiled
+            image and is incompatible with specifying ``frame_number_from``.
+        for_total_pixel_matrix_to: bool, optional
+            If True, use the spatial information for the total pixel matrix of
+            the "to" image. The result will be a transformer whose outputs are
+            pixel indices of the total pixel matrix of the "to" image. This
+            should only be True if the "to" image is a tiled image and is
+            incompatible with specifying ``frame_number_to``.
         round_output: bool, optional
             If True, outputs are rounded to the nearest integer. Otherwise,
             they are returned as float.
@@ -2823,7 +2839,7 @@ class ImageToImageTransformer:
             of the "from" image expressed in the three-dimensional patient or
             slide coordinate system defined by the frame of reference
         pixel_spacing_from: Sequence[float]
-            Spacing between pixels of the "from" imagem in millimeter unit
+            Spacing between pixels of the "from" images in millimeter unit
             along the column direction (first value: spacing between rows,
             vertical, top to bottom, increasing row index) and the rows
             direction (second value: spacing between columns: horizontal, left
@@ -2942,18 +2958,35 @@ class ImageToImageTransformer:
 
         Parameters
         ----------
-        dataset: pydicom.Dataset
-            Dataset representing an image.
-        frame_number: Union[int, None], optional
-            Frame number (using 1-based indexing) of the frame for which to get
-            the transformer. This should be provided if and only if the dataset
-            is a multi-frame image.
-        for_total_pixel_matrix: bool, optional
+        dataset_from: pydicom.Dataset
+            Dataset representing the image whose image coordinates will be the
+            input to the transformer.
+        dataset_to: pydicom.Dataset
+            Dataset representing the image whose image coordinates will be the
+            output of the transformer.
+        frame_number_from: Union[int, None], optional
+            Frame number (using 1-based indexing) of the frame of
+            ``dataset_from`` for which to construct the transformer. This
+            should be provided if and only if the dataset is a multi-frame
+            image.
+        frame_number_to: Union[int, None], optional
+            Frame number (using 1-based indexing) of the frame of
+            ``dataset_to`` for which to construct the transformer. This
+            should be provided if and only if the dataset is a multi-frame
+            image.
+        for_total_pixel_matrix_from: bool, optional
             If True, use the spatial information for the total pixel matrix of
-            a tiled image. The result will be a transformer that maps image
-            coordinates of the total pixel matrix to frame of reference
-            coordinates. This should only be True if the image is a tiled image
-            and is incompatible with specifying a frame number.
+            the "from" image. The result will be a transformer that whose
+            inputs are image coordinates of the total pixel matrix of the
+            "from" image. This should only be True if the "from" image is a
+            tiled image and is incompatible with specifying
+            ``frame_number_from``.
+        for_total_pixel_matrix_to: bool, optional
+            If True, use the spatial information for the total pixel matrix of
+            the "to" image. The result will be a transformer whose outputs are
+            image coordinates of the total pixel matrix of the "to" image. This
+            should only be True if the "to" image is a tiled image and is
+            incompatible with specifying ``frame_number_to``.
 
         Returns
         -------
