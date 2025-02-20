@@ -1,3 +1,4 @@
+import re
 import pytest
 import unittest
 
@@ -98,6 +99,24 @@ class TestBase(unittest.TestCase):
             manufacturer='highdicom',
             transfer_syntax_uid=ImplicitVRLittleEndian,
         )
+
+    def test_series_description_too_long(self):
+        msg = (
+            "Values of DICOM value representation Long "
+            "String (LO) must not exceed 64 characters."
+        )
+        with pytest.raises(ValueError, match=re.escape(msg)):
+            SOPClass(
+                study_instance_uid=UID(),
+                series_instance_uid=UID(),
+                series_number=1,
+                sop_instance_uid=UID(),
+                sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+                instance_number=1,
+                modality='SR',
+                manufacturer='highdicom',
+                series_description="abc" * 100,
+            )
 
 
 class TestEndianCheck(unittest.TestCase):
