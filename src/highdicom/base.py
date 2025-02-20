@@ -191,6 +191,7 @@ class SOPClass(Dataset):
         self.SeriesNumber = series_number
         self.Modality = modality
         if series_description is not None:
+            _check_long_string(series_description)
             self.SeriesDescription = series_description
 
         # Equipment
