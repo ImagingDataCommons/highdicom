@@ -118,6 +118,7 @@ class TestBase(unittest.TestCase):
                 series_description="abc" * 100,
             )
 
+
 class TestEndianCheck(unittest.TestCase):
 
     def test_big_endian(self):
