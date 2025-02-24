@@ -3809,14 +3809,11 @@ def sort_datasets(
         coordinate system with this handedness in the when combined with
         the within-frame convention given by ``index_convention``.
 
-
     Returns
     -------
     List[Dataset]
-        Sorting index for the input datasets. Element i of this list gives the
-        index in the original list of datasets such that the output list is
-        sorted along the positive direction of the normal vector of the imaging
-        plane.
+        List of datasets sorted according to spatial position, using the
+        convention specified by the input parameters.
 
     """  # noqa: E501
     sort_index = get_dataset_sort_index(
