@@ -38,4 +38,7 @@ The developers gratefully acknowledge their support:
 * The [MGH & BWH Center for Clinical Data Science](https://www.ccds.io/)
 * [Quantitative Image Informatics for Cancer Research (QIICR)](https://qiicr.org/)
 * [Radiomics](https://www.radiomics.io/)
-* The [NCI Imaging Data Commons](https://imaging.datacommons.cancer.gov/)
+
+This software is maintained in part by the [NCI Imaging Data Commons](https://imaging.datacommons.cancer.gov/) project, 
+which has been funded in whole or in part with Federal funds from the NCI, NIH, under task order no. HHSN26110071
+under contract no. HHSN261201500003l. 
