@@ -162,7 +162,7 @@ operations that require access to the pixel data.
 Volumes From Images
 -------------------
 
-Volumes are more oten loaded from existing images than constructed
+Volumes are loaded from existing images more often than constructed
 directly. To load a volume from a single DICOM image (single frame or
 multi-frame), use the :meth:`highdicom.Image.get_volume()` method (see
 :doc:`image`).
@@ -344,7 +344,7 @@ a volume to align with the given patient orientation as well as possible via
 permutations and flips.
 
 Patient orientations may be represented as strings or as tuples of the
-:class:`highdicom.PatientOrientationValuesBipd` class.
+:class:`highdicom.PatientOrientationValuesBiped` class.
 
 .. code-block:: python
 
