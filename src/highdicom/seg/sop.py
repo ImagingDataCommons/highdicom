@@ -1265,7 +1265,9 @@ class Segmentation(_Image):
                     image_orientation=ori,
                 )
                 if slice_spacing is not None:
-                    pixel_measures[0].SpacingBetweenSlices = slice_spacing
+                    pixel_measures[0].SpacingBetweenSlices = (
+                        format_number_as_ds(slice_spacing)
+                    )
 
         if pixel_measures is not None:
             sffg_item.PixelMeasuresSequence = pixel_measures

@@ -348,7 +348,10 @@ class PixelMeasuresSequence(DataElementSequence):
         if slice_thickness is not None:
             item.SliceThickness = DS(slice_thickness, auto_format=True)
         if spacing_between_slices is not None:
-            item.SpacingBetweenSlices = spacing_between_slices
+            item.SpacingBetweenSlices = DS(
+                spacing_between_slices,
+                auto_format=True
+            )
         self.append(item)
 
     @classmethod
