@@ -3811,7 +3811,7 @@ def sort_datasets(
 
     Returns
     -------
-    List[Dataset]
+    List[pydicom.Dataset]
         List of datasets sorted according to spatial position, using the
         convention specified by the input parameters.
 

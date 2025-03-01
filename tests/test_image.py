@@ -1,4 +1,5 @@
 """Tests for the highdicom.image module."""
+from io import BytesIO
 from pathlib import Path
 from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.sr.codedict import codes
@@ -1339,3 +1340,13 @@ def test_imread_all_test_files(f, dependency):
 
     # Perform this check again to check the caching behavior
     assert np.array_equal(im.pixel_array, im_lazy.pixel_array)
+
+
+def test_imread_from_bytes():
+    dcm = pydicom.dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    with BytesIO() as buf:
+        dcm.save_as(buf)
+        im = imread(buf.getvalue())
+
+    assert isinstance(im, Image)

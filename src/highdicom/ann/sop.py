@@ -12,7 +12,6 @@ from collections.abc import Sequence
 from typing_extensions import Self
 
 import numpy as np
-from pydicom import dcmread
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.uid import (
@@ -30,6 +29,7 @@ from highdicom.ann.enum import (
 )
 from highdicom.ann.content import AnnotationGroup
 from highdicom.base import SOPClass, _check_little_endian
+from highdicom.io import _wrapped_dcmread
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
 
@@ -478,6 +478,6 @@ def annread(
 
     """
     return MicroscopyBulkSimpleAnnotations.from_dataset(
-        dcmread(fp),
+        _wrapped_dcmread(fp),
         copy=False
     )

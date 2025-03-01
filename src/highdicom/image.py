@@ -15,7 +15,7 @@ from collections.abc import Iterable, Iterator, Generator, Sequence
 from typing_extensions import Self
 
 import numpy as np
-from pydicom import Dataset, dcmread
+from pydicom import Dataset
 from pydicom.encaps import get_frame
 from pydicom.tag import BaseTag
 from pydicom.datadict import (
@@ -37,7 +37,7 @@ from highdicom.enum import (
     CoordinateSystemNames,
 )
 from highdicom.frame import decode_frame
-from highdicom.io import ImageFileReader
+from highdicom.io import ImageFileReader, _wrapped_dcmread
 from highdicom.pixels import (
     _check_rescale_dtype,
     _get_combined_palette_color_lut,
@@ -4791,7 +4791,7 @@ class _Image(SOPClass):
             image = cls.from_dataset(metadata, copy=False)
             image._file_reader = reader
         else:
-            image = cls.from_dataset(dcmread(fp), copy=False)
+            image = cls.from_dataset(_wrapped_dcmread(fp), copy=False)
 
         return image
 

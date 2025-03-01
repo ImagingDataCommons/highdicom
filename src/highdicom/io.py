@@ -1,23 +1,36 @@
 """Input/Output of datasets based on DICOM Part10 files."""
+from io import BytesIO
 import logging
+from os import PathLike
 import sys
 import traceback
 from typing_extensions import Self
 from pathlib import Path
 import weakref
+from typing import BinaryIO
 
 import numpy as np
 import pydicom
 from pydicom.dataset import Dataset, FileDataset
 from pydicom.encaps import parse_basic_offsets
-from pydicom.filebase import DicomFile, DicomFileLike, DicomBytesIO
+from pydicom.filebase import (
+    DicomBytesIO,
+    DicomFile,
+    DicomFileLike,
+    ReadableBuffer,
+)
 from pydicom.filereader import (
     data_element_offset_to_value,
     dcmread,
     read_file_meta_info,
     read_partial
 )
-from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
+from pydicom.tag import (
+    ItemTag,
+    SequenceDelimiterTag,
+    TagListType,
+    TupleTag,
+)
 from pydicom.uid import UID, DeflatedExplicitVRLittleEndian
 
 from highdicom.frame import decode_frame
@@ -37,6 +50,33 @@ _JPEG2000_SOC_MARKER = b'\xFF\x4F'
 _JPEG2000_EOC_MARKER = b'\xFF\xD9'
 _START_MARKERS = {_JPEG_SOI_MARKER, _JPEG2000_SOC_MARKER}
 _END_MARKERS = {_JPEG_EOI_MARKER, _JPEG2000_EOC_MARKER}
+
+
+def _wrapped_dcmread(
+    fp: str | PathLike | BinaryIO | ReadableBuffer | bytes,
+    defer_size: str | int | float | None = None,
+    stop_before_pixels: bool = False,
+    force: bool = False,
+    specific_tags: TagListType | None = None,
+) -> pydicom.Dataset:
+    """A wrapper around dcmread to support reading from bytes.
+
+    Parameters match those of dcmread, but additional `fp` may be a raw bytes
+    object containing the contents of a DICOM file.
+
+    """
+    if isinstance(fp, bytes):
+        _fp = BytesIO(fp)
+    else:
+        _fp = fp
+
+    return dcmread(
+        _fp,
+        defer_size=defer_size,
+        stop_before_pixels=stop_before_pixels,
+        force=force,
+        specific_tags=specific_tags,
+    )
 
 
 def _get_bot(fp: DicomFileLike, number_of_frames: int) -> list[int]:

@@ -4373,6 +4373,28 @@ class TestComprehensiveSR(unittest.TestCase):
 
         assert isinstance(sr_instance, ComprehensiveSR)
 
+    def test_srread_from_bytes(self):
+        # Read an SR directly from a bytes object
+        report = ComprehensiveSR(
+            evidence=[self._ref_dataset],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer,
+            performed_procedure_codes=self._performed_procedures,
+        )
+
+        with BytesIO() as buf:
+            report.save_as(buf)
+            # Read from bytes
+            sr_instance = srread(buf.getvalue())
+
+        assert isinstance(sr_instance, ComprehensiveSR)
+
 
 class TestComprehensive3DSR(unittest.TestCase):
 
