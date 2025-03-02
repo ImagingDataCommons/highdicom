@@ -1379,7 +1379,7 @@ def test_imread_from_bytes_io():
 
         assert isinstance(im, Image)
 
-       # Two reads to ensure opening/closing is handled
+        # Two reads to ensure opening/closing is handled
         im.get_frame(1)
         im.get_frame(2)
 
@@ -1392,7 +1392,7 @@ def test_imread_from_bytes_io_lazy():
 
         assert isinstance(im, Image)
 
-       # Two reads to ensure opening/closing is handled
+        # Two reads to ensure opening/closing is handled
         im.get_frame(1)
         im.get_frame(2)
 
@@ -1405,7 +1405,7 @@ def test_imread_from_dicom_bytes_io():
 
         assert isinstance(im, Image)
 
-       # Two reads to ensure opening/closing is handled
+        # Two reads to ensure opening/closing is handled
         im.get_frame(1)
         im.get_frame(2)
 
@@ -1418,6 +1418,6 @@ def test_imread_from_dicom_bytes_io_lazy():
 
         assert isinstance(im, Image)
 
-       # Two reads to ensure opening/closing is handled
+        # Two reads to ensure opening/closing is handled
         im.get_frame(1)
         im.get_frame(2)
