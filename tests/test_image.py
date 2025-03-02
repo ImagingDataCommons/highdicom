@@ -1,6 +1,7 @@
 """Tests for the highdicom.image module."""
 from io import BytesIO
 from pathlib import Path
+from pydicom.filebase import DicomBytesIO
 from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.sr.codedict import codes
 import numpy as np
@@ -1349,4 +1350,74 @@ def test_imread_from_bytes():
         dcm.save_as(buf)
         im = imread(buf.getvalue())
 
-    assert isinstance(im, Image)
+        assert isinstance(im, Image)
+
+        # Two reads to ensure opening/closing is handled
+        im.get_frame(1)
+        im.get_frame(2)
+
+
+def test_imread_from_bytes_lazy():
+    dcm = pydicom.dcmread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    with BytesIO() as buf:
+        dcm.save_as(buf)
+        im = imread(buf.getvalue(), lazy_frame_retrieval=True)
+
+        assert isinstance(im, Image)
+
+        # Two reads to ensure opening/closing is handled
+        im.get_frame(1)
+        im.get_frame(2)
+
+
+def test_imread_from_bytes_io():
+    dcm_bytes = open(get_testdata_file('eCT_Supplemental.dcm'), 'rb').read()
+
+    with BytesIO(dcm_bytes) as buf:
+        im = imread(buf)
+
+        assert isinstance(im, Image)
+
+       # Two reads to ensure opening/closing is handled
+        im.get_frame(1)
+        im.get_frame(2)
+
+
+def test_imread_from_bytes_io_lazy():
+    dcm_bytes = open(get_testdata_file('eCT_Supplemental.dcm'), 'rb').read()
+
+    with BytesIO(dcm_bytes) as buf:
+        im = imread(buf, lazy_frame_retrieval=True)
+
+        assert isinstance(im, Image)
+
+       # Two reads to ensure opening/closing is handled
+        im.get_frame(1)
+        im.get_frame(2)
+
+
+def test_imread_from_dicom_bytes_io():
+    dcm_bytes = open(get_testdata_file('eCT_Supplemental.dcm'), 'rb').read()
+
+    with DicomBytesIO(dcm_bytes) as buf:
+        im = imread(buf)
+
+        assert isinstance(im, Image)
+
+       # Two reads to ensure opening/closing is handled
+        im.get_frame(1)
+        im.get_frame(2)
+
+
+def test_imread_from_dicom_bytes_io_lazy():
+    dcm_bytes = open(get_testdata_file('eCT_Supplemental.dcm'), 'rb').read()
+
+    with DicomBytesIO(dcm_bytes) as buf:
+        im = imread(buf, lazy_frame_retrieval=True)
+
+        assert isinstance(im, Image)
+
+       # Two reads to ensure opening/closing is handled
+        im.get_frame(1)
+        im.get_frame(2)

@@ -22,6 +22,7 @@ from pydicom.datadict import (
     get_entry,
     tag_for_keyword,
 )
+from pydicom.filebase import DicomIO, DicomBytesIO
 from pydicom.multival import MultiValue
 from pydicom.sr.coding import Code
 from pydicom.uid import ParametricMapStorage
@@ -4781,11 +4782,12 @@ class _Image(SOPClass):
 
         """
         if lazy_frame_retrieval:
-            if not isinstance(fp, (str, PathLike)):
-                raise TypeError(
-                    "Argument 'fp' may not be of type bytes or BinaryIO "
-                    "if using 'lazy_frame_retrieval'."
-                )
+            if isinstance(fp, bytes):
+                fp = DicomBytesIO(fp)
+            elif not isinstance(fp, (str, PathLike, DicomIO)):
+                # General BinaryIO object, wrap in DicomIO
+                fp = DicomIO(fp)
+
             reader = ImageFileReader(fp)
             metadata = reader._change_metadata_ownership()
             image = cls.from_dataset(metadata, copy=False)
