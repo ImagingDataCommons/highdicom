@@ -13,7 +13,6 @@ from typing import (
 from collections.abc import Generator, Mapping, Sequence
 from typing_extensions import Self
 
-from pydicom import dcmread
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.uid import (
@@ -31,6 +30,7 @@ from pydicom.uid import (
 )
 
 from highdicom.base import SOPClass, _check_little_endian
+from highdicom.io import _wrapped_dcmread
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.templates import MeasurementReport
@@ -939,7 +939,7 @@ def srread(
         ComprehensiveSRStorage: ComprehensiveSR,
         Comprehensive3DSRStorage: Comprehensive3DSR,
     }
-    dcm = dcmread(fp)
+    dcm = _wrapped_dcmread(fp)
 
     sop_class_uid = dcm.SOPClassUID
     if sop_class_uid in class_map:

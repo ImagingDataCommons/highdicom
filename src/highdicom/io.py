@@ -1,23 +1,35 @@
 """Input/Output of datasets based on DICOM Part10 files."""
 import logging
+from os import PathLike
 import sys
 import traceback
 from typing_extensions import Self
 from pathlib import Path
 import weakref
+from typing import BinaryIO
 
 import numpy as np
 import pydicom
 from pydicom.dataset import Dataset, FileDataset
 from pydicom.encaps import parse_basic_offsets
-from pydicom.filebase import DicomFile, DicomFileLike, DicomBytesIO
+from pydicom.filebase import (
+    DicomBytesIO,
+    DicomFile,
+    DicomIO,
+    ReadableBuffer,
+)
 from pydicom.filereader import (
     data_element_offset_to_value,
     dcmread,
     read_file_meta_info,
     read_partial
 )
-from pydicom.tag import TupleTag, ItemTag, SequenceDelimiterTag
+from pydicom.tag import (
+    ItemTag,
+    SequenceDelimiterTag,
+    TagListType,
+    TupleTag,
+)
 from pydicom.uid import UID, DeflatedExplicitVRLittleEndian
 
 from highdicom.frame import decode_frame
@@ -39,13 +51,40 @@ _START_MARKERS = {_JPEG_SOI_MARKER, _JPEG2000_SOC_MARKER}
 _END_MARKERS = {_JPEG_EOI_MARKER, _JPEG2000_EOC_MARKER}
 
 
-def _get_bot(fp: DicomFileLike, number_of_frames: int) -> list[int]:
+def _wrapped_dcmread(
+    fp: str | PathLike | BinaryIO | ReadableBuffer | bytes,
+    defer_size: str | int | float | None = None,
+    stop_before_pixels: bool = False,
+    force: bool = False,
+    specific_tags: TagListType | None = None,
+) -> pydicom.Dataset:
+    """A wrapper around dcmread to support reading from bytes.
+
+    Parameters match those of dcmread, but additional `fp` may be a raw bytes
+    object containing the contents of a DICOM file.
+
+    """
+    if isinstance(fp, bytes):
+        _fp = DicomBytesIO(fp)
+    else:
+        _fp = fp
+
+    return dcmread(
+        _fp,
+        defer_size=defer_size,
+        stop_before_pixels=stop_before_pixels,
+        force=force,
+        specific_tags=specific_tags,
+    )
+
+
+def _get_bot(fp: DicomIO, number_of_frames: int) -> list[int]:
     """Tries to read the value of the Basic Offset Table (BOT) item and builds
     it in case it is empty.
 
     Parameters
     ----------
-    fp: pydicom.filebase.DicomFileLike
+    fp: pydicom.filebase.DicomIO
         Pointer for DICOM PS3.10 file stream positioned at the first byte of
         the Pixel Data element
     number_of_frames: int
@@ -85,12 +124,12 @@ def _get_bot(fp: DicomFileLike, number_of_frames: int) -> list[int]:
     return basic_offset_table
 
 
-def _read_bot(fp: DicomFileLike) -> list[int]:
+def _read_bot(fp: DicomIO) -> list[int]:
     """Read Basic Offset Table (BOT) item of encapsulated Pixel Data element.
 
     Parameters
     ----------
-    fp: pydicom.filebase.DicomFileLike
+    fp: pydicom.filebase.DicomIO
         Pointer for DICOM PS3.10 file stream positioned at the first byte of
         the Pixel Data element
 
@@ -125,12 +164,12 @@ def _read_bot(fp: DicomFileLike) -> list[int]:
     return offsets
 
 
-def _build_bot(fp: DicomFileLike, number_of_frames: int) -> list[int]:
+def _build_bot(fp: DicomIO, number_of_frames: int) -> list[int]:
     """Build Basic Offset Table (BOT) item of encapsulated Pixel Data element.
 
     Parameters
     ----------
-    fp: pydicom.filebase.DicomFileLike
+    fp: pydicom.filebase.DicomIO
         Pointer for DICOM PS3.10 file stream positioned at the first byte of
         the Pixel Data element following the empty Basic Offset Table (BOT)
     number_of_frames: int
@@ -295,33 +334,41 @@ class ImageFileReader:
 
     """
 
-    def __init__(self, filename: str | Path | DicomFileLike):
+    def __init__(self, filename: str | Path | DicomIO):
         """
         Parameters
         ----------
-        filename: Union[str, pathlib.Path, pydicom.filebase.DicomfileLike]
+        filename: Union[str, pathlib.Path, pydicom.filebase.DicomIO]
             DICOM Part10 file containing a dataset of an image SOP Instance
 
         """
-        if isinstance(filename, (DicomFileLike, DicomBytesIO)):
+        if isinstance(filename, DicomIO):
             fp = filename
             self._fp = fp
-            if isinstance(filename, DicomBytesIO):
-                self._filename = None
-            else:
+            if hasattr(filename, "name") and filename.name is not None:
                 self._filename = Path(fp.name)
+            else:
+                self._filename = None
+
+            # Since we did not open the file-like object, we should not close
+            # it
+            self._should_close = False
         elif isinstance(filename, (str, Path)):
             self._filename = Path(filename)
             self._fp = None
+
+            # Since we did open the file-like object, we should close it
+            self._should_close = True
         else:
             raise TypeError(
-                'Argument "filename" must be either an open DICOM file object '
+                'Argument "filename" must be either an open DicomIO object '
                 'or the path to a DICOM file stored on disk.'
             )
         self._metadata: Dataset | weakref.ReferenceType | None = None
         self._voi_lut = None
         self._palette_color_lut = None
         self._modality_lut = None
+        self._enter_depth = 0
 
     def _change_metadata_ownership(self) -> FileDataset:
         """Set the metadata using a weakref.
@@ -356,24 +403,25 @@ class ImageFileReader:
         return str(self._filename)
 
     def __enter__(self) -> Self:
-        self.open()
+        if self._enter_depth == 0:
+            self.open()
+        self._enter_depth += 1
         return self
 
     def __exit__(self, except_type, except_value, except_trace) -> None:
-        try:
-            self._fp.close()
-        except AttributeError:
-            pass
-        else:
-            self._fp = None
-        if except_value:
-            sys.stderr.write(
-                f'Error while accessing file "{self._filename}":\n'
-                f'{except_value}'
-            )
-            for tb in traceback.format_tb(except_trace):
-                sys.stderr.write(tb)
-            raise
+        self._enter_depth -= 1
+        if self._enter_depth < 1:
+            if self._should_close:
+                self._fp.close()
+                self._fp = None
+            if except_value:
+                sys.stderr.write(
+                    f'Error while accessing file "{self._filename}":\n'
+                    f'{except_value}'
+                )
+                for tb in traceback.format_tb(except_trace):
+                    sys.stderr.write(tb)
+                raise
 
     def open(self) -> None:
         """Open file for reading.
@@ -406,19 +454,21 @@ class ImageFileReader:
                 raise OSError(
                     f'Could not open file for reading: "{self._filename}"'
                 ) from e
-        is_little_endian, is_implicit_VR = self._check_file_format(self._fp)
-        self._fp.is_little_endian = is_little_endian
-        self._fp.is_implicit_VR = is_implicit_VR
+        if not hasattr(self._fp, 'is_implicit_VR'):
+            self._fp.seek(0)
+            is_little_endian, is_implicit_VR = self._check_file_format(self._fp)
+            self._fp.is_little_endian = is_little_endian
+            self._fp.is_implicit_VR = is_implicit_VR
 
     def _check_file_format(
             self,
-            fp: DicomFileLike
+            fp: DicomIO
     ) -> tuple[bool, bool]:
         """Check whether file object represents a DICOM Part 10 file.
 
         Parameters
         ----------
-        fp: pydicom.filebase.DicomFileLike
+        fp: pydicom.filebase.DicomIO
             DICOM file object
 
         Returns
@@ -626,10 +676,11 @@ class ImageFileReader:
 
     def close(self) -> None:
         """Closes file."""
-        try:
-            self._fp.close()
-        except AttributeError:
-            return
+        if self._should_close:
+            try:
+                self._fp.close()
+            except AttributeError:
+                return
 
     def read_frame_raw(self, index: int) -> bytes:
         """Reads the raw pixel data of an individual frame item.
@@ -748,7 +799,7 @@ class ImageFileReader:
     @property
     def number_of_frames(self) -> int:
         """int: Number of frames"""
-        try:
-            return int(self.metadata.NumberOfFrames)
-        except AttributeError:
+        if 'NumberOfFrames' in self.metadata:
+            return self.metadata.NumberOfFrames
+        else:
             return 1

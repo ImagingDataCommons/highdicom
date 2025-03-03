@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 import numpy as np
 from pydicom import dcmread
 from pydicom.data import get_testdata_file
-from pydicom.filebase import DicomBytesIO, DicomFileLike
+from pydicom.filebase import DicomBytesIO, DicomFileLike, DicomFile
 import pytest
 
 from highdicom.io import ImageFileReader
@@ -235,6 +235,26 @@ class TestImageFileReader(unittest.TestCase):
                 reader.metadata.Columns,
             )
             np.testing.assert_array_equal(frame, pixel_array)
+
+    def test_read_single_frame_sm_image_jpegls_dicomfile(self):
+        filename = str(self._test_dir.joinpath("sm_image_jpegls.dcm"))
+        dcm = DicomFile(filename, "rb")
+
+        dataset = dcmread(filename)
+        pixel_array = dataset.pixel_array
+        with ImageFileReader(dcm) as reader:
+            assert reader.number_of_frames == 25
+            for fno in range(reader.number_of_frames):
+                frame = reader.read_frame(fno)
+                assert isinstance(frame, np.ndarray)
+                assert frame.ndim == 3
+                assert frame.dtype == np.uint8
+                assert frame.shape == (
+                    reader.metadata.Rows,
+                    reader.metadata.Columns,
+                    3,
+                )
+                np.testing.assert_array_equal(frame, pixel_array[fno])
 
     def test_read_single_frame_sm_image_jpegls_dicom_bytes_io(self):
         filename = str(self._test_dir.joinpath("sm_image_jpegls.dcm"))

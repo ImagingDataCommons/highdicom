@@ -1,6 +1,7 @@
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
+from io import BytesIO
 import itertools
 import unittest
 from pathlib import Path
@@ -4173,6 +4174,16 @@ class TestSegmentationParsing:
             'data/test_files/seg_image_sm_control_labelmap_palette_color.dcm'
         )
         assert isinstance(seg, Segmentation)
+
+    def test_segread_from_bytes(self):
+        # Read directly from bytes
+        seg = dcmread('data/test_files/seg_image_ct_binary_overlap.dcm')
+
+        with BytesIO() as buf:
+            seg.save_as(buf)
+            reread_seg = segread(buf.getvalue())
+
+        assert isinstance(reread_seg, Segmentation)
 
     def test_properties(self):
         # SM segs
