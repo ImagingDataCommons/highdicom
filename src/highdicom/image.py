@@ -4813,6 +4813,8 @@ class Image(_Image):
     The class may not be instantiated directly, but should be created from an
     existing dataset.
 
+    See :doc:`image` for an introduction to using this class.
+
     """
 
     def __init__(self, *args, **kwargs):
