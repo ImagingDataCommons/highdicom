@@ -14,3 +14,4 @@ parts of the library.
    pixel_transforms
    volume
    coding
+   remote

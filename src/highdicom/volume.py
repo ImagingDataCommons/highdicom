@@ -1807,9 +1807,12 @@ class VolumeGeometry(_VolumeBase):
 
     """Class encapsulating the geometry of a volume.
 
-    Unlike the similar :class:`highdicom.Volume`, items of this class do
-    not contain voxel data for the underlying volume, just a description of the
+    Unlike the similar :class:`highdicom.Volume`, items of this class do not
+    contain voxel data for the underlying volume, just a description of the
     geometry.
+
+    See :doc:`volume` for an introduction to using volumes and volume
+    geometries.
 
     """
 
@@ -2252,6 +2255,9 @@ class Volume(_VolumeBase):
     All volume arrays have three spatial dimensions. They may optionally have
     further non-spatial dimensions, known as "channel" dimensions, whose
     meaning is explicitly specified.
+
+    See :doc:`volume` for an introduction to using volumes and volume
+    geometries.
 
     """
 
