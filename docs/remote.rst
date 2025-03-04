@@ -116,7 +116,7 @@ This works because running the ``.open("rb")`` method on a Blob object returns
 a `BlobReader <blob_reader>`_ object, which has a "file-like" interface
 (specifically the ``seek``, ``read``, and ``tell`` methods). If you can provide
 examples for reading from storage provided by other cloud providers, please
-consider constributing them to this documentation.
+consider contributing them to this documentation.
 
 .. _IDC: https://portal.imaging.datacommons.cancer.gov/
 .. _blob_reader: https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.fileio.BlobReader
