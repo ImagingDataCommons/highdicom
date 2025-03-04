@@ -21,6 +21,7 @@ A diagram of the structure of TID1500 content is shown here:
 .. figure:: images/tid1500_overview.svg
    :scale: 100 %
    :alt: TID1500 diagram
+   :align: center
 
    Simplified diagram of the structure of the TID1500 template and major
    subtemplates. Note that this is intended to give a quick overview, please
