@@ -64,8 +64,8 @@ frames of the image:
   array with minimal processing. The raw bytes are decompressed if necessary
   and reshaped to form the frame of the correct shape, but no further pixel
   transforms are applied. These are referred to as "stored values" within the
-  DICOM standard. Note that the pydicom `.pixel_array` property returns stored
-  values for all frames at once.
+  DICOM standard. Note that the pydicom ``.pixel_array`` property returns
+  stored values for all frames at once.
 * :meth:`highdicom.Image.get_frame()`: In addition to the above, this method
   applies pixel transforms stored in the file to the stored values before
   returning them. The transforms applied are configurable through parameters

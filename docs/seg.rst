@@ -561,17 +561,17 @@ pixels in the original source DICOM image.
 `Highdicom` supports such cases in two ways. The first, possible when the
 segmentation array is defined on a regularly-sampled 3D grid, is to pass the
 segmentation array as an instance of the :class:`highdicom.Volume` class
-instead of a plain NumPy array. (see :doc:`volume` for an overview of volumes).
-Since the :class:`highdicom.Volume` class specifies its position within the
-frame of reference coordinate system, the position of each plane can be
-inferred automatically. The volume can have an arbitrary size, spacing, and
-orientation and these properties do not need to match those of the source
-images. Just like a standard NumPy array, the volume can be either in the
-"label map" form, where each pixel values specifies segment membership, or
-"stacked segment" form, with a further array dimension along which binary
-segments are stacked. In the "label map" case the volume must have no channel
-dimensions. In the "stacked segments" case, the volume must have exactly one
-channel dimension with the descriptor being the "SegmentNumber" tag.
+instead of a plain NumPy array (see :doc:`volume` for an overview). Since the
+:class:`highdicom.Volume` class specifies its position within the frame of
+reference coordinate system, the position of each plane can be inferred
+automatically. The volume can have an arbitrary size, spacing, and orientation
+and these properties do not need to match those of the source images. Just like
+a standard NumPy array, the volume can be either in the "label map" form, where
+each pixel values specifies segment membership, or "stacked segment" form, with
+a further array dimension along which binary segments are stacked. In the
+"label map" case the volume must have no channel dimensions. In the "stacked
+segments" case, the volume must have exactly one channel dimension with the
+descriptor being the "SegmentNumber" tag.
 
 .. code-block:: python
 
@@ -1506,7 +1506,7 @@ If the segmentation is defined on a regularly-sampled 3D grid (possibly with
 omittted frames, tiled frames, and/or multiple segments), the
 :meth:`highdicom.seg.Segmentation.get_volume()` method may be used to create a
 :class:`highdicom.Volume` from its frames. The options we have already seen
-(``segment_numbers``, combine_segments``, ``relabel``, ``rescale_fractional``)
+(``segment_numbers``, ``combine_segments``, ``relabel``, ``rescale_fractional``)
 are also available here.
 
 .. code-block:: python

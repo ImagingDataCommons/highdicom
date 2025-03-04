@@ -108,7 +108,7 @@ specifies which should be used. By default, the first item is used. Values for
   following standard Python indexing convention.
 * A ``str`` used to match the ``"LUTLabel"`` attribute, which is a free-text
   human readable string identifying the LUT, to select the map.
-* A ``pydicom.sr.coding.Code`` or ``highdicom.sr.coding.CodedConcept`` used to
+* A ``pydicom.sr.coding.Code`` or :class:`highdicom.sr.CodedConcept` used to
   match the code describing the units of the LUT (contained in the
   ``"MeasurementUnitsCodeSequence"`` attribute). See :doc:`coding` for more
   information on using codes.

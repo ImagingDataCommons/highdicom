@@ -33,7 +33,7 @@ contains. The required metadata elements include:
 * A ``number`` (``int``), an integer number for the group.
 * A ``label`` (``str``) giving a human-readable label for the group.
 * A ``uid`` (``str`` or :class:`highdicom.UID`) uniquely identifying the group.
-  Usually, you will want to generate UID for this.
+  Usually, you will want to generate a UID for this.
 * An ``annotated_property_category`` and ``annotated_property_type``
   (:class:`highdicom.sr.CodedConcept`) coded values (see :ref:`coding`)
   describing the category and specific structure that has been annotated.
@@ -338,8 +338,8 @@ all measurements in the group, but you can also filter for measurements matching
 a certain name.
 
 Measurements are returned as a tuple of ``(names, values, units)``, where
-``names`` is a list of nnames as :class:`highdicom.sr.CondedConcept` objects,
-``units`` is a list of units also as :class:`highdicom.sr.CondedConcept`
+``names`` is a list of names as :class:`highdicom.sr.CodedConcept` objects,
+``units`` is a list of units also as :class:`highdicom.sr.CodedConcept`
 objects, and the values is a ``numpy.ndarray`` of values of shape (*N* by *M*)
 where *N* is the number of annotations and *M* is the number of measurements.
 This return format is intended to facilitate the loading of measurements into
