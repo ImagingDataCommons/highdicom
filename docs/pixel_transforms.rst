@@ -5,7 +5,7 @@ Pixel Transforms
 
 A DICOM image often stores details of one or more operations that may be
 applied to the pixel values stored in the object. These operations are referred
-to as pixel transforms. For the purposes of pixel transforms, we can classify
+to as "pixel transforms". For the purposes of pixel transforms, we can classify
 images into three types:
 
 - **Monochrome images** are those with a single sample per pixel and a
@@ -16,9 +16,6 @@ images into three types:
   a photometric interpretation of "PALETTE COLOR", meaning that they are
   intended to be transformed into color images (via a lookup table) before
   being displayed as color images.
-
-Sometimes a multi-frame image may have frame-specific parameters for these
-transforms, and other times they may be shared by all frames.
 
 The following diagram shows the possible pixel transforms for each image type.
 Each transform may or may not be present in a particular image. The transforms
@@ -43,6 +40,9 @@ inclusion is optional. By contrast, the modality transform is more common and
 more likely to be implemented correctly by viewers. Thus it is fairly common
 for an image to contain parameters for transforms on both of these pathways.
 
+In multi-frame images, parameters for pixel transforms may be specified on the
+level of an individual frame or a single set may be used all frames.
+
 Pixel Transforms in Highdicom
 -----------------------------
 
@@ -61,7 +61,8 @@ The parameters ``apply_real_world_transform``, ``apply_modality_transform``,
 ``apply_voi_transform``, ``apply_presentation_lut``,
 ``apply_palette_color_lut``, and ``apply_icc_profile`` govern whether or not
 the corresponding transform is applied. With the exception of
-``apply_presentation_lut``, they can each take one of three values:
+``apply_presentation_lut`` (which is a ``bool``), they can each take one of
+three values:
 
 * ``True``, in which case the transform is always applied and an error is
   raised if the transform parameters are missing from the image object.

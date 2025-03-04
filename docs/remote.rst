@@ -91,16 +91,15 @@ segmentations.
   bucket = client.bucket("idc-open-data")
 
   # This is the path (within the above bucket) to a segmentation of a CT series
-  # from IDC collection called "CCDI MCI", containing a large number of
-  # different organs
+  # containing a large number of different organs
   blob = bucket.blob(
-    "3f38511f-fd09-4e2f-89ba-bc0845fe0005/c8ea3be0-15d7-4a04-842d-00b183f53b56.dcm"
+      "3f38511f-fd09-4e2f-89ba-bc0845fe0005/c8ea3be0-15d7-4a04-842d-00b183f53b56.dcm"
   )
 
   # Open the blob with "segread" using the "lazy frame retrieval" option
   seg = hd.seg.segread(
-    blob.open(mode="rb"),
-    lazy_frame_retrieval=True
+      blob.open(mode="rb"),
+      lazy_frame_retrieval=True
   )
 
   # Find the segment number corresponding to the liver segment

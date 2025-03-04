@@ -74,8 +74,8 @@ frames of the image:
   (VOI) transform is applied. This should be your default way of accessing
   image frames in most cases, since it will typtically return the pixels as the
   creator of the object intended them to be understood. By default, the
-  returned frames have datatype `numpy.float64`, but this can be controlled
-  using the `dtype` parameter.
+  returned frames have datatype ``numpy.float64``, but this can be controlled
+  using the ``dtype`` parameter.
 
 For all methods, the first parameter ``frame_number`` is an integer giving the
 number of the frame, where the first frame has index 1. This one-based indexing
@@ -142,8 +142,9 @@ Digital pathology images in DICOM format are typically stored as "tiled"
 images, where frames are arranged in a 2D pattern across a plane to form a
 large "total pixel matrix". For such images, you typically want to work with
 the large 2D total pixel matrix that is formed by correctly arranging the tiles
-into a 2D array rather than 3D arrays of stacked frames. `highdicom` provides
-the :meth:`highdicom.Image.get_total_pixel_matrix()` method for this purpose.
+into a 2D array rather than the 3D arrays of stacked frames that are returned
+by `pydicom` by default. `highdicom` provides the
+:meth:`highdicom.Image.get_total_pixel_matrix()` method for this purpose.
 
 Called without any parameters, it returns a 2D array containing the full total
 pixel matrix. The two dimensions are the spatial dimensions. Behind the scenes
@@ -175,9 +176,10 @@ matrix are indexed by the number 1 (not 0 as is common within Python). Negative
 indices are also supported to index relative to the last row or column, with -1
 being the index of the last row or column. Like for standard Python indexing,
 the stop indices are specified as one beyond the final row/column in the
-returned array. The requested region does not have to start or stop
-at the edges of the underlying frames: `highdicom` stitches together only the
-relevant parts of the frames to create the requested image for you.
+returned array. You can alternatively use 0-based indices by specifying the
+``as_indices`` parameter as True. The requested region does not have to start
+or stop at the edges of the underlying frames: `highdicom` stitches together
+only the relevant parts of the frames to create the requested image for you.
 
 .. code-block:: python
 
@@ -202,7 +204,7 @@ Accessing Volumes
 Many multi-frame images, especially from radiology modalities such as CT, MRI,
 DBT, and PET, contain frames that can be arranged together to form voxels on a
 regularly-sampled rectangular 3D grid. The :meth:`highdicom.Image.get_volume()`
-method checks for this case and, if possible, returns a 3D voxel array array
+method checks for this case and, if possible, returns a 3D voxel array
 with the affine matrix describing its position in the frame of reference
 coordinate system, as a :class:`highdicom.Volume`. To just check whether it is
 possible to form a volume from the frames, use the
@@ -249,7 +251,7 @@ Lazy Frame Retrieval
 The :func:`highdicom.imread()` function provides the ``lazy_frame_retrieval``
 parameter. If used, the metadata is loaded from the file without the pixel
 data. Pixel data is subsequently loaded from the file whenever it is needed by
-one of the :class:`highdicom.Image` object's methods. This can save loaded
+one of the :class:`highdicom.Image` object's methods. This can avoid loading
 unneeded pixel data from file when only a subset of it is needed.
 
 In this example, lazy frame retrieval is used to avoid loading all frames of a
