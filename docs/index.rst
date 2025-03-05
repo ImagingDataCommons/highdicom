@@ -19,9 +19,9 @@ Documentation of the Highdicom Package
 
 For new users looking to get an overview of the library's capabilities and perform basic tasks, we recommend starting with the :ref:`quick-start` page. For a detailed introduction to many of the library's capabilities, see the rest of the :ref:`user-guide`. Documentation of all classes and functions may be found in the :ref:`api-docs`.
 
-For questions, suggestions, or to report bugs, please use the issue tracker on our `GitHub repository <github>`_.
+For questions, suggestions, or to report bugs, please use the issue tracker on our GitHub `repository`_.
 
-.. _github: https://github.com/ImagingDataCommons/highdicom
+.. _repository: https://github.com/ImagingDataCommons/highdicom
 
 .. toctree::
    :maxdepth: 3

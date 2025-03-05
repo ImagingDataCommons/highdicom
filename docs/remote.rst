@@ -13,7 +13,7 @@ directly.
 One such example is blobs on Google Cloud Storage buckets when accessed using
 the official Python SDK (installed through the `google-cloud-storage` PyPI
 package). This is particularly relevant since this is the storage mechanism
-underlying the `Imaging Data Commons <IDC>`_ (IDC), a large repository of
+underlying the Imaging Data Commons (`IDC`_), a large repository of
 public DICOM images.
 
 Coupling this with :ref:`"lazy" frame retrieval <lazy>` option is especially
@@ -112,10 +112,10 @@ segmentations.
   )
 
 This works because running the ``.open("rb")`` method on a Blob object returns
-a `BlobReader <blob_reader>`_ object, which has a "file-like" interface
+a `BlobReader`_ object, which has a "file-like" interface
 (specifically the ``seek``, ``read``, and ``tell`` methods). If you can provide
 examples for reading from storage provided by other cloud providers, please
 consider contributing them to this documentation.
 
 .. _IDC: https://portal.imaging.datacommons.cancer.gov/
-.. _blob_reader: https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.fileio.BlobReader
+.. _BlobReader: https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.fileio.BlobReader
