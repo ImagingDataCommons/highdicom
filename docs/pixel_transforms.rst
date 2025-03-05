@@ -25,6 +25,7 @@ missing transforms can be assumed to be the identity transform.
 .. figure:: images/pixel_transforms.svg
    :scale: 100 %
    :alt: Pixel transforms flowchart
+   :align: center
 
    Flowchart of all possible pixel transforms and their order of application
    for monochrome, palette color and color images.

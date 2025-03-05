@@ -1,6 +1,6 @@
 .. _developer-guide:
 
-Developer guide
+Developer Guide
 ===============
 
 Source code is available at Github and can be cloned via git:

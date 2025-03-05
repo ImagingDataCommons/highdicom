@@ -1,6 +1,6 @@
 .. _installation-guide:
 
-Installation guide
+Installation Guide
 ==================
 
 .. _requirements:
