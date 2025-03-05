@@ -1,5 +1,5 @@
 .. _conformance-statement:
 
-Conformance statement
+Conformance Statement
 =====================
 

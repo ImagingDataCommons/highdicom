@@ -11,16 +11,16 @@ python clients that expose such an interface, and therefore can be read from
 directly.
 
 One such example is blobs on Google Cloud Storage buckets when accessed using
-the official Python SDK (installed through the `google-cloud-storage` PyPI
+the official Python SDK (installed through the ``google-cloud-storage`` PyPI
 package). This is particularly relevant since this is the storage mechanism
 underlying the Imaging Data Commons (`IDC`_), a large repository of
 public DICOM images.
 
-Coupling this with :ref:`"lazy" frame retrieval <lazy>` option is especially
-powerful, allowing frames to be retrieved from the remote filesystem only as
-and when they are needed. This is particularly useful for large multiframe
-files such as those found in slide microscopy or multi-segment binary
-or fractional segmentations.
+Coupling this with the :ref:`"lazy" frame retrieval <lazy>` option is
+especially powerful, allowing frames to be retrieved from the remote filesystem
+only as and when they are needed. This is particularly useful for large
+multiframe files such as those found in slide microscopy or multi-segment
+binary or fractional segmentations.
 
 In this first example, we use lazy frame retrieval to load only a specific
 spatial patch from a large whole slide image from the IDC.
