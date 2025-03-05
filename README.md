@@ -11,16 +11,14 @@
 
 1. Reading existing DICOM image files of a wide variety of modalities (covering radiology, pathology, and more) and formatting the frames to prepare them for computational analysis.
 2. Storing image-derived information, for example from computational analyses or human annotation, in derived DICOM objects for communication and storage. This includes:
-
-  - Annotations
-  - Parametric Map images
-  - Segmentation images
-  - Structured Report documents (containing numerical results, qualitative evaluations, and/or vector graphic annotations)
-  - Secondary Capture images
-  - Key Object Selection documents
-  - Legacy Converted Enhanced CT/PET/MR images (e.g., for single frame to multi-frame conversion)
-  - Softcopy Presentation State instances (including Grayscale, Color, and Pseudo-Color)
-
+  * Annotations
+  * Parametric Map images
+  * Segmentation images
+  * Structured Report documents (containing numerical results, qualitative evaluations, and/or vector graphic annotations)
+  * Secondary Capture images
+  * Key Object Selection documents
+  * Legacy Converted Enhanced CT/PET/MR images (e.g., for single frame to multi-frame conversion)
+  * Softcopy Presentation State instances (including Grayscale, Color, and Pseudo-Color)
 3. Reading existing derived DICOM files and filtering and accessing the information contained within them.
 
 ## Documentation
