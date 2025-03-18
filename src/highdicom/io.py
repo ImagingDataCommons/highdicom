@@ -21,8 +21,7 @@ from pydicom.filebase import (
 from pydicom.filereader import (
     data_element_offset_to_value,
     dcmread,
-    read_file_meta_info,
-    read_partial
+    read_partial,
 )
 from pydicom.tag import (
     ItemTag,
