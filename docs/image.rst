@@ -270,17 +270,18 @@ tiled image:
     # Get a region of the total pixel matrix
     tpm = im.get_total_pixel_matrix(row_end=20)
 
-Whether this saves time depends on your usage patterns and hardware.
-Furthermore in certain situations highdicom needs to parse the entire pixel
-data element in order to determine frame boundaries. This occurs when the
-frames are compressed using an encapsulated transfer syntax but there is no
-offset table giving the locations of frame boundaries within the file. An
-offset table can take the form of either a `basic offset table <BOT>`_ (BOT) at
-the start of the PixelData element or an `extended offset table <EOT>`_ (EOT)
-as a separate attribute in the metadata. These offset tables are not required,
-but often one of them is included in images. Without an offset table, the
-potential speed benefits of using lazy frame retrieval are usually eliminated,
-even if only a small number of frames are loaded.
+Whether this saves time depends on your usage patterns and hardware. It can be
+particularly effective when reading from remote filesystems and cloud storage
+(see :doc:`remote`). Furthermore in certain situations highdicom needs to parse
+the entire pixel data element in order to determine frame boundaries. This
+occurs when the frames are compressed using an encapsulated transfer syntax but
+there is no offset table giving the locations of frame boundaries within the
+file. An offset table can take the form of either a `basic offset table <BOT>`_
+(BOT) at the start of the PixelData element or an `extended offset table
+<EOT>`_ (EOT) as a separate attribute in the metadata. These offset tables are
+not required, but often one of them is included in images. Without an offset
+table, the potential speed benefits of using lazy frame retrieval are usually
+eliminated, even if only a small number of frames are loaded.
 
 .. _BOT: https://dicom.nema.org/dicom/2013/output/chtml/part05/sect_A.4.html
 .. _EOT: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.3.html#sect_C.7.6.3.1.8

@@ -21,8 +21,7 @@ from pydicom.filebase import (
 from pydicom.filereader import (
     data_element_offset_to_value,
     dcmread,
-    read_file_meta_info,
-    read_partial
+    read_partial,
 )
 from pydicom.tag import (
     ItemTag,
@@ -485,15 +484,12 @@ class ImageFileReader:
             If the file object does not represent a DICOM Part 10 file
 
         """
-        if self._filename is None:
-            # fileobj type is BinaryIO but works fine with a DicomBytesIO
-            file_meta = read_partial(
-                fileobj=fp,  # type: ignore
-                stop_when=_stop_after_group_2
-            ).file_meta
-            fp.seek(0)
-        else:
-            file_meta = read_file_meta_info(str(self._filename))
+        # fileobj type is BinaryIO but works fine with a DicomBytesIO
+        file_meta = read_partial(
+            fileobj=fp,  # type: ignore
+            stop_when=_stop_after_group_2
+        ).file_meta
+        fp.seek(0)
 
         transfer_syntax_uid = UID(file_meta.TransferSyntaxUID)
         return (
