@@ -46,7 +46,7 @@ spatial patch from a large whole slide image from the IDC.
 
 
   # Create a storage client and use it to access the IDC's public data package
-  client = storage.Client()
+  client = storage.Client.create_anonymous_client()
   bucket = client.bucket("idc-open-data")
 
   # This is the path (within the above bucket) to a whole slide image from the
@@ -97,7 +97,7 @@ segmentations.
 
 
   # Create a storage client and use it to access the IDC's public data package
-  client = storage.Client()
+  client = storage.Client.create_anonymous_client()
   bucket = client.bucket("idc-open-data")
 
   # This is the path (within the above bucket) to a segmentation of a CT series
