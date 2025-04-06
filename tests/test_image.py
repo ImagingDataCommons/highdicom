@@ -1042,6 +1042,24 @@ def test_get_volume_multiframe_ct():
         assert volume.array.dtype == dtype
 
 
+def test_tiled_full_no_dimension_index():
+    # The dimension index sequence is optional with TILED_FULL images
+    # Check that the image is read correctly and the same total pixel matrix is
+    # returned in both cases
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    f = data_dir / 'test_files/sm_image.dcm'
+    im = imread(f)
+
+    dcm = pydicom.dcmread(f)
+    del dcm.DimensionIndexSequence
+    im_no_dim_ind = Image.from_dataset(dcm, copy=False)
+
+    tpm1 = im.get_total_pixel_matrix()
+    tpm2 = im_no_dim_ind.get_total_pixel_matrix()
+    assert np.array_equal(tpm1, tpm2)
+
+
 def test_get_total_pixel_matrix_dtypes():
     file_path = Path(__file__)
     data_dir = file_path.parent.parent.joinpath('data')
