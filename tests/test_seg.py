@@ -4571,8 +4571,8 @@ class TestSegmentationParsing:
             assert np.array_equal(np.unique(volume.array), expected_vals)
 
     def test_tiled_full_no_dimension_index(self):
-        # The dimension index sequence is optional with TILED_FULL images
-        # Check that the image is read correctly and the same total pixel matrix is
+        # The dimension index sequence is optional with TILED_FULL images Check
+        # that the image is read correctly and the same total pixel matrix is
         # returned in both cases
         file_path = Path(__file__)
         data_dir = file_path.parent.parent.joinpath('data')
