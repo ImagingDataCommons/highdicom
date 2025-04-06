@@ -40,8 +40,8 @@ class SegmentDescription(Dataset):
     """Dataset describing a segment based on the Segment Description macro.
 
     Note that this does **not** correspond to the "Segment Description"
-    attribute (0062,0006), which is just one attribute within the Segment Description
-    macro.
+    attribute (0062,0006), which is just one attribute within the Segment
+    Description macro.
 
     """
 
