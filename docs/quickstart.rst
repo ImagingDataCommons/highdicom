@@ -16,6 +16,8 @@ including accessing and arranging their frames.
 
 This basic example loads an existing DICOM file and accesses an individual frame,
 with and without the value-of-interest (VOI) transform applied.
+See :doc:`image` for an overview of the :class:`highdicom.Image` class and
+:doc:`pixel_transforms` for an overview of pixel transforms.
 
 .. code-block:: python
 
@@ -32,14 +34,12 @@ with and without the value-of-interest (VOI) transform applied.
     # Get pixels with rescale/slope and VOI applied
     first_frame = im.get_frame(1, apply_voi_transform=True)
 
-See :doc:`image` for an overview of the :class:`highdicom.Image` class and
-:doc:`pixel_transforms` for an overview of pixel transforms.
-
 Constructing Total Pixel Matrices
 ---------------------------------
 
 Load an existing tiled digital pathology image from a DICOM file and access its
 total pixel matrix.
+See :doc:`image` for an overview of the :class:`highdicom.Image` class.
 
 .. code-block:: python
 
@@ -52,15 +52,13 @@ total pixel matrix.
     # Returns a (50, 50, 3) numpy array of the total pixel matrix
     total_pixel_matrix = im.get_total_pixel_matrix()
 
-
-See :doc:`image` for an overview of the :class:`highdicom.Image` class.
-
 Working with Volumes
 --------------------
 
 If a DICOM image contains frames that can be arranged into a regular 3D
 volumetric grid, a :class:`highdicom.Volume` object can be created from it and
 used to preprocess an image.
+See :doc:`volume` for an overview of the :class:`highdicom.Volume` class.
 
 .. code-block:: python
 
@@ -100,15 +98,19 @@ used to preprocess an image.
     # Access the numpy array
     assert isinstance(volume.array, np.ndarray)
 
-See :doc:`volume` for an overview of the :class:`highdicom.Volume` class.
 
 .. _creating-seg:
 
 Creating Segmentation (SEG) images
 ----------------------------------
 
-Derive a Segmentation image from a series of single-frame Computed Tomography
-(CT) images using the :class:`highdicom.seg.Segmentation` class:
+DICOM Segmentations are used to store segmentations of other DICOM images.
+Highdicom uses the :class:`highdicom.seg.Segmentation` to create and read DICOM
+Segmentations.
+For an in-depth overview of DICOM segmentations, see :doc:`seg`.
+
+This simple example derives a Segmentation image from a series of single-frame
+Computed Tomography (CT) images:
 
 .. code-block:: python
 
@@ -233,8 +235,6 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
 
     print(seg_dataset)
 
-For more information see :doc:`seg`.
-
 .. _parsing-seg:
 
 Parsing Segmentation (SEG) images
@@ -257,31 +257,57 @@ for them:
     # Check the number of segments
     assert seg.number_of_segments == 2
 
-    # Find segments (identified by their segment number) that have segmented
-    # property type "Bone"
+    # Get a SegmentDescription object, containing various metadata about a given
+    # segment
+    segment_description = seg.get_segment_description(2)
+
+    # The segment description has various properties
+    assert segment_description.segment_number == 2
+    assert segment_description.segment_label == 'second segment'
+    assert segment_description.tracking_id == 'Spine'
+    assert segment_description.tracking_uid == '1.2.826.0.1.3680043.10.511.3.10042414969629429693880339016394772'
+    assert segment_description.segmented_property_type == codes.SCT.Spine
+
+    # You can also use get_segment_numbers() to find segments (identified by their
+    # segment number) using one or more filters on these properties. For example,
+    # to find segments that have segmented property type "Bone"
     bone_segment_numbers = seg.get_segment_numbers(
-        segmented_property_type=codes.SCT.Bone
+      segmented_property_type=codes.SCT.Bone
     )
     assert bone_segment_numbers ==  [1]
+
+    # Retrieve the segmentation mask as a highdicom.Volume (with spatial metadata)
+    seg_volume = seg.get_volume()
+
+    # Accessing using a volume fills in any missing slices, which are assumed to be
+    # empty
+    assert seg_volume.array.shape == (165, 16, 16, 2)
+
+    # Access the spatial affine matrix of the resulting volume as a numpy array
+    print(seg_volume.affine)
+    # [[   0.      ,    0.      ,    0.488281, -125.      ],
+    #  [   0.      ,    0.488281,    0.      , -128.100006],
+    #  [  -1.25    ,    0.      ,    0.      ,  105.519997],
+    #  [   0.      ,    0.      ,    0.      ,    1.      ]])
 
     # List SOP Instance UIDs of the images from which the segmentation was
     # derived
     for study_uid, series_uid, sop_uid in seg.get_source_image_uids():
-        print(study_uid, series_uid, sop_uid)
-        # '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1, 1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2, 1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93'
-        # ...
+      print(study_uid, series_uid, sop_uid)
+      # '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1, 1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2, 1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93'
+      # ...
 
     # Here is a list of known SOP Instance UIDs that are a subset of those
     # from which the segmentation was derived
     source_image_uids = [
-        '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93',
-        '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.94',
+      '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.93',
+      '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.94',
     ]
 
     # Retrieve a binary segmentation mask for these images for the bone segment
     mask = seg.get_pixels_by_source_instance(
-        source_sop_instance_uids=source_image_uids,
-        segment_numbers=bone_segment_numbers,
+      source_sop_instance_uids=source_image_uids,
+      segment_numbers=bone_segment_numbers,
     )
     # Output is a numpy array of shape (instances x rows x columns x segments)
     assert mask.shape == (2, 16, 16, 1)
@@ -291,9 +317,9 @@ for them:
     # (2 in this case), and combine the resulting array into a "label mask", where
     # pixel value represents segment number
     mask = seg.get_pixels_by_source_instance(
-        source_sop_instance_uids=source_image_uids,
-        combine_segments=True,
-        skip_overlap_checks=True,  # the segments in this image overlap
+      source_sop_instance_uids=source_image_uids,
+      combine_segments=True,
+      skip_overlap_checks=True,  # the segments in this image overlap
     )
     # Output is a numpy array of shape (instances x rows x columns)
     assert mask.shape == (2, 16, 16)
@@ -305,6 +331,11 @@ For more information see :doc:`seg`.
 
 Creating Structured Report (SR) documents
 -----------------------------------------
+
+Structured Reports store measurements or observations on an image, including
+qualitative evaluations, numerical measurements and/or regions of interest
+represented using vector graphics.
+For a full overview of SRs, see :doc:`generalsr` and :doc:`tid1500`.
 
 Create a Structured Report document that contains a numeric area measurement for
 a planar region of interest (ROI) in a single-frame computed tomography (CT)
@@ -418,8 +449,6 @@ image:
 
     print(sr_dataset)
 
-For more information see :doc:`generalsr` and :doc:`tid1500`.
-
 .. _parsing-sr:
 
 Parsing Structured Report (SR) documents
@@ -428,6 +457,7 @@ Parsing Structured Report (SR) documents
 Highdicom has special support for parsing structured reports conforming to the
 TID1500 "Measurement Report" template using specialized Python classes for
 templates.
+For more information see :doc:`tid1500parsing`.
 
 .. code-block:: python
 
@@ -566,8 +596,6 @@ templates.
     assert evaluation.value == codes.SCT.NotSignificant
 
 
-For more information see :doc:`tid1500parsing`.
-
 Additionally, there are low-level utilities that you can use to find content
 items in the content tree of any structured report documents:
 
@@ -634,6 +662,8 @@ Creating Microscopy Bulk Simple Annotation (ANN) objects
 
 Microscopy Bulk Simple Annotations store large numbers of annotations of
 objects in microscopy images in a space-efficient way.
+For more information see :ref:`ann` and the documentation of the
+:class:`highdicom.ann.MicroscopyBulkSimpleAnnotations` class.
 
 
 .. code-block:: python
@@ -696,9 +726,6 @@ objects in microscopy images in a space-efficient way.
 
     bulk_annotations.save_as('nuclei_annotations.dcm')
 
-For more information see :ref:`ann` and the documentation of the
-:class:`highdicom.ann.MicroscopyBulkSimpleAnnotations` class.
-
 .. _parsing-ann:
 
 Parsing Microscopy Bulk Simple Annotation (ANN) objects
@@ -708,6 +735,7 @@ The following example demonstrates loading in a small bulk microscopy
 annotations file, finding an annotation group representing annotation of
 nuclei, and extracting the graphic data for the annotation as well as the area
 measurements corresponding to those annotations.
+For more information see :ref:`ann`.
 
 .. code-block:: python
 
@@ -748,8 +776,6 @@ measurements corresponding to those annotations.
     assert units[0] == codes.UCUM.SquareMicrometer
     assert values.shape == (group.number_of_annotations, 1)
 
-
-For more information see :ref:`ann`.
 
 .. _creating-sc:
 

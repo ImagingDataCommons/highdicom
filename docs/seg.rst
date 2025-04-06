@@ -43,6 +43,8 @@ other words, the segments within a SEG image may *overlap*.  There is an
 optional attribute called "Segments Overlap" (0062, 0013) that, if present,
 will indicate whether the segments overlap in a given SEG image.
 
+.. _segment_descriptions:
+
 Segment Descriptions
 --------------------
 
@@ -52,9 +54,11 @@ are numbered with consecutive segment numbers starting at 1 (i.e., 1, 2, 3,
 describing what the segment represents. This information is placed in the
 "SegmentsSequence" (0062, 0002) attribute of the segmentation file. In
 *highdcom*, we use the :class:`highdicom.seg.SegmentDescription` class to hold
-this information. When you construct a DICOM SEG image using *highdicom*, you
-must construct a single :class:`highdicom.seg.SegmentDescription` object for
-each segment. The segment description includes the following information:
+this information. This is not to be confused with the DICOM "Segment
+Description" attribute, which is a plain text string. When you construct a
+DICOM SEG image using *highdicom*, you must construct a single
+:class:`highdicom.seg.SegmentDescription` object for each segment. The segment
+description includes the following information:
 
 - **Segment Label**: A human-readable name for the segment (e.g. ``"Left
   Kidney"``). This can be any string.
@@ -131,6 +135,9 @@ we must first provide more information about the algorithm used in an
         algorithm_identification=algorithm_identification,
         anatomic_regions=[codes.SCT.Kidney]
     )
+
+For a description of how to access segment metadata in existing segmentations,
+see :ref:`segment_description_parsing`.
 
 Segmentation Type (Binary, Fractional and Labelmap)
 ---------------------------------------------------
@@ -1185,6 +1192,44 @@ attributes by their keyword, in the usual way.
     # Accessing DICOM attributes as usual in pydicom
     seg.PatientName
     # 'Doe^Archibald'
+
+.. _segment_description_parsing:
+
+Examining Segment Metadata
+--------------------------
+
+Once you have read in the segmentation, you can examine the segment metadata to
+understand the meaning of each segment (for an overview of the metadata see
+:ref:`segment_descriptions`).
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+
+    seg = hd.seg.segread('data/test_files/seg_image_ct_binary.dcm')
+
+    # Use the number_of_segments property to find the number of segments in the
+    # segmentation
+    assert seg.number_of_segments == 1
+
+    # Use the get_segment_description() method to get segment metadata (as a
+    # highdicom.seg.SegmentDescription object) for a segment given its 1-based
+    # index
+    segment_description = seg.get_segment_description(1)
+    assert isinstance(segment_description, hd.seg.SegmentDescription)
+
+    # The SegmentDescription class has various properties that allow you to
+    # conveniently access metadata
+    assert segment_description.segment_number == 1
+    assert segment_description.segment_label == 'first segment'
+    assert segment_description.algorithm_type == hd.seg.SegmentAlgorithmTypeValues.AUTOMATIC
+    assert segment_description.tracking_id == 'test segmentation of computed tomography image'
+    assert segment_description.tracking_uid == '1.2.826.0.1.3680043.10.511.3.10019350872562748248892382642075888'
+    assert segment_description.segmented_property_category == codes.SCT.Tissue
+    assert segment_description.segmented_property_type == codes.SCT.Bone
+
 
 Searching For Segments
 ----------------------
