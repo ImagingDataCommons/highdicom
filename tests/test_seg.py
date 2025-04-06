@@ -4570,6 +4570,23 @@ class TestSegmentationParsing:
                 print(seg_attr_name)
             assert np.array_equal(np.unique(volume.array), expected_vals)
 
+    def test_tiled_full_no_dimension_index(self):
+        # The dimension index sequence is optional with TILED_FULL images
+        # Check that the image is read correctly and the same total pixel matrix is
+        # returned in both cases
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        f = data_dir / 'test_files/seg_image_sm_dots_tiled_full.dcm'
+        seg = segread(f)
+
+        dcm = dcmread(f)
+        del dcm.DimensionIndexSequence
+        seg_no_dim_ind = Segmentation.from_dataset(dcm, copy=False)
+
+        tpm1 = seg.get_total_pixel_matrix()
+        tpm2 = seg_no_dim_ind.get_total_pixel_matrix()
+        assert np.array_equal(tpm1, tpm2)
+
     def test_get_default_dimension_index_pointers(self):
         ptrs = self._sm_control_seg.get_default_dimension_index_pointers()
         assert len(ptrs) == 5

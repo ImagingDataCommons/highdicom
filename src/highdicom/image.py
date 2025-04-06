@@ -21,6 +21,7 @@ from pydicom.tag import BaseTag
 from pydicom.datadict import (
     get_entry,
     tag_for_keyword,
+    keyword_for_tag,
 )
 from pydicom.filebase import DicomIO, DicomBytesIO
 from pydicom.multival import MultiValue
@@ -2157,14 +2158,6 @@ class _Image(SOPClass):
             y_tag = tag_for_keyword('YOffsetInSlideCoordinateSystem')
             z_tag = tag_for_keyword('ZOffsetInSlideCoordinateSystem')
             tiled_full_dim_indices = {row_tag, col_tag}
-            if len(tiled_full_dim_indices - set(dim_indices.keys())) > 0:
-                raise RuntimeError(
-                    'Expected images with '
-                    '"DimensionOrganizationType" of "TILED_FULL" '
-                    'to have the following dimension index pointers: '
-                    'RowPositionInTotalImagePixelMatrix, '
-                    'ColumnPositionInTotalImagePixelMatrix.'
-                )
             self._single_source_frame_per_frame = False
             (
                 channel_numbers,
@@ -2182,9 +2175,29 @@ class _Image(SOPClass):
             ):
                 segment_tag = tag_for_keyword('ReferencedSegmentNumber')
                 dim_values[segment_tag] = channel_numbers
+                if len(self.SegmentSequence) > 1:
+                    tiled_full_dim_indices |= {segment_tag}
             elif hasattr(self, 'OpticalPathSequence'):
                 op_tag = tag_for_keyword('OpticalPathIdentifier')
                 dim_values[op_tag] = channel_numbers
+                if len(self.OpticalPathSequence) > 1:
+                    tiled_full_dim_indices |= {op_tag}
+
+            # If the image has a dimension index sequence, enforce that it
+            # contains the expected indices
+            if (
+                'DimensionIndexSequence' in self and
+                len(tiled_full_dim_indices - set(dim_indices.keys())) > 0
+            ):
+                expected_str = ", ".join(
+                    keyword_for_tag(t) for t in tiled_full_dim_indices
+                )
+                raise RuntimeError(
+                    'Expected images with '
+                    '"DimensionOrganizationType" of "TILED_FULL" '
+                    'to have the following dimension index pointers: '
+                    f'{expected_str}.'
+                )
 
             # Create indices for each of the dimensions
             for ptr, vals in dim_values.items():
