@@ -333,7 +333,7 @@ Creating Structured Report (SR) documents
 -----------------------------------------
 
 Structured Reports store measurements or observations on an image, including
-qualitative evaluations, numberical measurements and/or regions of interest
+qualitative evaluations, numerical measurements and/or regions of interest
 represented using vector graphics.
 For a full overview of SRs, see :doc:`generalsr` and :doc:`tid1500`.
 
