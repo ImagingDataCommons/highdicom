@@ -3311,7 +3311,7 @@ class _ROIMeasurementsAndQualitativeEvaluations(
                     scheme_designator='DCM',
                 ),
                 value=geometric_purpose,
-                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
+                relationship_type=RelationshipTypeValues.CONTAINS,
             )
             group_item.ContentSequence.append(geometric_purpose_item)
         if referenced_regions is not None:
