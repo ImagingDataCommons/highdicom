@@ -2068,6 +2068,24 @@ class _Image(SOPClass):
             ptr: [] for ptr in self._dim_ind_pointers
         }
 
+        # Check for dimension index values in the shared functional groups
+        if sfgs is not None:
+            for ptr in self._dim_ind_pointers:
+                grp_ptr = func_grp_pointers[ptr]
+                dim_val = None
+                if grp_ptr is not None:
+                    try:
+                        dim_val = sfgs[grp_ptr][0][ptr].value
+                    except KeyError:
+                        pass
+                else:
+                    try:
+                        dim_val = sfgs[ptr].value
+                    except KeyError:
+                        pass
+                if dim_val is not None:
+                    dim_values[ptr] = [dim_val] * self.number_of_frames
+
         # Additional information that is not one of the indices
         extra_collection_pointers = []
         extra_collection_func_pointers = {}
@@ -2245,6 +2263,12 @@ class _Image(SOPClass):
                     )
                 for ptr in self._dim_ind_pointers:
                     dim_indices[ptr].append(indices[dim_ind_positions[ptr]])
+
+                    if len(dim_values[ptr]) >= self.number_of_frames:
+                        # Values for this dimension were found in the shared
+                        # functional groups
+                        continue
+
                     grp_ptr = func_grp_pointers[ptr]
                     if grp_ptr is not None:
                         dim_val = frame_item[grp_ptr][0][ptr].value
