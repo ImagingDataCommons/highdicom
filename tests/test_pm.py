@@ -926,7 +926,6 @@ class TestParametricMap(unittest.TestCase):
         assert len(shared_item.PixelMeasuresSequence) == 1
         pm_item = shared_item.PixelMeasuresSequence[0]
         assert pm_item.PixelSpacing == list(pixel_spacing)
-        assert len(shared_item.PlaneOrientationSequence) == 1
-        po_item = shared_item.PlaneOrientationSequence[0]
-        assert po_item.ImageOrientationSlide == list(image_orientation)
+        assert not hasattr(shared_item, 'PlaneOrientationSequence')
+        assert instance.ImageOrientationSlide == list(image_orientation)
         self.check_dimension_index_vals(instance)

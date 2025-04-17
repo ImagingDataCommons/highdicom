@@ -1,4 +1,5 @@
 from collections import defaultdict
+from copy import deepcopy
 from typing import cast
 from collections.abc import Sequence
 from enum import Enum
@@ -614,6 +615,9 @@ class ParametricMap(SOPClass):
                     plane_position_values[last_frame_index, col_index] +
                     self.Columns
                 )
+                self.ImageOrientationSlide = deepcopy(
+                    plane_orientation[0].ImageOrientationSlide
+                )
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
         if pixel_measures is None:
@@ -630,7 +634,8 @@ class ParametricMap(SOPClass):
                 )
 
         sffg_item.PixelMeasuresSequence = pixel_measures
-        sffg_item.PlaneOrientationSequence = plane_orientation
+        if coordinate_system == CoordinateSystemNames.PATIENT:
+            sffg_item.PlaneOrientationSequence = plane_orientation
 
         # Identity Pixel Value Transformation
         transformation_item = Dataset()
