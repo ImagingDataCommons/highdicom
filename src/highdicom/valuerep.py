@@ -109,6 +109,33 @@ def _check_code_string(value: str) -> None:
         )
 
 
+def _check_short_string(s: str) -> None:
+    """Check that a Python string is valid for use as DICOM Short String.
+
+    Parameters
+    ----------
+    s: str
+        Python string to check.
+
+    Raises
+    ------
+    ValueError:
+        If the string s is not valid as a DICOM Short String due to length or
+        the characters it contains.
+
+    """
+    if len(s) > 16:
+        raise ValueError(
+            'Values of DICOM value representation Short String (SH) must not '
+            'exceed 16 characters.'
+        )
+    if '\\' in s:
+        raise ValueError(
+            'Values of DICOM value representation Short String (SH) must not '
+            'contain the backslash character.'
+        )
+
+
 def _check_long_string(s: str) -> None:
     """Check that a Python string is valid for use as DICOM Long String.
 

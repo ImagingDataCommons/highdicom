@@ -17,7 +17,11 @@ from highdicom.enum import ContentQualificationValues, CoordinateSystemNames
 from highdicom.frame import encode_frame
 from highdicom.pm.content import DimensionIndexSequence, RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
-from highdicom.valuerep import check_person_name, _check_code_string
+from highdicom.valuerep import (
+    check_person_name,
+    _check_code_string,
+    _check_long_string,
+)
 from highdicom._module_utils import is_multiframe_image
 from pydicom import Dataset
 from pydicom.uid import (
@@ -418,6 +422,8 @@ class ParametricMap(SOPClass):
             self.ContentLabel = content_label
         else:
             self.ContentLabel = 'MAP'
+        if content_description is not None:
+            _check_long_string(content_description)
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)

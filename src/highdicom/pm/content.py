@@ -14,6 +14,10 @@ from highdicom.sr.coding import CodedConcept
 from highdicom.sr.value_types import CodeContentItem
 from highdicom.uid import UID
 from highdicom.utils import compute_plane_position_slide_per_frame
+from highdicom.valuerep import (
+    _check_long_string,
+    _check_short_string,
+)
 
 
 class RealWorldValueMapping(Dataset):
@@ -84,13 +88,9 @@ class RealWorldValueMapping(Dataset):
         """  # noqa: E501
         super().__init__()
 
-        if len(lut_label) > 16:
-            raise ValueError(
-                'lut_label must be less than or equal to 16 characters, '
-                f'given {len(lut_label)}.'
-            )
-
+        _check_long_string(lut_explanation)
         self.LUTExplanation = str(lut_explanation)
+        _check_short_string(lut_label)
         self.LUTLabel = str(lut_label)
 
         is_floating_point = any(isinstance(v, float) for v in value_range)
