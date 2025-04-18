@@ -1,4 +1,5 @@
 from collections import defaultdict
+from copy import deepcopy
 from typing import cast
 from collections.abc import Sequence
 from enum import Enum
@@ -17,7 +18,11 @@ from highdicom.enum import ContentQualificationValues, CoordinateSystemNames
 from highdicom.frame import encode_frame
 from highdicom.pm.content import DimensionIndexSequence, RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
-from highdicom.valuerep import check_person_name, _check_code_string
+from highdicom.valuerep import (
+    check_person_name,
+    _check_code_string,
+    _check_long_string,
+)
 from highdicom._module_utils import is_multiframe_image
 from pydicom import Dataset
 from pydicom.uid import (
@@ -418,6 +423,8 @@ class ParametricMap(SOPClass):
             self.ContentLabel = content_label
         else:
             self.ContentLabel = 'MAP'
+        if content_description is not None:
+            _check_long_string(content_description)
         self.ContentDescription = content_description
         if content_creator_name is not None:
             check_person_name(content_creator_name)
@@ -608,6 +615,9 @@ class ParametricMap(SOPClass):
                     plane_position_values[last_frame_index, col_index] +
                     self.Columns
                 )
+                self.ImageOrientationSlide = deepcopy(
+                    plane_orientation[0].ImageOrientationSlide
+                )
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
         if pixel_measures is None:
@@ -624,7 +634,8 @@ class ParametricMap(SOPClass):
                 )
 
         sffg_item.PixelMeasuresSequence = pixel_measures
-        sffg_item.PlaneOrientationSequence = plane_orientation
+        if coordinate_system == CoordinateSystemNames.PATIENT:
+            sffg_item.PlaneOrientationSequence = plane_orientation
 
         # Identity Pixel Value Transformation
         transformation_item = Dataset()
