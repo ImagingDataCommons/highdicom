@@ -56,19 +56,17 @@ spatial patch from a large whole slide image from the IDC.
   )
 
   # Read directly from the blob object using lazy frame retrieval
-  im = hd.imread(
-      blob.open(mode="rb"),
-      lazy_frame_retrieval=True
-  )
+  with blob.open(mode="rb") as reader:
+      im = hd.imread(reader, lazy_frame_retrieval=True)
 
-  # Grab an arbitrary region of tile full pixel matrix
-  region = im.get_total_pixel_matrix(
-      row_start=15000,
-      row_end=15512,
-      column_start=17000,
-      column_end=17512,
-      dtype=np.uint8
-  )
+      # Grab an arbitrary region of tile full pixel matrix
+      region = im.get_total_pixel_matrix(
+          row_start=15000,
+          row_end=15512,
+          column_start=17000,
+          column_end=17512,
+          dtype=np.uint8
+      )
 
   # Show the region
   plt.imshow(region)
@@ -107,19 +105,17 @@ segmentations.
   )
 
   # Open the blob with "segread" using the "lazy frame retrieval" option
-  seg = hd.seg.segread(
-      blob.open(mode="rb"),
-      lazy_frame_retrieval=True
-  )
+  with blob.open(mode="rb") as reader:
+      seg = hd.seg.segread(reader, lazy_frame_retrieval=True)
 
-  # Find the segment number corresponding to the liver segment
-  selected_segment_numbers = seg.get_segment_numbers(segment_label="Liver")
+      # Find the segment number corresponding to the liver segment
+      selected_segment_numbers = seg.get_segment_numbers(segment_label="Liver")
 
-  # Read in the selected segments lazily
-  volume = seg.get_volume(
-      segment_numbers=selected_segment_numbers,
-      combine_segments=True,
-  )
+      # Read in the selected segments lazily
+      volume = seg.get_volume(
+          segment_numbers=selected_segment_numbers,
+          combine_segments=True,
+      )
 
 This works because running the ``.open("rb")`` method on a Blob object returns
 a `BlobReader`_ object, which has a "file-like" interface
@@ -161,19 +157,21 @@ the ``smart_open`` documentation for details).
   url = 's3://idc-open-data/763fe058-7d25-4ba7-9b29-fd3d6c41dc4b/210f0529-c767-4795-9acf-bad2f4877427.dcm'
 
   # Read the imge directly from the blob
-  im = hd.imread(
-      smart_open.open(url, mode="rb", transport_params=dict(client=s3_client)),
-      lazy_frame_retrieval=True,
-  )
+  with smart_open.open(
+      url,
+      mode="rb",
+      transport_params=dict(client=s3_client),
+  ) as reader:
+      im = hd.imread(reader, lazy_frame_retrieval=True)
 
-  # Grab an arbitrary region of tile full pixel matrix
-  region = im.get_total_pixel_matrix(
-      row_start=15000,
-      row_end=15512,
-      column_start=17000,
-      column_end=17512,
-      dtype=np.uint8
-  )
+      # Grab an arbitrary region of tile full pixel matrix
+      region = im.get_total_pixel_matrix(
+          row_start=15000,
+          row_end=15512,
+          column_start=17000,
+          column_end=17512,
+          dtype=np.uint8
+      )
 
   # Show the region
   plt.imshow(region)
