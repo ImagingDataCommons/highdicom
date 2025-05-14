@@ -153,7 +153,7 @@ the ``smart_open`` documentation for details).
   # Configure a client to avoid the need for AWS credentials
   s3_client = boto3.client('s3', config=Config(signature_version=UNSIGNED))
 
-  # URL to an IDC CT image on AWS S3
+  # URL to a whole slide image from the IDC "CCDS MCI" collection on AWS S3
   url = 's3://idc-open-data/763fe058-7d25-4ba7-9b29-fd3d6c41dc4b/210f0529-c767-4795-9acf-bad2f4877427.dcm'
 
   # Read the imge directly from the blob
