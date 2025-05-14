@@ -403,6 +403,7 @@ def create_segmentation_pyramid(
                         int(source_images[0].TotalPixelMatrixRows / f)
                     )
 
+                # Resize each segment individually
                 resized_masks = [
                     np.array(im.resize(output_size, resampler))
                     for im in mask_images
@@ -410,7 +411,11 @@ def create_segmentation_pyramid(
                 if len(resized_masks) > 1:
                     pixel_array = np.stack(resized_masks, axis=-1)[None]
                 else:
-                    pixel_array = resized_masks[0][None]
+                    pixel_array = resized_masks[0]
+
+        # Standardize shape of pixel array to include singleton frame dimension
+        if pixel_array.ndim == 2:
+            pixel_array = pixel_array[None]
 
         if n_sources == 1:
             source_pixel_measures = (
@@ -420,13 +425,23 @@ def create_segmentation_pyramid(
             )
             src_pixel_spacing = source_pixel_measures.PixelSpacing
             src_slice_thickness = source_pixel_measures.SliceThickness
+
+            if pixel_arrays[0].ndim == 2:
+                # No frame dimension
+                orig_n_rows = pixel_arrays[0].shape[0]
+                orig_n_cols = pixel_arrays[0].shape[1]
+            else:
+                # Ignore 0th frame dimension
+                orig_n_rows = pixel_arrays[0].shape[1]
+                orig_n_cols = pixel_arrays[0].shape[2]
+
             row_spacing = (
                 src_pixel_spacing[0] *
-                (pixel_arrays[0].shape[0] / pixel_array.shape[0])
+                (orig_n_rows / pixel_array.shape[1])
             )
             column_spacing = (
                 src_pixel_spacing[1] *
-                (pixel_arrays[0].shape[1] / pixel_array.shape[1])
+                (orig_n_cols / pixel_array.shape[2])
             )
             pixel_measures = PixelMeasuresSequence(
                 pixel_spacing=(row_spacing, column_spacing),
