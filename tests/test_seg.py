@@ -5980,7 +5980,6 @@ class TestPyramid:
             assert abs(seg_height - sm_height) < tol
             assert abs(seg_width - sm_width) < tol
 
-
     def test_multiple_source_single_pixel_array(self, pass_with_frame_dim):
         # Test construction when given multiple source images and a single
         # segmentation image
@@ -6070,7 +6069,10 @@ class TestPyramid:
             )
             assert src_spacing == seg_spacing
 
-    def test_multiple_source_single_pixel_array_float(self, pass_with_frame_dim):
+    def test_multiple_source_single_pixel_array_float(
+        self,
+        pass_with_frame_dim,
+    ):
         # Test construction when given multiple source images and a single
         # segmentation image
 
