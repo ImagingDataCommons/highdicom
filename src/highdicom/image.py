@@ -1349,9 +1349,9 @@ class _Image(SOPClass):
             )
         else:
             if self.number_of_frames == 1:
-                frame = self.pixel_array
+                frame = self.pixel_array.copy()
             else:
-                frame = self.pixel_array[frame_index]
+                frame = self.pixel_array[frame_index].copy()
 
         return frame
 
@@ -1437,9 +1437,9 @@ class _Image(SOPClass):
                     )
                 else:
                     if self.number_of_frames == 1:
-                        frame = self.pixel_array
+                        frame = self.pixel_array.copy()
                     else:
-                        frame = self.pixel_array[frame_index]
+                        frame = self.pixel_array[frame_index].copy()
 
                 output_frames.append(frame)
 

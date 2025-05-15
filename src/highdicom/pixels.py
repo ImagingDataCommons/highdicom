@@ -459,7 +459,7 @@ def apply_voi_window(
                 output_min
             )
 
-        array = np.clip(array, output_min, output_max)
+        np.clip(array, output_min, output_max, out=array)
 
     elif voi_lut_function == VOILUTFunctionValues.SIGMOID:
         if invert:
