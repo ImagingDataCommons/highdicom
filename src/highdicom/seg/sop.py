@@ -3505,7 +3505,11 @@ class Segmentation(_Image):
                             'zeros and the specified MaximumFractionalValue '
                             f'({self.MaximumFractionalValue}).'
                         )
-                    pixel_array = pixel_array // self.MaximumFractionalValue
+                    np.floor_divide(
+                        pixel_array,
+                        self.MaximumFractionalValue,
+                        out=pixel_array,
+                    )
                     if pixel_array.dtype != np.uint8:
                         pixel_array = pixel_array.astype(np.uint8)
 
@@ -3520,9 +3524,23 @@ class Segmentation(_Image):
                             "Cannot combine segments because segments "
                             "overlap."
                         )
-                out_array[output_indexer] = np.maximum(
-                    pixel_array * pix_value,
-                    out_array[output_indexer]
+
+                if pix_value != 1:
+                    if pixel_array.dtype == out_array.dtype:
+                        np.multiply(
+                            pixel_array,
+                            pix_value,
+                            out=pixel_array,
+                            dtype=out_array.dtype,
+                        )
+                    else:
+                        # Allow for casting
+                        pixel_array = pixel_array * pix_value
+
+                np.maximum(
+                    pixel_array,
+                    out_array[output_indexer],
+                    out=out_array[output_indexer]
                 )
 
         else:
