@@ -5745,8 +5745,9 @@ class TestSegUtilities(unittest.TestCase):
         assert item_segment_2[2].SegmentNumber == 2
 
 
-class TestPyramid(unittest.TestCase):
+class TestPyramid:
 
+    @pytest.fixture(autouse=True)
     def setUp(self):
         file_path = Path(__file__)
         data_dir = file_path.parent.parent.joinpath('data')
@@ -5876,40 +5877,24 @@ class TestPyramid(unittest.TestCase):
             for i in range(1, 4)
         ]
 
-    def test_pyramid_factors(self):
-        downsample_factors = [2.0, 5.0]
-        segs = create_segmentation_pyramid(
-            source_images=[self._sm_image],
-            pixel_arrays=[self._seg_pix],
-            segmentation_type=SegmentationTypeValues.BINARY,
-            segment_descriptions=self._segment_descriptions,
-            series_instance_uid=UID(),
-            series_number=1,
-            manufacturer='Foo',
-            manufacturer_model_name='Bar',
-            software_versions='1',
-            device_serial_number='123',
-            downsample_factors=downsample_factors,
-        )
+    @staticmethod
+    @pytest.fixture(params=[False, True])
+    def pass_with_frame_dim(request):
+        return request.param
 
-        assert len(segs) == len(downsample_factors) + 1
-        tol = 0.01
-        for f, seg in zip([1.0, *downsample_factors], segs):
-            assert hasattr(seg, 'PyramidUID')
-            assert abs(
-                seg.TotalPixelMatrixRows - int(self._seg_pix.shape[0] / f)
-            ) < tol
-            assert abs(
-                seg.TotalPixelMatrixColumns - int(self._seg_pix.shape[1] / f)
-            ) < tol
-
-    def test_pyramid_downsample_factors(self):
+    def test_pyramid_downsample_factors(self, pass_with_frame_dim):
         # Test construction when given a single source image, single
         # segmentation mask, and specified downsample factors
+
+        if pass_with_frame_dim:
+            pixel_array = self._seg_pix[None]
+        else:
+            pixel_array = self._seg_pix
+
         downsample_factors = [2.0, 5.0]
         segs = create_segmentation_pyramid(
             source_images=[self._sm_image],
-            pixel_arrays=[self._seg_pix],
+            pixel_arrays=[pixel_array],
             segmentation_type=SegmentationTypeValues.BINARY,
             segment_descriptions=self._segment_descriptions,
             series_instance_uid=UID(),
@@ -5923,6 +5908,12 @@ class TestPyramid(unittest.TestCase):
 
         assert len(segs) == len(downsample_factors) + 1
         tol = 0.01
+        sm_pixel_spacing = (
+            self._sm_image
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
         for f, seg in zip([1.0, *downsample_factors], segs):
             assert hasattr(seg, 'PyramidUID')
             assert abs(
@@ -5931,13 +5922,27 @@ class TestPyramid(unittest.TestCase):
             assert abs(
                 seg.TotalPixelMatrixColumns - int(self._seg_pix.shape[1] / f)
             ) < tol
+            segment_pixel_spacing = (
+                seg
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            assert abs(segment_pixel_spacing[0] - sm_pixel_spacing[0] * f) < tol
+            assert abs(segment_pixel_spacing[1] - sm_pixel_spacing[1] * f) < tol
 
-    def test_single_source_multiple_pixel_arrays(self):
+    def test_single_source_multiple_pixel_arrays(self, pass_with_frame_dim):
         # Test construction when given a single source image and multiple
         # segmentation images
+
+        if pass_with_frame_dim:
+            pixel_arrays = [arr[None] for arr in self._downsampled_pix_arrays]
+        else:
+            pixel_arrays = self._downsampled_pix_arrays
+
         segs = create_segmentation_pyramid(
             source_images=[self._sm_image],
-            pixel_arrays=self._downsampled_pix_arrays,
+            pixel_arrays=pixel_arrays,
             segmentation_type=SegmentationTypeValues.BINARY,
             segment_descriptions=self._segment_descriptions,
             series_instance_uid=UID(),
@@ -5949,19 +5954,44 @@ class TestPyramid(unittest.TestCase):
         )
 
         assert len(segs) == len(self._downsampled_pix_arrays)
+        sm_spacing = (
+            self._sm_image
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+            .PixelSpacing
+        )
+        sm_height = sm_spacing[0] * self._sm_image.TotalPixelMatrixRows
+        sm_width = sm_spacing[1] * self._sm_image.TotalPixelMatrixColumns
+        tol = 1e-7
         for pix, seg in zip(self._downsampled_pix_arrays, segs):
             assert hasattr(seg, 'PyramidUID')
             assert np.array_equal(
                 seg.get_total_pixel_matrix(combine_segments=True),
                 pix
             )
+            seg_spacing = (
+                seg
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            seg_height = seg_spacing[0] * seg.TotalPixelMatrixRows
+            seg_width = seg_spacing[1] * seg.TotalPixelMatrixColumns
+            assert abs(seg_height - sm_height) < tol
+            assert abs(seg_width - sm_width) < tol
 
-    def test_multiple_source_single_pixel_array(self):
+    def test_multiple_source_single_pixel_array(self, pass_with_frame_dim):
         # Test construction when given multiple source images and a single
         # segmentation image
+
+        if pass_with_frame_dim:
+            pixel_array = self._seg_pix[None]
+        else:
+            pixel_array = self._seg_pix
+
         segs = create_segmentation_pyramid(
             source_images=self._source_pyramid,
-            pixel_arrays=[self._seg_pix],
+            pixel_arrays=[pixel_array],
             segmentation_type=SegmentationTypeValues.BINARY,
             segment_descriptions=self._segment_descriptions,
             series_instance_uid=UID(),
@@ -5973,12 +6003,29 @@ class TestPyramid(unittest.TestCase):
         )
 
         assert len(segs) == len(self._source_pyramid)
-        for pix, seg in zip(self._downsampled_pix_arrays, segs):
+        for pix, seg, src in zip(
+            self._downsampled_pix_arrays,
+            segs,
+            self._source_pyramid,
+        ):
             assert hasattr(seg, 'PyramidUID')
             assert np.array_equal(
                 seg.get_total_pixel_matrix(combine_segments=True),
                 pix
             )
+            src_spacing = (
+                src
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            seg_spacing = (
+                seg
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            assert src_spacing == seg_spacing
 
     def test_multiple_source_single_pixel_array_multisegment(self):
         # Test construction when given multiple source images and a single
@@ -5997,20 +6044,46 @@ class TestPyramid(unittest.TestCase):
         )
 
         assert len(segs) == len(self._source_pyramid)
-        for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
+        for pix, seg, src in zip(
+            self._downsampled_pix_arrays_multisegment,
+            segs,
+            self._source_pyramid
+        ):
             assert hasattr(seg, 'PyramidUID')
             seg_pix = seg.get_total_pixel_matrix()
             assert np.array_equal(
                 seg_pix,
                 pix[0]
             )
+            src_spacing = (
+                src
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            seg_spacing = (
+                seg
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            assert src_spacing == seg_spacing
 
-    def test_multiple_source_single_pixel_array_float(self):
+    def test_multiple_source_single_pixel_array_float(
+        self,
+        pass_with_frame_dim,
+    ):
         # Test construction when given multiple source images and a single
         # segmentation image
+
+        if pass_with_frame_dim:
+            pixel_array = self._seg_pix[None]
+        else:
+            pixel_array = self._seg_pix
+
         segs = create_segmentation_pyramid(
             source_images=self._source_pyramid,
-            pixel_arrays=[self._seg_pix.astype(np.float32)],
+            pixel_arrays=[pixel_array.astype(np.float32)],
             segmentation_type=SegmentationTypeValues.BINARY,
             segment_descriptions=self._segment_descriptions,
             series_instance_uid=UID(),
@@ -6022,19 +6095,45 @@ class TestPyramid(unittest.TestCase):
         )
 
         assert len(segs) == len(self._source_pyramid)
-        for pix, seg in zip(self._downsampled_pix_arrays, segs):
+        for pix, seg, src in zip(
+            self._downsampled_pix_arrays,
+            segs,
+            self._source_pyramid
+        ):
             assert hasattr(seg, 'PyramidUID')
             assert np.array_equal(
                 seg.get_total_pixel_matrix(combine_segments=True),
                 pix
             )
+            src_spacing = (
+                src
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            seg_spacing = (
+                seg
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            assert src_spacing == seg_spacing
 
-    def test_multiple_source_single_pixel_array_fractional(self):
+    def test_multiple_source_single_pixel_array_fractional(
+        self,
+        pass_with_frame_dim
+    ):
         # Test construction when given multiple source images and a single
         # segmentation image
+
+        if pass_with_frame_dim:
+            pixel_array = self._seg_pix_fractional[None]
+        else:
+            pixel_array = self._seg_pix_fractional
+
         segs = create_segmentation_pyramid(
             source_images=self._source_pyramid,
-            pixel_arrays=[self._seg_pix_fractional],
+            pixel_arrays=[pixel_array],
             segmentation_type=SegmentationTypeValues.FRACTIONAL,
             segment_descriptions=self._segment_descriptions,
             series_instance_uid=UID(),
@@ -6047,20 +6146,43 @@ class TestPyramid(unittest.TestCase):
         )
 
         assert len(segs) == len(self._source_pyramid)
-        for pix, seg in zip(self._downsampled_pix_arrays_fractional, segs):
+        for pix, seg, src in zip(
+            self._downsampled_pix_arrays_fractional,
+            segs,
+            self._source_pyramid
+        ):
             assert hasattr(seg, 'PyramidUID')
             assert np.allclose(
                 seg.get_total_pixel_matrix(combine_segments=False)[:, :, 0],
                 pix,
                 atol=0.005,  # 1/200
             )
+            src_spacing = (
+                src
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            seg_spacing = (
+                seg
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            assert src_spacing == seg_spacing
 
-    def test_multiple_source_multiple_pixel_arrays(self):
+    def test_multiple_source_multiple_pixel_arrays(self, pass_with_frame_dim):
         # Test construction when given multiple source images and multiple
         # segmentation images
+
+        if pass_with_frame_dim:
+            pixel_arrays = [arr[None] for arr in self._downsampled_pix_arrays]
+        else:
+            pixel_arrays = self._downsampled_pix_arrays
+
         segs = create_segmentation_pyramid(
             source_images=self._source_pyramid,
-            pixel_arrays=self._downsampled_pix_arrays,
+            pixel_arrays=pixel_arrays,
             segmentation_type=SegmentationTypeValues.BINARY,
             segment_descriptions=self._segment_descriptions,
             series_instance_uid=UID(),
@@ -6072,12 +6194,29 @@ class TestPyramid(unittest.TestCase):
         )
 
         assert len(segs) == len(self._source_pyramid)
-        for pix, seg in zip(self._downsampled_pix_arrays, segs):
+        for pix, seg, src in zip(
+            self._downsampled_pix_arrays,
+            segs,
+            self._source_pyramid
+        ):
             assert hasattr(seg, 'PyramidUID')
             assert np.array_equal(
                 seg.get_total_pixel_matrix(combine_segments=True),
                 pix
             )
+            src_spacing = (
+                src
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            seg_spacing = (
+                seg
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            assert src_spacing == seg_spacing
 
     def test_multiple_source_multiple_pixel_arrays_multisegment(self):
         # Test construction when given multiple source images and multiple
@@ -6096,22 +6235,44 @@ class TestPyramid(unittest.TestCase):
         )
 
         assert len(segs) == len(self._source_pyramid)
-        for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
+        for pix, seg, src in zip(
+            self._downsampled_pix_arrays_multisegment,
+            segs,
+            self._source_pyramid
+        ):
             assert hasattr(seg, 'PyramidUID')
             assert np.array_equal(
                 seg.get_total_pixel_matrix(),
                 pix[0]
             )
+            src_spacing = (
+                src
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            seg_spacing = (
+                seg
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            assert src_spacing == seg_spacing
 
     def test_multiple_source_multiple_pixel_arrays_multisegment_from_labelmap(
-        self
+        self,
+        pass_with_frame_dim,
     ):
         # Test construction when given multiple source images and multiple
         # segmentation images
         mask = np.argmax(self._seg_pix_multisegment, axis=3).astype(np.uint8)
+
+        if not pass_with_frame_dim:
+            mask = mask[0]
+
         segs = create_segmentation_pyramid(
             source_images=self._source_pyramid,
-            pixel_arrays=mask,
+            pixel_arrays=[mask],
             segmentation_type=SegmentationTypeValues.BINARY,
             segment_descriptions=self._segment_descriptions_multi,
             series_instance_uid=UID(),
@@ -6123,21 +6284,45 @@ class TestPyramid(unittest.TestCase):
         )
 
         assert len(segs) == len(self._source_pyramid)
-        for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
+        for pix, seg, src in zip(
+            self._downsampled_pix_arrays_multisegment,
+            segs,
+            self._source_pyramid
+        ):
             mask = np.argmax(pix, axis=3).astype(np.uint8)
             assert hasattr(seg, 'PyramidUID')
             assert np.array_equal(
                 seg.get_total_pixel_matrix(combine_segments=True),
                 mask[0]
             )
+            src_spacing = (
+                src
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            seg_spacing = (
+                seg
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            assert src_spacing == seg_spacing
 
-    def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(self):
+    def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(
+        self,
+        pass_with_frame_dim,
+    ):
         # Test construction when given multiple source images and multiple
         # segmentation images
         mask = np.argmax(self._seg_pix_multisegment, axis=3).astype(np.uint8)
+
+        if not pass_with_frame_dim:
+            mask = mask[0]
+
         segs = create_segmentation_pyramid(
             source_images=self._source_pyramid,
-            pixel_arrays=mask,
+            pixel_arrays=[mask],
             segmentation_type=SegmentationTypeValues.LABELMAP,
             segment_descriptions=self._segment_descriptions_multi,
             series_instance_uid=UID(),
@@ -6149,10 +6334,27 @@ class TestPyramid(unittest.TestCase):
         )
 
         assert len(segs) == len(self._source_pyramid)
-        for pix, seg in zip(self._downsampled_pix_arrays_multisegment, segs):
+        for pix, seg, src in zip(
+            self._downsampled_pix_arrays_multisegment,
+            segs,
+            self._source_pyramid
+        ):
             mask = np.argmax(pix, axis=3).astype(np.uint8)
             assert hasattr(seg, 'PyramidUID')
             assert np.array_equal(
                 seg.get_total_pixel_matrix(combine_segments=True),
                 mask[0]
             )
+            src_spacing = (
+                src
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            seg_spacing = (
+                seg
+                .SharedFunctionalGroupsSequence[0]
+                .PixelMeasuresSequence[0]
+                .PixelSpacing
+            )
+            assert src_spacing == seg_spacing
