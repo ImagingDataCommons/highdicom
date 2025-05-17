@@ -23,8 +23,8 @@ _DEFAULT_SPACING_RELATIVE_TOLERANCE = 1e-2
 _DEFAULT_EQUALITY_TOLERANCE = 1e-5
 """Tolerance value used by default in tests for equality"""
 
-_DOT_PRODUCT_PERPENDICULAR_TOLERANCE = 1e-3
-"""Tolerance value used on the dot product to determine perpendicularity."""
+_DEFAULT_PERPENDICULAR_TOLERANCE = 1e-3
+"""Default tolerance on the dot product to determine perpendicularity."""
 
 
 PATIENT_ORIENTATION_OPPOSITES = {
@@ -3223,6 +3223,7 @@ def get_series_volume_positions(
     *,
     rtol: float | None = None,
     atol: float | None = None,
+    perpendicular_tol: float | None = None,
     sort: bool = True,
     allow_missing_positions: bool = False,
     allow_duplicate_positions: bool = False,
@@ -3261,6 +3262,12 @@ def get_series_volume_positions(
         Absolute tolerance for determining spacing regularity. If slice
         spacings vary by less that this value (in mm), they
         are considered to be regular. Incompatible with ``rtol``.
+    perpendicular_tol: float | None, optional
+        Tolerance used to determine whether slices are stacked perpendicular to
+        their shared normal vector. The direction of stacking is considered
+        perpendicular if the dot product of its unit vector with the slice
+        normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
+        default value of ``1e-3`` is used.
     sort: bool, optional
         Sort the image positions before finding the spacing. If True, this
         makes the function tolerant of unsorted inputs. Set to False to check
@@ -3345,6 +3352,7 @@ def get_series_volume_positions(
         image_orientation=image_orientation,
         rtol=rtol,
         atol=atol,
+        perpendicular_tol=perpendicular_tol,
         sort=sort,
         allow_duplicate_positions=allow_duplicate_positions,
         allow_missing_positions=allow_missing_positions,
@@ -3361,6 +3369,7 @@ def get_volume_positions(
     *,
     rtol: float | None = None,
     atol: float | None = None,
+    perpendicular_tol: float | None = None,
     sort: bool = True,
     allow_missing_positions: bool = False,
     allow_duplicate_positions: bool = False,
@@ -3397,15 +3406,21 @@ def get_volume_positions(
         Image orientation as direction cosine values taken directly from the
         ImageOrientationPatient attribute. 1D array of length 6. Either a numpy
         array or anything convertible to it may be passed.
-    rtol: float, optional
+    rtol: float | None, optional
         Relative tolerance for determining spacing regularity. If slice
         spacings vary by less that this proportion of the average spacing, they
         are considered to be regular. If neither ``rtol`` or ``atol`` are
         provided, a default relative tolerance of 0.01 is used.
-    atol: float, optional
+    atol: float | None, optional
         Absolute tolerance for determining spacing regularity. If slice
         spacings vary by less that this value (in mm), they
         are considered to be regular. Incompatible with ``rtol``.
+    perpendicular_tol: float | None, optional
+        Tolerance used to determine whether slices are stacked perpendicular to
+        their shared normal vector. The direction of stacking is considered
+        perpendicular if the dot product of its unit vector with the slice
+        normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
+        default value of ``1e-3`` is used.
     sort: bool, optional
         Sort the image positions before finding the spacing. If True, this
         makes the function tolerant of unsorted inputs. Set to False to check
@@ -3500,6 +3515,11 @@ def get_volume_positions(
         # Default situation. Just use rtol
         rtol = _DEFAULT_SPACING_RELATIVE_TOLERANCE
         atol = 0.0
+
+    if perpendicular_tol is None:
+        perpendicular_tol = _DEFAULT_PERPENDICULAR_TOLERANCE
+    if perpendicular_tol < 0.0:
+        raise ValueError("Argument 'perpendicular_tol' may not be negative.")
 
     image_positions_arr = np.array(image_positions)
 
@@ -3651,8 +3671,8 @@ def get_volume_positions(
 
     dot_product = normal_vector.T @ span
     is_perpendicular = (
-        abs(dot_product - 1.0) < _DOT_PRODUCT_PERPENDICULAR_TOLERANCE or
-        abs(dot_product + 1.0) < _DOT_PRODUCT_PERPENDICULAR_TOLERANCE
+        abs(dot_product - 1.0) < perpendicular_tol or
+        abs(dot_product + 1.0) < perpendicular_tol
     )
 
     if not is_perpendicular:

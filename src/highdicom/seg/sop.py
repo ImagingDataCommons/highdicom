@@ -4239,6 +4239,7 @@ class Segmentation(_Image):
         *,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
         allow_missing_positions: bool = True,
         allow_duplicate_positions: bool = True,
     ) -> VolumeGeometry | None:
@@ -4261,6 +4262,12 @@ class Segmentation(_Image):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked perpendicular to
+            their shared normal vector. The direction of stacking is considered
+            perpendicular if the dot product of its unit vector with the slice
+            normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
+            default value of ``1e-3`` is used.
         allow_missing_positions: bool, optional
             Allow volume positions for which no frame exists in the image.
         allow_duplicate_positions: bool, optional
@@ -4278,6 +4285,7 @@ class Segmentation(_Image):
         return super().get_volume_geometry(
             rtol=rtol,
             atol=atol,
+            perpendicular_tol=perpendicular_tol,
             allow_missing_positions=allow_missing_positions,
             allow_duplicate_positions=allow_duplicate_positions,
         )
@@ -4303,6 +4311,7 @@ class Segmentation(_Image):
         allow_missing_positions: bool = True,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
     ) -> Volume:
         """Create a :class:`highdicom.Volume` from the segmentation.
 
@@ -4415,6 +4424,12 @@ class Segmentation(_Image):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they
             are considered to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked perpendicular to
+            their shared normal vector. The direction of stacking is considered
+            perpendicular if the dot product of its unit vector with the slice
+            normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
+            default value of ``1e-3`` is used.
 
         """
         # Checks on validity of the inputs
@@ -4514,6 +4529,7 @@ class Segmentation(_Image):
             ) = self._prepare_volume_positions_table(
                 rtol=rtol,
                 atol=atol,
+                perpendicular_tol=perpendicular_tol,
                 allow_missing_positions=allow_missing_positions,
                 slice_start=slice_start,
                 slice_end=slice_end,
