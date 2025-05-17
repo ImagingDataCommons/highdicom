@@ -2563,6 +2563,7 @@ class _Image(SOPClass):
             return None
 
         if len(vals) != 1:
+            logger.info(f"Frames do not have a consistent {kw}.")
             raise RuntimeError(
                 f'Frames do not have a consistent {kw}.'
             )
@@ -3235,7 +3236,11 @@ class _Image(SOPClass):
                 allow_missing_positions=allow_missing_positions,
                 allow_duplicate_positions=allow_duplicate_positions,
             )
-        except RuntimeError:
+        except RuntimeError as e:
+            logger.info(
+                "Image is not a volume due to the following error. Earlier "
+                f"log messages may contain more information:\n {e}."
+            )
             return None
 
     def _get_volume_geometry(
@@ -3273,6 +3278,9 @@ class _Image(SOPClass):
 
         """
         if self._coordinate_system is None:
+            logger.info(
+                "Image is not a volume because it has no FrameOfReferenceUID."
+            )
             raise RuntimeError(
                 "Image does not exist within a frame-of-reference "
                 "coordinate system."
@@ -3322,6 +3330,11 @@ class _Image(SOPClass):
                     allow_duplicate_positions=allow_duplicate_positions,
                 )
                 return geometry
+            else:
+                logger.info(
+                    "Image is not a volume because it exists in the slide "
+                    "coordinate system but is not tiled."
+                )
         else:
             # Single frame image, only supports patient coordinate system
             # currently
@@ -3345,6 +3358,11 @@ class _Image(SOPClass):
                         1.0
                     ),
                     coordinate_system=self._coordinate_system,
+                )
+            else:
+                logger.info(
+                    "Image is not a volume because it does not contain image "
+                    "position information."
                 )
 
         raise RuntimeError(

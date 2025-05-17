@@ -1,5 +1,6 @@
 import itertools
 from collections.abc import Generator, Iterator, Sequence
+import logging
 from typing_extensions import Self
 
 from pydicom import Dataset
@@ -42,6 +43,9 @@ VOLUME_INDEX_CONVENTION = (
     PixelIndexDirections.R,
 )
 """Indexing convention used within volumes."""
+
+
+logger = logging.getLogger(__name__)
 
 
 def is_tiled_image(dataset: Dataset) -> bool:
@@ -3530,6 +3534,10 @@ def get_volume_positions(
     )
     if not allow_duplicate_positions:
         if unique_positions.shape[0] < image_positions_arr.shape[0]:
+            logger.info(
+                "Duplicate frame positions detected. Frame positions do "
+                "not constitute a volume."
+            )
             return None, None
 
     if len(unique_positions) == 1:
@@ -3564,6 +3572,10 @@ def get_volume_positions(
             # should only be zero spacings if some positions are related by
             # in-plane translations
             if np.isclose(spacing, 0.0, atol=_DEFAULT_EQUALITY_TOLERANCE):
+                logger.info(
+                    "Frame positions are related by in-plane translations and "
+                    "therefore do not consistute a volume."
+                )
                 return None, None
 
         origin_distance_multiples = (
@@ -3576,6 +3588,16 @@ def get_volume_positions(
             rtol=rtol,
             atol=atol,
         )
+        if not is_regular:
+            max_deviation = float(
+                np.abs(
+                    origin_distance_multiples - origin_distance_multiples.round()
+                ).max()
+            )
+            logger.info("Frame positions are not regularly spaced.")
+            logger.debug(
+                f"Maximum spacing deviation from regular: {max_deviation:.2e} mm."
+            )
 
         inverse_sort_index = origin_distance_multiples.round().astype(np.int64)
 
@@ -3605,9 +3627,19 @@ def get_volume_positions(
             rtol=rtol,
             atol=atol,
         ).all()
+        if not is_regular:
+            logger.info("Frame positions are not regularly spaced.")
+            logger.debug(
+                f"Minimum spacing: {float(spacings.min()):.2e}, "
+                f"maximum spacing: {float(spacings.max()):.2e} mm."
+            )
 
     if is_regular and enforce_handedness:
         if spacing < 0.0:
+            logger.info(
+                "Frame positions are ordered according to the wrong "
+                "handedness."
+            )
             return None, None
 
     # Additionally check that the vector from the first to the last plane lies
@@ -3622,6 +3654,13 @@ def get_volume_positions(
         abs(dot_product - 1.0) < _DOT_PRODUCT_PERPENDICULAR_TOLERANCE or
         abs(dot_product + 1.0) < _DOT_PRODUCT_PERPENDICULAR_TOLERANCE
     )
+
+    if not is_perpendicular:
+        logger.info(
+            "Frame positions are not located along a vector "
+            "normal to the image plane."
+        )
+        logger.debug(f"Dot product: {dot_product:.4f}")
 
     if is_regular and is_perpendicular:
         vol_positions = [
