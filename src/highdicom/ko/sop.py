@@ -16,6 +16,7 @@ from pydicom.uid import (
 )
 
 from highdicom.base import SOPClass, _check_little_endian
+from highdicom.base_content import ContributingEquipment
 from highdicom.sr.utils import collect_evidence
 from highdicom.sr.value_types import ContainerContentItem
 from highdicom.ko.content import KeyObjectSelection
@@ -40,6 +41,9 @@ class KeyObjectSelectionDocument(SOPClass):
         institutional_department_name: str | None = None,
         requested_procedures: Sequence[Dataset] | None = None,
         transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs: Any
     ) -> None:
         """
@@ -75,6 +79,9 @@ class KeyObjectSelectionDocument(SOPClass):
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements.
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -118,6 +125,7 @@ class KeyObjectSelectionDocument(SOPClass):
             referring_physician_name=getattr(
                 evidence[0], 'ReferringPhysicianName', None
             ),
+            contributing_equipment=contributing_equipment,
             **kwargs
         )
 

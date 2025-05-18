@@ -29,6 +29,7 @@ from highdicom.ann.enum import (
 )
 from highdicom.ann.content import AnnotationGroup
 from highdicom.base import SOPClass, _check_little_endian
+from highdicom.base_content import ContributingEquipment
 from highdicom.io import _wrapped_dcmread
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import check_person_name, _check_code_string
@@ -63,6 +64,9 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             PixelOriginInterpretationValues
         ) = PixelOriginInterpretationValues.VOLUME,
         content_label: str | None = None,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs: Any
     ) -> None:
         """
@@ -109,6 +113,9 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             data elements.
         content_label: Union[str, None], optional
             Content label
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -140,6 +147,22 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
 
+        try:
+            acquisition_equipment = (
+                ContributingEquipment.for_image_acquisition(src_img)
+            )
+        except Exception:
+            pass
+        else:
+            if contributing_equipment is None:
+                contributing_equipment = []
+            else:
+                contributing_equipment = list(contributing_equipment)
+            contributing_equipment = [
+                acquisition_equipment,
+                *list(contributing_equipment),
+            ]
+
         super().__init__(
             study_instance_uid=src_img.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -164,6 +187,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,
             software_versions=software_versions,
+            contributing_equipment=contributing_equipment,
             **kwargs
         )
         self.copy_specimen_information(src_img)

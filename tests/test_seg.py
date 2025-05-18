@@ -29,6 +29,7 @@ from highdicom import (
     PaletteColorLUT,
     PaletteColorLUTTransformation,
 )
+from highdicom.base_content import ContributingEquipment
 from highdicom.color import CIELabColor
 from highdicom.content import (
     AlgorithmIdentificationSequence,
@@ -1109,6 +1110,11 @@ class TestSegmentation:
         assert not hasattr(instance, 'PixelPaddingValue')
 
     def test_construction_2(self):
+        equipment = ContributingEquipment(
+            manufacturer='Other Manufacturer',
+            purpose_of_reference=codes.DCM.ProcessingEquipment,
+            device_serial_number='1.2.3.4'
+        )
         instance = Segmentation(
             [self._sm_image],
             self._sm_pixel_array,
@@ -1121,7 +1127,8 @@ class TestSegmentation:
             self._manufacturer,
             self._manufacturer_model_name,
             self._software_versions,
-            self._device_serial_number
+            self._device_serial_number,
+            contributing_equipment=[equipment],
         )
         assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.4'
         assert instance.PatientID == self._sm_image.PatientID
@@ -1188,6 +1195,12 @@ class TestSegmentation:
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
         assert not hasattr(instance, 'PixelPaddingValue')
+
+        equip_seq = instance.ContributingEquipmentSequence
+        assert len(equip_seq) == 3
+        assert equip_seq[0].Manufacturer == self._sm_image.Manufacturer
+        assert equip_seq[1].Manufacturer == 'Other Manufacturer'
+        assert equip_seq[2].ManufacturerModelName == 'highdicom'
 
     def test_construction_3(self):
         # Segmentation instance from a series of single-frame CT images

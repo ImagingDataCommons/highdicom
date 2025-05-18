@@ -17,6 +17,7 @@ from pydicom.uid import (
 from pydicom.valuerep import PersonName
 
 from highdicom.base import SOPClass
+from highdicom.base_content import ContributingEquipment
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
     ModalityLUTTransformation,
@@ -93,6 +94,9 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             PresentationLUTTransformation
         ) = None,
         transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs
     ):
         """
@@ -160,6 +164,9 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             polarity pixel values into device-independent presentation values
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -203,6 +210,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             device_serial_number=device_serial_number,
             institution_name=institution_name,
             institutional_department_name=institutional_department_name,
+            contributing_equipment=contributing_equipment,
             **kwargs
         )
         self.copy_patient_and_study_information(ref_im)

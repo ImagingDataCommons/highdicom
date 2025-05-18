@@ -7,6 +7,7 @@ from enum import Enum
 import numpy as np
 from pydicom.encaps import encapsulate
 from highdicom.base import SOPClass
+from highdicom.base_content import ContributingEquipment
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
     PaletteColorLUTTransformation,
@@ -97,6 +98,9 @@ class ParametricMap(SOPClass):
         palette_color_lut_transformation: None | (
             PaletteColorLUTTransformation
         ) = None,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs,
     ):
         """
@@ -231,6 +235,9 @@ class ParametricMap(SOPClass):
         palette_color_lut_transformation: Union[highdicom.PaletteColorLUTTransformation, None], optional
             Description of the Palette Color LUT Transformation for transforming
             grayscale into RGB color pixel values
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -315,6 +322,22 @@ class ParametricMap(SOPClass):
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
 
+        try:
+            acquisition_equipment = (
+                ContributingEquipment.for_image_acquisition(src_img)
+            )
+        except Exception:
+            pass
+        else:
+            if contributing_equipment is None:
+                contributing_equipment = []
+            else:
+                contributing_equipment = list(contributing_equipment)
+            contributing_equipment = [
+                acquisition_equipment,
+                *list(contributing_equipment),
+            ]
+
         # There are different DICOM Attributes in the SOP instance depending
         # on what type of data is being saved. This lets us keep track of that
         # a bit easier
@@ -348,6 +371,7 @@ class ParametricMap(SOPClass):
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,
             software_versions=software_versions,
+            contributing_equipment=contributing_equipment,
             **kwargs,
         )
 
