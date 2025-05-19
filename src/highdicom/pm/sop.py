@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from enum import Enum
 
 import numpy as np
-from pydicom.encaps import encapsulate
+from pydicom.encaps import encapsulate, encapsulate_extended
 from highdicom.base import SOPClass
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
@@ -97,6 +97,7 @@ class ParametricMap(SOPClass):
         palette_color_lut_transformation: None | (
             PaletteColorLUTTransformation
         ) = None,
+        use_extended_offset_table: bool = False,
         **kwargs,
     ):
         """
@@ -231,6 +232,14 @@ class ParametricMap(SOPClass):
         palette_color_lut_transformation: Union[highdicom.PaletteColorLUTTransformation, None], optional
             Description of the Palette Color LUT Transformation for transforming
             grayscale into RGB color pixel values
+        use_extended_offset_table: bool, optional
+            Include an extended offset table instead of a basic offset table
+            for encapsulated transfer syntaxes. Extended offset tables avoid
+            size limitations on basic offset tables, and separate the offset
+            table from the pixel data by placing it into metadata. However,
+            they may be less widely supported than basic offset tables. This
+            parameter is ignored if using a native (uncompressed) transfer
+            syntax. The default value may change in a future release.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -770,7 +779,14 @@ class ParametricMap(SOPClass):
 
         self.NumberOfFrames = len(frames)
         if self.file_meta.TransferSyntaxUID.is_encapsulated:
-            pixel_data = encapsulate(frames)
+            if use_extended_offset_table:
+                (
+                    pixel_data,
+                    self.ExtendedOffsetTable,
+                    self.ExtendedOffsetTableLengths,
+                ) = encapsulate_extended(frames)
+            else:
+                pixel_data = encapsulate(frames)
         else:
             pixel_data = b''.join(frames)
         setattr(self, pixel_data_attr, pixel_data)
