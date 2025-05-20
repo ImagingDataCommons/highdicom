@@ -51,7 +51,8 @@ well as specifying the coordinate system being used.
     assert np.array_equal(vol.affine, affine)
 
     # The datatype of the array, its shape, and the spatial shape (not
-    # including any channels), may be accessed via properties
+    # including any channels, see below), may be accessed via
+    # properties
     print(vol.dtype)
     # uint8
 
@@ -215,7 +216,7 @@ volume.
         get_testdata_file('dicomdirtests/77654033/CT2/17166'),
     ]
     ct_series = [pydicom.dcmread(f) for f in ct_files]
-    
+
     vol = get_volume_from_series(ct_series)
 
 Array Manipulation
@@ -307,8 +308,9 @@ of the array:
   spatial shape.
 * :meth:`highdicom.Volume.flip_spatial()`, flips along certain axes.
 * :meth:`highdicom.Volume.match_geometry()`, given a second volume (or volume
-  geometry) manipulate the volume by permutations, flips, crops and/or pads to
-  match the geometry of the first volume to that of the second volume.
+  geometry) manipulate the volume by axis permutations, flips, crops and/or
+  pads (but no resampling) to match the geometry of the first volume to that of
+  the second volume.
 * :meth:`highdicom.Volume.pad()`, pads the array along spatial dimensions.
 * :meth:`highdicom.Volume.pad_to_spatial_shape()`, pad to a given spatial
   shape.
@@ -644,7 +646,8 @@ spatial metadata in the output object is correct.
     seg_dataset.save_as('segmentation.dcm')
 
     # Alternatively, it may be desirable to match the geometry of the output
-    # segmentation image to that of the input image
+    # segmentation image to that of the input image. This will "undo" the
+    # cropping and axis permutation operations done to the image volume above.
     seg_volume_matched = seg_volume.match_geometry(original_volume)
 
     # Use the segmentation volume as input to create a DICOM Segmentation
