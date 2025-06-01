@@ -162,7 +162,7 @@ the highdicom enum :class:`highdicom.seg.SegmentationTypeValues`:
   means that ``"BINARY"`` segmentations can have a very large number of frames
   if there are a large number of segments. Furthermore, because they are stored
   as single bit images, the options for compression are very limited. As a
-  result, the segmentation objects can get very large and unweildy. Lastly,
+  result, the segmentation objects can get very large and unwieldy. Lastly,
   having separate frames is simply not a convenient form to work with for many
   applications.
 
@@ -258,6 +258,7 @@ everything else the same.
         manufacturer_model_name='Liver Segmentation Algorithm',
         software_versions='0.0.1',
         device_serial_number='1234567890',
+        series_description='Binary Liver Segmentation',
     )
 
 Constructing Binary/Labelmap SEG Images with Multiple Frames
@@ -330,6 +331,7 @@ example to use the labelmap segmentation type.
         manufacturer_model_name='Liver Segmentation Algorithm',
         software_versions='0.0.1',
         device_serial_number='1234567890',
+        series_description='Multi-frame Liver Segmentation',
     )
 
 Note that the example of the previous section with a 2D pixel array is simply
@@ -390,6 +392,7 @@ segmentation type.
         manufacturer_model_name='Liver Segmentation Algorithm',
         software_versions='0.0.1',
         device_serial_number='1234567890',
+        series_description='Multi-frame Liver Segmentation',
     )
 
 Constructing Binary SEG Images with Multiple Segments
@@ -478,6 +481,7 @@ always be present even if there is a single source frame.
         manufacturer_model_name='Multi-Organ Segmentation Algorithm',
         software_versions='0.0.1',
         device_serial_number='1234567890',
+        series_description='Segmentation with Multiple Segments',
     )
 
 The second way to pass segmentation masks for multiple labels is as a "label
@@ -531,6 +535,7 @@ segments.
         manufacturer_model_name='Multi-Organ Segmentation Algorithm',
         software_versions='0.0.1',
         device_serial_number='1234567890',
+        series_description='Segmentation with Multiple Segments',
     )
 
 These two forms for the ``pixel_array`` argument ("stacked segments" and "label
@@ -632,6 +637,7 @@ descriptor being the "SegmentNumber" tag.
         manufacturer_model_name='Liver Segmentation Algorithm',
         software_versions='0.0.1',
         device_serial_number='1234567890',
+        series_description='Non-aligned Liver Segmentation',
     )
 
 The second way to specify a segmentation that does not align spatially with the
@@ -715,6 +721,7 @@ differ.
         manufacturer_model_name='Liver Segmentation Algorithm',
         software_versions='0.0.1',
         device_serial_number='1234567890',
+        series_description='Non-aligned Liver Segmentation',
     )
 
 Constructing SEG Images from a Total Pixel Matrix
@@ -791,6 +798,7 @@ options are available to you.
         software_versions='0.0.1',
         device_serial_number='1234567890',
         tile_pixel_array=True,
+        series_description='Tiled Nuclei Segmentation',
     )
 
     # The result stores the mask as a set of 10 tiles of the non-empty region of
@@ -848,6 +856,7 @@ combination with ``tile_pixel_array`` argument.
         tile_pixel_array=True,
         omit_empty_frames=False,
         dimension_organization_type=hd.DimensionOrganizationTypeValues.TILED_FULL,
+        series_description='Tiled-Full Nuclei Segmentation',
     )
 
     # The result stores the mask as a set of 25 tiles of the entire region of
@@ -943,7 +952,8 @@ series at user-specified downsample factors.
         manufacturer_model_name='Slide Segmentation Algorithm',
         software_versions='0.0.1',
         device_serial_number='1234567890',
-        downsample_factors=[2.0, 4.0]
+        downsample_factors=[2.0, 4.0],
+        series_description='Segmentation Pyramid',
     )
 
 Note that the :func:`highdicom.seg.create_segmentation_pyramid` function always
@@ -1021,6 +1031,7 @@ representing a probabilistic segmentation of the liver.
         manufacturer_model_name='Liver Segmentation Algorithm',
         software_versions='0.0.1',
         device_serial_number='1234567890',
+        series_description='Fractional Liver Segmentation',
     )
 
 Implicit Conversion to Fractional

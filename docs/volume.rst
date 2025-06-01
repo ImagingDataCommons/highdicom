@@ -639,6 +639,7 @@ spatial metadata in the output object is correct.
         software_versions='0.0.1',
         device_serial_number='1234567890',
         transfer_syntax_uid=JPEGLSLossless,
+        series_description='Example Segmentation of CT',
     )
 
     seg_dataset.save_as('segmentation.dcm')
@@ -662,6 +663,7 @@ spatial metadata in the output object is correct.
         software_versions='0.0.1',
         device_serial_number='1234567890',
         transfer_syntax_uid=JPEGLSLossless,
+        series_description='Example Segmentation of CT',
     )
 
     seg_dataset_matched.save_as('segmentation_matched.dcm')

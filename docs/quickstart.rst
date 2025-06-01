@@ -172,6 +172,7 @@ Computed Tomography (CT) images:
         manufacturer_model_name='Model',
         software_versions='v1',
         device_serial_number='Device XYZ',
+        series_description='Example Single Frame CT Segmentation',
     )
 
     print(seg_dataset)
@@ -230,7 +231,8 @@ Derive a Segmentation image from a multi-frame Slide Microscopy (SM) image:
         manufacturer='Manufacturer',
         manufacturer_model_name='Model',
         software_versions='v1',
-        device_serial_number='Device XYZ'
+        device_serial_number='Device XYZ',
+        series_description='Example Multi-frame Segmentation',
     )
 
     print(seg_dataset)
@@ -274,7 +276,7 @@ for them:
     bone_segment_numbers = seg.get_segment_numbers(
       segmented_property_type=codes.SCT.Bone
     )
-    assert bone_segment_numbers ==  [1]
+    assert bone_segment_numbers == [1]
 
     # Retrieve the segmentation mask as a highdicom.Volume (with spatial metadata)
     seg_volume = seg.get_volume()
@@ -444,7 +446,8 @@ image:
         series_instance_uid=hd.UID(),
         sop_instance_uid=hd.UID(),
         instance_number=1,
-        manufacturer='Manufacturer'
+        manufacturer='Manufacturer',
+        series_description='Example Structured Report',
     )
 
     print(sr_dataset)
@@ -722,6 +725,7 @@ For more information see :ref:`ann` and the documentation of the
         software_versions='0.0.1',
         device_serial_number='1234',
         content_description='Nuclei Annotations',
+        series_description='Example Microscopy Annotations',
     )
 
     bulk_annotations.save_as('nuclei_annotations.dcm')
@@ -866,7 +870,8 @@ labeled bounding box region drawn over a CT image.
         manufacturer='Manufacturer',
         pixel_spacing=image_dataset.PixelSpacing,
         patient_orientation=patient_orientation,
-        transfer_syntax_uid=RLELossless
+        transfer_syntax_uid=RLELossless,
+        series_description='Example Secondary Capture',
     )
 
     # Save the file
@@ -928,6 +933,7 @@ overlay a segmentation that is stored in a NumPy array called "seg_out".
             manufacturer='Manufacturer',
             pixel_spacing=pixel_spacing,
             patient_orientation=patient_orientation,
+            series_description='Example Secondary Capture',
         )
 
         sc_image.save_as(os.path.join("output", 'sc_output_' + str(iz) + '.dcm'))
@@ -1016,6 +1022,7 @@ preferred for storing annotations for clinical or research purposes.
             family_name='Doe',
             given_name='John'
         ),
+        series_description='Example Presentation State',
     )
 
     # Save the GSPS file

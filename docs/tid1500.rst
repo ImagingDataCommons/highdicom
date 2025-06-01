@@ -122,7 +122,8 @@ can construct the Measurement Report, and use it to construct the SR document:
         series_instance_uid=hd.UID(),
         sop_instance_uid=hd.UID(),
         instance_number=1,
-        manufacturer='Manufacturer'
+        manufacturer='Manufacturer',
+        series_description='Example Structured Report',
     )
 
 Measurement Groups
@@ -734,7 +735,8 @@ highdicom test data within the highdicom repository at
         series_instance_uid=hd.UID(),
         sop_instance_uid=hd.UID(),
         instance_number=1,
-        manufacturer='Manufacturer'
+        manufacturer='Manufacturer',
+        series_description='Example Structured Report',
     )
     sr_dataset.save_as("sr_document_with_multiple_groups.dcm")
 

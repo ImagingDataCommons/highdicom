@@ -301,7 +301,8 @@ the highdicom test data):
         series_instance_uid=hd.UID(),
         sop_instance_uid=hd.UID(),
         instance_number=1,
-        manufacturer='Manufacturer'
+        manufacturer='Manufacturer',
+        series_description='Example Structured Report',
     )
 
 Note that this is just a toy example and we do **not** recommend producing SRs

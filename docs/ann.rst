@@ -174,6 +174,7 @@ need to pass the image from which the annotations were derived so that
         software_versions='0.0.1',
         device_serial_number='1234',
         content_description='Nuclei Annotations',
+        series_description='Example Microscopy Annotations',
     )
 
     bulk_annotations.save_as('nuclei_annotations.dcm')
