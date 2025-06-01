@@ -339,7 +339,7 @@ direction, and the third axis is most closely aligned with the right-to-left
 direction.
 
 Patient orientations may be used to describe a volume, and the
-:meth:`highdicom.Volume.to_closest_patient_orientation()` is used to manipulate
+:meth:`highdicom.Volume.to_patient_orientation()` is used to manipulate
 a volume to align with the given patient orientation as well as possible via
 permutations and flips.
 

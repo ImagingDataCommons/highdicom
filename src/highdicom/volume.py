@@ -2244,8 +2244,8 @@ class Volume(_VolumeBase):
     This class combines a NumPy array with an affine matrix describing the
     location of the voxels in the frame-of-reference coordinate space. A
     Volume is not a DICOM object itself, but represents a volume that may
-    be extracted from DICOM image, and/or encoded within a DICOM object,
-    potentially following any number of processing steps.
+    be extracted from, and/or encoded in, a DICOM object, potentially following
+    any number of processing steps.
 
     All such volumes have a geometry that exists either within DICOM's patient
     coordinate system or its slide coordinate system, both of which clearly
