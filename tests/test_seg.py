@@ -4587,6 +4587,37 @@ class TestSegmentationParsing:
         tpm2 = seg_no_dim_ind.get_total_pixel_matrix()
         assert np.array_equal(tpm1, tpm2)
 
+    def test_shared_referenced_segment(self):
+        # Test parsing when the referenced segment is in the shared functional
+        # groups
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        f = data_dir / 'test_files/seg_image_ct_binary.dcm'
+        seg = segread(f)
+        dcm = dcmread(f)
+
+        dcm.SharedFunctionalGroupsSequence[0].SegmentIdentificationSequence = [
+            deepcopy(
+                dcm
+                .PerFrameFunctionalGroupsSequence[0]
+                .SegmentIdentificationSequence[0]
+            )
+        ]
+
+        for grp in dcm.PerFrameFunctionalGroupsSequence:
+            del grp.SegmentIdentificationSequence
+
+        assert (
+            'SegmentIdentificationSequence' not in
+            dcm.PerFrameFunctionalGroupsSequence[0]
+        )
+
+        seg_shared_seg_id = Segmentation.from_dataset(dcm, copy=False)
+
+        vol1 = seg.get_volume()
+        vol2 = seg_shared_seg_id.get_volume()
+        assert np.array_equal(vol1.array, vol2.array)
+
     def test_get_default_dimension_index_pointers(self):
         ptrs = self._sm_control_seg.get_default_dimension_index_pointers()
         assert len(ptrs) == 5
