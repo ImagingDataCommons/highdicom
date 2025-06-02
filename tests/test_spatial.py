@@ -961,7 +961,7 @@ def test_get_series_slice_spacing_regular():
     assert spacing == 1.25
 
 
-def test_get_spacing_duplicates():
+def test_get_volume_positions_duplicates():
     # Test ability to determine spacing and volume positions with duplicate
     # positions
     position_indices = np.array(
@@ -990,7 +990,7 @@ def test_get_spacing_duplicates():
     assert volume_positions == position_indices.tolist()
 
 
-def test_get_spacing_missing():
+def test_get_volume_positions_missing():
     # Test ability to determine spacing and volume positions with missing
     # slices
     position_indices = np.array(
@@ -1020,7 +1020,7 @@ def test_get_spacing_missing():
     assert volume_positions is None
 
 
-def test_get_spacing_missing_duplicates():
+def test_get_volume_positions_missing_duplicates():
     # Test ability to determine spacing and volume positions with missing
     # slices and duplicate positions
     position_indices = np.array(
@@ -1058,7 +1058,7 @@ def test_get_spacing_missing_duplicates():
     assert volume_positions == position_indices.tolist()
 
 
-def test_get_spacing_missing_duplicates_non_consecutive():
+def test_get_volume_positions_missing_duplicates_non_consecutive():
     # Test ability to determine spacing and volume positions with missing
     # slices and duplicate positions, with no two positions from consecutive
     # slices
@@ -1091,7 +1091,7 @@ def test_get_spacing_missing_duplicates_non_consecutive():
     assert volume_positions == position_indices.tolist()
 
 
-def test_get_spacing_coplanar():
+def test_get_volume_positions_coplanar():
     # Check that coplanar points are not considered a volume
     positions = [
         [0.0, 0.0, 10.0],
@@ -1113,6 +1113,55 @@ def test_get_spacing_coplanar():
             )
             assert spacing is None
             assert volume_positions is None
+
+
+def test_get_volume_positions_non_perpendicular():
+    # Check that slices stacked along a vector that is not perpendicular to
+    # their normals (a "staircase") are not considered a volume
+    positions = [
+        [0.0, 0.0, 10.0],
+        [0.1, 0.0, 11.0],
+        [0.2, 0.0, 12.0],
+    ]
+    orientation = [1, 0, 0, 0, -1, 0]
+
+    # Regardless of values of allow_missing_positions and
+    # allow_duplicate_positions, this is not a volume
+    for allow_duplicate_positions in [False, True]:
+        for allow_missing_positions in [False, True]:
+            spacing, volume_positions = get_volume_positions(
+                positions,
+                orientation,
+                allow_missing_positions=allow_missing_positions,
+                allow_duplicate_positions=allow_duplicate_positions,
+            )
+            assert spacing is None
+            assert volume_positions is None
+
+
+def test_get_volume_positions_non_perpendicular_higher_tol():
+    # Repeat above test with a higher tolerance so that the slices are
+    # considered a volume
+    positions = [
+        [0.0, 0.0, 10.0],
+        [0.1, 0.0, 11.0],
+        [0.2, 0.0, 12.0],
+    ]
+    orientation = [1, 0, 0, 0, -1, 0]
+
+    # Regardless of values of allow_missing_positions and
+    # allow_duplicate_positions, this is not a volume
+    for allow_duplicate_positions in [False, True]:
+        for allow_missing_positions in [False, True]:
+            spacing, volume_positions = get_volume_positions(
+                positions,
+                orientation,
+                allow_missing_positions=allow_missing_positions,
+                allow_duplicate_positions=allow_duplicate_positions,
+                perpendicular_tol=1e-2,  # higher tolerance
+            )
+            assert spacing is not None
+            assert volume_positions is not None
 
 
 def test_transform_affine_matrix():

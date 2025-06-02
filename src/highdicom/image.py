@@ -2563,6 +2563,7 @@ class _Image(SOPClass):
             return None
 
         if len(vals) != 1:
+            logger.info(f"Frames do not have a consistent {kw}.")
             raise RuntimeError(
                 f'Frames do not have a consistent {kw}.'
             )
@@ -2953,6 +2954,7 @@ class _Image(SOPClass):
         self,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
         allow_missing_positions: bool = False,
         allow_duplicate_positions: bool = True,
         filter: str | None = None,
@@ -2978,6 +2980,12 @@ class _Image(SOPClass):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
         allow_missing_positions: bool, optional
             Allow volume positions for which no frame exists in the image.
         allow_duplicate_positions: bool, optional
@@ -3057,6 +3065,7 @@ class _Image(SOPClass):
             spacing_hint=slice_spacing_hint,
             rtol=rtol,
             atol=atol,
+            perpendicular_tol=perpendicular_tol,
         )
         if volume_positions is None:
             raise RuntimeError(
@@ -3103,6 +3112,7 @@ class _Image(SOPClass):
         self,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
         allow_missing_positions: bool = False,
         filter: str | None = None,
         slice_start: int | None = None,
@@ -3124,6 +3134,12 @@ class _Image(SOPClass):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
         allow_missing_positions: bool, optional
             Allow volume positions for which no frame exists in the image.
         filter: str | None, optional
@@ -3163,6 +3179,7 @@ class _Image(SOPClass):
         geometry, frame_positions = self._get_stacked_volume_geometry(
             rtol=rtol,
             atol=atol,
+            perpendicular_tol=perpendicular_tol,
             allow_missing_positions=allow_missing_positions,
             filter=filter,
             slice_start=slice_start,
@@ -3188,6 +3205,7 @@ class _Image(SOPClass):
         *,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
         allow_missing_positions: bool = False,
         allow_duplicate_positions: bool = True,
     ) -> VolumeGeometry | None:
@@ -3214,6 +3232,12 @@ class _Image(SOPClass):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
         allow_missing_positions: bool, optional
             Allow volume positions for which no frame exists in the image.
         allow_duplicate_positions: bool, optional
@@ -3232,10 +3256,15 @@ class _Image(SOPClass):
             return self._get_volume_geometry(
                 atol=atol,
                 rtol=rtol,
+                perpendicular_tol=perpendicular_tol,
                 allow_missing_positions=allow_missing_positions,
                 allow_duplicate_positions=allow_duplicate_positions,
             )
-        except RuntimeError:
+        except RuntimeError as e:
+            logger.info(
+                "Image is not a volume due to the following error. Earlier "
+                f"log messages may contain more information:\n {e}."
+            )
             return None
 
     def _get_volume_geometry(
@@ -3243,6 +3272,7 @@ class _Image(SOPClass):
         *,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
         allow_missing_positions: bool = False,
         allow_duplicate_positions: bool = True,
     ) -> VolumeGeometry:
@@ -3259,6 +3289,12 @@ class _Image(SOPClass):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
         allow_missing_positions: bool, optional
             Allow volume positions for which no frame exists in the image.
         allow_duplicate_positions: bool, optional
@@ -3273,6 +3309,9 @@ class _Image(SOPClass):
 
         """
         if self._coordinate_system is None:
+            logger.info(
+                "Image is not a volume because it has no FrameOfReferenceUID."
+            )
             raise RuntimeError(
                 "Image does not exist within a frame-of-reference "
                 "coordinate system."
@@ -3318,10 +3357,16 @@ class _Image(SOPClass):
                 geometry, _ = self._get_stacked_volume_geometry(
                     rtol=rtol,
                     atol=atol,
+                    perpendicular_tol=perpendicular_tol,
                     allow_missing_positions=allow_missing_positions,
                     allow_duplicate_positions=allow_duplicate_positions,
                 )
                 return geometry
+            else:
+                logger.info(
+                    "Image is not a volume because it exists in the slide "
+                    "coordinate system but is not tiled."
+                )
         else:
             # Single frame image, only supports patient coordinate system
             # currently
@@ -3345,6 +3390,11 @@ class _Image(SOPClass):
                         1.0
                     ),
                     coordinate_system=self._coordinate_system,
+                )
+            else:
+                logger.info(
+                    "Image is not a volume because it does not contain image "
+                    "position information."
                 )
 
         raise RuntimeError(
@@ -4831,6 +4881,12 @@ class Image(_Image):
     """
 
     def __init__(self, *args, **kwargs):
+        """
+
+        Instances of this class should not be directly instantiated. Use the
+        from_dataset method or the imread function instead.
+
+        """
         raise RuntimeError(
             'Instances of this class should not be directly instantiated. Use '
             'the from_dataset method or the imread function instead.'
@@ -4859,6 +4915,7 @@ class Image(_Image):
         allow_missing_positions: bool = False,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
     ) -> Volume:
         """Create a :class:`highdicom.Volume` from the image.
 
@@ -5023,6 +5080,12 @@ class Image(_Image):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked perpendicular to
+            their shared normal vector. The direction of stacking is considered
+            perpendicular if the dot product of its unit vector with the slice
+            normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
+            default value of ``1e-3`` is used.
 
         Returns
         -------
@@ -5138,6 +5201,7 @@ class Image(_Image):
             ) = self._prepare_volume_positions_table(
                 rtol=rtol,
                 atol=atol,
+                perpendicular_tol=perpendicular_tol,
                 allow_missing_positions=allow_missing_positions,
                 slice_start=slice_start,
                 slice_end=slice_end,
@@ -5427,6 +5491,7 @@ def get_volume_from_series(
     apply_icc_profile: bool | None = None,
     atol: float | None = None,
     rtol: float | None = None,
+    perpendicular_tol: float | None = None,
 ) -> Volume:
     """Create volume from a series of single frame images.
 
@@ -5535,6 +5600,12 @@ def get_volume_from_series(
         Absolute tolerance for determining spacing regularity. If slice
         spacings vary by less that this value (in mm), they
         are considered to be regular. Incompatible with ``rtol``.
+    perpendicular_tol: float | None, optional
+        Tolerance used to determine whether slices are stacked perpendicular to
+        their shared normal vector. The direction of stacking is considered
+        perpendicular if the dot product of its unit vector with the slice
+        normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
+        default value of ``1e-3`` is used.
 
     Returns
     -------
@@ -5589,6 +5660,7 @@ def get_volume_from_series(
             series_datasets,
             atol=atol,
             rtol=rtol,
+            perpendicular_tol=perpendicular_tol,
         )
         if slice_spacing is None:
             raise ValueError('Series is not a regularly-spaced volume.')
