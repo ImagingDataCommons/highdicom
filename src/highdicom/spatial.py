@@ -3611,12 +3611,14 @@ def get_volume_positions(
         if not is_regular:
             max_deviation = float(
                 np.abs(
-                    origin_distance_multiples - origin_distance_multiples.round()
+                    origin_distance_multiples -
+                    origin_distance_multiples.round()
                 ).max()
             )
             logger.info("Frame positions are not regularly spaced.")
             logger.debug(
-                f"Maximum spacing deviation from regular: {max_deviation:.2e} mm."
+                f"Maximum spacing deviation from regular: {max_deviation:.2e} "
+                "mm."
             )
 
         inverse_sort_index = origin_distance_multiples.round().astype(np.int64)

@@ -4263,11 +4263,11 @@ class Segmentation(_Image):
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
         perpendicular_tol: float | None, optional
-            Tolerance used to determine whether slices are stacked perpendicular to
-            their shared normal vector. The direction of stacking is considered
-            perpendicular if the dot product of its unit vector with the slice
-            normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
-            default value of ``1e-3`` is used.
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
         allow_missing_positions: bool, optional
             Allow volume positions for which no frame exists in the image.
         allow_duplicate_positions: bool, optional
@@ -4425,11 +4425,11 @@ class Segmentation(_Image):
             spacings vary by less that this value (in mm), they
             are considered to be regular. Incompatible with ``rtol``.
         perpendicular_tol: float | None, optional
-            Tolerance used to determine whether slices are stacked perpendicular to
-            their shared normal vector. The direction of stacking is considered
-            perpendicular if the dot product of its unit vector with the slice
-            normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
-            default value of ``1e-3`` is used.
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
 
         """
         # Checks on validity of the inputs
