@@ -256,7 +256,7 @@ class PixelOriginInterpretationValues(Enum):
     """Relative to the Total Pixel Matrix of the VOLUME image.
 
     Note that this is only appropriate if the source image is a tiled pathology
-    image with ``'VOLUME'`` as the third value of Image Type . ``'FRAME'``
+    image with ``'VOLUME'`` as the third value of Image Type. ``'FRAME'``
     should be used in all other situations, including all radiology and other
     non-pathology images.
 
