@@ -75,10 +75,11 @@ from highdicom.seg.enum import (
 from highdicom.seg.utils import iter_segments
 from highdicom.spatial import (
     ImageToReferenceTransformer,
+    _are_images_coplanar,
     compute_tile_positions_per_frame,
     get_image_coordinate_system,
-    get_volume_positions,
     get_tile_array,
+    get_volume_positions,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import (
@@ -365,25 +366,24 @@ class Segmentation(_Image):
             computed from it and therefore this parameter should be left an
             ``None``.
         plane_orientation: Union[highdicom.PlaneOrientationSequence, None], optional
-            Orientation of planes in `pixel_array` relative to axes of
+            Orientation of planes in ``pixel_array`` relative to axes of
             three-dimensional patient or slide coordinate space. If ``None``,
-            it will be assumed that the segmentation image as the same plane
+            it will be assumed that the segmentation image has the same plane
             orientation as the source image(s). If ``pixel_array`` is an
             instance of :class:`highdicom.Volume`, the plane orientation
             will be computed from it and therefore this parameter should be
-            left an ``None``.
+            left as ``None``.
         plane_positions: Union[Sequence[highdicom.PlanePositionSequence], None], optional
-            Position of each plane in `pixel_array` in the three-dimensional
+            Position of each plane in ``pixel_array`` in the three-dimensional
             patient or slide coordinate space. If ``None``, it will be assumed
             that the segmentation image has the same plane position as the
             source image(s). However, this will only work when the first
             dimension of `pixel_array` matches the number of frames in
             `source_images` (in case of multi-frame source images) or the
-            number of `source_images` (in case of single-frame source images).
-            If ``pixel_array`` is an instance of
-            :class:`highdicom.Volume`, the plane positions will be
-            computed from it and therefore this parameter should be left an
-            ``None``.
+            number of ``source_images`` (in case of single-frame source
+            images). If ``pixel_array`` is an instance of
+            :class:`highdicom.Volume`, the plane positions will be computed
+            from it and therefore this parameter should be left as ``None``.
         omit_empty_frames: bool, optional
             If True (default), frames with no non-zero pixels are omitted from
             the segmentation image. If False, all frames are included.
@@ -615,64 +615,22 @@ class Segmentation(_Image):
             segmentation_type,
         )
 
-        from_volume = isinstance(pixel_array, Volume)
-        if from_volume:
-            if self._coordinate_system is None:
-                raise ValueError(
-                    "A volume should not be passed if the source image(s) "
-                    "has/have no FrameOfReferenceUID."
-                )
-            if pixel_array.frame_of_reference_uid is not None:
-                if (
-                    pixel_array.frame_of_reference_uid !=
-                    src_img.FrameOfReferenceUID
-                ):
-                    raise ValueError(
-                        "The volume passed as the pixel array has a "
-                        "different frame of reference from the source "
-                        "image."
-                    )
-            if pixel_measures is not None:
-                raise TypeError(
-                    "Argument 'pixel_measures' should not be provided if "
-                    "'pixel_array' is a highdicom.Volume."
-                )
-            if plane_orientation is not None:
-                raise TypeError(
-                    "Argument 'plane_orientation' should not be provided if "
-                    "'pixel_array' is a highdicom.Volume."
-                )
-            if plane_positions is not None:
-                raise TypeError(
-                    "Argument 'plane_positions' should not be provided if "
-                    "'pixel_array' is a highdicom.Volume."
-                )
-            if pixel_array.number_of_channel_dimensions == 1:
-                if pixel_array.channel_descriptors != (
-                    ChannelDescriptor('SegmentNumber'),
-                ):
-                    raise ValueError(
-                        "Input volume should have no channels other than "
-                        "'SegmentNumber'."
-                    )
-                vol_seg_nums = pixel_array.get_channel_values('SegmentNumber')
-                if not np.array_equal(
-                    np.array(vol_seg_nums), described_segment_numbers
-                ):
-                    raise ValueError(
-                        "Segment numbers in the input volume do not match "
-                        "the described segments."
-                    )
-            elif pixel_array.number_of_channel_dimensions != 0:
-                raise ValueError(
-                    "If 'pixel_array' is a highdicom.Volume, it should have "
-                    "0 or 1 channel dimensions."
-                )
-
-            plane_positions = pixel_array.get_plane_positions()
-            plane_orientation = pixel_array.get_plane_orientation()
-            pixel_measures = pixel_array.get_pixel_measures()
-            pixel_array = pixel_array.array
+        if isinstance(pixel_array, Volume):
+            (
+                pixel_array,
+                plane_positions,
+                plane_orientation,
+                pixel_measures,
+            ) = self._get_spatial_data_from_volume(
+                volume=pixel_array,
+                coordinate_system=self._coordinate_system,
+                frame_of_reference_uid=src_img.FrameOfReferenceUID,
+                described_segment_numbers=described_segment_numbers,
+                plane_positions=plane_positions,
+                plane_orientation=plane_orientation,
+                pixel_measures=pixel_measures,
+            )
+        pixel_array = cast(np.ndarray, pixel_array)
 
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
@@ -692,57 +650,11 @@ class Segmentation(_Image):
                 'entire pixel matrix.'
             )
 
-        # Remember whether these values were provided by the user, or inferred
-        # from the source image. If inferred, we can skip some checks
-        user_provided_orientation = plane_orientation is not None
-        user_provided_measures = pixel_measures is not None
-
         # General Reference
 
-        if further_source_images is not None:
-            # We make no requirement here that images should be from the same
-            # series etc, but they should belong to the same study and be image
-            # objects
-            for s_img in further_source_images:
-                if not isinstance(s_img, Dataset):
-                    raise TypeError(
-                        "All items in 'further_source_images' should be "
-                        "of type 'pydicom.Dataset'."
-                    )
-                if s_img.StudyInstanceUID != self.StudyInstanceUID:
-                    raise ValueError(
-                        "All items in 'further_source_images' should belong "
-                        "to the same study as 'source_images'."
-                    )
-                if not does_iod_have_pixel_data(s_img.SOPClassUID):
-                    raise ValueError(
-                        "All items in 'further_source_images' should be "
-                        "image objects."
-                    )
-        else:
-            further_source_images = []
-
-        # Note that appending directly to the SourceImageSequence is typically
-        # slow so it's more efficient to build as a Python list then convert
-        # later. We save conversion for after the main loop
-        source_image_seq: list[Dataset] = []
-        referenced_series: dict[str, list[Dataset]] = defaultdict(list)
-        for s_img in chain(source_images, further_source_images):
-            ref = Dataset()
-            ref.ReferencedSOPClassUID = s_img.SOPClassUID
-            ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
-            source_image_seq.append(ref)
-            referenced_series[s_img.SeriesInstanceUID].append(ref)
-        self.SourceImageSequence = source_image_seq
-
-        # Common Instance Reference
-        ref_image_seq: list[Dataset] = []
-        for series_instance_uid, referenced_images in referenced_series.items():
-            ref = Dataset()
-            ref.SeriesInstanceUID = series_instance_uid
-            ref.ReferencedInstanceSequence = referenced_images
-            ref_image_seq.append(ref)
-        self.ReferencedSeriesSequence = ref_image_seq
+        self._add_source_image_references(
+            source_images, further_source_images,
+        )
 
         # Image Pixel
         if tile_pixel_array:
@@ -835,92 +747,13 @@ class Segmentation(_Image):
                 self.LossyImageCompressionMethod = \
                     src_img.LossyImageCompressionMethod
 
-        # Use PALETTE COLOR photometric interpretation in the case
-        # of a labelmap segmentation with a provided LUT, MONOCHROME2
-        # otherwise
-        if segmentation_type == SegmentationTypeValues.LABELMAP:
-            if palette_color_lut_transformation is None:
-                self.PhotometricInterpretation = 'MONOCHROME2'
-                if icc_profile is not None:
-                    raise TypeError(
-                        "Argument 'icc_profile' should "
-                        "not be provided if is "
-                        "'palette_color_lut_transformation' "
-                        "is not specified."
-                    )
-            else:
-                # Using photometric interpretation "PALETTE COLOR"
-                # need to specify the LUT in this case
-                self.PhotometricInterpretation = 'PALETTE COLOR'
-
-                # Checks on the validity of the LUT
-                if not isinstance(
-                    palette_color_lut_transformation,
-                    PaletteColorLUTTransformation
-                ):
-                    raise TypeError(
-                        'Argument "palette_color_lut_transformation" must be '
-                        'of type highdicom.PaletteColorLUTTransformation.'
-                    )
-
-                if palette_color_lut_transformation.is_segmented:
-                    raise ValueError(
-                        'Palette Color LUT Transformations must not be '
-                        'segmented when included in a Segmentation.'
-                    )
-
-                lut = palette_color_lut_transformation.red_lut
-                lut_entries = lut.number_of_entries
-                lut_start = lut.first_mapped_value
-                lut_end = lut_start + lut_entries
-
-                if (
-                    (lut_start > 0) or
-                    lut_end <= described_segment_numbers.max()
-                ):
-                    raise ValueError(
-                        'The labelmap provided does not have entries '
-                        'to covering all segments and background.'
-                    )
-
-                for desc in segment_descriptions:
-                    if hasattr(desc, 'RecommendedDisplayCIELabValue'):
-                        raise ValueError(
-                            'Segment descriptions should not specify a display '
-                            'color when using a palette color LUT.'
-                        )
-
-                # Add the LUT to this instance
-                _add_palette_color_lookup_table_attributes(
-                    self,
-                    palette_color_lut_transformation,
-                )
-
-                if icc_profile is None:
-                    # Use default sRGB profile
-                    icc_profile = pkgutil.get_data(
-                        'highdicom',
-                        '_icc_profiles/sRGB_v4_ICC_preference.icc'
-                    )
-                _add_icc_profile_attributes(
-                    self,
-                    icc_profile=icc_profile
-                )
-
-        else:
-            self.PhotometricInterpretation = 'MONOCHROME2'
-            if palette_color_lut_transformation is not None:
-                raise TypeError(
-                    "Argument 'palette_color_lut_transformation' should "
-                    "not be provided when 'segmentation_type' is "
-                    f"'{segmentation_type.value}'."
-                )
-            if icc_profile is not None:
-                raise TypeError(
-                    "Argument 'icc_profile' should "
-                    "not be provided when 'segmentation_type' is "
-                    f"'{segmentation_type.value}'."
-                )
+        self._configure_color(
+            segmentation_type=segmentation_type,
+            palette_color_lut_transformation=palette_color_lut_transformation,
+            icc_profile=icc_profile,
+            segment_descriptions=segment_descriptions,
+            max_described_segment=int(described_segment_numbers.max()),
+        )
 
         # Multi-Resolution Pyramid
         if pyramid_uid is not None:
@@ -950,53 +783,6 @@ class Segmentation(_Image):
             )
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
-        source_pixel_measures = self._get_pixel_measures_sequence(
-            source_image=src_img,
-            is_multiframe=is_multiframe,
-            coordinate_system=self._coordinate_system,
-        )
-        if pixel_measures is None:
-            pixel_measures = source_pixel_measures
-
-        if self._coordinate_system is not None:
-            if self._coordinate_system == CoordinateSystemNames.SLIDE:
-                source_plane_orientation = PlaneOrientationSequence(
-                    coordinate_system=self._coordinate_system,
-                    image_orientation=src_img.ImageOrientationSlide
-                )
-            else:
-                if is_multiframe:
-                    src_sfg = src_img.SharedFunctionalGroupsSequence[0]
-
-                    if 'PlaneOrientationSequence' not in src_sfg:
-                        raise ValueError(
-                            'Source images must have a shared '
-                            'orientation.'
-                        )
-
-                    source_plane_orientation = (
-                        PlaneOrientationSequence.from_sequence(
-                            src_sfg.PlaneOrientationSequence
-                        )
-                    )
-                else:
-                    iop = src_img.ImageOrientationPatient
-
-                    for image in source_images:
-                        if image.ImageOrientationPatient != iop:
-                            raise ValueError(
-                                'Source images must have a shared '
-                                'orientation.'
-                            )
-
-                    source_plane_orientation = PlaneOrientationSequence(
-                        coordinate_system=self._coordinate_system,
-                        image_orientation=src_img.ImageOrientationPatient
-                    )
-
-            if plane_orientation is None:
-                plane_orientation = source_plane_orientation
-
         include_segment_number = (
             segmentation_type != SegmentationTypeValues.LABELMAP
         )
@@ -1023,227 +809,23 @@ class Segmentation(_Image):
         )
         self.SegmentsOverlap = segments_overlap.value
 
-        if self._coordinate_system is not None:
-            if tile_pixel_array:
-
-                src_origin_seq = src_img.TotalPixelMatrixOriginSequence[0]
-                src_x_offset = src_origin_seq.XOffsetInSlideCoordinateSystem
-                src_y_offset = src_origin_seq.YOffsetInSlideCoordinateSystem
-                src_z_offset = src_origin_seq.get(
-                    'ZOffsetInSlideCoordinateSystem',
-                    0.0,
-                )
-
-                if plane_positions is None:
-                    # Use the origin of the source image
-                    x_offset = src_x_offset
-                    y_offset = src_y_offset
-                    z_offset = src_z_offset
-                    origin_preserved = True
-                else:
-                    if len(plane_positions) != 1:
-                        raise ValueError(
-                            "If specifying plane_positions when the "
-                            '"tile_pixel_array" argument is True, a '
-                            "single plane position should be provided "
-                            "representing the position of the top  "
-                            "left corner of the total pixel matrix."
-                        )
-                    # Use the provided image origin
-                    pp = plane_positions[0][0]
-                    rp = pp.RowPositionInTotalImagePixelMatrix
-                    cp = pp.ColumnPositionInTotalImagePixelMatrix
-                    if rp != 1 or cp != 1:
-                        raise ValueError(
-                            "When specifying a single plane position when "
-                            'the "tile_pixel_array" argument is True, the '
-                            "plane position must be at the top left corner "
-                            "of the total pixel matrix. I.e. it must have "
-                            "RowPositionInTotalImagePixelMatrix and "
-                            "ColumnPositionInTotalImagePixelMatrix equal to 1."
-                        )
-                    x_offset = pp.XOffsetInSlideCoordinateSystem
-                    y_offset = pp.YOffsetInSlideCoordinateSystem
-                    z_offset = pp.get(
-                        'ZOffsetInSlideCoordinateSystem',
-                        0.0,
-                    )
-                    origin_preserved = (
-                        x_offset == src_x_offset and
-                        y_offset == src_y_offset and
-                        z_offset == src_z_offset
-                    )
-
-                orientation = plane_orientation[0].ImageOrientationSlide
-                image_position = [x_offset, y_offset, z_offset]
-
-                are_total_pixel_matrix_locations_preserved = (
-                    origin_preserved and
-                    (
-                        not user_provided_orientation or
-                        plane_orientation == source_plane_orientation
-                    ) and
-                    (
-                        not user_provided_measures or
-                        (
-                            pixel_measures[0].PixelSpacing ==
-                            source_pixel_measures[0].PixelSpacing
-                        )
-                    )
-                )
-
-                if are_total_pixel_matrix_locations_preserved:
-                    if (
-                        pixel_array.shape[1:3] !=
-                        (
-                            src_img.TotalPixelMatrixRows,
-                            src_img.TotalPixelMatrixColumns
-                        )
-                    ):
-                        raise ValueError(
-                            "Shape of input pixel_array does not match shape "
-                            "of the total pixel matrix of the source image."
-                        )
-
-                    # The overall total pixel matrix can match the source
-                    # image's but if the image is tiled differently, spatial
-                    # locations within each frame are not preserved
-                    are_spatial_locations_preserved = (
-                        tile_size == (src_img.Rows, src_img.Columns)
-                    )
-                else:
-                    are_spatial_locations_preserved = False
-
-                raw_plane_positions = compute_tile_positions_per_frame(
-                    rows=self.Rows,
-                    columns=self.Columns,
-                    total_pixel_matrix_rows=pixel_array.shape[1],
-                    total_pixel_matrix_columns=pixel_array.shape[2],
-                    total_pixel_matrix_image_position=image_position,
-                    image_orientation=orientation,
-                    pixel_spacing=pixel_measures[0].PixelSpacing,
-                )
-                plane_sort_index = np.arange(len(raw_plane_positions))
-
-                # Only need to create the plane position DICOM objects if
-                # they will be placed into the object. Otherwise skip this
-                # as it is really inefficient
-                if (
-                    dimension_organization_type !=
-                    DimensionOrganizationTypeValues.TILED_FULL
-                ):
-                    plane_positions = [
-                        PlanePositionSequence(
-                            CoordinateSystemNames.SLIDE,
-                            image_position=coords,
-                            pixel_matrix_position=offsets,
-                        )
-                        for offsets, coords in raw_plane_positions
-                    ]
-                else:
-                    # Unneeded
-                    plane_positions = [None]
-
-                # Match the format used elsewhere
-                plane_position_values = np.array(
-                    [
-                        [*offsets, *coords]
-                        for offsets, coords in raw_plane_positions
-                    ]
-                )
-
-                # compute_tile_positions_per_frame returns
-                # (c, r, x, y, z) but the dimension index sequence
-                # requires (r, c, x, y z). Swap here to correct for
-                # this
-                plane_position_values = plane_position_values[
-                    :, [1, 0, 2, 3, 4]
-                ]
-
-            else:
-                are_measures_and_orientation_preserved = (
-                    (
-                        not user_provided_orientation or
-                        plane_orientation == source_plane_orientation
-                    ) and
-                    (
-                        not user_provided_measures or
-                        (
-                            pixel_measures[0].PixelSpacing ==
-                            source_pixel_measures[0].PixelSpacing
-                        )
-                    )
-                )
-
-                if (
-                    plane_positions is None or
-                    are_measures_and_orientation_preserved
-                ):
-                    # Calculating source positions can be slow, so avoid unless
-                    # necessary
-                    dim_ind = self.DimensionIndexSequence
-                    if is_multiframe:
-                        source_plane_positions = \
-                            dim_ind.get_plane_positions_of_image(
-                                src_img
-                            )
-                    else:
-                        source_plane_positions = \
-                            dim_ind.get_plane_positions_of_series(
-                                source_images
-                            )
-
-                if plane_positions is None:
-                    if pixel_array.shape[0] != len(source_plane_positions):
-                        raise ValueError(
-                            'Number of plane positions in source image(s) does '
-                            'not match size of first dimension of '
-                            '"pixel_array" argument.'
-                        )
-                    plane_positions = source_plane_positions
-                    are_spatial_locations_preserved = \
-                        are_measures_and_orientation_preserved
-                else:
-                    if pixel_array.shape[0] != len(plane_positions):
-                        raise ValueError(
-                            'Number of PlanePositionSequence items provided '
-                            'via "plane_positions" argument does not match '
-                            'size of first dimension of "pixel_array" argument.'
-                        )
-                    if are_measures_and_orientation_preserved:
-                        are_spatial_locations_preserved = all(
-                            plane_positions[i] == source_plane_positions[i]
-                            for i in range(len(plane_positions))
-                        )
-                    else:
-                        are_spatial_locations_preserved = False
-
-                # plane_position_values is an array giving, for each plane of
-                # the input array, the raw values of all attributes that
-                # describe its position. The first dimension is sorted the same
-                # way as the input pixel array and the second is sorted the
-                # same way as the dimension index sequence (without segment
-                # number) plane_sort_index is a list of indices into the input
-                # planes giving the order in which they should be arranged to
-                # correctly sort them for inclusion into the segmentation
-                sort_orientation = (
-                    plane_orientation[0].ImageOrientationPatient
-                    if self._coordinate_system == CoordinateSystemNames.PATIENT
-                    else None
-                )
-                plane_position_values, plane_sort_index = \
-                    self.DimensionIndexSequence.get_index_values(
-                        plane_positions,
-                        image_orientation=sort_orientation,
-                        index_convention=VOLUME_INDEX_CONVENTION,
-                    )
-
-        else:
-            # Only one spatial location supported
-            plane_positions = [None]
-            plane_position_values = [None]
-            plane_sort_index = np.array([0])
-            are_spatial_locations_preserved = True
+        (
+            plane_positions,
+            plane_orientation,
+            pixel_measures,
+            plane_position_values,
+            plane_sort_index,
+            are_spatial_locations_preserved,
+        ) = self._prepare_spatial_metadata(
+            plane_positions=plane_positions,
+            plane_orientation=plane_orientation,
+            pixel_measures=pixel_measures,
+            source_images=source_images,
+            tile_pixel_array=tile_pixel_array,
+            tile_size=tile_size,
+            pixel_array_shape=pixel_array.shape,
+            dimension_organization_type=dimension_organization_type,
+        )
 
         # Shared functional groops
         sffg_item = Dataset()
@@ -1296,7 +878,7 @@ class Segmentation(_Image):
             if is_empty:
                 # Cannot omit empty frames when all frames are empty
                 omit_empty_frames = False
-                included_plane_indices = list(range(len(plane_positions)))
+                included_plane_indices = range(len(plane_positions))
             else:
                 # Remove all empty plane positions from the list of sorted
                 # plane position indices
@@ -1306,7 +888,7 @@ class Segmentation(_Image):
                     if ind in included_plane_indices_set
                 ]
         else:
-            included_plane_indices = list(range(len(plane_positions)))
+            included_plane_indices = range(len(plane_positions))
 
         # Dimension Organization Type
         dimension_organization_type = self._check_tiled_dimension_organization(
@@ -1847,6 +1429,442 @@ class Segmentation(_Image):
 
         return pixel_measures
 
+    @staticmethod
+    def _get_spatial_data_from_volume(
+        volume: Volume,
+        coordinate_system: CoordinateSystemNames | None,
+        frame_of_reference_uid: str,
+        described_segment_numbers: np.ndarray,
+        plane_positions: Sequence[PlanePositionSequence] | None = None,
+        plane_orientation: PlaneOrientationSequence | None = None,
+        pixel_measures: PixelMeasuresSequence | None = None,
+    ) -> tuple[
+        np.ndarray,
+        Sequence[PlanePositionSequence],
+        PlaneOrientationSequence,
+        PixelMeasuresSequence,
+    ]:
+        if coordinate_system is None:
+            raise ValueError(
+                "A volume should not be passed if the source image(s) "
+                "has/have no FrameOfReferenceUID."
+            )
+        if volume.frame_of_reference_uid is not None:
+            if (
+                volume.frame_of_reference_uid !=
+                frame_of_reference_uid
+            ):
+                raise ValueError(
+                    "The volume passed as the pixel array has a "
+                    "different frame of reference to the source "
+                    "image."
+                )
+        if pixel_measures is not None:
+            raise TypeError(
+                "Argument 'pixel_measures' should not be provided if "
+                "'pixel_array' is a highdicom.Volume."
+            )
+        if plane_orientation is not None:
+            raise TypeError(
+                "Argument 'plane_orientation' should not be provided if "
+                "'pixel_array' is a highdicom.Volume."
+            )
+        if plane_positions is not None:
+            raise TypeError(
+                "Argument 'plane_positions' should not be provided if "
+                "'pixel_array' is a highdicom.Volume."
+            )
+        if volume.number_of_channel_dimensions == 1:
+            if volume.channel_descriptors != (
+                ChannelDescriptor('SegmentNumber'),
+            ):
+                raise ValueError(
+                    "Input volume should have no channels other than "
+                    "'SegmentNumber'."
+                )
+            vol_seg_nums = volume.get_channel_values('SegmentNumber')
+            if not np.array_equal(
+                np.array(vol_seg_nums), described_segment_numbers
+            ):
+                raise ValueError(
+                    "Segment numbers in the input volume do not match "
+                    "the described segments."
+                )
+        elif volume.number_of_channel_dimensions != 0:
+            raise ValueError(
+                "If 'pixel_array' is a highdicom.Volume, it should have "
+                "0 or 1 channel dimensions."
+            )
+
+        return (
+            volume.array,
+            volume.get_plane_positions(),
+            volume.get_plane_orientation(),
+            volume.get_pixel_measures(),
+        )
+
+    def _prepare_spatial_metadata(
+        self,
+        plane_positions: Sequence[PlanePositionSequence] | None,
+        plane_orientation: PlaneOrientationSequence | None,
+        pixel_measures: PixelMeasuresSequence | None,
+        source_images: Sequence[Dataset],
+        tile_pixel_array: bool,
+        tile_size: Sequence[int] | None,
+        pixel_array_shape: Sequence[int],
+        dimension_organization_type: DimensionOrganizationTypeValues,
+    ) -> tuple[
+        Sequence[PlanePositionSequence | None],
+        PlaneOrientationSequence | None,
+        PixelMeasuresSequence | None,
+        Sequence,
+        np.ndarray,
+        bool,
+    ]:
+        src_img = source_images[0]
+        is_multiframe = is_multiframe_image(src_img)
+
+        # Remember whether these values were provided by the user, or inferred
+        # from the source image. If inferred, we can skip some checks
+        user_provided_orientation = plane_orientation is not None
+        user_provided_measures = pixel_measures is not None
+
+        source_pixel_measures = self._get_pixel_measures_sequence(
+            source_image=src_img,
+            is_multiframe=is_multiframe,
+            coordinate_system=self._coordinate_system,
+        )
+        if pixel_measures is None:
+            pixel_measures = source_pixel_measures
+
+        if self._coordinate_system is None:
+            # Only one spatial location supported
+            return (
+                [None],  # plane positions
+                plane_orientation,
+                pixel_measures,
+                [None],  # plane_position_values
+                np.array([0]),  # plane_sort_index
+                True,  # are_spatial_locations_preserved
+            )
+
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            source_plane_orientation = PlaneOrientationSequence(
+                coordinate_system=self._coordinate_system,
+                image_orientation=src_img.ImageOrientationSlide
+            )
+        else:
+            if is_multiframe:
+                src_sfg = src_img.SharedFunctionalGroupsSequence[0]
+
+                if 'PlaneOrientationSequence' not in src_sfg:
+                    raise ValueError(
+                        'Source images must have a shared '
+                        'orientation.'
+                    )
+
+                source_plane_orientation = (
+                    PlaneOrientationSequence.from_sequence(
+                        src_sfg.PlaneOrientationSequence
+                    )
+                )
+            else:
+                iop = src_img.ImageOrientationPatient
+
+                for image in source_images:
+                    if image.ImageOrientationPatient != iop:
+                        raise ValueError(
+                            'Source images must have a shared '
+                            'orientation.'
+                        )
+
+                source_plane_orientation = PlaneOrientationSequence(
+                    coordinate_system=self._coordinate_system,
+                    image_orientation=src_img.ImageOrientationPatient
+                )
+
+        if plane_orientation is None:
+            plane_orientation = source_plane_orientation
+
+        if tile_pixel_array:
+
+            (
+                plane_positions,
+                plane_position_values,
+                plane_sort_index,
+                are_spatial_locations_preserved,
+            ) = self._prepare_tiled_spatial_metadata(
+                plane_positions=plane_positions,
+                plane_orientation=plane_orientation,
+                pixel_measures=pixel_measures,
+                src_img=src_img,
+                pixel_array_shape=pixel_array_shape,
+                user_provided_measures=user_provided_measures,
+                user_provided_orientation=user_provided_orientation,
+                tile_size=tile_size,
+                source_plane_orientation=source_plane_orientation,
+                source_pixel_measures=source_pixel_measures,
+                dimension_organization_type=dimension_organization_type,
+            )
+
+            return (
+                plane_positions,
+                plane_orientation,
+                pixel_measures,
+                plane_position_values,
+                plane_sort_index,
+                are_spatial_locations_preserved,
+            )
+
+        are_measures_and_orientation_preserved = (
+            (
+                not user_provided_orientation or
+                plane_orientation == source_plane_orientation
+            ) and
+            (
+                not user_provided_measures or
+                (
+                    pixel_measures[0].PixelSpacing ==
+                    source_pixel_measures[0].PixelSpacing
+                )
+            )
+        )
+
+        if (
+            plane_positions is None or
+            are_measures_and_orientation_preserved
+        ):
+            # Calculating source positions can be slow, so avoid unless
+            # necessary
+            dim_ind = self.DimensionIndexSequence
+            if is_multiframe:
+                source_plane_positions = \
+                    dim_ind.get_plane_positions_of_image(
+                        src_img
+                    )
+            else:
+                source_plane_positions = \
+                    dim_ind.get_plane_positions_of_series(
+                        source_images
+                    )
+
+        if plane_positions is None:
+            if pixel_array_shape[0] != len(source_plane_positions):
+                raise ValueError(
+                    'Number of plane positions in source image(s) does '
+                    'not match size of first dimension of '
+                    '"pixel_array" argument.'
+                )
+            plane_positions = source_plane_positions
+            are_spatial_locations_preserved = \
+                are_measures_and_orientation_preserved
+        else:
+            if pixel_array_shape[0] != len(plane_positions):
+                raise ValueError(
+                    'Number of PlanePositionSequence items provided '
+                    'via "plane_positions" argument does not match '
+                    'size of first dimension of "pixel_array" argument.'
+                )
+            if are_measures_and_orientation_preserved:
+                are_spatial_locations_preserved = all(
+                    plane_positions[i] == source_plane_positions[i]
+                    for i in range(len(plane_positions))
+                )
+            else:
+                are_spatial_locations_preserved = False
+
+        # plane_position_values is an array giving, for each plane of
+        # the input array, the raw values of all attributes that
+        # describe its position. The first dimension is sorted the same
+        # way as the input pixel array and the second is sorted the
+        # same way as the dimension index sequence (without segment
+        # number) plane_sort_index is a list of indices into the input
+        # planes giving the order in which they should be arranged to
+        # correctly sort them for inclusion into the segmentation
+        sort_orientation = (
+            plane_orientation[0].ImageOrientationPatient
+            if self._coordinate_system == CoordinateSystemNames.PATIENT
+            else None
+        )
+
+        (
+            plane_position_values,
+            plane_sort_index,
+        ) = self.DimensionIndexSequence.get_index_values(
+            plane_positions,
+            image_orientation=sort_orientation,
+            index_convention=VOLUME_INDEX_CONVENTION,
+        )
+
+        return (
+            plane_positions,
+            plane_orientation,
+            pixel_measures,
+            plane_position_values,
+            plane_sort_index,
+            are_spatial_locations_preserved,
+        )
+
+    def _prepare_tiled_spatial_metadata(
+        self,
+        plane_positions: Sequence[PlanePositionSequence] | None,
+        plane_orientation: PlaneOrientationSequence,
+        pixel_measures: PixelMeasuresSequence,
+        src_img: Dataset,
+        pixel_array_shape: Sequence[int],
+        user_provided_measures: bool,
+        user_provided_orientation: bool,
+        tile_size: Sequence[int],
+        source_pixel_measures: PixelMeasuresSequence,
+        source_plane_orientation: PlaneOrientationSequence,
+        dimension_organization_type: DimensionOrganizationTypeValues,
+    ) -> tuple[
+        Sequence[PlanePositionSequence | None],
+        np.ndarray,
+        Sequence[int | None],
+        bool,
+    ]:
+        src_origin_seq = src_img.TotalPixelMatrixOriginSequence[0]
+        src_x_offset = src_origin_seq.XOffsetInSlideCoordinateSystem
+        src_y_offset = src_origin_seq.YOffsetInSlideCoordinateSystem
+        src_z_offset = src_origin_seq.get(
+            'ZOffsetInSlideCoordinateSystem',
+            0.0,
+        )
+
+        if plane_positions is None:
+            # Use the origin of the source image
+            x_offset = src_x_offset
+            y_offset = src_y_offset
+            z_offset = src_z_offset
+            origin_preserved = True
+        else:
+            if len(plane_positions) != 1:
+                raise ValueError(
+                    "If specifying plane_positions when the "
+                    '"tile_pixel_array" argument is True, a '
+                    "single plane position should be provided "
+                    "representing the position of the top  "
+                    "left corner of the total pixel matrix."
+                )
+            # Use the provided image origin
+            pp = plane_positions[0][0]
+            rp = pp.RowPositionInTotalImagePixelMatrix
+            cp = pp.ColumnPositionInTotalImagePixelMatrix
+            if rp != 1 or cp != 1:
+                raise ValueError(
+                    "When specifying a single plane position when "
+                    'the "tile_pixel_array" argument is True, the '
+                    "plane position must be at the top left corner "
+                    "of the total pixel matrix. I.e. it must have "
+                    "RowPositionInTotalImagePixelMatrix and "
+                    "ColumnPositionInTotalImagePixelMatrix equal to 1."
+                )
+            x_offset = pp.XOffsetInSlideCoordinateSystem
+            y_offset = pp.YOffsetInSlideCoordinateSystem
+            z_offset = pp.get(
+                'ZOffsetInSlideCoordinateSystem',
+                0.0,
+            )
+            origin_preserved = (
+                x_offset == src_x_offset and
+                y_offset == src_y_offset and
+                z_offset == src_z_offset
+            )
+
+        orientation = plane_orientation[0].ImageOrientationSlide
+        image_position = [x_offset, y_offset, z_offset]
+
+        are_total_pixel_matrix_locations_preserved = (
+            origin_preserved and
+            (
+                not user_provided_orientation or
+                plane_orientation == source_plane_orientation
+            ) and
+            (
+                not user_provided_measures or
+                (
+                    pixel_measures[0].PixelSpacing ==
+                    source_pixel_measures[0].PixelSpacing
+                )
+            )
+        )
+
+        if are_total_pixel_matrix_locations_preserved:
+            if (
+                pixel_array_shape[1:3] !=
+                (
+                    src_img.TotalPixelMatrixRows,
+                    src_img.TotalPixelMatrixColumns
+                )
+            ):
+                raise ValueError(
+                    "Shape of input pixel_array does not match shape "
+                    "of the total pixel matrix of the source image."
+                )
+
+            # The overall total pixel matrix can match the source
+            # image's but if the image is tiled differently, spatial
+            # locations within each frame are not preserved
+            are_spatial_locations_preserved = (
+                tile_size == (src_img.Rows, src_img.Columns)
+            )
+        else:
+            are_spatial_locations_preserved = False
+
+        raw_plane_positions = compute_tile_positions_per_frame(
+            rows=self.Rows,
+            columns=self.Columns,
+            total_pixel_matrix_rows=pixel_array_shape[1],
+            total_pixel_matrix_columns=pixel_array_shape[2],
+            total_pixel_matrix_image_position=image_position,
+            image_orientation=orientation,
+            pixel_spacing=pixel_measures[0].PixelSpacing,
+        )
+        plane_sort_index = np.arange(len(raw_plane_positions))
+
+        # Only need to create the plane position DICOM objects if
+        # they will be placed into the object. Otherwise skip this
+        # as it is really inefficient
+        if (
+            dimension_organization_type !=
+            DimensionOrganizationTypeValues.TILED_FULL
+        ):
+            plane_positions = [
+                PlanePositionSequence(
+                    CoordinateSystemNames.SLIDE,
+                    image_position=coords,
+                    pixel_matrix_position=offsets,
+                )
+                for offsets, coords in raw_plane_positions
+            ]
+        else:
+            # Unneeded
+            plane_positions = [None]
+
+        # Match the format used elsewhere
+        plane_position_values = np.array(
+            [
+                [*offsets, *coords]
+                for offsets, coords in raw_plane_positions
+            ]
+        )
+
+        # compute_tile_positions_per_frame returns
+        # (c, r, x, y, z) but the dimension index sequence
+        # requires (r, c, x, y z). Swap here to correct for
+        # this
+        plane_position_values = plane_position_values[
+            :, [1, 0, 2, 3, 4]
+        ]
+
+        return (
+            plane_positions,
+            plane_position_values,
+            plane_sort_index,
+            are_spatial_locations_preserved,
+        )
+
     def _add_segment_descriptions(
         self,
         segment_descriptions: Sequence[SegmentDescription],
@@ -1897,6 +1915,151 @@ class Segmentation(_Image):
             ]
         else:
             self.SegmentSequence = segment_descriptions
+
+    def _add_source_image_references(
+        self,
+        source_images,
+        further_source_images,
+    ) -> None:
+        if further_source_images is not None:
+            # We make no requirement here that images should be from the same
+            # series etc, but they should belong to the same study and be image
+            # objects
+            for s_img in further_source_images:
+                if not isinstance(s_img, Dataset):
+                    raise TypeError(
+                        "All items in 'further_source_images' should be "
+                        "of type 'pydicom.Dataset'."
+                    )
+                if s_img.StudyInstanceUID != self.StudyInstanceUID:
+                    raise ValueError(
+                        "All items in 'further_source_images' should belong "
+                        "to the same study as 'source_images'."
+                    )
+                if not does_iod_have_pixel_data(s_img.SOPClassUID):
+                    raise ValueError(
+                        "All items in 'further_source_images' should be "
+                        "image objects."
+                    )
+        else:
+            further_source_images = []
+
+        # Note that appending directly to the SourceImageSequence is typically
+        # slow so it's more efficient to build as a Python list then convert
+        # later. We save conversion for after the main loop
+        source_image_seq: list[Dataset] = []
+        referenced_series: dict[str, list[Dataset]] = defaultdict(list)
+        for s_img in chain(source_images, further_source_images):
+            ref = Dataset()
+            ref.ReferencedSOPClassUID = s_img.SOPClassUID
+            ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
+            source_image_seq.append(ref)
+            referenced_series[s_img.SeriesInstanceUID].append(ref)
+        self.SourceImageSequence = source_image_seq
+
+        # Common Instance Reference
+        ref_image_seq: list[Dataset] = []
+        for series_instance_uid, referenced_images in referenced_series.items():
+            ref = Dataset()
+            ref.SeriesInstanceUID = series_instance_uid
+            ref.ReferencedInstanceSequence = referenced_images
+            ref_image_seq.append(ref)
+        self.ReferencedSeriesSequence = ref_image_seq
+
+    def _configure_color(
+        self,
+        segmentation_type: SegmentationTypeValues,
+        palette_color_lut_transformation: PaletteColorLUTTransformation | None,
+        icc_profile: bytes | None,
+        segment_descriptions: Sequence[SegmentDescription],
+        max_described_segment: int,
+    ) -> None:
+        # Use PALETTE COLOR photometric interpretation in the case
+        # of a labelmap segmentation with a provided LUT, MONOCHROME2
+        # otherwise
+        if segmentation_type == SegmentationTypeValues.LABELMAP:
+            if palette_color_lut_transformation is None:
+                self.PhotometricInterpretation = 'MONOCHROME2'
+                if icc_profile is not None:
+                    raise TypeError(
+                        "Argument 'icc_profile' should "
+                        "not be provided if is "
+                        "'palette_color_lut_transformation' "
+                        "is not specified."
+                    )
+            else:
+                # Using photometric interpretation "PALETTE COLOR"
+                # need to specify the LUT in this case
+                self.PhotometricInterpretation = 'PALETTE COLOR'
+
+                # Checks on the validity of the LUT
+                if not isinstance(
+                    palette_color_lut_transformation,
+                    PaletteColorLUTTransformation
+                ):
+                    raise TypeError(
+                        'Argument "palette_color_lut_transformation" must be '
+                        'of type highdicom.PaletteColorLUTTransformation.'
+                    )
+
+                if palette_color_lut_transformation.is_segmented:
+                    raise ValueError(
+                        'Palette Color LUT Transformations must not be '
+                        'segmented when included in a Segmentation.'
+                    )
+
+                lut = palette_color_lut_transformation.red_lut
+                lut_entries = lut.number_of_entries
+                lut_start = lut.first_mapped_value
+                lut_end = lut_start + lut_entries
+
+                if (
+                    (lut_start > 0) or
+                    lut_end <= max_described_segment
+                ):
+                    raise ValueError(
+                        'The labelmap provided does not have entries '
+                        'to covering all segments and background.'
+                    )
+
+                for desc in segment_descriptions:
+                    if hasattr(desc, 'RecommendedDisplayCIELabValue'):
+                        raise ValueError(
+                            'Segment descriptions should not specify a display '
+                            'color when using a palette color LUT.'
+                        )
+
+                # Add the LUT to this instance
+                _add_palette_color_lookup_table_attributes(
+                    self,
+                    palette_color_lut_transformation,
+                )
+
+                if icc_profile is None:
+                    # Use default sRGB profile
+                    icc_profile = pkgutil.get_data(
+                        'highdicom',
+                        '_icc_profiles/sRGB_v4_ICC_preference.icc'
+                    )
+                _add_icc_profile_attributes(
+                    self,
+                    icc_profile=icc_profile
+                )
+
+        else:
+            self.PhotometricInterpretation = 'MONOCHROME2'
+            if palette_color_lut_transformation is not None:
+                raise TypeError(
+                    "Argument 'palette_color_lut_transformation' should "
+                    "not be provided when 'segmentation_type' is "
+                    f"'{segmentation_type.value}'."
+                )
+            if icc_profile is not None:
+                raise TypeError(
+                    "Argument 'icc_profile' should "
+                    "not be provided when 'segmentation_type' is "
+                    f"'{segmentation_type.value}'."
+                )
 
     def _add_slide_coordinate_metadata(
         self,

@@ -21,7 +21,8 @@ _DEFAULT_SPACING_RELATIVE_TOLERANCE = 1e-2
 
 
 _DEFAULT_EQUALITY_TOLERANCE = 1e-5
-"""Tolerance value used by default in tests for equality"""
+"""Tolerance value used by default in tests for equality."""
+
 
 _DEFAULT_PERPENDICULAR_TOLERANCE = 1e-3
 """Default tolerance on the dot product to determine perpendicularity."""
@@ -651,11 +652,12 @@ def _are_images_coplanar(
     image_position_b: Sequence[float],
     image_orientation_b: Sequence[float],
     tol: float = _DEFAULT_EQUALITY_TOLERANCE,
+    parallel_tol: float = _DEFAULT_PERPENDICULAR_TOLERANCE,
 ) -> bool:
     """Determine whether two images or image frames are coplanar.
 
     Two images are coplanar in the frame of reference coordinate system if and
-    only if their normal vectors have the same (or opposite direction) and the
+    only if their normal vectors have the same (or opposite) direction and the
     shortest distance from the plane to the coordinate system origin is the
     same for both planes.
 
@@ -673,8 +675,13 @@ def _are_images_coplanar(
     image_orientation_b: Sequence[float]
         Row and column cosines (6 element list) giving the orientation of the
         second image.
-    tol: float
-        Tolerance to use to determine equality.
+    tol: float, optional
+        Tolerance to use to determine equality in origin distance.
+    parallel_tol: float, optional
+        Tolerance used to determine whether slices normal vectors are parallel.
+        Slices are considered parallel if the dot product of their unit normal
+        vectors ``parallel_tol`` of 1.00 or -1.00. If ``None``, the default
+        value of ``1e-3`` is used.
 
     Returns
     -------
@@ -684,7 +691,12 @@ def _are_images_coplanar(
     """
     n_a = get_normal_vector(image_orientation_a)
     n_b = get_normal_vector(image_orientation_b)
-    if 1.0 - np.abs(n_a @ n_b) > tol:
+
+    dot_product = n_a @ n_b
+    if not (
+        abs(dot_product - 1.0) < parallel_tol or
+        abs(dot_product + 1.0) < parallel_tol
+    ):
         return False
 
     # Find distances of both planes along n_a
