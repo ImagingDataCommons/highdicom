@@ -816,6 +816,7 @@ class Segmentation(_Image):
             plane_position_values,
             plane_sort_index,
             are_spatial_locations_preserved,
+            source_image_indices,
         ) = self._prepare_spatial_metadata(
             plane_positions=plane_positions,
             plane_orientation=plane_orientation,
@@ -1181,12 +1182,16 @@ class Segmentation(_Image):
                         else:
                             dimension_index_values = []
 
+                    plane_source_indices = (
+                        source_image_indices[plane_index]
+                        if source_image_indices is not None else None
+                    )
                     pffg_item = self._get_pffg_item(
                         segment_number=segment_number,
                         dimension_index_values=dimension_index_values,
                         plane_position=plane_positions[plane_index],
                         source_images=source_images,
-                        source_image_index=plane_index,
+                        source_image_indices=plane_source_indices,
                         are_spatial_locations_preserved=are_spatial_locations_preserved,  # noqa: E501
                         coordinate_system=self._coordinate_system,
                         is_multiframe=is_multiframe,
@@ -1520,6 +1525,7 @@ class Segmentation(_Image):
         Sequence,
         np.ndarray,
         bool,
+        Sequence[Sequence[int]] | None,
     ]:
         src_img = source_images[0]
         is_multiframe = is_multiframe_image(src_img)
@@ -1546,6 +1552,7 @@ class Segmentation(_Image):
                 [None],  # plane_position_values
                 np.array([0]),  # plane_sort_index
                 True,  # are_spatial_locations_preserved
+                [[0]],  # source_image_indices
             )
 
         if self._coordinate_system == CoordinateSystemNames.SLIDE:
@@ -1614,7 +1621,10 @@ class Segmentation(_Image):
                 plane_position_values,
                 plane_sort_index,
                 are_spatial_locations_preserved,
+                None, # source_image_indices TODO
             )
+
+        source_image_indices = None
 
         are_measures_and_orientation_preserved = (
             (
@@ -1658,6 +1668,10 @@ class Segmentation(_Image):
             plane_positions = source_plane_positions
             are_spatial_locations_preserved = \
                 are_measures_and_orientation_preserved
+            if are_spatial_locations_preserved:
+                source_image_indices = [
+                    [i] for i in range(len(plane_positions))
+                ]
         else:
             if pixel_array_shape[0] != len(plane_positions):
                 raise ValueError(
@@ -1670,6 +1684,10 @@ class Segmentation(_Image):
                     plane_positions[i] == source_plane_positions[i]
                     for i in range(len(plane_positions))
                 )
+                if are_spatial_locations_preserved:
+                    source_image_indices = [
+                        [i] for i in range(len(plane_positions))
+                    ]
             else:
                 are_spatial_locations_preserved = False
 
@@ -1703,6 +1721,7 @@ class Segmentation(_Image):
             plane_position_values,
             plane_sort_index,
             are_spatial_locations_preserved,
+            source_image_indices,
         )
 
     def _prepare_tiled_spatial_metadata(
@@ -2706,7 +2725,7 @@ class Segmentation(_Image):
         dimension_index_values: list[int],
         plane_position: PlanePositionSequence,
         source_images: list[Dataset],
-        source_image_index: int,
+        source_image_indices: Sequence[int] | None,
         are_spatial_locations_preserved: bool,
         coordinate_system: CoordinateSystemNames | None,
         is_multiframe: bool,
@@ -2726,11 +2745,14 @@ class Segmentation(_Image):
             Plane position of this frame.
         source_images: List[Dataset]
             Full list of source images.
-        source_image_index: int
-            Index of this frame in the original list of source images.
+        source_image_indices: Sequence[int] | None
+            Indices of the source images for this frame. If the source images
+            are single frame, indices of the source images in the source_images
+            list. If source_images is a list of a single multi-frame image,
+            zero-based frame indices of the frames of that image.
         are_spatial_locations_preserved: bool
             Whether spatial locations are preserved between the segmentation
-            and the source images.
+            and the source images given in source_image_indices.
         coordinate_system: Optional[highdicom.CoordinateSystemNames]
             Coordinate system used, if any.
         is_multiframe: bool
@@ -2802,7 +2824,7 @@ class Segmentation(_Image):
                     )
                 )
 
-        if are_spatial_locations_preserved:
+        if source_image_indices is not None:
             derivation_image_item = Dataset()
             derivation_image_item.add(
                 DataElement(
@@ -2812,54 +2834,59 @@ class Segmentation(_Image):
                 )
             )
 
-            derivation_src_img_item = Dataset()
-            if is_multiframe:
-                # A single multi-frame source image
-                src_img_item = source_images[0]
-                # Frame numbers are one-based
+            derivation_src_img_items = []
+            for source_image_index in source_image_indices:
+                derivation_src_img_item = Dataset()
+                if is_multiframe:
+                    # A single multi-frame source image
+                    src_img_item = source_images[0]
+                    # Frame numbers are one-based
+                    derivation_src_img_item.add(
+                        DataElement(
+                            0x00081160,  # ReferencedFrameNumber
+                            'IS',
+                            source_image_index + 1
+                        )
+                    )
+                else:
+                    # Multiple single-frame source images
+                    src_img_item = source_images[source_image_index]
+
                 derivation_src_img_item.add(
                     DataElement(
-                        0x00081160,  # ReferencedFrameNumber
-                        'IS',
-                        source_image_index + 1
+                        0x00081150,  # ReferencedSOPClassUID
+                        'UI',
+                        src_img_item[0x00080016].value  # SOPClassUID
                     )
                 )
-            else:
-                # Multiple single-frame source images
-                src_img_item = source_images[source_image_index]
-            derivation_src_img_item.add(
-                DataElement(
-                    0x00081150,  # ReferencedSOPClassUID
-                    'UI',
-                    src_img_item[0x00080016].value  # SOPClassUID
+                derivation_src_img_item.add(
+                    DataElement(
+                        0x00081155,  # ReferencedSOPInstanceUID
+                        'UI',
+                        src_img_item[0x00080018].value  # SOPInstanceUID
+                    )
                 )
-            )
-            derivation_src_img_item.add(
-                DataElement(
-                    0x00081155,  # ReferencedSOPInstanceUID
-                    'UI',
-                    src_img_item[0x00080018].value  # SOPInstanceUID
+                derivation_src_img_item.add(
+                    DataElement(
+                        0x0040a170,  # PurposeOfReferenceCodeSequence
+                        'SQ',
+                        [_PURPOSE_CODE]
+                    )
                 )
-            )
-            derivation_src_img_item.add(
-                DataElement(
-                    0x0040a170,  # PurposeOfReferenceCodeSequence
-                    'SQ',
-                    [_PURPOSE_CODE]
+                derivation_src_img_item.add(
+                    DataElement(
+                        0x0028135a,  # SpatialLocationsPreserved
+                        'CS',
+                        'YES' if are_spatial_locations_preserved else 'NO'
+                    )
                 )
-            )
-            derivation_src_img_item.add(
-                DataElement(
-                    0x0028135a,  # SpatialLocationsPreserved
-                    'CS',
-                    'YES'
-                )
-            )
+                derivation_src_img_items.append(derivation_src_img_item)
+
             derivation_image_item.add(
                 DataElement(
                     0x00082112,  # SourceImageSequence
                     'SQ',
-                    [derivation_src_img_item]
+                    derivation_src_img_items,
                 )
             )
             pffg_item.add(
