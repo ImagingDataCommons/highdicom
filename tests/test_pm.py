@@ -701,10 +701,13 @@ class TestParametricMap(unittest.TestCase):
             real_world_value_mappings=[real_world_value_mapping],
             window_center=window_center,
             window_width=window_width,
-            transfer_syntax_uid=JPEGLSLossless
+            transfer_syntax_uid=JPEGLSLossless,
+            use_extended_offset_table=True
         )
         assert pmap.BitsAllocated == 16
         assert np.array_equal(pmap.pixel_array, pixel_array)
+        assert hasattr(pmap, 'ExtendedOffsetTable')
+        assert hasattr(pmap, 'ExtendedOffsetTableLengths')
 
     def test_single_frame_ct_image_double(self):
         pixel_array = np.random.uniform(-1, 1, self._ct_image.pixel_array.shape)

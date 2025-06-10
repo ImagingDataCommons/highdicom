@@ -8,7 +8,7 @@ from collections.abc import Sequence
 
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataset import Dataset
-from pydicom.encaps import encapsulate
+from pydicom.encaps import encapsulate, encapsulate_extended
 from pydicom.uid import (
     ImplicitVRLittleEndian,
     ExplicitVRLittleEndian,
@@ -35,7 +35,8 @@ LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
 
 def _convert_legacy_to_enhanced(
     sf_datasets: Sequence[Dataset],
-    mf_dataset: Dataset | None = None
+    mf_dataset: Dataset | None = None,
+    use_extended_offset_table: bool = False,
 ) -> Dataset:
     """Converts one or more MR, CT or PET Image instances into one
     Legacy Converted Enhanced MR/CT/PET Image instance by copying information
@@ -47,6 +48,14 @@ def _convert_legacy_to_enhanced(
         DICOM data sets of single-frame legacy image instances
     mf_dataset: Union[pydicom.dataset.Dataset, None], optional
         DICOM data set of multi-frame enhanced image instance
+    use_extended_offset_table: bool, optional
+        Include an extended offset table instead of a basic offset table
+        for encapsulated transfer syntaxes. Extended offset tables avoid
+        size limitations on basic offset tables, and separate the offset
+        table from the pixel data by placing it into metadata. However,
+        they may be less widely supported than basic offset tables. This
+        parameter is ignored if using a native (uncompressed) transfer
+        syntax. The default value may change in a future release.
 
     Returns
     -------
@@ -418,7 +427,14 @@ def _convert_legacy_to_enhanced(
         for ds in sf_datasets
     ]
     if mf_dataset.file_meta.TransferSyntaxUID.is_encapsulated:
-        mf_dataset.PixelData = encapsulate(encoded_frames)
+        if use_extended_offset_table:
+            (
+                mf_dataset.PixelData,
+                mf_dataset.ExtendedOffsetTable,
+                mf_dataset.ExtendedOffsetTableLengths,
+            ) = encapsulate_extended(encoded_frames)
+        else:
+            mf_dataset.PixelData = encapsulate(encoded_frames)
     else:
         mf_dataset.PixelData = b''.join(encoded_frames)
 
@@ -437,6 +453,7 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
         sop_instance_uid: str,
         instance_number: int,
         transfer_syntax_uid: str = ExplicitVRLittleEndian,
+        use_extended_offset_table: bool = False,
         **kwargs: Any
     ) -> None:
         """
@@ -458,6 +475,14 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
             data elements. The following compressed transfer syntaxes
             are supported: JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``)
             and JPEG-LS Lossless (``"1.2.840.10008.1.2.4.80"``).
+        use_extended_offset_table: bool, optional
+            Include an extended offset table instead of a basic offset table
+            for encapsulated transfer syntaxes. Extended offset tables avoid
+            size limitations on basic offset tables, and separate the offset
+            table from the pixel data by placing it into metadata. However,
+            they may be less widely supported than basic offset tables. This
+            parameter is ignored if using a native (uncompressed) transfer
+            syntax. The default value may change in a future release.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -514,7 +539,11 @@ class LegacyConvertedEnhancedMRImage(SOPClass):
             ),
             **kwargs
         )
-        _convert_legacy_to_enhanced(legacy_datasets, self)
+        _convert_legacy_to_enhanced(
+            legacy_datasets,
+            self,
+            use_extended_offset_table=use_extended_offset_table,
+        )
         self.PresentationLUTShape = 'IDENTITY'
 
 
@@ -530,6 +559,7 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
         sop_instance_uid: str,
         instance_number: int,
         transfer_syntax_uid: str = ExplicitVRLittleEndian,
+        use_extended_offset_table: bool = False,
         **kwargs: Any
     ) -> None:
         """
@@ -551,6 +581,14 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
             data elements. The following compressed transfer syntaxes
             are supported: JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``)
             and JPEG-LS Lossless (``"1.2.840.10008.1.2.4.80"``).
+        use_extended_offset_table: bool, optional
+            Include an extended offset table instead of a basic offset table
+            for encapsulated transfer syntaxes. Extended offset tables avoid
+            size limitations on basic offset tables, and separate the offset
+            table from the pixel data by placing it into metadata. However,
+            they may be less widely supported than basic offset tables. This
+            parameter is ignored if using a native (uncompressed) transfer
+            syntax. The default value may change in a future release.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -594,7 +632,11 @@ class LegacyConvertedEnhancedCTImage(SOPClass):
             referring_physician_name=ref_ds.ReferringPhysicianName,
             **kwargs
         )
-        _convert_legacy_to_enhanced(legacy_datasets, self)
+        _convert_legacy_to_enhanced(
+            legacy_datasets,
+            self,
+            use_extended_offset_table=use_extended_offset_table,
+        )
 
 
 class LegacyConvertedEnhancedPETImage(SOPClass):
@@ -609,6 +651,7 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
         sop_instance_uid: str,
         instance_number: int,
         transfer_syntax_uid: str = ExplicitVRLittleEndian,
+        use_extended_offset_table: bool = False,
         **kwargs: Any
     ) -> None:
         """
@@ -630,6 +673,14 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             data elements. The following compressed transfer syntaxes
             are supported: JPEG 2000 Lossless (``"1.2.840.10008.1.2.4.90"``)
             and JPEG-LS Lossless (``"1.2.840.10008.1.2.4.80"``).
+        use_extended_offset_table: bool, optional
+            Include an extended offset table instead of a basic offset table
+            for encapsulated transfer syntaxes. Extended offset tables avoid
+            size limitations on basic offset tables, and separate the offset
+            table from the pixel data by placing it into metadata. However,
+            they may be less widely supported than basic offset tables. This
+            parameter is ignored if using a native (uncompressed) transfer
+            syntax. The default value may change in a future release.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -684,4 +735,8 @@ class LegacyConvertedEnhancedPETImage(SOPClass):
             referring_physician_name=ref_ds.ReferringPhysicianName,
             **kwargs
         )
-        _convert_legacy_to_enhanced(legacy_datasets, self)
+        _convert_legacy_to_enhanced(
+            legacy_datasets,
+            self,
+            use_extended_offset_table=use_extended_offset_table,
+        )
