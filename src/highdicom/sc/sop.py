@@ -25,6 +25,7 @@ from pydicom.uid import (
 )
 
 from highdicom.base import SOPClass
+from highdicom.base_content import ContributingEquipment
 from highdicom.content import (
     IssuerOfIdentifier,
     SpecimenDescription,
@@ -99,6 +100,9 @@ class SCImage(SOPClass):
                 Sequence[SpecimenDescription]
             ) = None,
             transfer_syntax_uid: str = ExplicitVRLittleEndian,
+            contributing_equipment: Sequence[
+                ContributingEquipment
+            ] | None = None,
             **kwargs: Any
         ):
         """
@@ -188,6 +192,9 @@ class SCImage(SOPClass):
             (``"1.2.840.10008.1.2.4.50"``). Note that JPEG Baseline is a
             lossy compression method that will lead to a loss of detail in
             the image.
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -233,6 +240,7 @@ class SCImage(SOPClass):
             study_date=study_date,
             study_time=study_time,
             referring_physician_name=referring_physician_name,
+            contributing_equipment=contributing_equipment,
             **kwargs
         )
 
@@ -449,6 +457,9 @@ class SCImage(SOPClass):
             Sequence[SpecimenDescription]
         ) = None,
         transfer_syntax_uid: str = ImplicitVRLittleEndian,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs: Any
     ) -> Self:
         """Constructor that copies patient and study from an existing dataset.
@@ -519,6 +530,9 @@ class SCImage(SOPClass):
             data elements. The following lossless compressed transfer syntaxes
             are supported: RLE Lossless (``"1.2.840.10008.1.2.5"``), JPEG 2000
             Lossless (``"1.2.840.10008.1.2.4.90"``).
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -529,6 +543,22 @@ class SCImage(SOPClass):
             Secondary capture image.
 
         """  # noqa: E501
+        try:
+            acquisition_equipment = (
+                ContributingEquipment.for_image_acquisition(ref_dataset)
+            )
+        except Exception:
+            pass
+        else:
+            if contributing_equipment is None:
+                contributing_equipment = []
+            else:
+                contributing_equipment = list(contributing_equipment)
+            contributing_equipment = [
+                acquisition_equipment,
+                *list(contributing_equipment),
+            ]
+
         return cls(
             pixel_array=pixel_array,
             photometric_interpretation=photometric_interpretation,
@@ -561,5 +591,6 @@ class SCImage(SOPClass):
             issuer_of_container_identifier=issuer_of_container_identifier,
             specimen_descriptions=specimen_descriptions,
             transfer_syntax_uid=transfer_syntax_uid,
+            contributing_equipment=contributing_equipment,
             **kwargs
         )

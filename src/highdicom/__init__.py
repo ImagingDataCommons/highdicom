@@ -8,6 +8,9 @@ from highdicom import sc
 from highdicom import seg
 from highdicom import sr
 from highdicom.base import SOPClass
+from highdicom.base_content import (
+    ContributingEquipment,
+)
 from highdicom.content import (
     AlgorithmIdentificationSequence,
     ContentCreatorIdentificationCodeSequence,
@@ -83,6 +86,7 @@ __all__ = [
     'ChannelDescriptor',
     'ContentCreatorIdentificationCodeSequence',
     'ContentQualificationValues',
+    'ContributingEquipment',
     'CoordinateSystemNames',
     'DimensionOrganizationTypeValues',
     'Image',

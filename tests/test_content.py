@@ -9,13 +9,15 @@ from pydicom.sr.coding import Code
 from pydicom.data import get_testdata_file, get_testdata_files
 
 import numpy as np
-from highdicom.enum import UniversalEntityIDTypeValues
 
+from highdicom.enum import UniversalEntityIDTypeValues
 from highdicom.sr import CodedConcept
 from highdicom import (
+    __version__,
     IssuerOfIdentifier,
     PaletteColorLUT,
     ContentCreatorIdentificationCodeSequence,
+    ContributingEquipment,
     ModalityLUT,
     ModalityLUTTransformation,
     LUT,
@@ -42,7 +44,7 @@ from highdicom.sr.value_types import (
     DateTimeContentItem
 )
 
-from .utils import write_and_read_dataset
+from .utils import find_readable_images, write_and_read_dataset
 
 
 class TestContentCreatorIdentification(TestCase):
@@ -118,6 +120,79 @@ class TestContentCreatorIdentification(TestCase):
         department_code = \
             creator_id_item.InstitutionalDepartmentTypeCodeSequence[0]
         assert (department_code.CodeValue == self._department_code.value)
+
+
+class TestContributingEquipment:
+
+    def test_basic(self):
+        item = ContributingEquipment(
+            manufacturer='Foo Inc',
+            purpose_of_reference=codes.DCM.ModifyingEquipment,
+        )
+
+        assert item.Manufacturer == 'Foo Inc'
+        assert (
+            item.PurposeOfReferenceCodeSequence[0].CodeValue ==
+            codes.DCM.ModifyingEquipment.value
+        )
+
+    def test_full(self):
+        item = ContributingEquipment(
+            manufacturer='Foo Inc',
+            purpose_of_reference=codes.DCM.AcquisitionEquipment,
+            manufacturer_model_name='Foo Scanner',
+            software_versions='v1.0',
+            device_serial_number='12345',
+            institution_name='General Hospital',
+            institutional_department_name='Radiology',
+            institution_address='123 Hospital Ave',
+            station_name='Scanner Bay 1',
+            contribution_datetime=datetime.datetime(year=2000, month=1, day=1),
+            contribution_description='Image acquisition equipment',
+        )
+
+        assert isinstance(item, ContributingEquipment)
+        assert item.Manufacturer == 'Foo Inc'
+        assert (
+            item.PurposeOfReferenceCodeSequence[0].CodeValue ==
+            codes.DCM.AcquisitionEquipment.value
+        )
+        assert item.ManufacturerModelName == 'Foo Scanner'
+        assert item.SoftwareVersions == 'v1.0'
+        assert item.DeviceSerialNumber == '12345'
+        assert item.InstitutionName == 'General Hospital'
+        assert item.InstitutionalDepartmentName == 'Radiology'
+        assert item.StationName == 'Scanner Bay 1'
+        assert item.ContributionDescription == 'Image acquisition equipment'
+        assert (
+            item.ContributionDateTime ==
+            datetime.datetime(year=2000, month=1, day=1)
+        )
+
+    def test_highdicom(self):
+        item = ContributingEquipment.for_highdicom()
+
+        assert isinstance(item, ContributingEquipment)
+        assert item.Manufacturer == 'Highdicom open-source contributors'
+        assert item.ManufacturerModelName == 'highdicom'
+        assert item.SoftwareVersions == __version__
+
+    @pytest.mark.parametrize(
+        'f',
+        [
+            get_testdata_file('eCT_Supplemental.dcm'),
+            get_testdata_file('examples_jpeg2k.dcm'),
+            get_testdata_file('MR_small.dcm'),
+            get_testdata_file('JPEG2000.dcm'),
+            get_testdata_file('CT_small.dcm'),
+        ]
+    )
+    def test_for_source_image(self, f):
+        dcm = dcmread(f)
+        item = ContributingEquipment.for_image_acquisition(dcm)
+
+        assert isinstance(item, ContributingEquipment)
+        assert item.Manufacturer == dcm.Manufacturer
 
 
 class TestLUT(TestCase):
