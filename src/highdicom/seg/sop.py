@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict
 from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from copy import deepcopy
-from itertools import chain
+from itertools import chain, pairwise
 from os import PathLike
 import pkgutil
 from typing import (
@@ -75,9 +75,13 @@ from highdicom.seg.enum import (
 from highdicom.seg.utils import iter_segments
 from highdicom.spatial import (
     ImageToReferenceTransformer,
-    _are_images_coplanar,
+    _are_orientations_equal,
+    _are_orientations_coplanar,
+    _get_slice_distances,
+    _get_spatial_information,
     compute_tile_positions_per_frame,
     get_image_coordinate_system,
+    get_normal_vector,
     get_tile_array,
     get_volume_positions,
 )
@@ -1532,8 +1536,8 @@ class Segmentation(_Image):
 
         # Remember whether these values were provided by the user, or inferred
         # from the source image. If inferred, we can skip some checks
-        user_provided_orientation = plane_orientation is not None
-        user_provided_measures = pixel_measures is not None
+        orientation_is_copied = plane_orientation is None
+        measures_is_copied = pixel_measures is None
 
         source_pixel_measures = self._get_pixel_measures_sequence(
             source_image=src_img,
@@ -1606,8 +1610,8 @@ class Segmentation(_Image):
                 pixel_measures=pixel_measures,
                 src_img=src_img,
                 pixel_array_shape=pixel_array_shape,
-                user_provided_measures=user_provided_measures,
-                user_provided_orientation=user_provided_orientation,
+                measures_is_copied=measures_is_copied,
+                orientation_is_copied=orientation_is_copied,
                 tile_size=tile_size,
                 source_plane_orientation=source_plane_orientation,
                 source_pixel_measures=source_pixel_measures,
@@ -1625,71 +1629,64 @@ class Segmentation(_Image):
             )
 
         source_image_indices = None
+        are_spatial_locations_preserved = False
 
-        are_measures_and_orientation_preserved = (
-            (
-                not user_provided_orientation or
-                plane_orientation == source_plane_orientation
-            ) and
-            (
-                not user_provided_measures or
-                (
-                    pixel_measures[0].PixelSpacing ==
-                    source_pixel_measures[0].PixelSpacing
-                )
+        # Check whether the segmentation and source images share an
+        # orientation, or have coplanar orientations (or neither)
+        orientation_preserved = (
+            orientation_is_copied
+            or _are_orientations_equal(
+                plane_orientation.cosines,
+                source_plane_orientation.cosines,
+            )
+        )
+        orientation_coplanar = (
+            orientation_preserved or
+            _are_orientations_coplanar(
+                plane_orientation.cosines,
+                source_plane_orientation.cosines,
             )
         )
 
-        if (
-            plane_positions is None or
-            are_measures_and_orientation_preserved
-        ):
+        # Check whether the segmentation and source images share an
+        # pixel measures
+        measures_preserved = np.allclose(
+            pixel_measures[0].PixelSpacing,
+            source_pixel_measures[0].PixelSpacing,
+            atol=1e-4
+        )
+
+        if plane_positions is None:
             # Calculating source positions can be slow, so avoid unless
             # necessary
             dim_ind = self.DimensionIndexSequence
             if is_multiframe:
-                source_plane_positions = \
-                    dim_ind.get_plane_positions_of_image(
-                        src_img
-                    )
+                plane_positions = dim_ind.get_plane_positions_of_image(
+                    src_img
+                )
             else:
-                source_plane_positions = \
-                    dim_ind.get_plane_positions_of_series(
-                        source_images
-                    )
+                plane_positions = dim_ind.get_plane_positions_of_series(
+                    source_images
+                )
+            positions_are_copied = True
 
-        if plane_positions is None:
-            if pixel_array_shape[0] != len(source_plane_positions):
+            # Plane positions match the source images by definition
+            if pixel_array_shape[0] != len(plane_positions):
                 raise ValueError(
                     'Number of plane positions in source image(s) does '
                     'not match size of first dimension of '
                     '"pixel_array" argument.'
                 )
-            plane_positions = source_plane_positions
-            are_spatial_locations_preserved = \
-                are_measures_and_orientation_preserved
+
+            are_spatial_locations_preserved = (
+                orientation_preserved and measures_preserved
+            )
             if are_spatial_locations_preserved:
                 source_image_indices = [
                     [i] for i in range(len(plane_positions))
                 ]
         else:
-            if pixel_array_shape[0] != len(plane_positions):
-                raise ValueError(
-                    'Number of PlanePositionSequence items provided '
-                    'via "plane_positions" argument does not match '
-                    'size of first dimension of "pixel_array" argument.'
-                )
-            if are_measures_and_orientation_preserved:
-                are_spatial_locations_preserved = all(
-                    plane_positions[i] == source_plane_positions[i]
-                    for i in range(len(plane_positions))
-                )
-                if are_spatial_locations_preserved:
-                    source_image_indices = [
-                        [i] for i in range(len(plane_positions))
-                    ]
-            else:
-                are_spatial_locations_preserved = False
+            positions_are_copied = False
 
         # plane_position_values is an array giving, for each plane of
         # the input array, the raw values of all attributes that
@@ -1714,6 +1711,33 @@ class Segmentation(_Image):
             index_convention=VOLUME_INDEX_CONVENTION,
         )
 
+        if not positions_are_copied:
+            # Plane positions may not match source images
+            # TODO in this else block
+            if pixel_array_shape[0] != len(plane_positions):
+                raise ValueError(
+                    'Number of PlanePositionSequence items provided '
+                    'via "plane_positions" argument does not match '
+                    'size of first dimension of "pixel_array" argument.'
+                )
+
+            if orientation_coplanar:
+
+                if self._coordinate_system == CoordinateSystemNames.PATIENT:
+                    (
+                        source_image_indices,
+                        are_spatial_locations_preserved
+                    ) = self._match_planes_patient(
+                        plane_orientation=plane_orientation.cosines,
+                        source_plane_orientation=source_plane_orientation.cosines,
+                        source_images=source_images,
+                        plane_position_values=plane_position_values,
+                        plane_shape=pixel_array_shape,
+                    )
+                else:
+                    # TODO
+                    pass
+
         return (
             plane_positions,
             plane_orientation,
@@ -1724,6 +1748,83 @@ class Segmentation(_Image):
             source_image_indices,
         )
 
+    @staticmethod
+    def _match_planes_patient(
+        plane_orientation: Sequence[int],
+        source_plane_orientation: Sequence[int],
+        plane_position_values: np.ndarray,
+        source_images: Sequence[Dataset],
+        plane_shape: tuple[int, int],
+    ) -> tuple[Sequence[Sequence[int]] | None, bool]:
+        """TODO"""
+        are_spatial_locations_preserved = False
+        source_image_indices = None
+
+        normal = get_normal_vector(source_plane_orientation)
+        origin_distances = _get_slice_distances(
+            plane_position_values[:, 0, :],
+            normal
+        )
+
+        src_img = source_images[0]
+        is_multiframe = is_multiframe_image(src_img)
+        if is_multiframe:
+            source_position_values = np.array(
+                [
+                    _get_spatial_information(src_img, f + 1)[0]
+                    for f in range(src_img.NumberOfFrames)
+                ]
+            )
+        else:
+            source_position_values = np.array(
+                [
+                    _get_spatial_information(im)[0]
+                    for im in source_images
+                ]
+            )
+
+        source_origin_distances = _get_slice_distances(
+            source_position_values,
+            normal,
+        )
+
+        # Use broadcasting to calculate pairwise distances. Resulting array
+        # gives, in element i, j, the out of plane distance of source image j
+        # from input plane i
+        pairwise_distances = np.abs(
+            origin_distances[None].T - source_origin_distances[None]
+        )
+
+        min_distances = pairwise_distances.min(axis=1)
+        if np.all(min_distances < 1e-2):
+            # All input planes have are closely matched in terms of origin
+            # distance to a source image (but all source images
+            # are not necessary matched to an input plane)
+
+            source_image_indices = []
+
+            for plane_index in range(len(plane_position_values)):
+                # Find indices of matching source planes (there may be
+                # multiple)
+                matched_indices = np.nonzero(
+                    pairwise_distances[plane_index] ==
+                    min_distances[plane_index]
+                )[0]
+
+                source_image_indices.append(matched_indices.tolist())
+                # TODO
+
+                # Additional check that the input plane does not extend beyond
+                # the source image plane
+
+        print(source_image_indices)
+
+        # TODO use the source image values for plane position if there is a
+        # match (from a volume only?)
+
+
+        return source_image_indices, are_spatial_locations_preserved
+
     def _prepare_tiled_spatial_metadata(
         self,
         plane_positions: Sequence[PlanePositionSequence] | None,
@@ -1731,8 +1832,8 @@ class Segmentation(_Image):
         pixel_measures: PixelMeasuresSequence,
         src_img: Dataset,
         pixel_array_shape: Sequence[int],
-        user_provided_measures: bool,
-        user_provided_orientation: bool,
+        orientation_is_copied: bool,
+        measures_is_copied: bool,
         tile_size: Sequence[int],
         source_pixel_measures: PixelMeasuresSequence,
         source_plane_orientation: PlaneOrientationSequence,
@@ -1797,11 +1898,11 @@ class Segmentation(_Image):
         are_total_pixel_matrix_locations_preserved = (
             origin_preserved and
             (
-                not user_provided_orientation or
+                orientation_is_copied or
                 plane_orientation == source_plane_orientation
             ) and
             (
-                not user_provided_measures or
+                measures_is_copied or
                 (
                     pixel_measures[0].PixelSpacing ==
                     source_pixel_measures[0].PixelSpacing

@@ -662,6 +662,17 @@ class PlaneOrientationSequence(DataElementSequence):
             )
         self.append(item)
 
+    @property
+    def cosines(self) -> tuple[float, float, float, float, float, float]:
+        """tuple[float, float, float, float, float, float]:
+
+        Direction cosines.
+
+        """
+        if hasattr(self[0], 'ImageOrientationPatient'):
+            return tuple(self[0].ImageOrientationPatient)
+        return tuple(self[0].ImageOrientationSlide)
+
     def __eq__(self, other: object) -> bool:
         """Determines whether two image planes have the same orientation.
 
