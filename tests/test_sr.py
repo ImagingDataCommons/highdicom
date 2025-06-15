@@ -5545,6 +5545,73 @@ class TestGetVolumetricMeasurementGroups:
 
         assert isinstance(sr_instance, Comprehensive3DSR)
 
+    def test_missing_template_id_single_image_region(self):
+        # When a volumetric ROI group contains a single image region, the
+        # template ID is required to distinguish it from a planar ROI group
+        # Highdicom's behavior here is to consider such a group to be planar
+
+        # Create volumetric ROI with single region
+        region = ImageRegion(
+            graphic_type=GraphicTypeValues.POLYLINE,
+            graphic_data=self._polyline,
+            source_image=SourceImageForRegion.from_source_image(
+                self._ct_series[0]
+            ),
+        )
+        tracker = TrackingIdentifier(
+            uid=UID(),
+            identifier='id'
+        )
+        grp = VolumetricROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=tracker,
+            referenced_regions=[region]
+        )
+        report = MeasurementReport(
+            observation_context=self._observation_context,
+            procedure_reported=codes.LN.CTUnspecifiedBodyRegion,
+            imaging_measurements=[grp]
+        )
+        sr = Comprehensive3DSR(
+            evidence=self._ct_series + [self._ref_seg],
+            content=report[0],
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            record_evidence=False
+        )
+
+        with BytesIO() as buf:
+            sr.save_as(buf)
+            buf.seek(0)
+            sr_instance = srread(buf)
+            buf.seek(0)
+            sr_instance_copy = srread(buf)
+
+        _delete_template_ids(sr_instance_copy)
+
+        sr_read = Comprehensive3DSR.from_dataset(sr_instance, copy=False)
+        sr_read_no_template_ids = Comprehensive3DSR.from_dataset(
+            sr_instance_copy,
+            copy=False
+        )
+
+        # With template IDs, the single group is returned as volumetric
+        assert len(
+            sr_read.content.get_planar_roi_measurement_groups()
+        ) == 0
+        assert len(
+            sr_read.content.get_volumetric_roi_measurement_groups()
+        ) == 1
+
+        # Without template IDs, the single group is returned as planar
+        assert len(
+            sr_read_no_template_ids.content.get_planar_roi_measurement_groups()
+        ) == 1
+        assert len(
+            sr_read_no_template_ids.content.get_volumetric_roi_measurement_groups()
+        ) == 0
+
 
 class TestImageLibraryEntryDescriptors(unittest.TestCase):
 
