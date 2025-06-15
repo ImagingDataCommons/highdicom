@@ -41,6 +41,7 @@ from highdicom.enum import (
     DimensionOrganizationTypeValues,
     PatientOrientationValuesBiped,
 )
+from highdicom.image import get_volume_from_series
 from highdicom.seg import (
     create_segmentation_pyramid,
     segread,
@@ -1952,6 +1953,322 @@ class TestSegmentation:
                 plane_item.PlanePositionSequence[0].ImagePositionPatient ==
                 pp[0].ImagePositionPatient
             )
+
+    def test_construction_volume_references(self):
+        # Test that per-frame references are established correctly from a
+        # volume
+        ct_volume = get_volume_from_series(
+            self._ct_series[:3],
+        )
+        seg_volume = ct_volume.with_array(
+            ct_volume.array > ct_volume.array.mean()
+        )
+
+        instance = Segmentation(
+            self._ct_series,
+            seg_volume,
+            SegmentationTypeValues.BINARY.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        self.check_dimension_index_vals(instance)
+        for plane_item, im in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_series,
+        ):
+            src_im_seq = (
+                plane_item
+                .DerivationImageSequence[0]
+                .SourceImageSequence[0]
+            )
+            assert (
+                src_im_seq.ReferencedSOPInstanceUID ==
+                im.SOPInstanceUID
+            )
+            assert src_im_seq.SpatialLocationsPreserved == 'YES'
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                im.ImagePositionPatient
+            )
+
+        out_volume = instance.get_volume(combine_segments=True)
+        assert out_volume.geometry_equal(seg_volume)
+
+    def test_construction_volume_references_two_class(self):
+        # Test that per-frame references are established correctly from a
+        # volume
+        ct_volume = get_volume_from_series(
+            self._ct_series[:3],
+        )
+        seg_volume = ct_volume.with_array(
+            (ct_volume.array > ct_volume.array.mean()).astype(np.uint8)
+        )
+
+        seg_volume.array[:] += 1
+
+        instance = Segmentation(
+            self._ct_series,
+            seg_volume,
+            SegmentationTypeValues.BINARY.value,
+            self._both_segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        self.check_dimension_index_vals(instance)
+        assert instance.number_of_frames == 6
+        for plane_item, im in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            # Frame references repeat
+            self._ct_series[:3] + self._ct_series[:3],
+        ):
+            src_im_seq = (
+                plane_item
+                .DerivationImageSequence[0]
+                .SourceImageSequence[0]
+            )
+            assert (
+                src_im_seq.ReferencedSOPInstanceUID ==
+                im.SOPInstanceUID
+            )
+            assert src_im_seq.SpatialLocationsPreserved == 'YES'
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                im.ImagePositionPatient
+            )
+
+        out_volume = instance.get_volume(combine_segments=True)
+        assert out_volume.geometry_equal(seg_volume)
+
+    def test_construction_volume_references_flipped(self):
+        # Repeat test above but with the volume flipped and the series jumbled
+        shuffled_series = [self._ct_series[i] for i in [1, 2, 0]]
+        ct_volume = get_volume_from_series(shuffled_series)
+        seg_volume = ct_volume.with_array(
+            ct_volume.array > ct_volume.array.mean()
+        )
+
+        input_volume = seg_volume.flip_spatial(0)
+
+        instance = Segmentation(
+            shuffled_series,
+            input_volume,
+            SegmentationTypeValues.BINARY.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        self.check_dimension_index_vals(instance)
+        for plane_item, im in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_series,
+        ):
+            src_im_seq = (
+                plane_item
+                .DerivationImageSequence[0]
+                .SourceImageSequence[0]
+            )
+            assert (
+                src_im_seq.ReferencedSOPInstanceUID ==
+                im.SOPInstanceUID
+            )
+            assert src_im_seq.SpatialLocationsPreserved == 'YES'
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                im.ImagePositionPatient
+            )
+
+        out_volume = instance.get_volume(combine_segments=True)
+        assert out_volume.geometry_equal(seg_volume)
+
+    def test_construction_volume_references_rotated(self):
+        # Repeat test above but with the volume flipped and the series jumbled
+        ct_volume = get_volume_from_series(self._ct_series[:3])
+        seg_volume = (
+            ct_volume
+            .with_array(ct_volume.array > ct_volume.array.mean())
+            .permute_spatial_axes([0, 2, 1])
+        )
+
+        instance = Segmentation(
+            self._ct_series,
+            seg_volume,
+            SegmentationTypeValues.BINARY.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        self.check_dimension_index_vals(instance)
+        for plane_item, im in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_series[2::-1],  # inverted due to different handedness
+        ):
+            src_im_seq = (
+                plane_item
+                .DerivationImageSequence[0]
+                .SourceImageSequence[0]
+            )
+            assert (
+                src_im_seq.ReferencedSOPInstanceUID ==
+                im.SOPInstanceUID
+            )
+            assert src_im_seq.SpatialLocationsPreserved == 'NO'
+
+        out_volume = instance.get_volume(combine_segments=True)
+
+        # Output is flipped relative to input due to handedness
+        assert out_volume.geometry_equal(seg_volume.flip_spatial(0))
+
+    def test_construction_volume_references_cropped(self):
+        # Repeat test above but with the volume flipped and the series jumbled
+        ct_volume = get_volume_from_series(self._ct_series[:3])
+        seg_volume = (
+            ct_volume
+            .with_array(ct_volume.array > ct_volume.array.mean())
+            .crop_to_spatial_shape((3, 10, 10))
+        )
+
+        instance = Segmentation(
+            self._ct_series,
+            seg_volume,
+            SegmentationTypeValues.BINARY.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        self.check_dimension_index_vals(instance)
+        for plane_item, im in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_series[:3],
+        ):
+            src_im_seq = (
+                plane_item
+                .DerivationImageSequence[0]
+                .SourceImageSequence[0]
+            )
+            assert (
+                src_im_seq.ReferencedSOPInstanceUID ==
+                im.SOPInstanceUID
+            )
+            assert src_im_seq.SpatialLocationsPreserved == 'NO'
+
+        out_volume = instance.get_volume(combine_segments=True)
+
+        # Output is flipped relative to input due to handedness
+        assert out_volume.geometry_equal(seg_volume)
+
+    def test_construction_volume_references_subsampled(self):
+        # Repeat test above but with the volume flipped and the series jumbled
+        ct_volume = get_volume_from_series(self._ct_series[:3])
+        seg_volume = (
+            ct_volume
+            .with_array(ct_volume.array > ct_volume.array.mean())
+            [:, ::2, ::2]
+        )
+
+        instance = Segmentation(
+            self._ct_series,
+            seg_volume,
+            SegmentationTypeValues.BINARY.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        self.check_dimension_index_vals(instance)
+        for plane_item, im in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            self._ct_series[:3],
+        ):
+            src_im_seq = (
+                plane_item
+                .DerivationImageSequence[0]
+                .SourceImageSequence[0]
+            )
+            assert (
+                src_im_seq.ReferencedSOPInstanceUID ==
+                im.SOPInstanceUID
+            )
+            assert src_im_seq.SpatialLocationsPreserved == 'NO'
+
+        out_volume = instance.get_volume(combine_segments=True)
+
+        # Output is flipped relative to input due to handedness
+        assert out_volume.geometry_equal(seg_volume)
+
+    def test_construction_volume_references_permuted(self):
+        # Repeat test above but with the volume flipped and the series jumbled
+        ct_volume = get_volume_from_series(self._ct_series[:3])
+        seg_volume = (
+            ct_volume
+            .with_array(ct_volume.array > ct_volume.array.mean())
+            .permute_spatial_axes([1, 2, 0])
+        )
+
+        instance = Segmentation(
+            self._ct_series,
+            seg_volume,
+            SegmentationTypeValues.BINARY.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        self.check_dimension_index_vals(instance)
+        for plane_item in instance.PerFrameFunctionalGroupsSequence:
+            assert len(plane_item.DerivationImageSequence) == 0
+
+        out_volume = instance.get_volume(combine_segments=True)
+
+        # Output is flipped relative to input due to handedness
+        assert out_volume.geometry_equal(seg_volume)
 
     def test_construction_volume_multiframe(self):
         # Construction with a multiiframe source image and non-spatially
