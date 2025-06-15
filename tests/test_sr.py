@@ -5010,7 +5010,10 @@ class TestGetPlanarMeasurementGroups:
         assert ins_uid == self._ref_seg.SOPInstanceUID
         assert class_uid == self._ref_seg.SOPClassUID
 
-    def test_get_groups_invalid_reference_types(self, content: MeasurementReport):
+    def test_get_groups_invalid_reference_types(
+        self,
+        content: MeasurementReport
+    ):
         with pytest.raises(ValueError):
             # ReferencedSegment is invalid for planar groups
             content.get_planar_roi_measurement_groups(
@@ -5606,10 +5609,14 @@ class TestGetVolumetricMeasurementGroups:
 
         # Without template IDs, the single group is returned as planar
         assert len(
-            sr_read_no_template_ids.content.get_planar_roi_measurement_groups()
+            sr_read_no_template_ids
+            .content
+            .get_planar_roi_measurement_groups()
         ) == 1
         assert len(
-            sr_read_no_template_ids.content.get_volumetric_roi_measurement_groups()
+            sr_read_no_template_ids
+            .content
+            .get_volumetric_roi_measurement_groups()
         ) == 0
 
 
