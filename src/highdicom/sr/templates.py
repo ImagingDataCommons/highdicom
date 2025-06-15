@@ -89,6 +89,8 @@ def _count_roi_items(
     int:
         Number of 'Image Region' content items
     int:
+        Number of 'Image Region 3D' content items
+    int:
         Number of 'Volume Surface' content items
     int:
         Number of 'Referenced Segment' content items
@@ -103,35 +105,46 @@ def _count_roi_items(
             'SR Content Item does not represent a measurement group '
             'because it does not have value type CONTAINER.'
         )
-    if group_item.name == codes.DCM.MeasurementGroup:
+    if group_item.name != codes.DCM.MeasurementGroup:
         raise ValueError(
             'SR Content Item does not represent a measurement group '
             'because it does not have name "Measurement Group".'
         )
     n_image_region_items = 0
+    n_image_region_3d_items = 0
     n_volume_surface_items = 0
     n_referenced_segment_items = 0
     n_referenced_segmentation_frame_items = 0
     n_region_in_space_items = 0
     for item in group_item.ContentSequence:
-        if (item.name == codes.DCM.ImageRegion and
-                item.value_type in (ValueTypeValues.SCOORD,
-                                    ValueTypeValues.SCOORD3D)):
-            n_image_region_items += 1
-        if (item.name == codes.DCM.VolumeSurface and
-                item.value_type == ValueTypeValues.SCOORD3D):
+        if item.name == codes.DCM.ImageRegion:
+            if item.value_type == ValueTypeValues.SCOORD:
+                n_image_region_items += 1
+            if item.value_type == ValueTypeValues.SCOORD3D:
+                n_image_region_3d_items += 1
+        if (
+            item.name == codes.DCM.VolumeSurface and
+            item.value_type == ValueTypeValues.SCOORD3D
+        ):
             n_volume_surface_items += 1
-        if (item.name == codes.DCM.ReferencedSegment and
-                item.value_type == ValueTypeValues.IMAGE):
+        if (
+            item.name == codes.DCM.ReferencedSegment and
+            item.value_type == ValueTypeValues.IMAGE
+        ):
             n_referenced_segment_items += 1
-        if (item.name == codes.DCM.ReferencedSegmentationFrame and
-                item.value_type == ValueTypeValues.IMAGE):
+        if (
+            item.name == codes.DCM.ReferencedSegmentationFrame and
+            item.value_type == ValueTypeValues.IMAGE
+        ):
             n_referenced_segmentation_frame_items += 1
-        if (item.name == _REGION_IN_SPACE and
-                item.value_type == ValueTypeValues.COMPOSITE):
+        if (
+            item.name == _REGION_IN_SPACE and
+            item.value_type == ValueTypeValues.COMPOSITE
+        ):
             n_region_in_space_items += 1
     return (
         n_image_region_items,
+        n_image_region_3d_items,
         n_volume_surface_items,
         n_referenced_segment_items,
         n_referenced_segmentation_frame_items,
@@ -154,12 +167,17 @@ def _contains_planar_rois(group_item: ContainerContentItem) -> bool:
         SCOORD, SCOORD3D, IMAGE, or COMPOSITE representing planar ROIs
 
     """
-    n_image_region_items, n_volume_surface_items, n_referenced_segment_items, \
-        n_referenced_segmentation_frame_items, n_region_in_space_items = \
-        _count_roi_items(group_item)
+    (
+        n_image_region_items,
+        n_image_region_3d_items,
+        n_volume_surface_items,
+        n_referenced_segment_items,
+        n_referenced_segmentation_frame_items,
+        n_region_in_space_items
+    ) = _count_roi_items(group_item)
 
     if (
-            n_image_region_items == 1 or
+            (n_image_region_items + n_image_region_3d_items) == 1 or
             n_referenced_segmentation_frame_items > 0 or
             n_region_in_space_items == 1
        ) and (
@@ -185,17 +203,27 @@ def _contains_volumetric_rois(group_item: ContainerContentItem) -> bool:
         SCOORD, SCOORD3D, IMAGE, or COMPOSITE representing volumetric ROIs
 
     """
-    n_image_region_items, n_volume_surface_items, n_referenced_segment_items, \
-        n_referenced_segmentation_frame_items, n_region_in_space_items = \
-        _count_roi_items(group_item)
+    (
+        n_image_region_items,
+        n_image_region_3d_items,
+        n_volume_surface_items,
+        n_referenced_segment_items,
+        n_referenced_segmentation_frame_items,
+        n_region_in_space_items
+    ) = _count_roi_items(group_item)
 
     if (
+            # A single image region (SCOORD) item could be either a planar or
+            # volumetric ROI, they cannot be distinguished without the template
+            # identifier. In this situation, we consider a single image region
+            # item to be a planar ROI
             n_image_region_items > 1 or
             n_referenced_segment_items > 0 or
             n_volume_surface_items > 0 or
             n_region_in_space_items > 0
        ) and (
-            n_referenced_segmentation_frame_items == 0
+            n_referenced_segmentation_frame_items == 0 and
+            n_image_region_3d_items == 0
        ):
         return True
     return False
