@@ -66,10 +66,8 @@ from highdicom.spatial import (
     ImageToReferenceTransformer,
     compute_tile_positions_per_frame,
     get_image_coordinate_system,
-    get_image_coordinate_system,
     get_normal_vector,
     get_series_volume_positions,
-    get_volume_positions,
     get_volume_positions,
     is_tiled_image,
 )
@@ -1482,7 +1480,7 @@ class _Image(SOPClass):
                 plane_position_values,
                 plane_sort_index,
                 are_spatial_locations_preserved,
-                None, # source_image_indices TODO
+                None,  # source_image_indices TODO
             )
 
         source_image_indices = None
@@ -1491,8 +1489,8 @@ class _Image(SOPClass):
         # Check whether the segmentation and source images share an
         # orientation, or have coplanar orientations (or neither)
         orientation_preserved = (
-            orientation_is_copied
-            or _are_orientations_equal(
+            orientation_is_copied or
+            _are_orientations_equal(
                 plane_orientation.cosines,
                 source_plane_orientation.cosines,
             )
@@ -1593,7 +1591,9 @@ class _Image(SOPClass):
                         source_image_indices,
                         are_spatial_locations_preserved
                     ) = self._match_planes_patient(
-                        source_plane_orientation=source_plane_orientation.cosines,
+                        source_plane_orientation=(
+                            source_plane_orientation.cosines
+                        ),
                         source_images=source_images,
                         plane_position_values=plane_position_values,
                         all_but_positions_preserved=all_but_positions_preserved,
@@ -1719,7 +1719,10 @@ class _Image(SOPClass):
 
         if all_but_positions_preserved:
             # Check for matching of positions between source and planes
-            pairwise_distances = np.pow(np.pow(pairwise_offsets, 2).sum(-1), 0.5)
+            pairwise_distances = np.linalg.vector_norm(
+                pairwise_offsets,
+                axis=-1,
+            )
 
             source_image_indices = get_matched_indices(pairwise_distances)
             are_spatial_locations_preserved = (
