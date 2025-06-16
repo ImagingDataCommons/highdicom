@@ -2002,58 +2002,6 @@ class TestSegmentation:
         out_volume = instance.get_volume(combine_segments=True)
         assert out_volume.geometry_equal(seg_volume)
 
-    def test_construction_volume_references_two_class(self):
-        # Test that per-frame references are established correctly from a
-        # volume
-        ct_volume = get_volume_from_series(
-            self._ct_series[:3],
-        )
-        seg_volume = ct_volume.with_array(
-            (ct_volume.array > ct_volume.array.mean()).astype(np.uint8)
-        )
-
-        seg_volume.array[:] += 1
-
-        instance = Segmentation(
-            self._ct_series,
-            seg_volume,
-            SegmentationTypeValues.BINARY.value,
-            self._both_segment_descriptions,
-            self._series_instance_uid,
-            self._series_number,
-            self._sop_instance_uid,
-            self._instance_number,
-            self._manufacturer,
-            self._manufacturer_model_name,
-            self._software_versions,
-            self._device_serial_number,
-            omit_empty_frames=False
-        )
-        self.check_dimension_index_vals(instance)
-        assert instance.number_of_frames == 6
-        for plane_item, im in zip(
-            instance.PerFrameFunctionalGroupsSequence,
-            # Frame references repeat
-            self._ct_series[:3] + self._ct_series[:3],
-        ):
-            src_im_seq = (
-                plane_item
-                .DerivationImageSequence[0]
-                .SourceImageSequence[0]
-            )
-            assert (
-                src_im_seq.ReferencedSOPInstanceUID ==
-                im.SOPInstanceUID
-            )
-            assert src_im_seq.SpatialLocationsPreserved == 'YES'
-            assert (
-                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
-                im.ImagePositionPatient
-            )
-
-        out_volume = instance.get_volume(combine_segments=True)
-        assert out_volume.geometry_equal(seg_volume)
-
     def test_construction_volume_references_flipped(self):
         # Repeat test above but with the volume flipped and the series jumbled
         shuffled_series = [self._ct_series[i] for i in [1, 2, 0]]
@@ -2102,8 +2050,62 @@ class TestSegmentation:
         out_volume = instance.get_volume(combine_segments=True)
         assert out_volume.geometry_equal(seg_volume)
 
+    def test_construction_volume_references_two_segments(self):
+        # Test that per-frame references are established correctly from a
+        # volume with multiple segments
+        ct_volume = get_volume_from_series(
+            self._ct_series[:3],
+        )
+        seg_volume = ct_volume.with_array(
+            (ct_volume.array > ct_volume.array.mean()).astype(np.uint8)
+        )
+
+        seg_volume.array[:] += 1  # hack to create extra class
+
+        instance = Segmentation(
+            self._ct_series,
+            seg_volume,
+            SegmentationTypeValues.BINARY.value,
+            self._both_segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            omit_empty_frames=False
+        )
+        self.check_dimension_index_vals(instance)
+        assert instance.number_of_frames == 6
+        for plane_item, im in zip(
+            instance.PerFrameFunctionalGroupsSequence,
+            # Frame references repeat
+            self._ct_series[:3] + self._ct_series[:3],
+        ):
+            src_im_seq = (
+                plane_item
+                .DerivationImageSequence[0]
+                .SourceImageSequence[0]
+            )
+            assert (
+                src_im_seq.ReferencedSOPInstanceUID ==
+                im.SOPInstanceUID
+            )
+            assert src_im_seq.SpatialLocationsPreserved == 'YES'
+            assert (
+                plane_item.PlanePositionSequence[0].ImagePositionPatient ==
+                im.ImagePositionPatient
+            )
+
+        out_volume = instance.get_volume(combine_segments=True)
+        assert out_volume.geometry_equal(seg_volume)
+
     def test_construction_volume_references_rotated(self):
-        # Repeat test above but with the volume flipped and the series jumbled
+        # Create a segmentation from a volume with an in-plane rotation wrt the
+        # source image. Per-frame references should be established but spatial
+        # locations are not preserved
         ct_volume = get_volume_from_series(self._ct_series[:3])
         seg_volume = (
             ct_volume
@@ -2148,7 +2150,9 @@ class TestSegmentation:
         assert out_volume.geometry_equal(seg_volume.flip_spatial(0))
 
     def test_construction_volume_references_cropped(self):
-        # Repeat test above but with the volume flipped and the series jumbled
+        # Create a segmentation from a volume with an in-plane crop wrt the
+        # source image. Per-frame references should be established but spatial
+        # locations are not preserved
         ct_volume = get_volume_from_series(self._ct_series[:3])
         seg_volume = (
             ct_volume
@@ -2193,12 +2197,14 @@ class TestSegmentation:
         assert out_volume.geometry_equal(seg_volume)
 
     def test_construction_volume_references_subsampled(self):
-        # Repeat test above but with the volume flipped and the series jumbled
+        # Create a segmentation from a volume with an in-plane subsample wrt the
+        # source image. Per-frame references should be established but spatial
+        # locations are not preserved
         ct_volume = get_volume_from_series(self._ct_series[:3])
         seg_volume = (
             ct_volume
             .with_array(ct_volume.array > ct_volume.array.mean())
-            [:, ::2, ::2]
+            [:, ::2, ::2]  # double the spacing in the in-plane directions
         )
 
         instance = Segmentation(
@@ -2238,7 +2244,9 @@ class TestSegmentation:
         assert out_volume.geometry_equal(seg_volume)
 
     def test_construction_volume_references_permuted(self):
-        # Repeat test above but with the volume flipped and the series jumbled
+        # Create a segmentation from a volume with an out-of-plane permutation
+        # wrt the source image. Per-frame references should not be established
+        # in this case
         ct_volume = get_volume_from_series(self._ct_series[:3])
         seg_volume = (
             ct_volume
