@@ -868,8 +868,11 @@ class ImageRegion(ScoordContentItem):
             (``highdicom.sr.PixelOriginInterpretationValues.VOLUME``) or
             relative to an individual frame
             (``highdicom.sr.PixelOriginInterpretationValues.FRAME``)
-            of the source image
-            (default: ``highdicom.sr.PixelOriginInterpretationValues.VOLUME``)
+            of the source image. This distinction is only meaningful when the
+            referenced image is a tiled image. In other situations, this should
+            be left unspecified. The default behavior is to use ``VOLUME`` if
+            the source image is a VL Whole Slice Microscopy Image, and
+            otherwise leave the value unspecified.
 
         """  # noqa: E501
         graphic_type = GraphicTypeValues(graphic_type)

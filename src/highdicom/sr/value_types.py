@@ -1563,7 +1563,8 @@ class ScoordContentItem(ContentItem):
         graphic_data: np.ndarray,
         pixel_origin_interpretation: (
             str |
-            PixelOriginInterpretationValues
+            PixelOriginInterpretationValues |
+            None
         ) = None,
         fiducial_uid: str | UID | None = None,
         relationship_type: str | RelationshipTypeValues | None = None
@@ -1583,7 +1584,9 @@ class ScoordContentItem(ContentItem):
             relative to the total pixel matrix
             (``highdicom.sr.PixelOriginInterpretationValues.VOLUME``) or
             relative to an individual frame
-            (``highdicom.sr.PixelOriginInterpretationValues.FRAME``)
+            (``highdicom.sr.PixelOriginInterpretationValues.FRAME``). This
+            distinction is only meaningful when the referenced image is a tiled
+            image. In other situations, this should be left unspecified.
         fiducial_uid: Union[highdicom.UID, str, None], optional
             Unique identifier for the content item
         relationship_type: Union[highdicom.sr.RelationshipTypeValues, str, None], optional
