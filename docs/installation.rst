@@ -22,6 +22,12 @@ Pre-built package available at PyPi:
 
     pip install highdicom
 
+Or alternatively, through conda:
+
+.. code-block:: none
+
+    conda install conda-forge::highdicom
+
 The library relies on the underlying ``pydicom`` package for decoding of pixel
 data, which internally delegates the task to either the ``pillow`` or the
 ``pylibjpeg`` packages. Since ``pillow`` is a dependency of *highdicom* and
