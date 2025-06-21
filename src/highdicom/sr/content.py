@@ -34,7 +34,10 @@ from highdicom.sr.value_types import (
     Scoord3DContentItem,
     UIDRefContentItem,
 )
-from highdicom._module_utils import is_multiframe_image
+from highdicom._module_utils import (
+    is_multiframe_image,
+    is_attribute_in_iod,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -876,6 +879,8 @@ class ImageRegion(ScoordContentItem):
 
         """  # noqa: E501
         graphic_type = GraphicTypeValues(graphic_type)
+        ref_sop_item = source_image.ReferencedSOPSequence[0]
+        ref_sop_class_uid = ref_sop_item.ReferencedSOPClassUID
         if graphic_type == GraphicTypeValues.MULTIPOINT:
             raise ValueError(
                 'Graphic type "MULTIPOINT" is not valid for region.'
@@ -884,19 +889,52 @@ class ImageRegion(ScoordContentItem):
             raise TypeError(
                 'Argument "source_image" must have type SourceImageForRegion.'
             )
-        if pixel_origin_interpretation == PixelOriginInterpretationValues.FRAME:
-            ref_sop_item = source_image.ReferencedSOPSequence[0]
-            if (not hasattr(ref_sop_item, 'ReferencedFrameNumber') or
-                    ref_sop_item.ReferencedFrameNumber is None):
-                raise ValueError(
-                    'Frame number of source image must be specified when value '
-                    'of argument "pixel_origin_interpretation" is "FRAME".'
-                )
-        ref_sop_instance_item = source_image.ReferencedSOPSequence[0]
-        ref_sop_class_uid = ref_sop_instance_item.ReferencedSOPClassUID
-        if (ref_sop_class_uid == VLWholeSlideMicroscopyImageStorage and
-                pixel_origin_interpretation is None):
-            pixel_origin_interpretation = PixelOriginInterpretationValues.VOLUME
+        source_image_is_multiframe = is_attribute_in_iod(
+            'NumberOfFrames',
+            ref_sop_class_uid,
+        )
+        if source_image_is_multiframe:
+            if (
+                pixel_origin_interpretation ==
+                PixelOriginInterpretationValues.FRAME
+            ):
+                if (
+                    not hasattr(ref_sop_item, 'ReferencedFrameNumber') or
+                    ref_sop_item.ReferencedFrameNumber is None
+                ):
+                    raise ValueError(
+                        'Frame number of source image must be specified when '
+                        'value of argument "pixel_origin_interpretation" '
+                        'is "FRAME".'
+                    )
+            elif (
+                pixel_origin_interpretation ==
+                PixelOriginInterpretationValues.VOLUME
+            ):
+                if not is_attribute_in_iod(
+                    'TotalPixelMatrixRows',
+                    ref_sop_class_uid
+                ):
+                    raise ValueError(
+                        'Argument "pixel_origin_interpretation" should not '
+                        'take the value "VOLUME" because the referenced image '
+                        'is not tiled.'
+                    )
+            elif pixel_origin_interpretation is None:
+                if (
+                    ref_sop_class_uid == VLWholeSlideMicroscopyImageStorage
+                ):
+                    pixel_origin_interpretation = (
+                        PixelOriginInterpretationValues.VOLUME
+                    )
+
+        elif pixel_origin_interpretation is not None:
+            raise TypeError(
+                'Argument "pixel_origin_interpretation" should be left '
+                'unspecified if the referenced image is a single frame '
+                'image.'
+            )
+
         super().__init__(
             name=CodedConcept(
                 value='111030',
