@@ -44,7 +44,7 @@ from highdicom.sr.value_types import (
     DateTimeContentItem
 )
 
-from .utils import find_readable_images, write_and_read_dataset
+from .utils import write_and_read_dataset
 
 
 class TestContentCreatorIdentification(TestCase):
