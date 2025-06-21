@@ -219,7 +219,7 @@ class Segmentation(_Image):
         source_images: Sequence[Dataset]
             One or more single- or multi-frame images (or metadata of images)
             from which the segmentation was derived
-        pixel_array: numpy.ndarray
+        pixel_array: numpy.ndarray | highdicom.Volume
             Array of segmentation pixel data of boolean, unsigned integer or
             floating point data type representing a mask image. The array may
             be a 2D, 3D or 4D numpy array.
@@ -661,12 +661,6 @@ class Segmentation(_Image):
                 'entire pixel matrix.'
             )
 
-        # General Reference
-
-        self._add_source_image_references(
-            source_images, further_source_images,
-        )
-
         # Image Pixel
         if tile_pixel_array:
             # By default use the same tile size as the source image (even if
@@ -676,6 +670,11 @@ class Segmentation(_Image):
         else:
             self.Rows = pixel_array.shape[1]
             self.Columns = pixel_array.shape[2]
+
+        # General Reference
+        self._add_source_image_references(
+            source_images, further_source_images,
+        )
 
         # Segmentation Image
         self.ImageType = ['DERIVED', 'PRIMARY']

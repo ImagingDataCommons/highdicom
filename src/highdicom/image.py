@@ -1719,7 +1719,7 @@ class _Image(SOPClass):
 
         if all_but_positions_preserved:
             # Check for matching of positions between source and planes
-            pairwise_distances = np.linalg.vector_norm(
+            pairwise_distances = np.linalg.norm(
                 pairwise_offsets,
                 axis=-1,
             )
@@ -1897,7 +1897,9 @@ class _Image(SOPClass):
             # image's but if the image is tiled differently, spatial
             # locations within each frame are not preserved
             are_spatial_locations_preserved = (
-                tile_size == (src_img.Rows, src_img.Columns)
+                tile_size == (src_img.Rows, src_img.Columns) and
+                'DimensionOrganizationType' in src_img and
+                src_img.DimensionOrganizationType == 'TILED_FULL'
             )
         else:
             are_spatial_locations_preserved = False
