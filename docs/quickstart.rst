@@ -135,7 +135,7 @@ Computed Tomography (CT) images:
             image_datasets[0].Rows,
             image_datasets[0].Columns
         ),
-        dtype=np.bool
+        dtype=bool
     )
     mask[1:-1, 10:-10, 100:-100] = True
 

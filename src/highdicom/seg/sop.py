@@ -42,6 +42,7 @@ from highdicom._module_utils import (
 )
 from highdicom.image import _Image
 from highdicom.base import _check_little_endian
+from highdicom.base_content import ContributingEquipment
 from highdicom.color import CIELabColor
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
@@ -220,6 +221,9 @@ class Segmentation(_Image):
             PaletteColorLUTTransformation
         ) = None,
         icc_profile: bytes | None = None,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         use_extended_offset_table: bool = False,
         **kwargs: Any
     ) -> None:
@@ -463,6 +467,9 @@ class Segmentation(_Image):
         icc_profile: Union[bytes, None] = None
             An ICC profile to display the segmentation. This is only permitted
             when palette_color_lut_transformation is provided.
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         use_extended_offset_table: bool, optional
             Include an extended offset table instead of a basic offset table
             for encapsulated transfer syntaxes. Extended offset tables avoid
@@ -534,6 +541,22 @@ class Segmentation(_Image):
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
 
+        try:
+            acquisition_equipment = (
+                ContributingEquipment.for_image_acquisition(src_img)
+            )
+        except Exception:
+            pass
+        else:
+            if contributing_equipment is None:
+                contributing_equipment = []
+            else:
+                contributing_equipment = list(contributing_equipment)
+            contributing_equipment = [
+                acquisition_equipment,
+                *list(contributing_equipment),
+            ]
+
         segmentation_type = SegmentationTypeValues(segmentation_type)
         sop_class_uid = (
             '1.2.840.10008.5.1.4.1.1.66.7'
@@ -564,6 +587,7 @@ class Segmentation(_Image):
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,
             software_versions=software_versions,
+            contributing_equipment=contributing_equipment,
             **kwargs
         )
 
