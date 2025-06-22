@@ -2805,14 +2805,15 @@ class TestSegmentation:
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
 
     def test_construction_further_source_images(self):
-        further_source_image = deepcopy(self._ct_image)
+        # Further source images that are aligned
+        further_source_image = deepcopy(self._ct_multiframe)
         series_uid = UID()
         sop_uid = UID()
         further_source_image.SeriesInstanceUID = series_uid
         further_source_image.SOPInstanceUID = sop_uid
         instance = Segmentation(
-            [self._ct_image],
-            self._ct_pixel_array,
+            [self._ct_multiframe],
+            self._ct_multiframe_mask_array,
             SegmentationTypeValues.FRACTIONAL.value,
             self._segment_descriptions,
             self._series_instance_uid,
@@ -2833,6 +2834,142 @@ class TestSegmentation:
         assert len(instance.ReferencedSeriesSequence) == 2
         further_item = instance.ReferencedSeriesSequence[1]
         assert further_item.SeriesInstanceUID == series_uid
+        for i, pffg in enumerate(instance.PerFrameFunctionalGroupsSequence):
+            drv_seq = pffg.DerivationImageSequence
+            src_seq = drv_seq[0].SourceImageSequence
+            assert len(src_seq) == 2
+            assert (
+                src_seq[0].ReferencedSOPInstanceUID ==
+                self._ct_multiframe.SOPInstanceUID
+            )
+            assert src_seq[0].ReferencedFrameNumber == i + 1
+            assert src_seq[0].SpatialLocationsPreserved == 'YES'
+            assert (
+                src_seq[1].ReferencedSOPInstanceUID ==
+                sop_uid
+            )
+            assert src_seq[1].ReferencedFrameNumber == i + 1
+            assert src_seq[1].SpatialLocationsPreserved == 'YES'
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_further_source_images_legacy(self):
+        # Further source images that are aligned
+        series_uid = UID()
+        further_source_images = []
+        orientation = (
+            self._ct_multiframe
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+        )
+        for pffg in self._ct_multiframe.PerFrameFunctionalGroupsSequence:
+            im = deepcopy(self._ct_image)
+            im.ImageOrientationPatient = orientation
+            im.ImagePositionPatient = (
+                pffg
+                .PlanePositionSequence[0]
+                .ImagePositionPatient
+            )
+            im.SOPInstanceUID = UID()
+            im.SeriesInstanceUID = series_uid
+            im.StudyInstanceUID = self._ct_multiframe.StudyInstanceUID
+            further_source_images.append(im)
+
+        instance = Segmentation(
+            [self._ct_multiframe],
+            self._ct_multiframe_mask_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label,
+            further_source_images=further_source_images,
+        )
+        assert len(instance.SourceImageSequence) == 3
+        for item, im in zip(
+            instance.SourceImageSequence[1:],
+            further_source_images
+        ):
+            assert (
+                item.ReferencedSOPInstanceUID ==
+                im.SOPInstanceUID
+            )
+
+        assert len(instance.ReferencedSeriesSequence) == 2
+        further_item = instance.ReferencedSeriesSequence[1]
+        assert further_item.SeriesInstanceUID == series_uid
+        for i, pffg in enumerate(instance.PerFrameFunctionalGroupsSequence):
+            drv_seq = pffg.DerivationImageSequence
+            src_seq = drv_seq[0].SourceImageSequence
+            assert len(src_seq) == 2
+            assert (
+                src_seq[0].ReferencedSOPInstanceUID ==
+                self._ct_multiframe.SOPInstanceUID
+            )
+            assert src_seq[0].ReferencedFrameNumber == i + 1
+            assert src_seq[0].SpatialLocationsPreserved == 'YES'
+            assert (
+                src_seq[1].ReferencedSOPInstanceUID ==
+                further_source_images[i].SOPInstanceUID
+            )
+            # Frame sizes and spacing do not match so spatial locations are not
+            # preserved
+            assert src_seq[1].SpatialLocationsPreserved == 'NO'
+        self.check_dimension_index_vals(instance)
+
+    def test_construction_further_source_images_nonaligned(self):
+        # Further source images that are not aligned
+        further_source_image = deepcopy(self._ct_multiframe)
+        series_uid = UID()
+        sop_uid = UID()
+        further_source_image.SeriesInstanceUID = series_uid
+        further_source_image.SOPInstanceUID = sop_uid
+
+        # Set orientation to be out of plane wrt source images
+        (
+            further_source_image
+            .SharedFunctionalGroupsSequence[0]
+            .PlaneOrientationSequence[0]
+            .ImageOrientationPatient
+
+        ) = [0.0, 0.0, 1.0, 0.0, 1.0, 0.0]
+        instance = Segmentation(
+            [self._ct_multiframe],
+            self._ct_multiframe_mask_array,
+            SegmentationTypeValues.FRACTIONAL.value,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            content_label=self._content_label,
+            further_source_images=[further_source_image],
+        )
+        assert len(instance.SourceImageSequence) == 2
+        further_item = instance.SourceImageSequence[1]
+        assert further_item.ReferencedSOPInstanceUID == sop_uid
+
+        assert len(instance.ReferencedSeriesSequence) == 2
+        further_item = instance.ReferencedSeriesSequence[1]
+        assert further_item.SeriesInstanceUID == series_uid
+        for pffg in instance.PerFrameFunctionalGroupsSequence:
+            drv_seq = pffg.DerivationImageSequence
+            src_seq = drv_seq[0].SourceImageSequence
+            assert len(src_seq) == 1
+            assert (
+                src_seq[0].ReferencedSOPInstanceUID ==
+                self._ct_multiframe.SOPInstanceUID
+            )
         self.check_dimension_index_vals(instance)
 
     @staticmethod

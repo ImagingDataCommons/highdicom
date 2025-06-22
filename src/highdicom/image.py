@@ -17,6 +17,7 @@ from typing_extensions import Self
 
 import numpy as np
 from pydicom import Dataset
+from pydicom.dataelem import DataElement
 from pydicom.encaps import get_frame
 from pydicom.tag import BaseTag
 from pydicom.datadict import (
@@ -27,6 +28,7 @@ from pydicom.datadict import (
 from pydicom.filebase import DicomIO, DicomBytesIO
 from pydicom.multival import MultiValue
 from pydicom.sr.coding import Code
+from pydicom.sr.codedict import codes
 from pydicom.uid import ParametricMapStorage
 from pydicom.valuerep import format_number_as_ds
 
@@ -110,6 +112,11 @@ _DCM_SQL_TYPE_MAP = {
     'US': 'INTEGER',
     'UT': 'TEXT',
 }
+
+# This code is needed many times in loops so we precompute it
+_PURPOSE_CODE = CodedConcept.from_code(
+    codes.cid7202.SourceImageForImageProcessingOperation
+)
 
 
 class _ImageColorType(Enum):
@@ -1270,6 +1277,11 @@ class _Image(SOPClass):
                 "A volume should not be passed if the source image(s) "
                 "has/have no FrameOfReferenceUID."
             )
+        if coordinate_system != volume.coordinate_system:
+            raise ValueError(
+                "Coordinate system of the volume does not match that ) "
+                "of the source image(s)."
+            )
         if volume.frame_of_reference_uid is not None:
             if (
                 volume.frame_of_reference_uid !=
@@ -1309,6 +1321,7 @@ class _Image(SOPClass):
         plane_orientation: PlaneOrientationSequence | None,
         pixel_measures: PixelMeasuresSequence | None,
         source_images: Sequence[Dataset],
+        further_source_images: Sequence[Dataset],
         tile_pixel_array: bool,
         tile_size: Sequence[int] | None,
         frame_shape: Sequence[int],
@@ -1320,8 +1333,7 @@ class _Image(SOPClass):
         PixelMeasuresSequence | None,
         np.ndarray,
         np.ndarray,
-        bool,
-        Sequence[Sequence[int]] | None,
+        Sequence[Sequence[Dataset]] | None,
     ]:
         """Prepare spatial metadata when constructing a derived image.
 
@@ -1342,6 +1354,11 @@ class _Image(SOPClass):
         source_images: Sequence[Dataset]
             The source images from which this image is derived. May be either a
             single multframe image or a list of 1 or more single frame images.
+        further_source_images: Sequence[Dataset]
+            Further source images. Unlike source_images, these are never used
+            to define the spatial information of the pixel array. May contain
+            an arbitrary mix of single and multi-frame images from multiple
+            series.
         tile_pixel_array: bool
             Whether the input pixel array should be automatically tiled within
             the constructor.
@@ -1376,18 +1393,27 @@ class _Image(SOPClass):
             List of zero-based integer indices into the input planes giving the
             order in which they should be arranged to correctly sort them for
             inclusion into the image.
-        bool:
-            Whether spatial locations are preserved between each frame of the
-            pixel array and its source image/frame.
-        Sequence[Sequence[int]] | None:
-            Nested list containing, at index i, a list of zero-based indices
-            into the source images for the plane at position i in the input
-            array. ``None`` if per-frame source image references are not
+        Sequence[Sequence[pydicom.Dataset]] | None:
+            List containing, at index i, a list of source image items
+            describing the source images for the plane at position i in the
+            input array. ``None`` if per-frame source image references are not
             established.
 
         """
         src_img = source_images[0]
         is_multiframe = is_multiframe_image(src_img)
+        is_tiled = is_tiled_image(src_img)
+
+        if (
+            not tile_pixel_array and
+            (plane_positions is None or pixel_measures is None)
+        ):
+            if frame_shape != (src_img.Rows, src_img.Columns):
+                raise ValueError(
+                    "Arguments 'plane_positions' and 'pixel_measures' must "
+                    "be provided if the shape of the input pixel_array does "
+                    "not match shape of the source image."
+                )
 
         # Remember whether these values were provided by the user, or inferred
         # from the source image. If inferred, we can skip some checks
@@ -1404,14 +1430,18 @@ class _Image(SOPClass):
 
         if self._coordinate_system is None:
             # Only one spatial location supported
+            src_img_item = self._get_derivation_source_image_item(
+                source_image=src_img,
+                frame_number=None,
+                locations_preserved=True,
+            )
             return (
                 [None],  # plane positions
                 plane_orientation,
                 pixel_measures,
                 np.empty((0, )),  # plane_position_values
                 np.array([0]),  # plane_sort_index
-                True,  # are_spatial_locations_preserved
-                [[0]],  # source_image_indices
+                [[src_img_item]],
             )
 
         if self._coordinate_system == CoordinateSystemNames.SLIDE:
@@ -1458,7 +1488,6 @@ class _Image(SOPClass):
                 plane_positions,
                 plane_position_values,
                 plane_sort_index,
-                are_spatial_locations_preserved,
             ) = self._prepare_tiled_spatial_metadata(
                 plane_positions=plane_positions,
                 plane_orientation=plane_orientation,
@@ -1479,22 +1508,28 @@ class _Image(SOPClass):
                 pixel_measures,
                 plane_position_values,
                 plane_sort_index,
-                are_spatial_locations_preserved,
-                None,  # source_image_indices TODO
+                None,  # derivation_source_image_items TODO
             )
 
-        source_image_indices = None
+        derivation_source_image_items = None
         are_spatial_locations_preserved = False
 
         # Check whether the segmentation and source images share an
         # orientation, or have coplanar orientations (or neither)
-        orientation_preserved = (
-            orientation_is_copied or
-            _are_orientations_equal(
-                plane_orientation.cosines,
-                source_plane_orientation.cosines,
+        if orientation_is_copied:
+            orientation_preserved = True
+        else:
+            orientation_preserved = (
+                _are_orientations_equal(
+                    plane_orientation.cosines,
+                    source_plane_orientation.cosines,
+                )
             )
-        )
+            if orientation_preserved:
+                # Override provided value with that from the source image to
+                # account for small numerical differences
+                plane_orientation = source_plane_orientation
+
         orientation_coplanar = (
             orientation_preserved or
             _are_orientations_coplanar(
@@ -1503,13 +1538,20 @@ class _Image(SOPClass):
             )
         )
 
-        # Check whether the segmentation and source images share an
+        # Check whether the segmentation and source images share
         # pixel measures
-        measures_preserved = np.allclose(
-            pixel_measures[0].PixelSpacing,
-            source_pixel_measures[0].PixelSpacing,
-            atol=1e-4
-        )
+        if measures_is_copied:
+            measures_preserved = True
+        else:
+            measures_preserved = np.allclose(
+                pixel_measures[0].PixelSpacing,
+                source_pixel_measures[0].PixelSpacing,
+                atol=1e-4
+            )
+            if measures_preserved:
+                # Override provided value with that from the source image to
+                # account for small numerical differences
+                pixel_measures = source_pixel_measures
 
         dimensions_preserved = (
             frame_shape == (src_img.Rows, src_img.Columns)
@@ -1534,9 +1576,10 @@ class _Image(SOPClass):
                     source_images
                 )
             positions_are_copied = True
+            number_of_positions = len(plane_positions)
 
             # Plane positions match the source images by definition
-            if number_of_planes != len(plane_positions):
+            if number_of_planes != number_of_positions:
                 raise ValueError(
                     'Number of plane positions in source image(s) does '
                     'not match size of first dimension of '
@@ -1545,9 +1588,26 @@ class _Image(SOPClass):
 
             if all_but_positions_preserved:
                 are_spatial_locations_preserved = True
-                source_image_indices = [
-                    [i] for i in range(len(plane_positions))
-                ]
+                if is_multiframe:
+                    derivation_source_image_items = [
+                        [
+                            _Image._get_derivation_source_image_item(
+                                source_image=source_images[0],
+                                frame_number=i + 1,
+                                locations_preserved=True,
+                            )
+                        ] for i in range(number_of_positions)
+                    ]
+                else:
+                    derivation_source_image_items = [
+                        [
+                            _Image._get_derivation_source_image_item(
+                                source_image=source_images[i],
+                                frame_number=None,
+                                locations_preserved=True,
+                            )
+                        ] for i in range(number_of_positions)
+                    ]
         else:
             positions_are_copied = False
 
@@ -1584,45 +1644,183 @@ class _Image(SOPClass):
                     'size of first dimension of "pixel_array" argument.'
                 )
 
-            if orientation_coplanar:
+            if orientation_coplanar and not is_tiled:
+                (
+                    derivation_source_image_items,
+                    are_spatial_locations_preserved,
+                ) = self._match_planes(
+                    source_plane_orientation=(
+                        source_plane_orientation.cosines
+                    ),
+                    source_images=source_images,
+                    plane_position_values=plane_position_values,
+                    all_but_positions_preserved=all_but_positions_preserved,
+                )
 
-                if self._coordinate_system == CoordinateSystemNames.PATIENT:
-                    (
-                        source_image_indices,
-                        are_spatial_locations_preserved
-                    ) = self._match_planes_patient(
-                        source_plane_orientation=(
-                            source_plane_orientation.cosines
-                        ),
-                        source_images=source_images,
-                        plane_position_values=plane_position_values,
-                        all_but_positions_preserved=all_but_positions_preserved,
-                    )
-
-                    if are_spatial_locations_preserved:
-                        # Found a close match between the provided plane
-                        # positions and those in the source images. Use those
-                        # in the source images instead to correct for small
-                        # numerical errors introduced in processing in the
-                        # spatial metadata
-                        dim_ind = self.DimensionIndexSequence
-                        if is_multiframe:
-                            source_plane_positions = (
-                                dim_ind.get_plane_positions_of_image(
-                                    src_img
-                                )
+                if (
+                    derivation_source_image_items is not None and
+                    are_spatial_locations_preserved
+                ):
+                    # Found a close match between the provided plane
+                    # positions and those in the source images. Use those
+                    # in the source images instead to correct for small
+                    # numerical errors introduced in processing in the
+                    # spatial metadata
+                    dim_ind = self.DimensionIndexSequence
+                    if is_multiframe:
+                        source_plane_positions = (
+                            dim_ind.get_plane_positions_of_image(
+                                src_img
                             )
-                        else:
-                            source_plane_positions = (
-                                dim_ind.get_plane_positions_of_series(
-                                    source_images
-                                )
-                            )
+                        )
 
                         plane_positions = [
-                            source_plane_positions[p[0]]
-                            for p in source_image_indices
+                            source_plane_positions[
+                                d[0].ReferencedFrameNumber - 1
+                            ]
+                            for d in derivation_source_image_items
                         ]
+                    else:
+                        source_plane_positions = (
+                            dim_ind.get_plane_positions_of_series(
+                                source_images
+                            )
+                        )
+
+                        plane_positions = []
+                        for d in derivation_source_image_items:
+                            sop_uid = d[0].ReferencedSOPInstanceUID
+
+                            for ind, im in enumerate(source_images):
+                                if im.SOPInstanceUID == sop_uid:
+                                    plane_positions.append(
+                                        source_plane_positions[ind]
+                                    )
+
+        # Look for further per-frame matches in the further source images
+        image_series = defaultdict(list)
+
+        for im in further_source_images:
+            if is_multiframe_image(im):
+                if not is_tiled_image(im):
+                    _, ori, spacing, _ = _get_spatial_information(im, 1)
+                    orientation_preserved = _are_orientations_equal(
+                        plane_orientation.cosines,
+                        ori,
+                    )
+                    orientation_coplanar = _are_orientations_coplanar(
+                        plane_orientation.cosines,
+                        ori,
+                    )
+
+                    measures_preserved = np.allclose(
+                        pixel_measures[0].PixelSpacing,
+                        spacing,
+                        atol=1e-4,
+                    )
+
+                    dimensions_preserved = (
+                        frame_shape == (im.Rows, im.Columns)
+                    )
+
+                    all_but_positions_preserved = (
+                        orientation_preserved and
+                        measures_preserved and
+                        dimensions_preserved
+                    )
+
+                    if orientation_coplanar:
+                        further_drv_src_imgs, _ = self._match_planes(
+                            source_plane_orientation=ori,
+                            source_images=[im],
+                            plane_position_values=plane_position_values,
+                            all_but_positions_preserved=(
+                                all_but_positions_preserved
+                            ),
+                        )
+                        if further_drv_src_imgs is not None:
+                            if derivation_source_image_items is None:
+                                derivation_source_image_items = (
+                                    further_drv_src_imgs
+                                )
+                            else:
+                                derivation_source_image_items = [
+                                    a + b for a, b in zip(
+                                        derivation_source_image_items,
+                                        further_drv_src_imgs,
+                                        strict=True,
+                                    )
+                                ]
+            else:
+                _, ori, spacing, _ = _get_spatial_information(im)
+
+                # Group images by series uid and basic spatial info
+                image_series[
+                    (
+                        im.SeriesInstanceUID,
+                        im.Rows,
+                        im.Columns,
+                        tuple(ori),
+                        tuple(spacing),
+                    )
+                ].append(im)
+
+        for (_, _, _, ori, spacing), images in image_series.items():
+            orientation_preserved = _are_orientations_equal(
+                plane_orientation.cosines,
+                ori,
+            )
+            orientation_coplanar = _are_orientations_coplanar(
+                plane_orientation.cosines,
+                ori,
+            )
+
+            measures_preserved = np.allclose(
+                pixel_measures[0].PixelSpacing,
+                spacing,
+                atol=1e-4,
+            )
+
+            im = images[0]
+            dimensions_preserved = (
+                frame_shape == (im.Rows, im.Columns)
+            )
+
+            all_but_positions_preserved = (
+                orientation_preserved and
+                measures_preserved and
+                dimensions_preserved
+            )
+
+            if orientation_coplanar:
+                further_drv_src_imgs, _ = self._match_planes(
+                    source_plane_orientation=ori,
+                    source_images=images,
+                    plane_position_values=plane_position_values,
+                    all_but_positions_preserved=all_but_positions_preserved,
+                )
+                if further_drv_src_imgs is not None:
+                    if derivation_source_image_items is None:
+                        derivation_source_image_items = further_drv_src_imgs
+                    else:
+                        derivation_source_image_items = [
+                            a + b for a, b in zip(
+                                derivation_source_image_items,
+                                further_drv_src_imgs,
+                                strict=True,
+                            )
+                        ]
+
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            self._add_slide_coordinate_metadata(
+                source_image=src_img,
+                plane_orientation=plane_orientation,
+                plane_position_values=plane_position_values,
+                pixel_measures=pixel_measures,
+                are_spatial_locations_preserved=are_spatial_locations_preserved,
+                is_tiled=is_tiled,
+                total_pixel_matrix_size=None,
+            )
 
         return (
             plane_positions,
@@ -1630,17 +1828,16 @@ class _Image(SOPClass):
             pixel_measures,
             plane_position_values,
             plane_sort_index,
-            are_spatial_locations_preserved,
-            source_image_indices,
+            derivation_source_image_items,
         )
 
     @staticmethod
-    def _match_planes_patient(
+    def _match_planes(
         source_plane_orientation: Sequence[float],
         plane_position_values: np.ndarray,
         source_images: Sequence[Dataset],
         all_but_positions_preserved: bool,
-    ) -> tuple[list[list[int]] | None, bool]:
+    ) -> tuple[list[list[Dataset]] | None, bool]:
         """Establish references between plane and source images.
 
         This method is used only for the patient coordinate system.
@@ -1662,18 +1859,18 @@ class _Image(SOPClass):
 
         Returns
         -------
+        Sequence[Sequence[pydicom.Dataset]] | None:
+            Nested list containing, at index i, a list of items of the Source
+            Image Sequence to place into the Derivation Image Sequence for the
+            plane at position i in the input array. ``None`` if per-frame
+            source image references are not established.
         bool:
             Whether spatial locations are preserved between each frame of the
             pixel array and its source image/frame.
-        Sequence[Sequence[int]] | None:
-            Nested list containing, at index i, a list of zero-based indices
-            into the source images for the plane at position i in the input
-            array. ``None`` if per-frame source image references are not
-            established.
 
         """
         are_spatial_locations_preserved = False
-        source_image_indices = None
+        derivation_source_image_items = None
 
         src_img = source_images[0]
         is_multiframe = is_multiframe_image(src_img)
@@ -1692,13 +1889,14 @@ class _Image(SOPClass):
                 ]
             )
 
-        def get_matched_indices(
-            pairwise_distances: np.ndarray
-        ) -> list[list[int]] | None:
+        def get_matched_items(
+            pairwise_distances: np.ndarray,
+            locations_preserved: bool,
+        ) -> list[list[Dataset]] | None:
             min_distances = pairwise_distances.min(axis=1)
 
             if np.all(min_distances < 1e-3):
-                indices = []
+                derivation_source_image_items = []
 
                 for plane_index in range(pairwise_distances.shape[0]):
                     # Find indices of matching source planes (there may be
@@ -1708,9 +1906,30 @@ class _Image(SOPClass):
                         min_distances[plane_index]
                     )[0]
 
-                    indices.append(matched_indices.tolist())
+                    if is_multiframe:
+                        derivation_source_image_items.append(
+                            [
+                                _Image._get_derivation_source_image_item(
+                                    source_image=source_images[0],
+                                    frame_number=i + 1,
+                                    locations_preserved=locations_preserved,
+                                ) for i in matched_indices
+                            ]
+                        )
+                    else:
+                        derivation_source_image_items.append(
+                            [
+                                _Image._get_derivation_source_image_item(
+                                    source_image=source_images[i],
+                                    frame_number=None,
+                                    locations_preserved=locations_preserved,
+                                ) for i in matched_indices
+                            ]
+                        )
 
-                return indices
+                return derivation_source_image_items
+
+            return None
 
         # plane_position_values has singleton as second dimension, so this
         # gives offset of each position from each source position via
@@ -1724,12 +1943,15 @@ class _Image(SOPClass):
                 axis=-1,
             )
 
-            source_image_indices = get_matched_indices(pairwise_distances)
+            derivation_source_image_items = get_matched_items(
+                pairwise_distances,
+                True,
+            )
             are_spatial_locations_preserved = (
-                source_image_indices is not None
+                derivation_source_image_items is not None
             )
 
-        if source_image_indices is None:
+        if derivation_source_image_items is None:
             # Positions do not match, but planes may still match after rotation
             # or scaling. Check for this by matching on origin distances (NB
             # some further check could be added here to ensure image planes
@@ -1738,11 +1960,12 @@ class _Image(SOPClass):
 
             out_of_plane_pairwise_distances = np.abs(pairwise_offsets @ normal)
 
-            source_image_indices = get_matched_indices(
-                out_of_plane_pairwise_distances
+            derivation_source_image_items = get_matched_items(
+                out_of_plane_pairwise_distances,
+                False,
             )
 
-        return source_image_indices, are_spatial_locations_preserved
+        return derivation_source_image_items, are_spatial_locations_preserved
 
     def _prepare_tiled_spatial_metadata(
         self,
@@ -1761,7 +1984,6 @@ class _Image(SOPClass):
         Sequence[PlanePositionSequence | None],
         np.ndarray,
         np.ndarray,
-        bool,
     ]:
         """
 
@@ -1809,9 +2031,6 @@ class _Image(SOPClass):
             List of zero-based integer indices into the input planes giving the
             order in which they should be arranged to correctly sort them for
             inclusion into the image.
-        bool:
-            Whether spatial locations are preserved between each frame of the
-            pixel array and its source image/frame.
 
         """
         src_origin_seq = src_img.TotalPixelMatrixOriginSequence[0]
@@ -1950,12 +2169,94 @@ class _Image(SOPClass):
             :, [1, 0, 2, 3, 4]
         ]
 
+        self._add_slide_coordinate_metadata(
+            source_image=src_img,
+            plane_orientation=plane_orientation,
+            plane_position_values=plane_position_values,
+            pixel_measures=pixel_measures,
+            are_spatial_locations_preserved=are_spatial_locations_preserved,
+            is_tiled=True,
+            total_pixel_matrix_size=frame_shape,
+        )
+
         return (
             plane_positions,
             plane_position_values,
             plane_sort_index,
-            are_spatial_locations_preserved,
         )
+
+    @staticmethod
+    def _get_derivation_source_image_item(
+        source_image: Dataset,
+        frame_number: int | None,
+        locations_preserved: bool,
+    ) -> Dataset:
+        """Create an item of the Source Image Sequence from a source image.
+
+        Parameters
+        ----------
+        source_image: pydicom.Dataset
+            Dataset of the source image to record.
+        frame_number: int | None
+            Frame number (1-based) of the source image to record. This should
+            be provided (not None) if and only if the source image is a
+            multiframe image.
+        locations_preserved: bool
+            Whether the spatial locations are preserved between the source
+            image and derived image being created.
+
+        Returns
+        -------
+        pydicom.Dataset:
+            Dataset object representing an item of the Source Image Sequence
+            (as placed within the Derivation Image Sequence within the Per
+            Frame Functional Groups Sequence).
+
+        """
+        # NB this function is called many times in a loop when there are a
+        # large number of frames, and has been observed to dominate the
+        # creation time of some segmentations. Therefore we use low-level
+        # pydicom primitives to improve performance as much as possible
+        derivation_src_img_item = Dataset()
+
+        derivation_src_img_item.add(
+            DataElement(
+                0x00081150,  # ReferencedSOPClassUID
+                'UI',
+                source_image[0x00080016].value  # SOPClassUID
+            )
+        )
+        derivation_src_img_item.add(
+            DataElement(
+                0x00081155,  # ReferencedSOPInstanceUID
+                'UI',
+                source_image[0x00080018].value  # SOPInstanceUID
+            )
+        )
+        derivation_src_img_item.add(
+            DataElement(
+                0x0040a170,  # PurposeOfReferenceCodeSequence
+                'SQ',
+                [_PURPOSE_CODE]
+            )
+        )
+        derivation_src_img_item.add(
+            DataElement(
+                0x0028135a,  # SpatialLocationsPreserved
+                'CS',
+                'YES' if locations_preserved else 'NO'
+            )
+        )
+        if frame_number is not None:
+            # A single multi-frame source image
+            derivation_src_img_item.add(
+                DataElement(
+                    0x00081160,  # ReferencedFrameNumber
+                    'IS',
+                    frame_number,
+                )
+            )
+        return derivation_src_img_item
 
     def _add_source_image_references(
         self,
