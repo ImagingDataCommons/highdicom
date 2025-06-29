@@ -3205,17 +3205,6 @@ class Segmentation(_Image):
                 'Source SOP instance UIDs may not be empty.'
             )
 
-        # Check that the combination of source instances and segment numbers
-        # uniquely identify segmentation frames
-        columns = [('FrameReferenceLUT', 'ReferencedSOPInstanceUID')]
-        if self.segmentation_type != SegmentationTypeValues.LABELMAP:
-            columns.append(('FrameLUT', 'ReferencedSegmentNumber'))
-        if not self._do_columns_identify_unique_frames(columns):
-            raise RuntimeError(
-                'Source SOP instance UIDs and segment numbers do not '
-                'uniquely identify frames of the segmentation image.'
-            )
-
         # Check that indexing in this way is possible
         self._check_indexing_with_source_frames(
             source_sop_instance_uids=source_sop_instance_uids,
@@ -3489,17 +3478,6 @@ class Segmentation(_Image):
         if not all(f > 0 for f in source_frame_numbers):
             raise ValueError(
                 'Frame numbers are 1-based indices and must be > 0.'
-            )
-
-        # Check that the combination of frame numbers and segment numbers
-        # uniquely identify segmentation frames
-        columns = [('FrameReferenceLUT', 'ReferencedFrameNumber')]
-        if self.segmentation_type != SegmentationTypeValues.LABELMAP:
-            columns.append(('FrameLUT', 'ReferencedSegmentNumber'))
-        if not self._do_columns_identify_unique_frames(columns):
-            raise RuntimeError(
-                'Source frame numbers and segment numbers do not '
-                'uniquely identify frames of the segmentation image.'
             )
 
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:

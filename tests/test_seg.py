@@ -13,11 +13,14 @@ from pydicom.multival import MultiValue
 import pytest
 from PIL import Image
 
+from pydicom import Dataset
 from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.datadict import tag_for_keyword
 from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.uid import (
+    CTImageStorage,
+    EnhancedCTImageStorage,
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     RLELossless,
@@ -4542,6 +4545,62 @@ class TestSegmentationParsing:
             self._ct_binary_seg_ds
         )
 
+        # Create a version of the segmentation file with spatial locations not
+        # preserved
+        ct_binary_not_preserved = deepcopy(self._ct_binary_seg_ds)
+        for pffg in ct_binary_not_preserved.PerFrameFunctionalGroupsSequence:
+            (
+                pffg
+                .DerivationImageSequence[0]
+                .SourceImageSequence[0]
+                .SpatialLocationsPreserved
+            ) = 'NO'
+        self._ct_binary_seg_not_preserved = Segmentation.from_dataset(
+            ct_binary_not_preserved,
+        )
+
+        # Create a version of the segmentation file with spatial locations
+        # preserved information missing
+        ct_binary_preserved_missing = deepcopy(self._ct_binary_seg_ds)
+        for pffg in ct_binary_preserved_missing.PerFrameFunctionalGroupsSequence:
+            del (
+                pffg
+                .DerivationImageSequence[0]
+                .SourceImageSequence[0]
+                .SpatialLocationsPreserved
+            )
+        self._ct_binary_seg_preserved_missing = Segmentation.from_dataset(
+            ct_binary_preserved_missing,
+        )
+
+        # Create a version of the segmentation file with multiple
+        # source frames
+        self._extra_reference_sop_uid = UID()
+        ct_binary_multiple_source = deepcopy(self._ct_binary_seg_ds)
+        for f, pffg in enumerate(
+            ct_binary_multiple_source.PerFrameFunctionalGroupsSequence,
+            1
+        ):
+            new_src_img = Dataset()
+            new_src_img.ReferencedSOPClassUID = EnhancedCTImageStorage
+            new_src_img.ReferencedSOPInstanceUID = self._extra_reference_sop_uid
+            new_src_img.ReferencedFrameNumber = f
+            new_src_img.SpatialLocationsPreserved = 'YES'
+            pffg.DerivationImageSequence[0].SourceImageSequence.append(
+                new_src_img
+            )
+        new_ref_item = Dataset()
+        new_ref_item.SeriesInstanceUID = UID()
+        new_ref_instance = Dataset()
+        new_ref_instance.ReferencedSOPClassUID = EnhancedCTImageStorage
+        new_ref_instance.ReferencedSOPInstanceUID = self._extra_reference_sop_uid
+        new_ref_item.ReferencedInstanceSequence = [new_ref_instance]
+        ct_binary_multiple_source.ReferencedSeriesSequence.append(new_ref_item)
+
+        self._ct_binary_multiple_source = Segmentation.from_dataset(
+            ct_binary_multiple_source,
+        )
+
         self._ct_binary_overlap_seg_ds = dcmread(
             'data/test_files/seg_image_ct_binary_overlap.dcm'
         )
@@ -5243,6 +5302,134 @@ class TestSegmentationParsing:
             self._ct_binary_seg.Columns,
         )
         assert pixels.shape == out_shape
+
+    def test_get_pixels_by_source_instances_not_preserved(self):
+        # Test get_pixels_by_source_instance when the spatial locations are not
+        # preserved according to the DerivationImageSequence
+        all_source_sop_uids = [
+            tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        # Should fail without ignore_spatial_locations
+        msg = "locations are not preserved "
+        with pytest.raises(RuntimeError, match=msg):
+            (
+                self
+                ._ct_binary_seg_not_preserved
+                .get_pixels_by_source_instance(
+                    source_sop_instance_uids=source_sop_uids,
+                )
+            )
+
+        # Should pass with ignore_spatial_locations
+        pixels = (
+            self
+            ._ct_binary_seg_not_preserved
+            .get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+                ignore_spatial_locations=True,
+            )
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_seg_not_preserved.Rows,
+            self._ct_binary_seg_not_preserved.Columns,
+            self._ct_binary_seg_not_preserved.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_source_instances_preserved_missing(self):
+        # Test get_pixels_by_source_instance when the spatial locations preserved
+        # information is not present
+        all_source_sop_uids = [
+            tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        # Should fail without ignore_spatial_locations
+        msg = "does not specify that spatial locations are preserved "
+        with pytest.raises(RuntimeError, match=msg):
+            (
+                self
+                ._ct_binary_seg_preserved_missing
+                .get_pixels_by_source_instance(
+                    source_sop_instance_uids=source_sop_uids,
+                )
+            )
+
+        # Should pass with ignore_spatial_locations
+        pixels = (
+            self
+            ._ct_binary_seg_preserved_missing
+            .get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+                ignore_spatial_locations=True,
+            )
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_seg_preserved_missing.Rows,
+            self._ct_binary_seg_preserved_missing.Columns,
+            self._ct_binary_seg_preserved_missing.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_source_instance_multiple_source(self):
+        # Test get_pixels_by_source_instance when the spatial locations preserved
+        # information is not present
+        all_source_sop_uids = [
+            tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
+            if tup[-1] != self._extra_reference_sop_uid
+        ]
+        source_sop_uids = all_source_sop_uids[1:3]
+
+        # Use the original UIDs
+        pixels = (
+            self
+            ._ct_binary_multiple_source
+            .get_pixels_by_source_instance(
+                source_sop_instance_uids=source_sop_uids,
+            )
+        )
+
+        out_shape = (
+            len(source_sop_uids),
+            self._ct_binary_multiple_source.Rows,
+            self._ct_binary_multiple_source.Columns,
+            self._ct_binary_multiple_source.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+        # Use the added multiframe images
+        pixels = (
+            self
+            ._ct_binary_multiple_source
+            .get_pixels_by_source_frame(
+                source_sop_instance_uid=self._extra_reference_sop_uid,
+                source_frame_numbers=[2],
+            )
+        )
+
+        out_shape = (
+            1,
+            self._ct_binary_multiple_source.Rows,
+            self._ct_binary_multiple_source.Columns,
+            self._ct_binary_multiple_source.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+        # Should fail when trying to index by the extra multiframe UID alone
+        with pytest.raises(RuntimeError):
+            (
+                self
+                ._ct_binary_multiple_source
+                .get_pixels_by_source_instance(
+                    source_sop_instance_uids=[self._extra_reference_sop_uid],
+                )
+            )
 
     def test_get_pixels_by_source_instances_missing_instance(self):
         # Tests where there is an instance passed that has no recorded
