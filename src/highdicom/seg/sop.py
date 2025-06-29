@@ -3188,11 +3188,6 @@ class Segmentation(_Image):
         (2, 16, 16, 1)
 
         """
-        # Check that indexing in this way is possible
-        self._check_indexing_with_source_frames(
-            ignore_spatial_locations
-        )
-
         # Checks on validity of the inputs
         if segment_numbers is None:
             segment_numbers = self.segment_numbers
@@ -3212,29 +3207,21 @@ class Segmentation(_Image):
 
         # Check that the combination of source instances and segment numbers
         # uniquely identify segmentation frames
-        columns = ['ReferencedSOPInstanceUID']
+        columns = [('FrameReferenceLUT', 'ReferencedSOPInstanceUID')]
         if self.segmentation_type != SegmentationTypeValues.LABELMAP:
-            columns.append('ReferencedSegmentNumber')
+            columns.append(('FrameLUT', 'ReferencedSegmentNumber'))
         if not self._do_columns_identify_unique_frames(columns):
             raise RuntimeError(
                 'Source SOP instance UIDs and segment numbers do not '
                 'uniquely identify frames of the segmentation image.'
             )
 
-        # Check that all frame numbers requested actually exist
-        if not assert_missing_frames_are_empty:
-            unique_uids = (
-                self._get_unique_referenced_sop_instance_uids()
-            )
-            missing_uids = set(source_sop_instance_uids) - unique_uids
-            if len(missing_uids) > 0:
-                msg = (
-                    f'SOP Instance UID(s) {list(missing_uids)} do not match '
-                    'any referenced source instances. To return an empty '
-                    'segmentation mask in this situation, use the '
-                    '"assert_missing_frames_are_empty" parameter.'
-                )
-                raise KeyError(msg)
+        # Check that indexing in this way is possible
+        self._check_indexing_with_source_frames(
+            source_sop_instance_uids=source_sop_instance_uids,
+            ignore_spatial_locations=ignore_spatial_locations,
+            assert_missing_frames_are_empty=assert_missing_frames_are_empty,
+        )
 
         remap_channel_indices = self._get_segment_remap_values(
             segment_numbers,
@@ -3247,6 +3234,10 @@ class Segmentation(_Image):
         else:
             channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
 
+        filters = None
+        if not ignore_spatial_locations:
+            filters = {'SpatialLocationsPreserved': 'YES'}
+
         with self._iterate_indices_for_stack(
             stack_indices={
                 'ReferencedSOPInstanceUID': source_sop_instance_uids
@@ -3255,6 +3246,7 @@ class Segmentation(_Image):
             remap_channel_indices=[remap_channel_indices],
             allow_missing_values=True,
             allow_missing_combinations=True,
+            filters=filters,
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
@@ -3482,11 +3474,6 @@ class Segmentation(_Image):
         ((3, 10, 10), array([0, 1, 2, 3], dtype=uint8))
 
         """
-        # Check that indexing in this way is possible
-        self._check_indexing_with_source_frames(
-            ignore_spatial_locations
-        )
-
         # Checks on validity of the inputs
         if segment_numbers is None:
             segment_numbers = list(self.segment_numbers)
@@ -3506,30 +3493,14 @@ class Segmentation(_Image):
 
         # Check that the combination of frame numbers and segment numbers
         # uniquely identify segmentation frames
-        columns = ['ReferencedFrameNumber']
+        columns = [('FrameReferenceLUT', 'ReferencedFrameNumber')]
         if self.segmentation_type != SegmentationTypeValues.LABELMAP:
-            columns.append('ReferencedSegmentNumber')
+            columns.append(('FrameLUT', 'ReferencedSegmentNumber'))
         if not self._do_columns_identify_unique_frames(columns):
             raise RuntimeError(
                 'Source frame numbers and segment numbers do not '
                 'uniquely identify frames of the segmentation image.'
             )
-
-        # Check that all frame numbers requested actually exist
-        if not assert_missing_frames_are_empty:
-            max_frame_number = (
-                self._get_max_referenced_frame_number()
-            )
-            for f in source_frame_numbers:
-                if f > max_frame_number:
-                    msg = (
-                        f'Source frame number {f} is larger than any '
-                        'referenced source frame, so highdicom cannot be '
-                        'certain that it is valid. To return an empty '
-                        'segmentation mask in this situation, use the '
-                        "'assert_missing_frames_are_empty' parameter."
-                    )
-                    raise ValueError(msg)
 
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
@@ -3538,18 +3509,36 @@ class Segmentation(_Image):
                 {'ReferencedSegmentNumber': list(segment_numbers)}
             ]
 
+        # Check that indexing in this way is possible
+        self._check_indexing_with_source_frames(
+            source_sop_instance_uids=[source_sop_instance_uid],
+            source_frame_numbers=source_frame_numbers,
+            ignore_spatial_locations=ignore_spatial_locations,
+            assert_missing_frames_are_empty=assert_missing_frames_are_empty,
+        )
+
         remap_channel_indices = self._get_segment_remap_values(
             segment_numbers,
             combine_segments=combine_segments,
             relabel=relabel
         )
 
+        filters = None
+        if not ignore_spatial_locations:
+            filters = {'SpatialLocationsPreserved': 'YES'}
+
         with self._iterate_indices_for_stack(
-            stack_indices={'ReferencedFrameNumber': list(source_frame_numbers)},
+            stack_indices={
+                'ReferencedFrameNumber': list(source_frame_numbers),
+                'ReferencedSOPInstanceUID': (
+                    [source_sop_instance_uid] * len(source_frame_numbers)
+                ),
+            },
             channel_indices=channel_indices,
             remap_channel_indices=[remap_channel_indices],
             allow_missing_values=True,
             allow_missing_combinations=True,
+            filters=filters,
         ) as indices:
 
             return self._get_pixels_by_seg_frame(
@@ -3798,14 +3787,14 @@ class Segmentation(_Image):
         )
 
         columns = [
-            'ImagePositionPatient_0',
-            'ImagePositionPatient_1',
-            'ImagePositionPatient_2'
+            ('FrameLUT', 'ImagePositionPatient_0'),
+            ('FrameLUT', 'ImagePositionPatient_1'),
+            ('FrameLUT', 'ImagePositionPatient_2'),
         ]
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
         else:
-            columns.append('ReferencedSegmentNumber')
+            columns.append(('FrameLUT', 'ReferencedSegmentNumber'))
             channel_indices = [{'ReferencedSegmentNumber': segment_numbers}]
 
         channel_spec = None

@@ -60,7 +60,6 @@ from highdicom.pixels import (
     apply_lut,
     apply_voi_window,
 )
-from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
     _are_orientations_coplanar,
     _are_orientations_equal,
@@ -1130,11 +1129,10 @@ class _Image(SOPClass):
 
     _coordinate_system: CoordinateSystemNames | None
     _is_tiled_full: bool
-    _single_source_frame_per_frame: bool
+    _has_frame_references: bool
     _dim_ind_pointers: list[BaseTag]
     # Mapping of tag value to (index column name, val column name(s))
     _dim_ind_col_names: dict[int, tuple[str, str | tuple[str, ...] | None]]
-    _locations_preserved: SpatialLocationsPreservedValues | None
     _db_con: sqlite3.Connection
     _file_reader: ImageFileReader | None
 
@@ -1701,6 +1699,11 @@ class _Image(SOPClass):
         image_series = defaultdict(list)
 
         for im in further_source_images:
+
+            # Skip images that do not share a frame of reference
+            if im.FrameOfReferenceUID != self.FrameOfReferenceUID:
+                continue
+
             if is_multiframe_image(im):
                 if not is_tiled_image(im):
                     _, ori, spacing, _ = _get_spatial_information(im, 1)
@@ -3310,9 +3313,8 @@ class _Image(SOPClass):
         self._is_tiled_full = False
         self._dim_ind_pointers = []
         self._dim_ind_col_names = {}
-        self._single_source_frame_per_frame = False
-        self._locations_preserved = None
         self._missing_reference_instances = []
+        frame_references = []
         referenced_uids = self._get_ref_instance_uids()
         all_referenced_sops = {uids[2] for uids in referenced_uids}
 
@@ -3342,43 +3344,28 @@ class _Image(SOPClass):
                         col_defs.append(f'{kw} {sql_type} NOT NULL')
                         col_data.append([v])
 
-        if 'SourceImageSequence' in self:
-            self._single_source_frame_per_frame = (
-                len(self.SourceImageSequence) == 1
+        for source_image_item in self.get('SourceImageSequence', []):
+            ref_uid = source_image_item.ReferencedSOPInstanceUID,
+
+            locations_preserved = source_image_item.get(
+                'SpatialLocationsPreserved'
             )
-            locations_preserved = [
-                item.get('SpatialLocationsPreserved')
-                for item in self.SourceImageSequence
-            ]
-            if all(
-                v is not None and v == "YES" for v in locations_preserved
-            ):
-                self._locations_preserved = (
-                    SpatialLocationsPreservedValues.YES
+
+            frame_number: int | None = None
+            if 'ReferencedFrameNumber' in source_image_item:
+                frame_number = source_image_item.ReferencedFrameNumber
+
+            frame_references.append(
+                (
+                    1,
+                    ref_uid,
+                    frame_number,
+                    locations_preserved,
                 )
-            elif all(
-                v is not None and v == "NO" for v in locations_preserved
-            ):
-                self._locations_preserved = (
-                    SpatialLocationsPreservedValues.NO
-                )
-            if self._single_source_frame_per_frame:
-                ref_frame = self.SourceImageSequence[0].get(
-                    'ReferencedFrameNumber'
-                )
-                ref_uid = self.SourceImageSequence[0].ReferencedSOPInstanceUID
-                if ref_uid not in all_referenced_sops:
-                    self._missing_reference_instances.append(ref_uid)
-                col_defs.append('ReferencedFrameNumber INTEGER')
-                col_defs.append('ReferencedSOPInstanceUID VARCHAR NOT NULL')
-                col_defs.append(
-                    'FOREIGN KEY(ReferencedSOPInstanceUID) '
-                    'REFERENCES InstanceUIDs(SOPInstanceUID)'
-                )
-                col_data += [
-                    [ref_frame],
-                    [ref_uid],
-                ]
+            )
+
+            if ref_uid not in all_referenced_sops:
+                self._missing_reference_instances.append(ref_uid)
 
         referenced_uids = self._get_ref_instance_uids()
         self._db_con = sqlite3.connect(":memory:")
@@ -3444,6 +3431,7 @@ class _Image(SOPClass):
         extra_collection_pointers = []
         extra_collection_func_pointers = {}
         extra_collection_values: dict[int, list[Any]] = {}
+        frame_references = []
 
         for grp_ptr, ptr in [
             # PlanePositionSequence/ImagePositionPatient
@@ -3518,7 +3506,6 @@ class _Image(SOPClass):
         if hasattr(self, 'ImageOrientationSlide'):
             shared_image_orientation = self.ImageOrientationSlide
 
-        self._single_source_frame_per_frame = True
         self._missing_reference_instances = []
 
         if self._is_tiled_full:
@@ -3530,7 +3517,6 @@ class _Image(SOPClass):
             y_tag = tag_for_keyword('YOffsetInSlideCoordinateSystem')
             z_tag = tag_for_keyword('ZOffsetInSlideCoordinateSystem')
             tiled_full_dim_indices = {row_tag, col_tag}
-            self._single_source_frame_per_frame = False
             (
                 channel_numbers,
                 _,
@@ -3576,22 +3562,7 @@ class _Image(SOPClass):
                 _, indices = np.unique(vals, return_inverse=True)
                 dim_indices[ptr] = (indices + 1).tolist()
 
-            # There is no way to deduce whether the spatial locations are
-            # preserved in the tiled full case
-            self._locations_preserved = None
-
-            referenced_instances = None
-            referenced_frames = None
         else:
-            referenced_instances: list[str] | None = []
-            referenced_frames: list[int] | None = []
-
-            # Create a list of source images and check for spatial locations
-            # preserved
-            locations_preserved: list[
-                SpatialLocationsPreservedValues | None
-            ] = []
-
             # Some of the indexed pointers may be in the shared
             # functional groups
             if 'SharedFunctionalGroupsSequence' in self:
@@ -3599,7 +3570,10 @@ class _Image(SOPClass):
                 for ptr in extra_collection_pointers:
                     grp_ptr = extra_collection_func_pointers[ptr]
 
-            for frame_item in self.get('PerFrameFunctionalGroupsSequence', []):
+            for frame_number, frame_item in enumerate(
+                self.get('PerFrameFunctionalGroupsSequence', []),
+                1
+            ):
                 # Get dimension indices for this frame
                 if len(self._dim_ind_pointers) > 0:
                     content_seq = frame_item.FrameContentSequence[0]
@@ -3609,12 +3583,14 @@ class _Image(SOPClass):
                         indices = [indices]
                 else:
                     indices = []
+
                 if len(indices) != len(self._dim_ind_pointers):
                     raise RuntimeError(
                         'Unexpected mismatch between dimension index values in '
                         'per-frames functional groups sequence and items in '
                         'the dimension index sequence.'
                     )
+
                 for ptr in self._dim_ind_pointers:
                     dim_indices[ptr].append(indices[dim_ind_positions[ptr]])
                     grp_ptr = func_grp_pointers[ptr]
@@ -3623,6 +3599,7 @@ class _Image(SOPClass):
                     else:
                         dim_val = frame_item[ptr].value
                     dim_values[ptr].append(dim_val)
+
                 for ptr in extra_collection_pointers:
                     # Check this wasn't already found in the shared functional
                     # groups
@@ -3639,63 +3616,38 @@ class _Image(SOPClass):
                         dim_val = frame_item[ptr].value
                     extra_collection_values[ptr].append(dim_val)
 
-                frame_source_instances = []
-                frame_source_frames = []
                 for der_im in getattr(
                     frame_item,
                     'DerivationImageSequence',
                     []
                 ):
-                    for src_im in getattr(
-                        der_im,
+                    for source_image_item in der_im.get(
                         'SourceImageSequence',
                         []
                     ):
-                        frame_source_instances.append(
-                            src_im.ReferencedSOPInstanceUID
+                        ref_uid = source_image_item.ReferencedSOPInstanceUID
+
+                        locations_preserved = source_image_item.get(
+                            'SpatialLocationsPreserved'
                         )
-                        if hasattr(src_im, 'SpatialLocationsPreserved'):
-                            locations_preserved.append(
-                                SpatialLocationsPreservedValues(
-                                    src_im.SpatialLocationsPreserved
-                                )
-                            )
-                        else:
-                            locations_preserved.append(
-                                None
+
+                        ref_frame_number: int | None = None
+                        if 'ReferencedFrameNumber' in source_image_item:
+                            ref_frame_number = (
+                                source_image_item.ReferencedFrameNumber
                             )
 
-                        if hasattr(src_im, 'ReferencedFrameNumber'):
-                            if isinstance(
-                                src_im.ReferencedFrameNumber,
-                                MultiValue
-                            ):
-                                frame_source_frames.extend(
-                                    [
-                                        int(f)
-                                        for f in src_im.ReferencedFrameNumber
-                                    ]
-                                )
-                            else:
-                                frame_source_frames.append(
-                                    int(src_im.ReferencedFrameNumber)
-                                )
-                        else:
-                            frame_source_frames.append(None)
-
-                if (
-                    len(set(frame_source_instances)) != 1 or
-                    len(set(frame_source_frames)) != 1
-                ):
-                    self._single_source_frame_per_frame = False
-                else:
-                    ref_instance_uid = frame_source_instances[0]
-                    if ref_instance_uid not in all_referenced_sops:
-                        self._missing_reference_instances.append(
-                            ref_instance_uid
+                        frame_references.append(
+                            (
+                                frame_number,
+                                ref_uid,
+                                ref_frame_number,
+                                locations_preserved,
+                            )
                         )
-                    referenced_instances.append(ref_instance_uid)
-                    referenced_frames.append(frame_source_frames[0])
+
+                        if ref_uid not in all_referenced_sops:
+                            self._missing_reference_instances.append(ref_uid)
 
                 # Check that this doesn't have a conflicting orientation
                 if shared_image_orientation is not None:
@@ -3726,27 +3678,6 @@ class _Image(SOPClass):
                             fm_pixel_spacing != shared_pixel_spacing
                         ):
                             shared_pixel_spacing = None
-
-            # Summarise
-            if any(
-                isinstance(v, SpatialLocationsPreservedValues) and
-                v == SpatialLocationsPreservedValues.NO
-                for v in locations_preserved
-            ):
-
-                self._locations_preserved = SpatialLocationsPreservedValues.NO
-            elif all(
-                isinstance(v, SpatialLocationsPreservedValues) and
-                v == SpatialLocationsPreservedValues.YES
-                for v in locations_preserved
-            ):
-                self._locations_preserved = SpatialLocationsPreservedValues.YES
-            else:
-                self._locations_preserved = None
-
-            if not self._single_source_frame_per_frame:
-                referenced_instances = None
-                referenced_frames = None
 
         self._db_con = sqlite3.connect(":memory:")
 
@@ -3832,33 +3763,23 @@ class _Image(SOPClass):
                 col_defs.append(f'{kw} {sql_type} NOT NULL')
                 col_data.append(extra_collection_values[t])
 
-        # Columns related to source frames, if they are usable for indexing
-        if (referenced_frames is None) != (referenced_instances is None):
-            raise TypeError(
-                "'referenced_frames' and 'referenced_instances' should be "
-                "provided together or not at all."
-            )
-        if referenced_instances is not None:
-            col_defs.append('ReferencedFrameNumber INTEGER')
-            col_defs.append('ReferencedSOPInstanceUID VARCHAR NOT NULL')
-            col_defs.append(
-                'FOREIGN KEY(ReferencedSOPInstanceUID) '
-                'REFERENCES InstanceUIDs(SOPInstanceUID)'
-            )
-            col_data += [
-                referenced_frames,
-                referenced_instances,
-            ]
-
         self._create_frame_lut(col_defs, col_data)
+        self._create_frame_references_lut(frame_references)
 
-    def _get_frame_lut_col_type(self, column_name: str) -> str:
+    def _get_frame_lut_col_type(
+        self,
+        table_name: str,
+        column_name: str,
+    ) -> str:
         """Get the SQL type of a column in the FrameLUT table.
 
         Parameters
         ----------
+        table_name: str
+            Name of a table in the database.
         column_name: str
-            Name of a colume in the FrameLUT whose type is requested.
+            Name of a column, in the table specified by table_name, whose type
+            is requested.
 
         Returns
         -------
@@ -3867,13 +3788,13 @@ class _Image(SOPClass):
 
         """
         query = (
-            "SELECT type FROM pragma_table_info('FrameLUT') "
+            f"SELECT type FROM pragma_table_info('{table_name}') "
             f"WHERE name = '{column_name}'"
         )
         result = list(self._db_con.execute(query))
         if len(result) == 0:
             raise ValueError(
-                f'No such colume found in frame LUT: {column_name}'
+                f'No such column found in {table_name}: {column_name}'
             )
         return result[0][0]
 
@@ -3915,7 +3836,7 @@ class _Image(SOPClass):
         for c in columns:
             # First check whether the column actually exists
             try:
-                self._get_frame_lut_col_type(c)
+                self._get_frame_lut_col_type('FrameLUT', c)
             except ValueError:
                 if none_if_missing:
                     return None
@@ -3969,6 +3890,46 @@ class _Image(SOPClass):
             self._db_con.executemany(
                 f'INSERT INTO FrameLUT VALUES({placeholders})',
                 zip(*column_data),
+            )
+
+    def _create_frame_references_lut(
+        self,
+        frame_references: list[tuple[int, str, int | None, str | None]],
+    ) -> None:
+        """Create a SQL table containing frame-level references.
+
+        Parameters
+        ----------
+        frame_references: list[tuple[int, str, int | None, bool]]
+            List of frame references. Each item is a tuple containing:
+
+             * The (1-based) frame number of the frame
+             * The SOPInstanceUID of the referenced image.
+             * The (1-based) frame number of the referenced image if it is a
+               mutiframe image, or None otherwise.
+             * Optional str specifying whether spatial locations are preserved
+               in the reference.
+
+        """
+        if len(frame_references) == 0:
+            self._has_frame_references = False
+            return
+
+        self._has_frame_references = True
+        defs = (
+            'FrameNumber INTEGER NOT NULL, '
+            'ReferencedSOPInstanceUID VARCHAR NOT NULL, '
+            'ReferencedFrameNumber INTEGER, '
+            'SpatialLocationsPreserved VARCHAR, '
+            'FOREIGN KEY(ReferencedSOPInstanceUID) '
+            'REFERENCES InstanceUIDs(SOPInstanceUID)'
+        )
+        cmd = f'CREATE TABLE FrameReferenceLUT({defs})'
+        with self._db_con:
+            self._db_con.execute(cmd)
+            self._db_con.executemany(
+                'INSERT INTO FrameReferenceLUT VALUES(?, ?, ?, ?)',
+                frame_references,
             )
 
     def _get_ref_instance_uids(self) -> list[tuple[str, str, str]]:
@@ -4039,24 +4000,28 @@ class _Image(SOPClass):
 
     def _check_indexing_with_source_frames(
         self,
-        ignore_spatial_locations: bool = False
+        ignore_spatial_locations: bool,
+        assert_missing_frames_are_empty: bool,
+        source_sop_instance_uids: Sequence[str],
+        source_frame_numbers: Sequence[int] | None = None,
     ) -> None:
         """Check if indexing by source frames is possible.
 
         Raise exceptions with useful messages otherwise.
 
-        Possible problems include:
-            * Spatial locations are not preserved.
-            * The dataset does not specify that spatial locations are preserved
-              and the user has not asserted that they are.
-            * At least one frame in the image lists multiple
-              source frames.
-
         Parameters
         ----------
         ignore_spatial_locations: bool
-            Allows the user to ignore whether spatial locations are preserved
-            in the frames.
+            Whether to ignore the presence/value of the
+            SpatialLocationsPreserved attribute in the references.
+        assert_missing_frames_are_empty: bool
+            Whether to allow frame numbers/instance UIDs that are not
+            referenced and return blank frames for them.
+        source_sop_instance_uids: Sequence[str]
+            List of SOPInstanceUIDs. If source_frame_numbers is provided,
+            should have length 1.
+        source_frame_numbers: Sequence[int] | None
+            List of referenced frame numbers.
 
         """
         # Checks that it is possible to index using source frames in this
@@ -4067,32 +4032,99 @@ class _Image(SOPClass):
                 'image is stored using the DimensionOrganizationType '
                 '"TILED_FULL".'
             )
-        elif self._locations_preserved is None:
-            if not ignore_spatial_locations:
-                raise RuntimeError(
-                    'Indexing via source frames is not permissible since this '
-                    'image does not specify that spatial locations are '
-                    'preserved in the course of deriving the image '
-                    'from the source image. If you are confident that spatial '
-                    'locations are preserved, or do not require that spatial '
-                    'locations are preserved, you may override this behavior '
-                    "with the 'ignore_spatial_locations' parameter."
-                )
-        elif self._locations_preserved == SpatialLocationsPreservedValues.NO:
-            if not ignore_spatial_locations:
-                raise RuntimeError(
-                    'Indexing via source frames is not permissible since this '
-                    'image specifies that spatial locations are not preserved '
-                    'in the course of deriving the image from the '
-                    'source image. If you do not require that spatial '
-                    ' locations are preserved you may override this behavior '
-                    "with the 'ignore_spatial_locations' parameter."
-                )
-        if not self._single_source_frame_per_frame:
+        if not self._has_frame_references:
             raise RuntimeError(
-                'Indexing via source frames is not permissible since some '
-                'frames in the image specify multiple source frames.'
+                'Indexing via source frames is not possible because frames '
+                'do not contain information about source frames.'
             )
+
+        # Check that all frame numbers requested actually exist
+        if not assert_missing_frames_are_empty:
+            unique_uids = (
+                self._get_unique_referenced_sop_instance_uids()
+            )
+            missing_uids = set(source_sop_instance_uids) - unique_uids
+            if len(missing_uids) > 0:
+                msg = (
+                    f'SOP Instance UID(s) {list(missing_uids)} do not match '
+                    'any referenced source instances. To return an empty '
+                    'segmentation mask in this situation, use the '
+                    '"assert_missing_frames_are_empty" parameter.'
+                )
+                raise KeyError(msg)
+
+            if source_frame_numbers is not None:
+                max_frame_number = (
+                    self._get_max_referenced_frame_number()
+                )
+                for f in source_frame_numbers:
+                    if f > max_frame_number:
+                        msg = (
+                            f'Source frame number {f} is larger than any '
+                            'referenced source frame, so highdicom cannot be '
+                            'certain that it is valid. To return an empty '
+                            'segmentation mask in this situation, use the '
+                            "'assert_missing_frames_are_empty' parameter."
+                        )
+                        raise ValueError(msg)
+
+        if not ignore_spatial_locations:
+            table_name = 'TemporaryFrameTable'
+            column_defs = ['ReferencedSOPInstanceUID VARCHAR NOT NULL']
+            join_cols = ['ReferencedSOPInstanceUID']
+
+            if source_frame_numbers is None:
+                column_data = [source_sop_instance_uids]
+            else:
+                column_defs.append('ReferencedFrameNumber INTEGER NOT NULL')
+                join_cols.append('ReferencedSOPInstanceUID')
+                column_data = [
+                    [source_sop_instance_uids[0]] * len(source_frame_numbers),
+                    source_frame_numbers,
+                ]
+
+            join_str = ' AND '.join(
+                f'{table_name}.{c} = FrameReferenceLUT.{c}'
+                for c in join_cols
+            )
+
+            temp_table = _SQLTableDefinition(
+                table_name=table_name,
+                column_defs=column_defs,
+                column_data=zip(*column_data),
+            )
+
+            query = (
+                'SELECT SpatialLocationsPreserved FROM FrameReferenceLUT '
+                f'INNER JOIN {table_name} ON {join_str}'
+            )
+
+            with self._generate_temp_tables([temp_table]):
+                locations_preserved = [
+                    v[0] for v in self._db_con.execute(query)
+                ]
+
+            if any(v is not None and v != 'YES' for v in locations_preserved):
+                raise RuntimeError(
+                    'Indexing via source frames is not permissible since at '
+                    'least one requested frame specifies that spatial '
+                    'locations are not preserved in the course of deriving '
+                    'the image from the source image. If you do not require '
+                    'that spatial locations are preserved you may override  '
+                    "wthis behavior ith the 'ignore_spatial_locations' "
+                    'parameter.'
+                )
+
+            if any(v is None for v in locations_preserved):
+                raise RuntimeError(
+                    'Indexing via source frames is not permissible since at '
+                    'least one requested frame does not specify that spatial '
+                    'locations are preserved in the course of deriving the '
+                    ' mage from the source image. If you are confident that '
+                    'spatial locations are preserved, or do not require that '
+                    'spatial locations are preserved, you may override this '
+                    "behavior with the 'ignore_spatial_locations' parameter."
+                )
 
     @property
     def dimension_index_pointers(self) -> list[BaseTag]:
@@ -4135,7 +4167,7 @@ class _Image(SOPClass):
 
     def _do_columns_identify_unique_frames(
         self,
-        column_names: Sequence[str],
+        columns: Sequence[tuple[str, str]],
         filter: str | None = None,
     ) -> bool:
         """Check if a list of columns uniquely identifies frames.
@@ -4146,8 +4178,8 @@ class _Image(SOPClass):
 
         Parameters
         ----------
-        column_names: Sequence[str]
-            Column names.
+        columns: Sequence[tuple[str, str]]
+            Columns specified by tuples of (table_name, column_name).
         filter: str
             A SQL-syntax filter to apply. If provided, determines whether the
             given columns are sufficient to identify frames within the filtered
@@ -4160,21 +4192,30 @@ class _Image(SOPClass):
             frames.
 
         """
-        col_str = ", ".join(column_names)
         cur = self._db_con.cursor()
+
+        join_str = ''
+        if any(t == 'FrameReferenceLUT' for (t, _) in columns):
+            join_str = (
+                'JOIN FrameReferenceLUT ON '
+                'FrameLUT.FrameNumber = FrameReferenceLUT.FrameNumber'
+            )
 
         if filter is not None and filter != '':
             total = cur.execute(
-                f"SELECT COUNT(*) FROM FrameLUT {filter}"
+                f"SELECT COUNT(*) FROM FrameLUT {join_str} {filter}"
             ).fetchone()[0]
         else:
             total = self.number_of_frames
             filter = ''
 
-        n_unique_combos = cur.execute(
+        col_str = ", ".join([f'{t}.{c}' for (t, c) in columns])
+
+        query = (
             "SELECT COUNT(*) FROM "
-            f"(SELECT 1 FROM FrameLUT {filter} GROUP BY {col_str})"
-        ).fetchone()[0]
+            f"(SELECT 1 FROM FrameLUT {join_str} {filter} GROUP BY {col_str})"
+        )
+        n_unique_combos = cur.execute(query).fetchone()[0]
         return n_unique_combos == total
 
     def are_dimension_indices_unique(
@@ -4200,7 +4241,7 @@ class _Image(SOPClass):
             True if dimension indices are unique.
 
         """
-        column_names = []
+        columns = []
         for ptr in dimension_index_pointers:
             if isinstance(ptr, str):
                 t = tag_for_keyword(ptr)
@@ -4209,8 +4250,8 @@ class _Image(SOPClass):
                         f"Keyword '{ptr}' is not a valid DICOM keyword."
                     )
                 ptr = t
-            column_names.append(self._dim_ind_col_names[ptr][0])
-        return self._do_columns_identify_unique_frames(column_names)
+            columns.append(('FrameLUT', self._dim_ind_col_names[ptr][0]))
+        return self._do_columns_identify_unique_frames(columns)
 
     def get_source_image_uids(self) -> list[tuple[UID, UID, UID]]:
         """Get UIDs of source image instances referenced in the image.
@@ -4273,7 +4314,7 @@ class _Image(SOPClass):
         """
         cur = self._db_con.cursor()
         return cur.execute(
-            'SELECT MAX(ReferencedFrameNumber) FROM FrameLUT'
+            'SELECT MAX(ReferencedFrameNumber) FROM FrameReferenceLUT'
         ).fetchone()[0]
 
     def is_indexable_as_total_pixel_matrix(self) -> bool:
@@ -5113,7 +5154,7 @@ class _Image(SOPClass):
         use_indices: bool,
         multiple_values: bool,
         allow_missing_values: bool = False,
-    ) -> dict[str, Any]:
+    ) -> dict[tuple[str, str], Any]:
         """Check and standardize queries used to specify dimensions.
 
         Parameters
@@ -5121,14 +5162,14 @@ class _Image(SOPClass):
         queries: Dict[Union[int, str], Any]
             Dictionary defining a filter or index along a dimension. The keys
             define the dimensions used. They may be either the tags or keywords
-            of attributes in the image's dimension index, or the special
-            values, 'ReferencedSOPInstanceUID', and 'ReferencedFrameNumber'.
-            The values of the dictionary give sequences of values of
-            corresponding dimension that define each slice of the output array
-            or a single value that is used to filter the frames. Note that
-            multiple dimensions may be used, in which case a frame must match
-            the values of all provided dimensions to be placed in the output
-            array.
+            of attributes in the image's dimension index, or the special values
+            'ReferencedSOPInstanceUID', 'ReferencedFrameNumber', and
+            'SpatialLocationsPreserved'. The values of the dictionary give
+            sequences of values of corresponding dimension that define each
+            slice of the output array or a single value that is used to filter
+            the frames. Note that multiple dimensions may be used, in which
+            case a frame must match the values of all provided dimensions to be
+            placed in the output array.
         use_indices: bool
             Whether indexing is done using (integer) dimension index values, as
             opposed to values themselves.
@@ -5141,12 +5182,13 @@ class _Image(SOPClass):
 
         Returns
         -------
-        dict[str, Any]:
-            Queries after validation, with keys matching the column names used
-            in the Frame LUT.
+        dict[tuple[str, str], Any]:
+            Queries after validation, with keys of the form
+            (TableName, ColumnName) from tables in the internal Sqlite
+            database.
 
         """
-        normalized_queries: dict[str, Any] = {}
+        normalized_queries: dict[tuple[str, str], Any] = {}
         tag: BaseTag | None = None
 
         if len(queries) == 0:
@@ -5156,17 +5198,25 @@ class _Image(SOPClass):
             n_values = len(list(queries.values())[0])
 
         for p, value in queries.items():
+            table_name = 'FrameLUT'  # default that may be overidden
+
             if isinstance(p, int):  # also covers BaseTag
                 tag = BaseTag(p)
 
             elif isinstance(p, str):
                 # Special cases
                 if p == 'ReferencedSOPInstanceUID':
+                    table_name = 'FrameReferenceLUT'
                     col_name = 'ReferencedSOPInstanceUID'
                     python_type = str
                 elif p == 'ReferencedFrameNumber':
+                    table_name = 'FrameReferenceLUT'
                     col_name = 'ReferencedFrameNumber'
                     python_type = int
+                elif p == 'SpatialLocationsPreserved':
+                    table_name = 'FrameReferenceLUT'
+                    col_name = 'SpatialLocationsPreserved'
+                    python_type = str
                 else:
                     t = tag_for_keyword(p)
 
@@ -5224,7 +5274,7 @@ class _Image(SOPClass):
 
             allowed_values = {
                 v[0] for v in self._db_con.execute(
-                    f"SELECT DISTINCT({col_name}) FROM FrameLUT;"
+                    f"SELECT DISTINCT({col_name}) FROM {table_name};"
                 )
             }
 
@@ -5277,17 +5327,16 @@ class _Image(SOPClass):
                             "present in the image."
                         )
 
-            if col_name in normalized_queries:
-                raise ValueError(
-                    'All dimensions must be unique.'
-                )
-            normalized_queries[col_name] = value
+            combined_name = (table_name, col_name)
+            if combined_name in normalized_queries:
+                raise ValueError('All dimensions must be unique.')
+            normalized_queries[combined_name] = value
 
         return normalized_queries
 
     def _prepare_channel_tables(
         self,
-        norm_channel_indices_list: list[dict[str, Any]],
+        norm_channel_indices_list: list[dict[tuple[str, str], Any]],
         remap_channel_indices: Sequence[int] | None = None,
     ) -> tuple[list[str], list[str], list[_SQLTableDefinition]]:
         """Prepare query elements for a query involving output channels.
@@ -5297,7 +5346,7 @@ class _Image(SOPClass):
 
         Parameters
         ----------
-        norm_channel_indices_list: list[dict[str, Any]]
+        norm_channel_indices_list: list[dict[tuple[str, str], Any]]
             List of dictionaries defining the channel dimensions. The first
             item in the list corresponds to axis 3 of the output array, if any,
             the next to axis 4 and so so. Each dictionary has a format
@@ -5334,8 +5383,8 @@ class _Image(SOPClass):
             channel_column_defs = (
                 ['OutputChannelIndex INTEGER UNIQUE NOT NULL'] +
                 [
-                    f'{c} {self._get_frame_lut_col_type(c)} NOT NULL'
-                    for c in channel_indices_dict.keys()
+                    f'{c} {self._get_frame_lut_col_type(t, c)} NOT NULL'
+                    for t, c in channel_indices_dict.keys()
                 ]
             )
 
@@ -5373,8 +5422,8 @@ class _Image(SOPClass):
             )
 
             channel_join_condition = ' AND '.join(
-                f'L.{col} = {channel_table_name}.{col}'
-                for col in channel_indices_dict.keys()
+                f'{tab}.{col} = {channel_table_name}.{col}'
+                for tab, col in channel_indices_dict.keys()
             )
             join_lines.append(
                 f'INNER JOIN {channel_table_name} ON {channel_join_condition}'
@@ -5418,10 +5467,10 @@ class _Image(SOPClass):
             )
 
             filter_comparisons = []
-            for c, v in norm_filters.items():
+            for (t, c), v in norm_filters.items():
                 if isinstance(v, str):
                     v = f"'{v}'"
-                filter_comparisons.append(f'L.{c} = {v}')
+                filter_comparisons.append(f'{t}.{c} = {v}')
 
             filter_str = 'WHERE ' + ' AND '.join(filter_comparisons)
 
@@ -5486,7 +5535,7 @@ class _Image(SOPClass):
         channel_indices: Union[List[Dict[Union[int, str], Sequence[Any]], None]], optional
             List of dictionaries defining the channel dimensions. The first
             item in the list corresponds to axis 3 of the output array, if any,
-            the next to axis 4 and so so. Each dictionary has a format
+            the next to axis 4 and so on. Each dictionary has a format
             identical to that of ``stack_indices``, however the dimensions used
             must be distinct. Note that each item in the list may contain
             multiple items, provided that the number of items in each value
@@ -5559,12 +5608,25 @@ class _Image(SOPClass):
 
         all_dimensions = [
             c.replace('_DimensionIndexValues', '')
-            for c in all_columns
+            for (_, c) in all_columns
         ]
         if len(set(all_dimensions)) != len(all_dimensions):
             raise ValueError(
                 'Dimensions used for stack, channel, and filter must all be '
                 'distinct.'
+            )
+
+        # Some queries will additionally require a join onto the
+        # FrameReferenceLUT table
+        require_frame_refs = any(
+            t == 'FrameReferenceLUT' for (t, _) in all_columns
+        )
+
+        frame_ref_join_line = ''
+        if require_frame_refs:
+            frame_ref_join_line = (
+                'INNER JOIN FrameReferenceLUT ON '
+                'FrameReferenceLUT.FrameNumber = FrameLUT.FrameNumber'
             )
 
         filter_str = self._prepare_filter_string(
@@ -5591,16 +5653,18 @@ class _Image(SOPClass):
             stack_column_defs = (
                 ['OutputFrameIndex INTEGER UNIQUE NOT NULL'] +
                 [
-                    f'{c} {self._get_frame_lut_col_type(c)} NOT NULL'
-                    for c in norm_stack_indices.keys()
+                    f'{c} {self._get_frame_lut_col_type(t, c)} NOT NULL'
+                    for (t, c) in norm_stack_indices.keys()
                 ]
             )
             stack_column_data = list(
                 (i, *row)
                 for i, row in enumerate(zip(*norm_stack_indices.values()))
             )
+
             stack_join_str = ' AND '.join(
-                f'F.{col} = L.{col}' for col in norm_stack_indices.keys()
+                f'{stack_table_name}.{col} = {tab}.{col}'
+                for tab, col in norm_stack_indices.keys()
             )
 
             stack_table_def = _SQLTableDefinition(
@@ -5609,11 +5673,16 @@ class _Image(SOPClass):
                 column_data=stack_column_data,
             )
         else:
-            stack_join_str = 'F.FrameNumber = L.FrameNumber'
+            stack_join_str = (
+                f'{stack_table_def.table_name}.FrameNumber = '
+                'FrameLUT.FrameNumber'
+            )
 
         selection_lines = [
-            'F.OutputFrameIndex',  # frame index of the output array
-            'L.FrameNumber - 1',  # frame *index* of the file
+            # frame index of the output array
+            f'{stack_table_def.table_name}.OutputFrameIndex',
+            # frame *index* of the file
+            'FrameLUT.FrameNumber - 1',
         ]
 
         (
@@ -5632,8 +5701,9 @@ class _Image(SOPClass):
         # presumably as it is more cache efficient
         query_template = (
             'SELECT {selection_str} '
-            f'FROM {stack_table_def.table_name} F '
-            f'INNER JOIN FrameLUT L ON {stack_join_str} '
+            f'FROM FrameLUT '
+            f'{frame_ref_join_line} '
+            f'INNER JOIN {stack_table_def.table_name} ON {stack_join_str} '
             f'{" ".join(channel_join_lines)} '
             f'{filter_str} '
             '{order_str}'
@@ -5666,7 +5736,9 @@ class _Image(SOPClass):
 
             full_query = query_template.format(
                 selection_str=selection_str,
-                order_str='ORDER BY F.OutputFrameIndex',
+                order_str=(
+                    f'ORDER BY {stack_table_def.table_name}.OutputFrameIndex'
+                ),
             )
 
             yield (
@@ -6013,8 +6085,8 @@ class _Image(SOPClass):
             allow_missing_combinations = True
 
         all_columns = [
-            'RowPositionInTotalImagePixelMatrix',
-            'ColumnPositionInTotalImagePixelMatrix',
+            ('FrameLUT', 'RowPositionInTotalImagePixelMatrix'),
+            ('FrameLUT', 'ColumnPositionInTotalImagePixelMatrix'),
         ]
         if channel_indices is not None:
             norm_channel_indices_list = [
@@ -6038,7 +6110,7 @@ class _Image(SOPClass):
 
         all_dimensions = [
             c.replace('_DimensionIndexValues', '')
-            for c in all_columns
+            for (_, c) in all_columns
         ]
         if len(all_dimensions) != len(all_dimensions):
             raise ValueError(
@@ -6084,9 +6156,9 @@ class _Image(SOPClass):
         column_offset_start = column_start - tw + 1
 
         selection_lines = [
-            'L.RowPositionInTotalImagePixelMatrix',
-            'L.ColumnPositionInTotalImagePixelMatrix',
-            'L.FrameNumber - 1',
+            'FrameLUT.RowPositionInTotalImagePixelMatrix',
+            'FrameLUT.ColumnPositionInTotalImagePixelMatrix',
+            'FrameLUT.FrameNumber - 1',
         ]
 
         (
@@ -6106,15 +6178,15 @@ class _Image(SOPClass):
         # Create temporary table of channel indices
         query_template = (
             'SELECT {selection_str} '
-            'FROM FrameLUT L '
+            'FROM FrameLUT '
             f'{" ".join(channel_join_lines)} '
             'WHERE ('
-            '    L.RowPositionInTotalImagePixelMatrix >= '
-            f'        {row_offset_start}'
-            f'    AND L.RowPositionInTotalImagePixelMatrix < {row_end}'
-            '    AND L.ColumnPositionInTotalImagePixelMatrix >= '
-            f'        {column_offset_start}'
-            f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
+            'FrameLUT.RowPositionInTotalImagePixelMatrix >= '
+            f'    {row_offset_start}'
+            f'AND FrameLUT.RowPositionInTotalImagePixelMatrix < {row_end}'
+            ' AND FrameLUT.ColumnPositionInTotalImagePixelMatrix >= '
+            f'    {column_offset_start}'
+            f'AND FrameLUT.ColumnPositionInTotalImagePixelMatrix < {column_end}'
             f'    {filter_str.replace("WHERE", "AND")} '
             ') '
             '{order_str}'
@@ -6122,8 +6194,8 @@ class _Image(SOPClass):
 
         order_str = (
             'ORDER BY '
-            '     L.RowPositionInTotalImagePixelMatrix,'
-            '     L.ColumnPositionInTotalImagePixelMatrix'
+            '     FrameLUT.RowPositionInTotalImagePixelMatrix,'
+            '     FrameLUT.ColumnPositionInTotalImagePixelMatrix'
         )
 
         with self._generate_temp_tables(channel_table_defs):
@@ -6557,9 +6629,9 @@ class Image(_Image):
             # Check that the combination of frame numbers uniquely identify
             # frames
             columns = [
-                'ImagePositionPatient_0',
-                'ImagePositionPatient_1',
-                'ImagePositionPatient_2'
+                ('FrameLUT', 'ImagePositionPatient_0'),
+                ('FrameLUT', 'ImagePositionPatient_1'),
+                ('FrameLUT', 'ImagePositionPatient_2'),
             ]
             if not self._do_columns_identify_unique_frames(columns):
                 raise RuntimeError(

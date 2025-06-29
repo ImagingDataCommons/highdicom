@@ -2873,6 +2873,7 @@ class TestSegmentation:
             im.SOPInstanceUID = UID()
             im.SeriesInstanceUID = series_uid
             im.StudyInstanceUID = self._ct_multiframe.StudyInstanceUID
+            im.FrameOfReferenceUID = self._ct_multiframe.FrameOfReferenceUID
             further_source_images.append(im)
 
         instance = Segmentation(
