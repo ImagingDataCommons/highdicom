@@ -19,7 +19,6 @@ from pydicom.datadict import tag_for_keyword
 from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.uid import (
-    CTImageStorage,
     EnhancedCTImageStorage,
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
@@ -4562,7 +4561,10 @@ class TestSegmentationParsing:
         # Create a version of the segmentation file with spatial locations
         # preserved information missing
         ct_binary_preserved_missing = deepcopy(self._ct_binary_seg_ds)
-        for pffg in ct_binary_preserved_missing.PerFrameFunctionalGroupsSequence:
+        for pffg in (
+            ct_binary_preserved_missing
+            .PerFrameFunctionalGroupsSequence
+        ):
             del (
                 pffg
                 .DerivationImageSequence[0]
@@ -4575,7 +4577,7 @@ class TestSegmentationParsing:
 
         # Create a version of the segmentation file with multiple
         # source frames
-        self._extra_reference_sop_uid = UID()
+        self._extra_ref_sop_uid = UID()
         ct_binary_multiple_source = deepcopy(self._ct_binary_seg_ds)
         for f, pffg in enumerate(
             ct_binary_multiple_source.PerFrameFunctionalGroupsSequence,
@@ -4583,7 +4585,7 @@ class TestSegmentationParsing:
         ):
             new_src_img = Dataset()
             new_src_img.ReferencedSOPClassUID = EnhancedCTImageStorage
-            new_src_img.ReferencedSOPInstanceUID = self._extra_reference_sop_uid
+            new_src_img.ReferencedSOPInstanceUID = self._extra_ref_sop_uid
             new_src_img.ReferencedFrameNumber = f
             new_src_img.SpatialLocationsPreserved = 'YES'
             pffg.DerivationImageSequence[0].SourceImageSequence.append(
@@ -4593,7 +4595,7 @@ class TestSegmentationParsing:
         new_ref_item.SeriesInstanceUID = UID()
         new_ref_instance = Dataset()
         new_ref_instance.ReferencedSOPClassUID = EnhancedCTImageStorage
-        new_ref_instance.ReferencedSOPInstanceUID = self._extra_reference_sop_uid
+        new_ref_instance.ReferencedSOPInstanceUID = self._extra_ref_sop_uid
         new_ref_item.ReferencedInstanceSequence = [new_ref_instance]
         ct_binary_multiple_source.ReferencedSeriesSequence.append(new_ref_item)
 
@@ -5341,8 +5343,8 @@ class TestSegmentationParsing:
         assert pixels.shape == out_shape
 
     def test_get_pixels_by_source_instances_preserved_missing(self):
-        # Test get_pixels_by_source_instance when the spatial locations preserved
-        # information is not present
+        # Test get_pixels_by_source_instance when the spatial locations
+        # preserved information is not present
         all_source_sop_uids = [
             tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
         ]
@@ -5378,11 +5380,11 @@ class TestSegmentationParsing:
         assert pixels.shape == out_shape
 
     def test_get_pixels_by_source_instance_multiple_source(self):
-        # Test get_pixels_by_source_instance when the spatial locations preserved
-        # information is not present
+        # Test get_pixels_by_source_instance when the spatial locations
+        # preserved information is not present
         all_source_sop_uids = [
             tup[-1] for tup in self._ct_binary_seg.get_source_image_uids()
-            if tup[-1] != self._extra_reference_sop_uid
+            if tup[-1] != self._extra_ref_sop_uid
         ]
         source_sop_uids = all_source_sop_uids[1:3]
 
@@ -5408,7 +5410,7 @@ class TestSegmentationParsing:
             self
             ._ct_binary_multiple_source
             .get_pixels_by_source_frame(
-                source_sop_instance_uid=self._extra_reference_sop_uid,
+                source_sop_instance_uid=self._extra_ref_sop_uid,
                 source_frame_numbers=[2],
             )
         )
@@ -5427,7 +5429,7 @@ class TestSegmentationParsing:
                 self
                 ._ct_binary_multiple_source
                 .get_pixels_by_source_instance(
-                    source_sop_instance_uids=[self._extra_reference_sop_uid],
+                    source_sop_instance_uids=[self._extra_ref_sop_uid],
                 )
             )
 

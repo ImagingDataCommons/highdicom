@@ -6186,8 +6186,8 @@ class _Image(SOPClass):
             f'AND FrameLUT.RowPositionInTotalImagePixelMatrix < {row_end} '
             ' AND FrameLUT.ColumnPositionInTotalImagePixelMatrix >= '
             f'    {column_offset_start} '
-            f'AND FrameLUT.ColumnPositionInTotalImagePixelMatrix < {column_end} '
-            f'    {filter_str.replace("WHERE", "AND")} '
+            'AND FrameLUT.ColumnPositionInTotalImagePixelMatrix < '
+            f'{column_end} {filter_str.replace("WHERE", "AND")} '
             ') '
             '{order_str}'
         )
