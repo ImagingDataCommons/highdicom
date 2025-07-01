@@ -1653,8 +1653,8 @@ class _VolumeBase(ABC):
     ) -> Self:
         """Match the geometry of this volume to another.
 
-        This performs a combination of permuting, padding and cropping, and
-        flipping (in that order) such that the geometry of this volume matches
+        This performs a combination of permuting axes, flipping, padding, and
+        cropping (in that order) such that the geometry of this volume matches
         that of ``other``. Notably, the voxels are not resampled. If the
         geometry cannot be matched using these operations, then a
         ``RuntimeError`` is raised.
@@ -1663,6 +1663,20 @@ class _VolumeBase(ABC):
         ----------
         other: Union[highdicom.Volume, highdicom.VolumeGeometry]
             Volume or volume geometry to which this volume should be matched.
+        mode: Union[highdicom.PadModes, str], optional
+            Mode to use to pad the array. See :class:`highdicom.PadModes` for
+            options.
+        constant_value: Union[float, Sequence[float]], optional
+            Value used to pad when mode is ``"CONSTANT"``. With other pad
+            modes, this argument is ignored.
+        per_channel: bool, optional
+            For padding modes that involve calculation of image statistics to
+            determine the padding value (i.e. ``MINIMUM``, ``MAXIMUM``,
+            ``MEAN``, ``MEDIAN``), pad each channel separately using the value
+            calculated using that channel alone (rather than the statistics of
+            the entire array). For other padding modes, this argument makes no
+            difference. This should be True only if the volume has a channel
+            dimension.
 
         Returns
         -------
@@ -3268,8 +3282,8 @@ class Volume(_VolumeBase):
             ``MEAN``, ``MEDIAN``), pad each channel separately using the value
             calculated using that channel alone (rather than the statistics of
             the entire array). For other padding modes, this argument makes no
-            difference. This should not the True if the image does not have a
-            channel dimension.
+            difference. This should be True only if the volume has a channel
+            dimension.
 
         Returns
         -------
