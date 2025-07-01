@@ -17,6 +17,7 @@ from highdicom.enum import (
     RGBColorChannels,
 )
 from highdicom.spatial import (
+    LPS_PATIENT_REFERENCE_CONVENTION,
     PATIENT_ORIENTATION_OPPOSITES,
     VOLUME_INDEX_CONVENTION,
     _DEFAULT_EQUALITY_TOLERANCE,
@@ -25,7 +26,7 @@ from highdicom.spatial import (
     _stack_affine_matrix,
     _transform_affine_matrix,
     _translate_affine_matrix,
-    _transform_affine_to_convention,
+    convert_affine_to_convention,
     create_affine_matrix_from_attributes,
     create_affine_matrix_from_components,
     get_closest_patient_orientation,
@@ -241,6 +242,11 @@ class _VolumeBase(ABC):
         affine: np.ndarray,
         coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: str | None = None,
+        from_reference_convention: (
+            str |
+            Sequence[str | PatientOrientationValuesBiped] |
+            None
+        ) = None,
     ):
         """
 
@@ -254,11 +260,27 @@ class _VolumeBase(ABC):
             translation component. The last row should have value [0, 0, 0, 1].
         coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
-            is defined).
+            is defined.
         frame_of_reference_uid: Optional[str], optional
             Frame of reference UID for the frame of reference, if known.
+        from_reference_convention: str | Sequence[str | highdicom.PatientOrientationValuesBiped] | None, optional
+            Patient reference convention in which the provided affine matrix is
+            defined, if not the ``'LPS'`` convention used in DICOM. The affine
+            matrix will always be converted to DICOM's ``'LPS'`` convention
+            before being used. Either a sequence of three
+            :class:`highdicom.PatientOrientationValuesBiped` values, or a
+            string such as ``"FPL"`` using the same characters. The commonly
+            used ``'I'`` (*inferior*) and ``'S'`` (*superior*) are acceptable
+            aliases for ``'F'`` and ``'H'`` respectively.
 
-        """
+            A common use case is to pass an affine matrix loaded from a NIfTI
+            file, in which case pass
+            ``'RAS'``/``'RAH'``/``highdicom.spatial.RAS_PATIENT_REFERENCE_CONVENTION``
+            (all are equivalent).
+
+            May not be specified if ``coordinate_system`` is ``'SLIDE'``.
+
+        """  # noqa: E501
         if affine.shape != (4, 4):
             raise ValueError("Affine matrix must have shape (4, 4).")
         if not np.array_equal(affine[-1, :], np.array([0.0, 0.0, 0.0, 1.0])):
@@ -270,8 +292,28 @@ class _VolumeBase(ABC):
                 "Argument 'affine' must be an orthogonal matrix."
             )
 
-        self._affine = affine.astype(np.float64)
         self._coordinate_system = CoordinateSystemNames(coordinate_system)
+
+        affine = affine.astype(np.float64)
+
+        if from_reference_convention is not None:
+            if self._coordinate_system == CoordinateSystemNames.SLIDE:
+                raise TypeError(
+                    "Argument 'from_reference_convention' may not be used "
+                    "with the 'SLIDE' coordinate system."
+                )
+
+            from_reference_convention = _normalize_patient_orientation(
+                from_reference_convention
+            )
+            if from_reference_convention != LPS_PATIENT_REFERENCE_CONVENTION:
+                affine = convert_affine_to_convention(
+                    affine,
+                    from_reference_convention=from_reference_convention,
+                    to_reference_convention=LPS_PATIENT_REFERENCE_CONVENTION,
+                )
+
+        self._affine = affine
         self._frame_of_reference_uid = frame_of_reference_uid
 
     @property
@@ -616,12 +658,35 @@ class _VolumeBase(ABC):
         ----------
         output_convention: str | Sequence[str | highdicom.PatientOrientationValuesBiped] | None
             Description of a convention for defining patient-relative
-            frame-of-reference consisting of three directions, either L or R,
-            either A or P, and either F or H, in any order. May be passed
-            either as a tuple of
-            :class:`highdicom.PatientOrientationValuesBiped` values or the
-            single-letter codes representing them, or the same characters as a
-            single three-character string, such as ``"RAH"``.
+            frame-of-reference.
+
+        Note
+        ----
+        Reference conventions may be specified as either a sequence of three
+        :class:`highdicom.PatientOrientationValuesBiped` values, or a
+        string such as ``"FPL"`` using the same characters.
+
+        The first value gives the direction moved relative to the patient when
+        increasing the value of the first coordinate in reference space, and so on
+        for the next two values. A valid convention consists of either ``R`` or
+        ``L``, either ``A`` or ``P``, and either ``H`` or ``F``, in any order.
+
+        The commonly used ``'I'`` (*inferior*) and ``'S'`` (*superior*) are
+        acceptable aliases for ``'F'`` (*foot*) and ``'H'`` (*head*) respectively.
+
+        Thus, the following are all equivalent ways of expressing the "LPS"
+        convention used in DICOM:
+
+        * ``'LPH'``
+        * ``'LPS'``
+        * ``('L', 'P', 'H')``
+        * ``('L', 'P', 'S')``
+        * ``(highdicom.PatientOrientationValuesBiped.L, highdicom.PatientOrientationValuesBiped.P, highdicom.PatientOrientationValuesBiped.H)``
+
+        Furthermore, two special constants are defined for the most commonly used conventions:
+
+        * ``highdicom.spatial.LPS_PATIENT_REFERENCE_CONVENTION`` (used in DICOM, ITK, and elsewhere)
+        * ``highdicom.spatial.RAS_PATIENT_REFERENCE_CONVENTION`` (used in NIfTI and elsewhere)
 
         Returns
         -------
@@ -631,15 +696,13 @@ class _VolumeBase(ABC):
 
         """  # noqa: E501
         affine = self.affine
-        if output_convention is not None:
-            affine = _transform_affine_to_convention(
+        if (
+            output_convention is not None and
+            output_convention != LPS_PATIENT_REFERENCE_CONVENTION
+        ):
+            affine = convert_affine_to_convention(
                 affine,
-                self.spatial_shape,
-                from_reference_convention=(
-                    PatientOrientationValuesBiped.L,
-                    PatientOrientationValuesBiped.P,
-                    PatientOrientationValuesBiped.H,
-                ),
+                from_reference_convention=LPS_PATIENT_REFERENCE_CONVENTION,
                 to_reference_convention=output_convention,
             )
         return affine
@@ -1131,6 +1194,47 @@ class _VolumeBase(ABC):
             )
         return get_closest_patient_orientation(self._affine)
 
+    def _to_orientation(
+        self,
+        orientation: Sequence[PatientOrientationValuesBiped]
+    ) -> Self:
+        """Permute/flip axes to best match an orientation.
+
+        Parameters
+        ----------
+        orientation: Sequence[highdicom.PatientOrientationValuesBiped]
+            Desired patient orientation, as either a sequence of three
+            :class:`highdicom.PatientOrientationValuesBiped` values, or a
+            string such as ``"FPL"`` using the same characters. The commonly
+            used ``'I'`` (*inferior*) and ``'S'`` (*superior*) are acceptable
+            aliases for ``'F'`` and ``'H'`` respectively.
+
+        Returns
+        -------
+        Self:
+            New volume with the requested orientation.
+
+        """
+        current_orientation = self.get_closest_patient_orientation()
+
+        permute_indices = []
+        flip_axes = []
+        for d in orientation:
+            if d in current_orientation:
+                from_index = current_orientation.index(d)
+            else:
+                d_inv = PATIENT_ORIENTATION_OPPOSITES[d]
+                from_index = current_orientation.index(d_inv)
+                flip_axes.append(from_index)
+            permute_indices.append(from_index)
+
+        if len(flip_axes) > 0:
+            result = self.flip_spatial(flip_axes)
+        else:
+            result = self
+
+        return result.permute_spatial_axes(permute_indices)
+
     def to_patient_orientation(
         self,
         patient_orientation: (
@@ -1153,8 +1257,10 @@ class _VolumeBase(ABC):
         ----------
         patient_orientation: Union[str, Sequence[Union[str, highdicom.PatientOrientationValuesBiped]]]
             Desired patient orientation, as either a sequence of three
-            highdicom.PatientOrientationValuesBiped values, or a string
-            such as ``"FPL"`` using the same characters.
+            :class:`highdicom.PatientOrientationValuesBiped` values, or a
+            string such as ``"FPL"`` using the same characters. The commonly
+            used ``'I'`` (*inferior*) and ``'S'`` (*superior*) are acceptable
+            aliases for ``'F'`` and ``'H'`` respectively.
 
         Returns
         -------
@@ -1170,25 +1276,42 @@ class _VolumeBase(ABC):
             patient_orientation
         )
 
-        current_orientation = self.get_closest_patient_orientation()
+        return self._to_orientation(desired_orientation)
 
-        permute_indices = []
-        flip_axes = []
-        for d in desired_orientation:
-            if d in current_orientation:
-                from_index = current_orientation.index(d)
-            else:
-                d_inv = PATIENT_ORIENTATION_OPPOSITES[d]
-                from_index = current_orientation.index(d_inv)
-                flip_axes.append(from_index)
-            permute_indices.append(from_index)
+    def match_orientation(
+        self,
+        other: Union['Volume', 'VolumeGeometry'],
+    ) -> Self:
+        """Re-arrange the array to the orientation of a second volume.
 
-        if len(flip_axes) > 0:
-            result = self.flip_spatial(flip_axes)
-        else:
-            result = self
+        The resulting volume is formed from this volume through a combination
+        of axis permutations and flips of the spatial axes. Its orientation
+        will be as close to the desired orientation as can be achieved with
+        these operations alone (and in particular without resampling the
+        array).
 
-        return result.permute_spatial_axes(permute_indices)
+        Parameters
+        ----------
+        other: Union[highdicom.Volume, highdicom.VolumeGeometry]
+            Volume or volume geometry whose orientation should be matched.
+
+        Returns
+        -------
+        Self:
+            New volume formed by matching the orientation of this volume to
+            that of ``other``.
+
+        """
+        if not isinstance(other, (Volume, VolumeGeometry)):
+            raise TypeError(
+                "Argument 'other' must be of type 'highdicom.Volume' or "
+                "'highdicom.VolumeGeometry'"
+            )
+
+        # NB even though the "patient" orientation is not meaningful in the
+        # slide coordinate system, it still correctlly defines the required
+        # transformation
+        return self._to_orientation(other.get_closest_patient_orientation())
 
     def swap_spatial_axes(self, axis_1: int, axis_2: int) -> Self:
         """Swap two spatial axes of the array.
@@ -1836,6 +1959,11 @@ class VolumeGeometry(_VolumeBase):
         spatial_shape: Sequence[int],
         coordinate_system: CoordinateSystemNames | str,
         frame_of_reference_uid: str | None = None,
+        from_reference_convention: (
+            str |
+            Sequence[str | PatientOrientationValuesBiped] |
+            None
+        ) = None,
     ):
         """
 
@@ -1853,15 +1981,32 @@ class VolumeGeometry(_VolumeBase):
             dimensions.
         coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
-            is defined).
+            is defined.
         frame_of_reference_uid: Optional[str], optional
             Frame of reference UID for the frame of reference, if known.
+        from_reference_convention: str | Sequence[str | highdicom.PatientOrientationValuesBiped] | None, optional
+            Patient reference convention in which the provided affine matrix is
+            defined, if not the ``'LPS'`` convention used in DICOM. The affine
+            matrix will always be converted to DICOM's ``'LPS'`` convention
+            before being used. Either a sequence of three
+            :class:`highdicom.PatientOrientationValuesBiped` values, or a
+            string such as ``"FPL"`` using the same characters. The commonly
+            used ``'I'`` (*inferior*) and ``'S'`` (*superior*) are acceptable
+            aliases for ``'F'`` and ``'H'`` respectively.
 
-        """
+            A common use case is to pass an affine matrix loaded from a NIfTI
+            file, in which case pass
+            ``'RAS'``/``'RAH'``/``highdicom.spatial.RAS_PATIENT_REFERENCE_CONVENTION``
+            (all are equivalent).
+
+            May not be specified if ``coordinate_system`` is ``'SLIDE'``.
+
+        """  # noqa: E501
         super().__init__(
             affine,
             coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
+            from_reference_convention=from_reference_convention,
         )
 
         if len(spatial_shape) != 3:
@@ -1923,7 +2068,7 @@ class VolumeGeometry(_VolumeBase):
             Number of frames in the volume.
         coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
-            is defined).
+            is defined.
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID, if known. Corresponds to DICOM attribute
             FrameOfReferenceUID.
@@ -1967,6 +2112,11 @@ class VolumeGeometry(_VolumeBase):
             None
         ) = None,
         frame_of_reference_uid: str | None = None,
+        from_reference_convention: (
+            str |
+            Sequence[str | PatientOrientationValuesBiped] |
+            None
+        ) = None,
     ) -> Self:
         """Construct a VolumeGeometry from components of the affine matrix.
 
@@ -1981,8 +2131,8 @@ class VolumeGeometry(_VolumeBase):
             spatial dimensions, or a single float value to be shared by all
             spatial dimensions.
         coordinate_system: highdicom.CoordinateSystemNames | str
-            Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
-            is defined).
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
         position: Sequence[float]
             Sequence of three floats giving the position in the frame of
             reference coordinate system of the center of the voxel at location
@@ -2007,21 +2157,17 @@ class VolumeGeometry(_VolumeBase):
             ``direction``.
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID for the frame of reference, if known.
-        channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
-            Specification of channels of the array. Channels are additional
-            dimensions of the array beyond the three spatial dimensions. For
-            each such additional dimension (if any), an item in this dictionary
-            is required to specify the meaning. The dictionary key specifies
-            the meaning of the dimension, which must be either an instance of
-            highdicom.ChannelDescriptor, specifying a DICOM tag whose attribute
-            describes the channel, a a DICOM keyword describing a DICOM
-            attribute, or an integer representing the tag of a DICOM attribute.
-            The corresponding item of the dictionary is a sequence giving the
-            value of the relevant attribute at each index in the array. The
-            insertion order of the dictionary is significant as it is used to
-            match items to the corresponding dimensions of the array (the first
-            item in the dictionary corresponds to axis 3 of the array and so
-            on).
+        from_reference_convention: str | Sequence[str | highdicom.PatientOrientationValuesBiped] | None, optional
+            Patient reference convention in which the provided affine matrix
+            components are defined, if not the ``'LPS'`` convention used in
+            DICOM. The affine matrix will always be converted to DICOM's
+            ``'LPS'`` convention before being used. Either a sequence of three
+            :class:`highdicom.PatientOrientationValuesBiped` values, or a
+            string such as ``"FPL"`` using the same characters. The commonly
+            used ``'I'`` (*inferior*) and ``'S'`` (*superior*) are acceptable
+            aliases for ``'F'`` and ``'H'`` respectively.
+
+            May not be specified if ``coordinate_system`` is ``'SLIDE'``.
 
         Returns
         -------
@@ -2052,6 +2198,7 @@ class VolumeGeometry(_VolumeBase):
             affine=affine,
             coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
+            from_reference_convention=from_reference_convention,
         )
 
     def copy(self) -> Self:
@@ -2285,6 +2432,11 @@ class Volume(_VolumeBase):
             BaseTag | int | str | ChannelDescriptor,
             Sequence[int | str | float | Enum]
         ] | None = None,
+        from_reference_convention: (
+            str |
+            Sequence[str | PatientOrientationValuesBiped] |
+            None
+        ) = None,
     ):
         """
 
@@ -2302,8 +2454,8 @@ class Volume(_VolumeBase):
             scaling. The top right 3 x 1 vector represents the translation
             component. The last row should have value [0, 0, 0, 1].
         coordinate_system: highdicom.CoordinateSystemNames | str
-            Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
-            is defined).
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
         frame_of_reference_uid: Optional[str], optional
             Frame of reference UID for the frame of reference, if known.
         channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
@@ -2321,12 +2473,29 @@ class Volume(_VolumeBase):
             match items to the corresponding dimensions of the array (the first
             item in the dictionary corresponds to axis 3 of the array and so
             on).
+        from_reference_convention: str | Sequence[str | highdicom.PatientOrientationValuesBiped] | None, optional
+            Patient reference convention in which the provided affine matrix is
+            defined, if not the ``'LPS'`` convention used in DICOM. The affine
+            matrix will always be converted to DICOM's ``'LPS'`` convention
+            before being used. Either a sequence of three
+            :class:`highdicom.PatientOrientationValuesBiped` values, or a
+            string such as ``"FPL"`` using the same characters. The commonly
+            used ``'I'`` (*inferior*) and ``'S'`` (*superior*) are acceptable
+            aliases for ``'F'`` and ``'H'`` respectively.
+
+            A common use case is to pass an affine matrix loaded from a NIfTI
+            file, in which case pass
+            ``'RAS'``/``'RAH'``/``highdicom.spatial.RAS_PATIENT_REFERENCE_CONVENTION``
+            (all are equivalent).
+
+            May not be specified if ``coordinate_system`` is ``'SLIDE'``.
 
         """  # noqa: E501
         super().__init__(
             affine=affine,
             coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
+            from_reference_convention=from_reference_convention,
         )
         if array.ndim < 3:
             raise ValueError(
@@ -2437,8 +2606,8 @@ class Volume(_VolumeBase):
             in many images and may need to be inferred from
             "ImagePositionPatient" attributes of consecutive slices).
         coordinate_system: highdicom.CoordinateSystemNames | str
-            Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
-            is defined).
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
         frame_of_reference_uid: Union[str, None], optional
             Frame of reference UID, if known. Corresponds to DICOM attribute
             FrameOfReferenceUID.
@@ -2500,6 +2669,11 @@ class Volume(_VolumeBase):
             BaseTag | int | str | ChannelDescriptor,
             Sequence[int | str | float | Enum]
         ] | None = None,
+        from_reference_convention: (
+            str |
+            Sequence[str | PatientOrientationValuesBiped] |
+            None
+        ) = None,
     ) -> Self:
         """Construct a Volume from components of the affine matrix.
 
@@ -2514,8 +2688,8 @@ class Volume(_VolumeBase):
             spatial dimensions, or a single float value to be shared by all
             spatial dimensions.
         coordinate_system: highdicom.CoordinateSystemNames | str
-            Coordinate system (``"PATIENT"`` or ``"SLIDE"`` in which the volume
-            is defined).
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
         position: Sequence[float]
             Sequence of three floats giving the position in the frame of
             reference coordinate system of the center of the voxel at location
@@ -2554,6 +2728,17 @@ class Volume(_VolumeBase):
             match items to the corresponding dimensions of the array (the first
             item in the dictionary corresponds to axis 3 of the array and so
             on).
+        from_reference_convention: str | Sequence[str | highdicom.PatientOrientationValuesBiped] | None, optional
+            Patient reference convention in which the provided affine matrix
+            components are defined, if not the ``'LPS'`` convention used in
+            DICOM. The affine matrix will always be converted to DICOM's
+            ``'LPS'`` convention before being used. Either a sequence of three
+            :class:`highdicom.PatientOrientationValuesBiped` values, or a
+            string such as ``"FPL"`` using the same characters. The commonly
+            used ``'I'`` (*inferior*) and ``'S'`` (*superior*) are acceptable
+            aliases for ``'F'`` and ``'H'`` respectively.
+
+            May not be specified if ``coordinate_system`` is ``'SLIDE'``.
 
         Returns
         -------
@@ -2585,6 +2770,7 @@ class Volume(_VolumeBase):
             coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
             channels=channels,
+            from_reference_convention=from_reference_convention,
         )
 
     def get_geometry(self) -> VolumeGeometry:

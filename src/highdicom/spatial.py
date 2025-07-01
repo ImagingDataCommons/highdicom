@@ -46,6 +46,22 @@ VOLUME_INDEX_CONVENTION = (
 """Indexing convention used within volumes."""
 
 
+LPS_PATIENT_REFERENCE_CONVENTION = (
+    PatientOrientationValuesBiped.L,
+    PatientOrientationValuesBiped.P,
+    PatientOrientationValuesBiped.H,
+)
+"""'LPS' patient coordinate definition used within DICOM."""
+
+
+RAS_PATIENT_REFERENCE_CONVENTION = (
+    PatientOrientationValuesBiped.R,
+    PatientOrientationValuesBiped.A,
+    PatientOrientationValuesBiped.H,
+)
+"""'RAS' patient coordinate definition used within NIfTI and elsewhere."""
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -826,7 +842,8 @@ def _normalize_patient_orientation(
     ----------
     c: Union[str, Sequence[Union[str, highdicom.enum.PatientOrientationValuesBiped]]]
         Patient orientation consisting of three directions, either L or R,
-        either A or P, and either F or H, in any order.
+        either A or P, and either F or H, in any order. I and S are accepted as
+        aliases for F and H respectively.
 
     Returns
     -------
@@ -838,7 +855,19 @@ def _normalize_patient_orientation(
     if len(c) != 3:
         raise ValueError('Length of pixel index convention must be 3.')
 
-    c = tuple(PatientOrientationValuesBiped(d) for d in c)
+    def _standardize(d):
+        if isinstance(d, PatientOrientationValuesBiped):
+            return d
+
+        if d == 'S':
+            return PatientOrientationValuesBiped.H
+
+        if d == 'I':
+            return PatientOrientationValuesBiped.F
+
+        return PatientOrientationValuesBiped(d)
+
+    c = tuple(_standardize(d) for d in c)
 
     c_set = {d.value for d in c}
 
@@ -1579,20 +1608,21 @@ def create_affine_matrix_from_components(
 
 def _transform_affine_matrix(
     affine: np.ndarray,
-    shape: Sequence[int],
+    shape: Sequence[int] | None = None,
     flip_indices: Sequence[bool] | None = None,
     flip_reference: Sequence[bool] | None = None,
     permute_indices: Sequence[int] | None = None,
     permute_reference: Sequence[int] | None = None,
 ) -> np.ndarray:
-    """Transform an affine matrix between conventions.
+    """Update an affine matrix to represent various operations.
 
     Parameters
     ----------
     affine: np.ndarray
         4 x 4 affine matrix to transform.
-    shape: Sequence[int]
-        Shape of the array.
+    shape: Sequence[int] | None, optional
+        Shape of the array. This is required if and only if ``flip_indices`` is
+        not ``None``. Otherwise it is ignored.
     flip_indices: Optional[Sequence[bool]], optional
         Whether to flip each of the pixel index axes to index from the other
         side of the array. Must consist of three boolean values, one for each
@@ -1616,12 +1646,18 @@ def _transform_affine_matrix(
     """
     if affine.shape != (4, 4):
         raise ValueError("Affine matrix must have shape (4, 4).")
-    if len(shape) != 3:
-        raise ValueError("Shape must have shape three elements.")
 
     transformed = affine.copy()
 
     if flip_indices is not None and any(flip_indices):
+        if shape is None:
+            raise TypeError(
+                "Argument 'shape' must be provided if 'flip_indices' "
+                "is provided and contains any True values."
+            )
+        if len(shape) != 3:
+            raise ValueError('Shape must have shape three elements.')
+
         # Move the origin to the opposite side of the array
         enable = np.array(flip_indices, np.uint8)
         offset = transformed[:3, :3] * (np.array(shape).reshape(3, 1) - 1)
@@ -1649,7 +1685,7 @@ def _transform_affine_matrix(
         if set(permute_indices) != {0, 1, 2}:
             raise ValueError(
                 'Argument "permute_indices" should contain elements 0, 1, '
-                "and 3 in some order."
+                'and 3 in some order.'
             )
         transformed = transformed[:, [*permute_indices, 3]]
 
@@ -1662,7 +1698,7 @@ def _transform_affine_matrix(
         if set(permute_reference) != {0, 1, 2}:
             raise ValueError(
                 'Argument "permute_reference" should contain elements 0, 1, '
-                "and 3 in some order."
+                'and 3 in some order.'
             )
         transformed = transformed[[*permute_reference, 3], :]
 
@@ -1702,24 +1738,28 @@ def _translate_affine_matrix(
     return result
 
 
-def _transform_affine_to_convention(
+def convert_affine_to_convention(
     affine: np.ndarray,
-    shape: Sequence[int],
     from_reference_convention: (
         str | Sequence[str | PatientOrientationValuesBiped]
     ),
     to_reference_convention: (
         str | Sequence[str | PatientOrientationValuesBiped]
-    )
+    ),
 ) -> np.ndarray:
-    """Transform an affine matrix between different conventions.
+    """Represent an affine matrix in a different patient coordinate convention.
+
+    The resulting affine represents the same volume but using a different
+    convention for the definition of the reference coordinate system.
+
+    A common use case is to convert between DICOM's ``'LPS'`` convention and
+    the ``'RAS'`` convention commonly used elsewhere (for example in NIfTI
+    files).
 
     Parameters
     ----------
     affine: np.ndarray
-        Affine matrix to transform.
-    shape: Sequence[int]
-        Shape of the array.
+        Affine matrix to convert.
     from_reference_convention: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]]],
         Reference convention used in the input affine.
     to_reference_convention: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]]],
@@ -1728,7 +1768,66 @@ def _transform_affine_to_convention(
     Returns
     -------
     np.ndarray:
-        Affine matrix after operations are applied.
+        Affine matrix in the requested convention.
+
+    Note
+    ----
+    Reference conventions may be specified as either a sequence of three
+    :class:`highdicom.PatientOrientationValuesBiped` values, or a
+    string such as ``"FPL"`` using the same characters.
+
+    The first value gives the direction moved relative to the patient when
+    increasing the value of the first coordinate in reference space, and so on
+    for the next two values. A valid convention consists of either ``R`` or
+    ``L``, either ``A`` or ``P``, and either ``H`` or ``F``, in any order.
+
+    The commonly used ``'I'`` (*inferior*) and ``'S'`` (*superior*) are
+    acceptable aliases for ``'F'`` (*foot*) and ``'H'`` (*head*) respectively.
+
+    Thus, the following are all equivalent ways of expressing the "LPS"
+    convention used in DICOM:
+
+    * ``'LPH'``
+    * ``'LPS'``
+    * ``('L', 'P', 'H')``
+    * ``('L', 'P', 'S')``
+    * ``(highdicom.PatientOrientationValuesBiped.L, highdicom.PatientOrientationValuesBiped.P, highdicom.PatientOrientationValuesBiped.H)``
+
+    Furthermore, two special constants are defined for the most commonly used conventions:
+
+    * ``highdicom.spatial.LPS_PATIENT_REFERENCE_CONVENTION`` (used in DICOM, ITK, and elsewhere)
+    * ``highdicom.spatial.RAS_PATIENT_REFERENCE_CONVENTION`` (used in NIfTI and elsewhere)
+
+    Examples
+    --------
+
+    Convert an affine matrix from a NIfTI file (in NIfTI's ``'RAS'``
+    convention) into DICOM's LPS convention (requires ``nibabel`` package,
+    which must be installed separately):
+
+    >>> import nibabel
+    >>> import highdicom as hd
+    >>> 
+    >>> # Load affine (RAS convention) from NIfTI file
+    >>> nifti_path = '/path/to/nifti.nii'
+    >>> affine_ras = nibabel.load(nifti_path).affine
+    >>> print(affine_ras)
+    [[  0.           0.          -0.765625   193.6171875 ]
+     [  0.          -0.765625     0.         348.70721436]
+     [ -1.           0.           0.           8.5       ]
+     [  0.           0.           0.           1.        ]]
+    >>> 
+    >>> # Convert to DICOM LPS convention
+    >>> affine_lps = hd.spatial.convert_affine_to_convention(
+    ...     affine_ras,
+    ...     from_reference_convention="LPS",
+    ...     to_reference_convention="RAS",
+    ... )
+    >>> print(affine_lps)
+    [[   0.            0.            0.765625   -193.6171875 ]
+     [   0.            0.765625      0.         -348.70721436]
+     [  -1.            0.            0.            8.5       ]
+     [   0.            0.            0.            1.        ]]
 
     """  # noqa: E501
     from_reference_normed = _normalize_patient_orientation(
@@ -1751,7 +1850,6 @@ def _transform_affine_to_convention(
 
     return _transform_affine_matrix(
         affine=affine,
-        shape=shape,
         permute_indices=None,
         permute_reference=permute_reference,
         flip_indices=None,
