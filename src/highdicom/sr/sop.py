@@ -164,22 +164,6 @@ class _SR(SOPClass):
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
 
-        try:
-            acquisition_equipment = (
-                ContributingEquipment.for_image_acquisition(evidence[0])
-            )
-        except Exception:
-            pass
-        else:
-            if contributing_equipment is None:
-                contributing_equipment = []
-            else:
-                contributing_equipment = list(contributing_equipment)
-            contributing_equipment = [
-                acquisition_equipment,
-                *list(contributing_equipment),
-            ]
-
         super().__init__(
             study_instance_uid=evidence[0].StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -201,7 +185,6 @@ class _SR(SOPClass):
             referring_physician_name=getattr(
                 evidence[0], 'ReferringPhysicianName', None
             ),
-            contributing_equipment=contributing_equipment,
             **kwargs
         )
 
@@ -283,6 +266,7 @@ class _SR(SOPClass):
         self.ReferencedPerformedProcedureStepSequence: list[Dataset] = []
 
         self.copy_patient_and_study_information(evidence[0])
+        self._add_contributing_equipment(contributing_equipment, evidence[0])
 
     def _collect_predecessors(
         self,

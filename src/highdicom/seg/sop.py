@@ -541,22 +541,6 @@ class Segmentation(_Image):
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
 
-        try:
-            acquisition_equipment = (
-                ContributingEquipment.for_image_acquisition(src_img)
-            )
-        except Exception:
-            pass
-        else:
-            if contributing_equipment is None:
-                contributing_equipment = []
-            else:
-                contributing_equipment = list(contributing_equipment)
-            contributing_equipment = [
-                acquisition_equipment,
-                *list(contributing_equipment),
-            ]
-
         segmentation_type = SegmentationTypeValues(segmentation_type)
         sop_class_uid = (
             '1.2.840.10008.5.1.4.1.1.66.7'
@@ -587,7 +571,6 @@ class Segmentation(_Image):
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,
             software_versions=software_versions,
-            contributing_equipment=contributing_equipment,
             **kwargs
         )
 
@@ -1727,6 +1710,7 @@ class Segmentation(_Image):
 
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
+        self._add_contributing_equipment(contributing_equipment, src_img)
 
         # Build lookup tables for efficient decoding
         self._build_luts()

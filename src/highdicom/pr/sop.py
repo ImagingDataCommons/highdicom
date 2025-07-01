@@ -210,11 +210,11 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             device_serial_number=device_serial_number,
             institution_name=institution_name,
             institutional_department_name=institutional_department_name,
-            contributing_equipment=contributing_equipment,
             **kwargs
         )
         self.copy_patient_and_study_information(ref_im)
         self.copy_specimen_information(ref_im)
+        self._add_contributing_equipment(contributing_equipment)
 
         # Presentation State Identification
         _add_presentation_state_identification_attributes(
@@ -371,6 +371,9 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
         ) = None,
         icc_profile: bytes | None = None,
         transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs
     ):
         """
@@ -440,6 +443,9 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
             <part03/sect_C.11.15.html>`.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -487,6 +493,7 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
         )
         self.copy_patient_and_study_information(ref_im)
         self.copy_specimen_information(ref_im)
+        self._add_contributing_equipment(contributing_equipment)
 
         # Presentation State Identification
         _add_presentation_state_identification_attributes(
@@ -647,6 +654,9 @@ class ColorSoftcopyPresentationState(SOPClass):
         ) = None,
         icc_profile: bytes | None = None,
         transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs
     ):
         """
@@ -706,6 +716,9 @@ class ColorSoftcopyPresentationState(SOPClass):
             <part03/sect_C.11.15.html>`.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -753,6 +766,7 @@ class ColorSoftcopyPresentationState(SOPClass):
         )
         self.copy_patient_and_study_information(ref_im)
         self.copy_specimen_information(ref_im)
+        self._add_contributing_equipment(contributing_equipment)
 
         # Presentation State Identification
         _add_presentation_state_identification_attributes(
@@ -837,6 +851,9 @@ class AdvancedBlendingPresentationState(SOPClass):
         ) = None,
         icc_profile: bytes | None = None,
         transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs
     ):
         """
@@ -904,6 +921,9 @@ class AdvancedBlendingPresentationState(SOPClass):
             :dcm:`C.11.15 <part03/sect_C.11.15.html>`.
         transfer_syntax_uid: Union[str, highdicom.UID], optional
             Transfer syntax UID of the presentation state.
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -952,6 +972,7 @@ class AdvancedBlendingPresentationState(SOPClass):
         )
         self.copy_patient_and_study_information(ref_im)
         self.copy_specimen_information(ref_im)
+        self._add_contributing_equipment(contributing_equipment)
 
         # Advanced Blending Presentation State
         blending_input_numbers = np.zeros(

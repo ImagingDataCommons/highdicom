@@ -60,7 +60,6 @@ class SOPClass(Dataset):
         device_serial_number: str | None = None,
         institution_name: str | None = None,
         institutional_department_name: str | None = None,
-        contributing_equipment: Sequence[ContributingEquipment] | None = None,
     ):
         """
         Parameters
@@ -217,35 +216,6 @@ class SOPClass(Dataset):
                 _check_long_string(institutional_department_name)
                 self.InstitutionalDepartmentName = institutional_department_name
 
-        # ContributingEquipment (SOP Common)
-        if contributing_equipment is None:
-            contributing_equipment = []
-        else:
-            contributing_equipment = list(contributing_equipment)
-
-        for item in contributing_equipment:
-            if not isinstance(item, ContributingEquipment):
-                raise TypeError(
-                    "Items of argument 'contributing_equipment' must be of "
-                    'type highdicom.ContributingEquipment.'
-                )
-
-        equipment_code = None
-        if sop_class_uid in (
-            '1.2.840.10008.5.1.4.1.1.4.4',    # LegacyConvertedEnhancedMRImage
-            '1.2.840.10008.5.1.4.1.1.2.2',    # LegacyConvertedEnhancedCTImage
-            '1.2.840.10008.5.1.4.1.1.128.1',  # LegacyConvertedEnhancedPETImage
-        ):
-            equipment_code = codes.DCM.EnhancedMultiFrameConversionEquipment
-
-        contributing_equipment.append(
-            ContributingEquipment.for_highdicom(
-                purpose_of_reference=equipment_code
-            )
-        )
-
-        self.ContributingEquipmentSequence = contributing_equipment
-
         # Instance
         self.SOPInstanceUID = str(sop_instance_uid)
         self.SOPClassUID = str(sop_class_uid)
@@ -379,6 +349,65 @@ class SOPClass(Dataset):
 
         """
         self._copy_root_attributes_of_module(dataset, 'Image', 'Specimen')
+
+    def _add_contributing_equipment(
+        self,
+        contributing_equipment: Sequence[ContributingEquipment] | None = None,
+        source_image: Dataset | None = None,
+    ):
+        """Add Contributing Equipment to this object.
+
+        Parameters
+        ----------
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
+        source_image: pydicom.Dataset | None, optional
+            A source image whose acquisition equipment should be included as
+            contributing equipment for this object.
+
+        """  # noqa: E501
+        # ContributingEquipment (SOP Common)
+        if contributing_equipment is None:
+            contributing_equipment = []
+        else:
+            contributing_equipment = list(contributing_equipment)
+
+        for item in contributing_equipment:
+            if not isinstance(item, ContributingEquipment):
+                raise TypeError(
+                    "Items of argument 'contributing_equipment' must be of "
+                    'type highdicom.ContributingEquipment.'
+                )
+
+        if source_image is not None:
+            try:
+                acquisition_equipment = (
+                    ContributingEquipment.for_image_acquisition(source_image)
+                )
+            except Exception:
+                pass
+            else:
+                contributing_equipment = [
+                    acquisition_equipment,
+                    *list(contributing_equipment),
+                ]
+
+        equipment_code = None
+        if self.SOPClassUID in (
+            '1.2.840.10008.5.1.4.1.1.4.4',    # LegacyConvertedEnhancedMRImage
+            '1.2.840.10008.5.1.4.1.1.2.2',    # LegacyConvertedEnhancedCTImage
+            '1.2.840.10008.5.1.4.1.1.128.1',  # LegacyConvertedEnhancedPETImage
+        ):
+            equipment_code = codes.DCM.EnhancedMultiFrameConversionEquipment
+
+        contributing_equipment.append(
+            ContributingEquipment.for_highdicom(
+                purpose_of_reference=equipment_code
+            )
+        )
+
+        self.ContributingEquipmentSequence = contributing_equipment
 
 
 def _check_little_endian(dataset: Dataset) -> None:

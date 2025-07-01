@@ -331,22 +331,6 @@ class ParametricMap(SOPClass):
         if pixel_array.ndim == 2:
             pixel_array = pixel_array[np.newaxis, ...]
 
-        try:
-            acquisition_equipment = (
-                ContributingEquipment.for_image_acquisition(src_img)
-            )
-        except Exception:
-            pass
-        else:
-            if contributing_equipment is None:
-                contributing_equipment = []
-            else:
-                contributing_equipment = list(contributing_equipment)
-            contributing_equipment = [
-                acquisition_equipment,
-                *list(contributing_equipment),
-            ]
-
         # There are different DICOM Attributes in the SOP instance depending
         # on what type of data is being saved. This lets us keep track of that
         # a bit easier
@@ -380,7 +364,6 @@ class ParametricMap(SOPClass):
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,
             software_versions=software_versions,
-            contributing_equipment=contributing_equipment,
             **kwargs,
         )
 
@@ -754,6 +737,7 @@ class ParametricMap(SOPClass):
 
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
+        self._add_contributing_equipment(contributing_equipment, src_img)
 
         dimension_position_values = [
             np.unique(plane_position_values[:, index], axis=0)

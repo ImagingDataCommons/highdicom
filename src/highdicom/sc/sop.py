@@ -240,9 +240,9 @@ class SCImage(SOPClass):
             study_date=study_date,
             study_time=study_time,
             referring_physician_name=referring_physician_name,
-            contributing_equipment=contributing_equipment,
             **kwargs
         )
+        self._add_contributing_equipment(contributing_equipment)
 
         coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.PATIENT:

@@ -125,9 +125,9 @@ class KeyObjectSelectionDocument(SOPClass):
             referring_physician_name=getattr(
                 evidence[0], 'ReferringPhysicianName', None
             ),
-            contributing_equipment=contributing_equipment,
             **kwargs
         )
+        self._add_contributing_equipment(contributing_equipment)
 
         if institution_name is not None:
             self.InstitutionName = institution_name

@@ -147,22 +147,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
 
-        try:
-            acquisition_equipment = (
-                ContributingEquipment.for_image_acquisition(src_img)
-            )
-        except Exception:
-            pass
-        else:
-            if contributing_equipment is None:
-                contributing_equipment = []
-            else:
-                contributing_equipment = list(contributing_equipment)
-            contributing_equipment = [
-                acquisition_equipment,
-                *list(contributing_equipment),
-            ]
-
         super().__init__(
             study_instance_uid=src_img.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -187,11 +171,11 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,
             software_versions=software_versions,
-            contributing_equipment=contributing_equipment,
             **kwargs
         )
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
+        self._add_contributing_equipment(contributing_equipment, src_img)
 
         # Microscopy Bulk Simple Annotations
         if content_label is not None:
