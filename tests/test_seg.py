@@ -1683,7 +1683,8 @@ class TestSegmentation:
             self._manufacturer_model_name,
             self._software_versions,
             self._device_serial_number,
-            content_label=self._content_label
+            content_label=self._content_label,
+            transfer_syntax_uid=RLELossless,
         )
         assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
         assert (
@@ -1707,6 +1708,8 @@ class TestSegmentation:
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
         assert instance.PixelPaddingValue == 0
         self.check_dimension_index_vals(instance)
+        assert not hasattr(instance, 'ExtendedOffsetTable')
+        assert not hasattr(instance, 'ExtendedOffsetTableLengths')
 
     def test_construction_9(self):
         # A label with a palette color LUT
@@ -1754,6 +1757,8 @@ class TestSegmentation:
             self._device_serial_number,
             palette_color_lut_transformation=self._lut_transformation,
             icc_profile=self._icc_profile,
+            transfer_syntax_uid=JPEGLSLossless,
+            use_extended_offset_table=True,
         )
         assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
         assert instance.PhotometricInterpretation == 'PALETTE COLOR'
@@ -1766,6 +1771,8 @@ class TestSegmentation:
         assert hasattr(instance, 'BluePaletteColorLookupTableData')
         assert instance.PixelPaddingValue == 0
         self.check_dimension_index_vals(instance)
+        assert hasattr(instance, 'ExtendedOffsetTable')
+        assert hasattr(instance, 'ExtendedOffsetTableLengths')
 
     def test_construction_no_coordinate_system(self):
         # This image does have a frame of reference, but no spatial information

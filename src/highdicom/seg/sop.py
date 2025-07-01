@@ -17,7 +17,7 @@ import numpy as np
 from pydicom.dataelem import DataElement
 from pydicom.dataset import Dataset
 from pydicom.datadict import keyword_for_tag, tag_for_keyword
-from pydicom.encaps import encapsulate
+from pydicom.encaps import encapsulate, encapsulate_extended
 from pydicom.pixels.utils import pack_bits
 from pydicom.tag import BaseTag, Tag
 from pydicom.uid import (
@@ -208,6 +208,7 @@ class Segmentation(_Image):
             PaletteColorLUTTransformation
         ) = None,
         icc_profile: bytes | None = None,
+        use_extended_offset_table: bool = False,
         **kwargs: Any
     ) -> None:
         """
@@ -449,6 +450,14 @@ class Segmentation(_Image):
         icc_profile: Union[bytes, None] = None
             An ICC profile to display the segmentation. This is only permitted
             when palette_color_lut_transformation is provided.
+        use_extended_offset_table: bool, optional
+            Include an extended offset table instead of a basic offset table
+            for encapsulated transfer syntaxes. Extended offset tables avoid
+            size limitations on basic offset tables, and separate the offset
+            table from the pixel data by placing it into metadata. However,
+            they may be less widely supported than basic offset tables. This
+            parameter is ignored if using a native (uncompressed) transfer
+            syntax. The default value may change in a future release.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -1243,7 +1252,14 @@ class Segmentation(_Image):
 
             # Encapsulate all pre-compressed frames
             self.NumberOfFrames = len(frames)
-            self.PixelData = encapsulate(frames)
+            if use_extended_offset_table:
+                (
+                    self.PixelData,
+                    self.ExtendedOffsetTable,
+                    self.ExtendedOffsetTableLengths,
+                ) = encapsulate_extended(frames)
+            else:
+                self.PixelData = encapsulate(frames)
         else:
             self.NumberOfFrames = len(frames)
 
