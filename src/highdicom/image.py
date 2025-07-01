@@ -4872,6 +4872,44 @@ class _Image(SOPClass):
             with self._db_con:
                 self._db_con.execute(cmd)
 
+    @contextmanager
+    def _generate_temp_view(
+        self,
+        view_name: str,
+        select_statement: str,
+    ) -> Generator[None, None, None]:
+        """Create a database view that is cleaned up after exiting.
+
+        Parameters
+        ----------
+        view_name: str
+            The name of the view to be created.
+        select_statement: str
+            The SQL SELECT statement that defines the view.
+
+        Yields
+        ------
+        None:
+            Yields control to the "with" block, with the temporary tables
+            created.
+
+        """
+        drop_cmd = f'DROP VIEW IF EXISTS {view_name}'
+        create_cmd = f'CREATE VIEW {view_name} AS {select_statement}'
+        with self._db_con:
+            # Drop the view if it exists, this can happen if previous error was
+            # handled
+            self._db_con.execute(drop_cmd)
+            self._db_con.execute(create_cmd)
+
+        # Return control flow to "with" block
+        yield
+
+        # Clean up the view
+        cmd = (f'DROP VIEW {view_name}')
+        with self._db_con:
+            self._db_con.execute(cmd)
+
     def _get_pixels_by_frame(
         self,
         spatial_shape: int | tuple[int, int],
@@ -5381,7 +5419,7 @@ class _Image(SOPClass):
         ):
             channel_table_name = f'TemporaryChannelTable{i}'
             channel_column_defs = (
-                ['OutputChannelIndex INTEGER UNIQUE NOT NULL'] +
+                [f'OutputChannelIndex{i} INTEGER UNIQUE NOT NULL'] +
                 [
                     f'{c} {self._get_frame_lut_col_type(t, c)} NOT NULL'
                     for t, c in channel_indices_dict.keys()
@@ -5389,7 +5427,7 @@ class _Image(SOPClass):
             )
 
             selection_lines.append(
-                f'{channel_table_name}.OutputChannelIndex'
+                f'{channel_table_name}.OutputChannelIndex{i}'
             )
 
             num_channels = len(list(channel_indices_dict.values())[0])
@@ -5636,17 +5674,6 @@ class _Image(SOPClass):
         )
 
         if stack_table_def is None:
-            # Check for uniqueness
-            if not self._do_columns_identify_unique_frames(
-                all_columns,
-                filter=filter_str,
-            ):
-                raise RuntimeError(
-                    'The chosen dimensions do not uniquely identify frames of '
-                    'the image. You may need to provide further dimensions or '
-                    'a filter to disambiguate.'
-                )
-
             # Create temporary table of desired dimension indices
             stack_table_name = 'TemporaryStackTable'
 
@@ -5699,57 +5726,72 @@ class _Image(SOPClass):
         # Construct the query. The ORDER BY is not logically necessary but
         # seems to improve performance of the downstream numpy operations,
         # presumably as it is more cache efficient
-        query_template = (
-            'SELECT {selection_str} '
+        select_stmt = (
+            f'SELECT {selection_str} '
             f'FROM FrameLUT '
             f'{frame_ref_join_line} '
             f'INNER JOIN {stack_table_def.table_name} ON {stack_join_str} '
             f'{" ".join(channel_join_lines)} '
             f'{filter_str} '
-            '{order_str}'
+            f'ORDER BY {stack_table_def.table_name}.OutputFrameIndex'
         )
 
+        view_name = "SelectionView"
+
         with self._generate_temp_tables([stack_table_def] + channel_table_defs):
+            with self._generate_temp_view(view_name, select_stmt):
 
-            if not allow_missing_combinations:
-                counting_query = query_template.format(
-                    selection_str='COUNT(*)',
-                    order_str='',
+                # Find max number of input frames per output frame/channel
+                output_columns = [
+                    'OutputFrameIndex',
+                    *(c.split('.')[1] for c in channel_selection_lines)
+                ]
+                counting_query = (
+                    f'SELECT MAX(GRP_SIZE) FROM( '
+                    f'SELECT COUNT(*) AS GRP_SIZE FROM {view_name} '
+                    f'GROUP BY {", ".join(output_columns)} )'
                 )
+                max_ip_frames = next(self._db_con.execute(counting_query))[0]
 
-                # Calculate the number of output frames
-                number_of_output_frames = len(stack_table_def.column_data)
-                for tdef in channel_table_defs:
-                    number_of_output_frames *= len(tdef.column_data)
-
-                # Use a query to find the number of input frames
-                found_number = next(self._db_con.execute(counting_query))[0]
-
-                # If these two numbers are not the same, there are missing
-                # frames
-                if found_number != number_of_output_frames:
+                # If output frames are not distinct, we have not identified a
+                # single input frame for each output frame
+                if max_ip_frames is not None and max_ip_frames > 1:
                     raise RuntimeError(
-                        'The requested set of frames includes frames that '
-                        'are missing from the image. You may need to allow '
-                        'missing combinations or add additional filters.'
+                        'The chosen dimensions do not uniquely identify frames '
+                        'of the image. You may need to provide further '
+                        'dimensions or a filter to disambiguate.'
                     )
 
-            full_query = query_template.format(
-                selection_str=selection_str,
-                order_str=(
-                    f'ORDER BY {stack_table_def.table_name}.OutputFrameIndex'
-                ),
-            )
+                if not allow_missing_combinations:
+                    # Use a query to find the number of input frames
+                    counting_query = f'SELECT COUNT(*) FROM {view_name}'
+                    total_rows = next(self._db_con.execute(counting_query))[0]
 
-            yield (
-                (
-                    fi,
-                    (slice(None), slice(None)),
-                    (fo, slice(None), slice(None)),
-                    tuple(channel),
+                    # Calculate the number of output frames
+                    number_of_output_frames = len(stack_table_def.column_data)
+                    for tdef in channel_table_defs:
+                        number_of_output_frames *= len(tdef.column_data)
+
+                    # If these two numbers are not the same, there are missing
+                    # frames
+                    if total_rows != number_of_output_frames:
+                        raise RuntimeError(
+                            'The requested set of frames includes frames that '
+                            'are missing from the image. You may need to allow '
+                            'missing combinations or add additional filters.'
+                        )
+
+                query = f'SELECT * FROM {view_name}'
+
+                yield (
+                    (
+                        fi,
+                        (slice(None), slice(None)),
+                        (fo, slice(None), slice(None)),
+                        tuple(channel),
+                    )
+                    for (fo, fi, *channel) in self._db_con.execute(query)
                 )
-                for (fo, fi, *channel) in self._db_con.execute(full_query)
-            )
 
     @staticmethod
     def _standardize_slice_indices(
@@ -6118,17 +6160,6 @@ class _Image(SOPClass):
                 'must all be distinct.'
             )
 
-        # Check for uniqueness
-        if not self._do_columns_identify_unique_frames(
-            all_columns,
-            filter=filter_str
-        ):
-            raise RuntimeError(
-                'The chosen dimensions do not uniquely identify frames of'
-                'the image. You may need to provide further dimensions or '
-                'a filter to disambiguate.'
-            )
-
         (
             row_start, row_end, column_start, column_end,
         ) = self._standardize_row_column_indices(
@@ -6176,8 +6207,8 @@ class _Image(SOPClass):
         # but seems to improve performance of the downstream numpy
         # operations, presumably as it is more cache efficient
         # Create temporary table of channel indices
-        query_template = (
-            'SELECT {selection_str} '
+        select_stmt = (
+            f'SELECT {selection_str} '
             'FROM FrameLUT '
             f'{" ".join(channel_join_lines)} '
             'WHERE ('
@@ -6189,79 +6220,98 @@ class _Image(SOPClass):
             'AND FrameLUT.ColumnPositionInTotalImagePixelMatrix < '
             f'{column_end} {filter_str.replace("WHERE", "AND")} '
             ') '
-            '{order_str}'
-        )
-
-        order_str = (
             'ORDER BY '
             '     FrameLUT.RowPositionInTotalImagePixelMatrix,'
             '     FrameLUT.ColumnPositionInTotalImagePixelMatrix'
         )
 
+        view_name = 'SelectionView'
+
         with self._generate_temp_tables(channel_table_defs):
+            with self._generate_temp_view(view_name, select_stmt):
 
-            if (
-                not allow_missing_combinations and
-                self.get('DimensionOrganizationType', '') != "TILED_FULL"
-            ):
-                counting_query = query_template.format(
-                    selection_str='COUNT(*)',
-                    order_str='',
+                # Find max number of input frames per output frame/channel
+                output_columns = [
+                    'RowPositionInTotalImagePixelMatrix',
+                    'ColumnPositionInTotalImagePixelMatrix',
+                    *(c.split('.')[1] for c in channel_selection_lines)
+                ]
+                counting_query = (
+                    f'SELECT MAX(GRP_SIZE) FROM( '
+                    f'SELECT COUNT(*) AS GRP_SIZE FROM {view_name} '
+                    f'GROUP BY {", ".join(output_columns)} )'
                 )
+                max_ip_frames = next(self._db_con.execute(counting_query))[0]
 
-                # Calculate the number of output frames
-                v_frames = ((row_end - 2) // th) - ((row_start - 1) // th) + 1
-                h_frames = (
-                    ((column_end - 2) // tw) - ((column_start - 1) // tw) + 1
-                )
-                number_of_output_frames = v_frames * h_frames
-                for tdef in channel_table_defs:
-                    number_of_output_frames *= len(tdef.column_data)
-
-                # Use a query to find the number of input frames
-                found_number = next(self._db_con.execute(counting_query))[0]
-
-                # If these two numbers are not the same, there are missing
-                # frames
-                if found_number != number_of_output_frames:
+                # If output frames are not distinct, we have not identified a
+                # single input frame for each output frame
+                if max_ip_frames is not None and max_ip_frames > 1:
                     raise RuntimeError(
-                        'The requested set of frames includes frames that '
-                        'are missing from the image. You may need to allow '
-                        'missing frames or add additional filters.'
+                        'The chosen dimensions do not uniquely identify frames '
+                        'of the image. You may need to provide further '
+                        'dimensions or a filter to disambiguate.'
                     )
 
-            full_query = query_template.format(
-                selection_str=selection_str,
-                order_str=order_str,
-            )
+                if (
+                    not allow_missing_combinations and
+                    self.get('DimensionOrganizationType', '') != "TILED_FULL"
+                ):
+                    counting_query = f'SELECT COUNT(*) FROM {view_name}'
 
-            yield (
-                (
-                    fi,
+                    # Calculate the number of output frames
+                    v_frames = (
+                        ((row_end - 2) // th) - ((row_start - 1) // th) +
+                        1
+                    )
+                    h_frames = (
+                        ((column_end - 2) // tw) - ((column_start - 1) // tw) +
+                        1
+                    )
+                    number_of_output_frames = v_frames * h_frames
+                    for tdef in channel_table_defs:
+                        number_of_output_frames *= len(tdef.column_data)
+
+                    # Use a query to find the number of input frames
+                    found_number = next(self._db_con.execute(counting_query))[0]
+
+                    # If these two numbers are not the same, there are missing
+                    # frames
+                    if found_number != number_of_output_frames:
+                        raise RuntimeError(
+                            'The requested set of frames includes frames that '
+                            'are missing from the image. You may need to allow '
+                            'missing frames or add additional filters.'
+                        )
+
+                query = f'SELECT * FROM {view_name}'
+
+                yield (
                     (
-                        slice(
-                            max(row_start - rp, 0),
-                            min(row_end - rp, th)
+                        fi,
+                        (
+                            slice(
+                                max(row_start - rp, 0),
+                                min(row_end - rp, th)
+                            ),
+                            slice(
+                                max(column_start - cp, 0),
+                                min(column_end - cp, tw)
+                            ),
                         ),
-                        slice(
-                            max(column_start - cp, 0),
-                            min(column_end - cp, tw)
+                        (
+                            slice(
+                                max(rp - row_start, 0),
+                                min(rp + th - row_start, oh)
+                            ),
+                            slice(
+                                max(cp - column_start, 0),
+                                min(cp + tw - column_start, ow)
+                            ),
                         ),
-                    ),
-                    (
-                        slice(
-                            max(rp - row_start, 0),
-                            min(rp + th - row_start, oh)
-                        ),
-                        slice(
-                            max(cp - column_start, 0),
-                            min(cp + tw - column_start, ow)
-                        ),
-                    ),
-                    tuple(channel),
-                )
-                for (rp, cp, fi, *channel) in self._db_con.execute(full_query)
-            ), output_shape
+                        tuple(channel),
+                    )
+                    for (rp, cp, fi, *channel) in self._db_con.execute(query)
+                ), output_shape
 
     @classmethod
     def from_file(
