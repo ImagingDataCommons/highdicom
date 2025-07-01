@@ -45,7 +45,7 @@ from highdicom.uid import UID
 from highdicom.valuerep import (
     _check_long_string,
     _check_long_text,
-    _check_short_text
+    _check_short_text,
 )
 from highdicom._module_utils import (
     check_required_attributes,

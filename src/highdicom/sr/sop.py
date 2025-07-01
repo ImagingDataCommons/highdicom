@@ -30,6 +30,7 @@ from pydicom.uid import (
 )
 
 from highdicom.base import SOPClass, _check_little_endian
+from highdicom.base_content import ContributingEquipment
 from highdicom.io import _wrapped_dcmread
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import ValueTypeValues
@@ -74,6 +75,9 @@ class _SR(SOPClass):
         previous_versions: Sequence[Dataset] | None = None,
         record_evidence: bool = True,
         transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs: Any
     ) -> None:
         """
@@ -135,6 +139,9 @@ class _SR(SOPClass):
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements.
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -259,6 +266,7 @@ class _SR(SOPClass):
         self.ReferencedPerformedProcedureStepSequence: list[Dataset] = []
 
         self.copy_patient_and_study_information(evidence[0])
+        self._add_contributing_equipment(contributing_equipment, evidence[0])
 
     def _collect_predecessors(
         self,
@@ -491,6 +499,9 @@ class EnhancedSR(_SR):
         previous_versions: Sequence[Dataset] | None = None,
         record_evidence: bool = True,
         transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs: Any
     ) -> None:
         """
@@ -547,6 +558,9 @@ class EnhancedSR(_SR):
             Whether provided `evidence` should be recorded (i.e. included
             in Pertinent Other Evidence Sequence) even if not referenced by
             content items in the document tree (default: ``True``)
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -577,6 +591,7 @@ class EnhancedSR(_SR):
             previous_versions=previous_versions,
             record_evidence=record_evidence,
             transfer_syntax_uid=transfer_syntax_uid,
+            contributing_equipment=contributing_equipment,
             **kwargs
         )
         unsupported_content = find_content_items(
@@ -622,6 +637,9 @@ class ComprehensiveSR(_SR):
         previous_versions: Sequence[Dataset] | None = None,
         record_evidence: bool = True,
         transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs: Any
     ) -> None:
         """
@@ -681,6 +699,9 @@ class ComprehensiveSR(_SR):
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements.
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -711,6 +732,7 @@ class ComprehensiveSR(_SR):
             previous_versions=previous_versions,
             record_evidence=record_evidence,
             transfer_syntax_uid=transfer_syntax_uid,
+            contributing_equipment=contributing_equipment,
             **kwargs
         )
         unsupported_content = find_content_items(
@@ -784,6 +806,9 @@ class Comprehensive3DSR(_SR):
         requested_procedures: Sequence[Dataset] | None = None,
         previous_versions: Sequence[Dataset] | None = None,
         record_evidence: bool = True,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         **kwargs: Any
     ) -> None:
         """
@@ -843,6 +868,9 @@ class Comprehensive3DSR(_SR):
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of
             data elements.
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -872,6 +900,7 @@ class Comprehensive3DSR(_SR):
             requested_procedures=requested_procedures,
             previous_versions=previous_versions,
             record_evidence=record_evidence,
+            contributing_equipment=contributing_equipment,
             **kwargs
         )
 
