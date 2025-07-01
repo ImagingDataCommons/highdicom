@@ -1847,7 +1847,7 @@ class _Image(SOPClass):
 
         Parameters
         ----------
-        source_plane_orientation: Sequece[float]
+        source_plane_orientation: Sequence[float]
             The orientation cosines of the source image.
         plane_position_values: np.ndarray
             Array of shape (n, 1, 3) giving for each input plane, the values of
@@ -5236,7 +5236,7 @@ class _Image(SOPClass):
             n_values = len(list(queries.values())[0])
 
         for p, value in queries.items():
-            table_name = 'FrameLUT'  # default that may be overidden
+            table_name = 'FrameLUT'  # default that may be overridden
 
             if isinstance(p, int):  # also covers BaseTag
                 tag = BaseTag(p)

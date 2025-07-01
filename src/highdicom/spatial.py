@@ -3677,7 +3677,7 @@ def get_volume_positions(
             if np.isclose(spacing, 0.0, atol=_DEFAULT_EQUALITY_TOLERANCE):
                 logger.info(
                     "Frame positions are related by in-plane translations and "
-                    "therefore do not consistute a volume."
+                    "therefore do not constitute a volume."
                 )
                 return None, None
 

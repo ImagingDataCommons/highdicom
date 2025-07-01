@@ -467,7 +467,7 @@ def decode_frame(
     decoder = get_decoder(transfer_syntax_uid)
 
     if is_encapsulated:
-        # Unfortunately the deocder requires encapsulated data
+        # Unfortunately the decoder requires encapsulated data
         value = encapsulate([value], has_bot=False)
 
     array, _ = decoder.as_array(
