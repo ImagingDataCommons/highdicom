@@ -21,7 +21,8 @@ _DEFAULT_SPACING_RELATIVE_TOLERANCE = 1e-2
 
 
 _DEFAULT_EQUALITY_TOLERANCE = 1e-5
-"""Tolerance value used by default in tests for equality"""
+"""Tolerance value used by default in tests for equality."""
+
 
 _DEFAULT_PERPENDICULAR_TOLERANCE = 1e-3
 """Default tolerance on the dot product to determine perpendicularity."""
@@ -645,17 +646,90 @@ def _get_spatial_information(
     return position, orientation, pixel_spacing, spacing_between_slices
 
 
+def _are_orientations_equal(
+    image_orientation_a: Sequence[float],
+    image_orientation_b: Sequence[float],
+    tol: float = _DEFAULT_EQUALITY_TOLERANCE,
+) -> bool:
+    """Determine whether two orientations are equal to a tolerance.
+
+    Parameters
+    ----------
+    image_orientation_a: Sequence[float]
+        Row and column cosines (6 element list) giving the orientation of the
+        first image.
+    image_orientation_b: Sequence[float]
+        Row and column cosines (6 element list) giving the orientation of the
+        second image.
+    tol: float, optional
+        Tolerance to use to determine equality in orientation.
+
+    Returns
+    -------
+    bool:
+        True if the two orientations are equal (to within ``tol``). False
+        otherwise.
+
+    """
+    # Might need something more sophisticated here
+    return np.allclose(
+        np.array(image_orientation_a),
+        np.array(image_orientation_b),
+        atol=tol,
+    )
+
+
+def _are_orientations_coplanar(
+    image_orientation_a: Sequence[float],
+    image_orientation_b: Sequence[float],
+    parallel_tol: float = _DEFAULT_PERPENDICULAR_TOLERANCE,
+) -> bool:
+    """Determine whether two orientations are coplanar.
+
+    Images with coplanar orientations are related by an in-plane rotation
+    (including flips).
+
+    Parameters
+    ----------
+    image_orientation_a: Sequence[float]
+        Row and column cosines (6 element list) giving the orientation of the
+        first image.
+    image_orientation_b: Sequence[float]
+        Row and column cosines (6 element list) giving the orientation of the
+        second image.
+    parallel_tol: float, optional
+        Tolerance used to determine whether slice normal vectors are parallel.
+        Slices are considered parallel if the dot product of their unit normal
+        vectors is within ``parallel_tol`` of 1.00 or -1.00.
+
+    Returns
+    -------
+    bool:
+        True if the two images are coplanar. False otherwise.
+
+    """
+    n_a = get_normal_vector(image_orientation_a)
+    n_b = get_normal_vector(image_orientation_b)
+
+    dot_product = n_a @ n_b
+    return (
+        abs(dot_product - 1.0) < parallel_tol or
+        abs(dot_product + 1.0) < parallel_tol
+    )
+
+
 def _are_images_coplanar(
     image_position_a: Sequence[float],
     image_orientation_a: Sequence[float],
     image_position_b: Sequence[float],
     image_orientation_b: Sequence[float],
     tol: float = _DEFAULT_EQUALITY_TOLERANCE,
+    parallel_tol: float = _DEFAULT_PERPENDICULAR_TOLERANCE,
 ) -> bool:
     """Determine whether two images or image frames are coplanar.
 
     Two images are coplanar in the frame of reference coordinate system if and
-    only if their normal vectors have the same (or opposite direction) and the
+    only if their normal vectors have the same (or opposite) direction and the
     shortest distance from the plane to the coordinate system origin is the
     same for both planes.
 
@@ -673,18 +747,27 @@ def _are_images_coplanar(
     image_orientation_b: Sequence[float]
         Row and column cosines (6 element list) giving the orientation of the
         second image.
-    tol: float
-        Tolerance to use to determine equality.
+    tol: float, optional
+        Tolerance to use to determine equality in origin distance.
+    parallel_tol: float, optional
+        Tolerance used to determine whether slice normal vectors are parallel.
+        Slices are considered parallel if the dot product of their unit normal
+        vectors is within ``parallel_tol`` of 1.00 or -1.00.
 
     Returns
     -------
-    bool
+    bool:
         True if the two images are coplanar. False otherwise.
 
     """
     n_a = get_normal_vector(image_orientation_a)
     n_b = get_normal_vector(image_orientation_b)
-    if 1.0 - np.abs(n_a @ n_b) > tol:
+
+    dot_product = n_a @ n_b
+    if not (
+        abs(dot_product - 1.0) < parallel_tol or
+        abs(dot_product + 1.0) < parallel_tol
+    ):
         return False
 
     # Find distances of both planes along n_a
