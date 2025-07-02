@@ -39,6 +39,7 @@ from highdicom._module_utils import (
 )
 from highdicom.image import _Image
 from highdicom.base import _check_little_endian
+from highdicom.base_content import ContributingEquipment
 from highdicom.color import CIELabColor
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
@@ -208,6 +209,9 @@ class Segmentation(_Image):
             PaletteColorLUTTransformation
         ) = None,
         icc_profile: bytes | None = None,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         use_extended_offset_table: bool = False,
         **kwargs: Any
     ) -> None:
@@ -450,6 +454,9 @@ class Segmentation(_Image):
         icc_profile: Union[bytes, None] = None
             An ICC profile to display the segmentation. This is only permitted
             when palette_color_lut_transformation is provided.
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         use_extended_offset_table: bool, optional
             Include an extended offset table instead of a basic offset table
             for encapsulated transfer syntaxes. Extended offset tables avoid
@@ -1275,6 +1282,7 @@ class Segmentation(_Image):
 
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
+        self._add_contributing_equipment(contributing_equipment, src_img)
 
         # Build lookup tables for efficient decoding
         self._build_luts()

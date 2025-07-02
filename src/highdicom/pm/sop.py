@@ -7,6 +7,7 @@ from enum import Enum
 import numpy as np
 from pydicom.encaps import encapsulate, encapsulate_extended
 from highdicom.base import SOPClass
+from highdicom.base_content import ContributingEquipment
 from highdicom.content import (
     ContentCreatorIdentificationCodeSequence,
     PaletteColorLUTTransformation,
@@ -97,6 +98,9 @@ class ParametricMap(SOPClass):
         palette_color_lut_transformation: None | (
             PaletteColorLUTTransformation
         ) = None,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
         use_extended_offset_table: bool = False,
         **kwargs,
     ):
@@ -232,6 +236,9 @@ class ParametricMap(SOPClass):
         palette_color_lut_transformation: Union[highdicom.PaletteColorLUTTransformation, None], optional
             Description of the Palette Color LUT Transformation for transforming
             grayscale into RGB color pixel values
+        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+            Additional equipment that has contributed to the acquisition,
+            creation or modification of this instance.
         use_extended_offset_table: bool, optional
             Include an extended offset table instead of a basic offset table
             for encapsulated transfer syntaxes. Extended offset tables avoid
@@ -730,6 +737,7 @@ class ParametricMap(SOPClass):
 
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
+        self._add_contributing_equipment(contributing_equipment, src_img)
 
         dimension_position_values = [
             np.unique(plane_position_values[:, index], axis=0)
