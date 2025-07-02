@@ -67,16 +67,26 @@ Affine Matrices
 
 The affine matrix is a 4x4 numpy array that can be used to map (zero-based)
 array indices into the position of the center of the indexed voxel in the
-frame-of-reference coordinate system. The top-left 3x3 matrix of the affine
-matrix consists of three orthogonal column vectors that give the vector
-travelled when incrementing the voxel indices in each o the three dimensions.
-The top three elements of the last column give the position of the voxel at
-index ``(0, 0, 0)``. The bottom row is always ``[0., 0., 0., 1.]``.
+frame-of-reference coordinate system.
 
-The :meth:`highdicom.Volume.from_components()` method allows you to construct a
-volume by specifying these components of the affine matrix. Furthermore, once
-constructed you can use properties and methods of the object to access these
-components individually.
+Within highdicom, the affine matrices used within volumes are always stored
+using the "LPS" convention for describing the frame of reference, since this is
+the convention used within DICOM itself. Affine matrices defined in other
+conventions need to be converted before being used to describe a volume.
+Another common convention in the "RAS" convention used within NIfTI files. If
+you have an affine matrix generated elsewhere using a different convention, you
+can specify the ``from_reference_convention`` parameter to specify the
+convention used by the source affine, and highdicom will handle the conversion
+to "LPS" convention for you.
+
+The top-left 3x3 matrix of the affine matrix consists of three orthogonal
+column vectors that give the vector travelled when incrementing the voxel
+indices in each o the three dimensions. The top three elements of the last
+column give the position of the voxel at index ``(0, 0, 0)``. The bottom row is
+always ``[0., 0., 0., 1.]``. The :meth:`highdicom.Volume.from_components()`
+method allows you to construct a volume by specifying these components of the
+affine matrix. Furthermore, once constructed you can use properties and methods
+of the object to access these components individually.
 
 This code snippet produces the same volume as in the previous that specified
 the full affine matrix.
@@ -668,3 +678,112 @@ spatial metadata in the output object is correct.
     )
 
     seg_dataset_matched.save_as('segmentation_matched.dcm')
+
+Volumes To/From NIfTI Files
+---------------------------
+
+`NIfTI`_ is a file format used to store volumetric imaging data. It arose from
+neuro-imaging but is now used in other areas of radiology and beyond. When
+converting between highdicom Volumes and NIfTI files, it is critical to
+remember to account for the difference in convention used to specify the
+frame-of-reference coordinate system: highdicom (and DICOM) uses "LPS"
+convention, NIfTI uses "RAS" convention.
+
+We plan to add tools to handle this conversion in the near future, but for now
+these snippets should correctly handle simple situations converting to and from
+NIfTI using the `nibabel`_ package.
+
+Reading a volume from a NIfTI:
+
+.. code-block:: python
+
+   import nibabel as nib
+   import highdicom as hd
+
+
+   nifti_path = '/path/to/nifti.nii'  # or .nii.gz
+   nifti = nib.load(nifti_path)
+
+   vol = hd.Volume(
+       array=nifti.get_fdata(),
+       affine=nifti.affine,
+       coordinate_system="PATIENT",
+       from_reference_convention='RAS',
+   )
+
+Writing a volume to a NIfTI file:
+
+.. code-block:: python
+
+    import nibabel
+    import highdicom as hd
+
+
+    vol = Volume(...)
+
+    nifti = nib.Nifti1Image(
+        vol.array,
+        vol.get_affine('RAS'),
+    )
+
+    nifti_path = '/path/to/nifti.nii'  # or .nii.gz
+    nib.save(nifti, nifti_path)
+
+Volumes To/From ITK Images
+--------------------------
+
+`ITK`_ is a widely-used library for volumetric image processing. Its ``Image``
+class shares many similarities with our :class:`highdicom.Volume` class. Like
+highdicom, ITK uses the "LPS" convention. However, when converting to and from
+NumPy arrays, ITK reverses the order of dimensions. It is important to account
+for this when performing conversions.
+
+We plan to add tools to handle this conversion in the near future, but for now
+these snippets should correctly handle simple situations converting to and from
+ITK Images.
+
+Creating a volume from an ITK Image:
+
+.. code-block:: python
+
+    import itk
+    import numpy as np
+    import highdicom as hd
+
+
+    im = itk.image(...)
+
+    # Reverse array dimension order
+    array = np.transpose(itk.array_from_image(im), [2, 1, 0])
+
+    vol2 = hd.Volume.from_components(
+        array=array,
+        direction=np.asarray(im.GetDirection()),
+        spacing=np.asarray(im.GetSpacing()),
+        position=np.asarray(im.GetOrigin()),
+        coordinate_system="PATIENT"
+    )
+
+Creating an ITK Image from a Volume:
+
+.. code-block:: python
+
+    import itk
+    import numpy as np
+    import highdicom as hd
+
+
+    vol = hd.Volume(...)
+
+    # Reverse array dimension order
+    array = np.transpose(vol.array, [2, 1, 0])
+
+    im = itk.image_from_array(array)
+    im.SetOrigin(vol.position)
+    im.SetDirection(vol.direction)
+    im.SetSpacing(vol.spacing)
+
+
+.. _`NIfTI`: https://nifti.nimh.nih.gov/
+.. _`ITK`: https://itk.org/
+.. _`nibabel`: https://nipy.org/nibabel/
