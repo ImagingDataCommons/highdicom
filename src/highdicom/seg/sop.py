@@ -261,7 +261,7 @@ class Segmentation(_Image):
             specified in this case.
 
             **Segments:** If ``pixel_array`` contains only a single segment, a
-            2D or 3D array may be passed following the arrangment above having
+            2D or 3D array may be passed following the arrangement above having
             an unsigned integer or boolean data type and binary values (only 0
             and 1 or ``True`` and ``False``). Exactly one item should be passed
             in ``segment_descriptions``.

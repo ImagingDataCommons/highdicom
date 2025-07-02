@@ -662,7 +662,7 @@ do:
   ``"FRACTIONAL"`` segmentation with multiple segments), and axes 1 and 2 are
   respectively the rows and columns of each frame. This gives you full control
   over how the array ultimately gets laid out as frames in the file. In
-  particular the constructor will *not* atttempt to use the spatial metadata to
+  particular the constructor will *not* attempt to use the spatial metadata to
   "rearrange" the volume to match the layout of the source images.
 
 Sometimes, you may wish to ensure that the "layout" (i.e. which spatial
@@ -859,7 +859,7 @@ Having a non-empty "Derivation Image Sequence" is important in some situations:
   segmentations with an arbitrary geometrical relationship to the source
   images (see :ref:`seg-viewers`).
 
-Highdicom attemps to automatically populate the "Derivation Image Sequence"
+Highdicom attempts to automatically populate the "Derivation Image Sequence"
 whenever it is possible to do so. If you pass a plain NumPy array aligned with
 the source images to the Segmentation constructor, this is straightforward. If
 instead you pass a :class:`highdicom.Volume` object to the ``pixel_array``

@@ -1309,7 +1309,7 @@ class _VolumeBase(ABC):
             )
 
         # NB even though the "patient" orientation is not meaningful in the
-        # slide coordinate system, it still correctlly defines the required
+        # slide coordinate system, it still correctly defines the required
         # transformation
         return self._to_orientation(other.get_closest_patient_orientation())
 
