@@ -215,91 +215,105 @@ class Segmentation(_Image):
         Parameters
         ----------
         source_images: Sequence[Dataset]
-            One or more single- or multi-frame images (or metadata of images)
-            from which the segmentation was derived
+            Image(s) from which this segmentation was derived. A sequence
+            containing either one or more single-frame images, or exactly one
+            multi-frame image. Passing the metadata of the image(s) is
+            sufficient, the "Pixel Data" attribute need not be loaded.
         pixel_array: numpy.ndarray | highdicom.Volume
             Array of segmentation pixel data of boolean, unsigned integer or
             floating point data type representing a mask image. The array may
-            be a 2D, 3D or 4D numpy array.
+            be a 2D, 3D or 4D numpy array, or an instance of
+            :class:`highdicom.Volume`.
 
-            If it is a 2D numpy array, it represents the segmentation of a
-            single frame image, such as a planar x-ray or single instance from
-            a CT or MR series.
+            **Arrangement:** If it is a 2D numpy array, it represents a single
+            segmentation frame of a single frame image, such as a planar x-ray
+            or single instance from a CT or MR series. Unless the
+            ``plane_positions`` parameter is specified, it must correspond
+            pixel-for-pixel with the single source image and it is the caller's
+            responsibility to ensure this is true.
 
-            If it is a 3D array, it represents the segmentation of either a
-            series of source images (such as a series of CT or MR images) a
-            single 3D multi-frame image (such as a multi-frame CT/MR image), or
-            a single 2D tiled image (such as a slide microscopy image).
+            If it is a 3D or 4D array, it consists of segmentation frames at
+            multiple spatial positions stacked down the first dimension (axis
+            0) of the array. If ``plane_positions`` is not specified, there
+            must be pixel-for-pixel correspondence between frame
+            ``pixel_array[i]`` and ``source_images[i]`` if ``source_images`` is
+            a series of single-frame images or between ``pixel_array[i]`` and
+            the frame at ``source_images[0].pixel_array[i]`` if
+            ``source_images`` consists of a single multi-frame image. It is the
+            caller's responsibility to ensure correct correspondences.
 
-            If ``pixel_array`` represents the segmentation of a 3D image, the
-            first dimension represents individual 2D planes. Unless the
-            ``plane_positions`` parameter is provided, the frame in
-            ``pixel_array[i, ...]`` should correspond to either
-            ``source_images[i]`` (if ``source_images`` is a list of single
-            frame instances) or ``source_images[0].pixel_array[i, ...]`` if
-            ``source_images`` is a single multiframe instance.
+            If it is a :class:`highdicom.Volume`, each slice down the first
+            dimension (axis 0) of the volume's array (i.e.
+            ``pixel_array.array[i]`` for each index ``i``) will be included
+            into the segmentation as a separate frame (or set of frames if
+            there are multiple segments) but no spatial correspondence between
+            the frames of the ``pixel_array`` and the ``source_images`` is
+            assumed or required. Instead, frame-level correspondences are
+            inferred automatically from spatial meta-data, if possible, though
+            this is not possible in all situations (a segmentation may be
+            created even if there are no frame-level correspondences with the
+            source images). The arguments ``plane_positions``,
+            ``plane_orientation`` and ``pixel_measures`` should not be
+            specified in this case.
 
-            Similarly, if ``pixel_array`` is a 3D array representing the
-            segmentation of a tiled 2D image, the first dimension represents
-            individual 2D tiles (for one channel and z-stack) and these tiles
-            correspond to the frames in the source image dataset.
+            **Segments:** If ``pixel_array`` contains only a single segment, a
+            2D or 3D array may be passed following the arrangment above having
+            an unsigned integer or boolean data type and binary values (only 0
+            and 1 or ``True`` and ``False``). Exactly one item should be passed
+            in ``segment_descriptions``.
 
-            If ``pixel_array`` is an unsigned integer or boolean array with
-            binary data (containing only the values ``True`` and ``False`` or
-            ``0`` and ``1``) or a floating-point array, it represents a single
-            segment. In the case of a floating-point array, values must be in
-            the range 0.0 to 1.0.
+            There are two ways to pass segmentation arrays with multiple
+            segments: the *stacked segments* style and the *label-map* style.
 
-            Otherwise, if ``pixel_array`` is a 2D or 3D array containing multiple
-            unsigned integer values, each value is treated as a different
-            segment whose segment number is that integer value. This is
-            referred to as a *label map* style segmentation.  In this case, all
-            segments from 1 through ``pixel_array.max()`` (inclusive) must be
-            described in `segment_descriptions`, regardless of whether they are
-            present in the image.  Note that this is valid for segmentations
-            encoded using the ``"BINARY"``, ``"LABELMAP"`` or ``"FRACTIONAL"``
-            methods.
+            For the *stacked segments* style array, ``pixel_array`` is a 4D
+            numpy array. The first three dimensions are used in the same way as
+            the 3D case and the fourth dimension represents multiple segments.
+            In this case ``pixel_array[:, :, :, i]`` represents segment number
+            ``i + 1`` (since numpy indexing is 0-based but segment numbering is
+            1-based), and all segments from 1 through ``pixel_array.shape[-1] +
+            1`` must be described in ``segment_descriptions``.
 
-            Note that that a 2D numpy array and a 3D numpy array with a
-            single frame along the first dimension may be used interchangeably
-            as segmentations of a single frame, regardless of their data type.
-
-            If ``pixel_array`` is a 4D numpy array, the first three dimensions
-            are used in the same way as the 3D case and the fourth dimension
-            represents multiple segments. In this case
-            ``pixel_array[:, :, :, i]`` represents segment number ``i + 1``
-            (since numpy indexing is 0-based but segment numbering is 1-based),
-            and all segments from 1 through ``pixel_array.shape[-1] + 1`` must
-            be described in ``segment_descriptions``.
-
-            Furthermore, a 4D array with unsigned integer data type must
+            For a ``"BINARY"`` or ``"LABELMAP"`` segmentation, a *stacked
+            segments* style array must have an unsigned integer data type and
             contain only binary data (``True`` and ``False`` or ``0`` and
-            ``1``). In other words, a 4D array is incompatible with the *label
-            map* style encoding of the segmentation.
+            ``1``). There is no requirement that segments be mutually exclusive
+            (non-overlapping) unless ``segmentation_type`` is ``"LABELMAP"``.
 
-            Where there are multiple segments that are mutually exclusive (do
-            not overlap) and binary, they may be passed using either a *label
-            map* style array or a 4D array. A 4D array is required if either
-            there are multiple segments and they are not mutually exclusive
-            (i.e. they overlap) or there are multiple segments and the
-            segmentation is fractional.
+            If the segmentation of a single source image with multiple
+            stacked segments is required, it is necessary to include the
+            singleton first dimension in order to give a 4D array.
 
-            Note that if the segmentation of a single source image with
-            multiple stacked segments is required, it is necessary to include
-            the singleton first dimension in order to give a 4D array.
+            For a ``"FRACTIONAL"`` segmentation, a *stacked segments* style
+           ``pixel_array`` may alternatively contain floating point
+            values in the range 0.0 to 1.0 (an unsigned integer type
+            with binary values is still allowed). These values either encode
+            the probability of a given pixel belonging to the segment (if
+            `fractional_type` is ``"PROBABILITY"``) or the extent to which a
+            segment occupies the pixel (if `fractional_type` is
+            ``"OCCUPANCY"``).
 
-            For ``"FRACTIONAL"`` segmentations, values either encode the
-            probability of a given pixel belonging to a segment
-            (if `fractional_type` is ``"PROBABILITY"``)
-            or the extent to which a segment occupies the pixel
-            (if `fractional_type` is ``"OCCUPANCY"``).
+            A :class:`highdicom.Volume` may be used in place of a *stacked
+            segments* style array if it has exactly one channel dimension
+            (``pixel_array.array`` is a 4D array) with a channel descriptor of
+            "SegmentNumber" and its ``array`` otherwise follows all the
+            criteria for a *stacked segment* style array.
 
-            Alternatively, ``pixel_array`` may be an instance of a
-            :class:`highdicom.Volume`. In this case, behavior is the
-            same as if the underlying numpy array is passed, and additionally,
-            the ``pixel_measures``, ``plane_positions`` and
-            ``plane_orientation`` will be computed from the volume, and
-            therefore should not be passed as parameters.
+            For the *label-map* style, ``pixel_array`` is a 2D or 3D array
+            containing multiple unsigned integer values, each non-zero value is
+            treated as a different segment whose segment number is that integer
+            value. In this case, all segments from 1 through
+            ``pixel_array.max()`` (inclusive) must be described in
+            ``segment_descriptions``, regardless of whether they are present in
+            the image.  The *label-map* style cannot accommodate multiple
+            overlapping (non-mutually exclusive) segments. This is
+            valid for segmentations encoded using the ``"BINARY"``,
+            ``"LABELMAP"`` or ``"FRACTIONAL"`` types, although a fractional
+            segmentation is limited to binary values.
+
+            A :class:`highdicom.Volume` may be used in place of a *label-map*
+            style array if it has no channel dimensions (``pixel_array.array``
+            is a 3D array) and its ``array`` otherwise follows the criteria for
+            a *label-map* style array.
 
         segmentation_type: Union[str, highdicom.seg.SegmentationTypeValues]
             Type of segmentation, either ``"BINARY"``, ``"FRACTIONAL"``, or
