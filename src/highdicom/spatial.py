@@ -1807,7 +1807,7 @@ def convert_affine_to_convention(
 
     >>> import nibabel
     >>> import highdicom as hd
-    >>> 
+    >>>
     >>> # Load affine (RAS convention) from NIfTI file
     >>> nifti_path = '/path/to/nifti.nii'
     >>> affine_ras = nibabel.load(nifti_path).affine
@@ -1816,7 +1816,7 @@ def convert_affine_to_convention(
      [  0.          -0.765625     0.         348.70721436]
      [ -1.           0.           0.           8.5       ]
      [  0.           0.           0.           1.        ]]
-    >>> 
+    >>>
     >>> # Convert to DICOM LPS convention
     >>> affine_lps = hd.spatial.convert_affine_to_convention(
     ...     affine_ras,
