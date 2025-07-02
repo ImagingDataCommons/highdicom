@@ -10,6 +10,7 @@ parts of the library.
    :maxdepth: 2
    :caption: Contents:
 
+   highdicom_and_pydicom
    image
    pixel_transforms
    volume
