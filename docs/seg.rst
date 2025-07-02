@@ -337,6 +337,11 @@ a convenient shorthand for the special case where there is only a single source
 frame and a single segment. It is equivalent in every way to passing a 3D array
 with a single frame down axis 0.
 
+As with any multi-frame DICOM image, Segmentations consist of a set of 2D
+frames. When passing a 3D mask in this example, each 2D array down axis 0 is
+recorded as an individual frame in the Segmentation, with the rows of the
+frames stacked down axis 1 and the columns stacked down axis 2.
+
 Constructing Binary/Labelmap SEG Images of Multiframe Source Images
 -------------------------------------------------------------------
 
@@ -551,8 +556,10 @@ must not overlap or an error will be raised. Similarly, segmentations that do
 contain overlapping segments can only be passed in "stacked segment" form, and
 can only be stored using the ``"BINARY"`` segmentation type.
 
-Spatially Non-aligned SEG Images
---------------------------------
+.. _seg-from-volume:
+
+Segmentations from Volumes
+--------------------------
 
 In the simple cases we have seen so far, the geometry of the segmentation
 ``pixel_array`` has matched that of the source images, i.e. there is a spatial
@@ -565,20 +572,21 @@ transformed before the segmentation method is applied, such that there is no
 longer a simple correspondence between pixels in the segmentation mask and
 pixels in the original source DICOM image.
 
-`Highdicom` supports such cases in two ways. The first, possible when the
-segmentation array is defined on a regularly-sampled 3D grid, is to pass the
-segmentation array as an instance of the :class:`highdicom.Volume` class
-instead of a plain NumPy array (see :doc:`volume` for an overview). Since the
-:class:`highdicom.Volume` class specifies its position within the frame of
-reference coordinate system, the position of each plane can be inferred
-automatically. The volume can have an arbitrary size, spacing, and orientation
-and these properties do not need to match those of the source images. Just like
-a standard NumPy array, the volume can be either in the "label map" form, where
-each pixel values specifies segment membership, or "stacked segment" form, with
-a further array dimension along which binary segments are stacked. In the
-"label map" case the volume must have no channel dimensions. In the "stacked
-segments" case, the volume must have exactly one channel dimension with the
-descriptor being the "SegmentNumber" tag.
+`Highdicom` supports such cases in two ways. The first, and by far the most
+convenient is to pass the segmentation array as an instance of the
+:class:`highdicom.Volume` class instead of a plain NumPy array (see
+:doc:`volume` for an overview). This is possible when the segmentation array is
+defined on a regularly-sampled 3D grid. Since the :class:`highdicom.Volume`
+class specifies its position within the frame of reference coordinate system,
+the position of each plane can be inferred automatically. The volume can have
+an arbitrary size, spacing, and orientation and these properties do not need to
+match those of the source images. Just like a standard NumPy array, the volume
+can be either in the "label map" form, where each pixel values specifies
+segment membership, or "stacked segment" form, with a further array dimension
+along which binary segments are stacked. In the "label map" case the volume
+must have no channel dimensions. In the "stacked segments" case, the volume
+must have exactly one channel dimension with the descriptor being the
+"SegmentNumber" tag.
 
 .. code-block:: python
 
@@ -634,14 +642,124 @@ descriptor being the "SegmentNumber" tag.
         device_serial_number='1234567890',
     )
 
+It is worth noting what passing a :class:`highdicom.Volume` does and does not
+do:
+
+* It *does* communicate to the constructor the spatial metadata about the input
+  array in a convenient form (and allow you to keep track of that metadata
+  conveniently in the steps before creating the segmentation). The constructor
+  will then correctly populate the spatial metadata of each frame to
+  communicate to the receiver of the file how each frame sits within 3D space.
+  This removes from you the requirement to ensure that the frames of your
+  segmentation array are correctly aligned with those from the source images,
+  removing a common source of error. As long as the affine matrix of the volume
+  you pass correctly describes the array, a correct segmentation will be
+  produced regardless of the correspondence with the source images.
+* It *does not* change the way that the input array is encoded as frames in the
+  segmentation. Regardless of whether or not you pass a volume or a "plain"
+  NumPy array, each index down axis 0 of the input array becomes one frame in
+  the segmentation (or a set of frames in the case of a ``"BINARY"`` or
+  ``"FRACTIONAL"`` segmentation with multiple segments), and axes 1 and 2 are
+  respectively the rows and columns of each frame. This gives you full control
+  over how the array ultimately gets laid out as frames in the file. In
+  particular the constructor will *not* atttempt to use the spatial metadata to
+  "rearrange" the volume to match the layout of the source images.
+
+Sometimes, you may wish to ensure that the "layout" (i.e. which spatial
+direction is used as the frame direction, which as the row direction and which
+as the column direction) matches that of the source images, and this may
+involve undoing various operations (flips, crops, dimension permutations) that
+were done in your analysis pipeline. One common reason for this is that some
+viewers will only display the segmentation if is aligned in this way (see
+:ref:`seg-viewers`). While the segmentation constructor does not handle this
+for you, you should be able to use the :meth:`highdicom.Volume.match_geometry`
+method to automatically crop/pad/flip/permute your segmentation volume back to
+the layout of the input before passing to the segmentation.
+
+For example:
+
+.. code-block:: python
+
+    from pydicom.sr.codedict import codes
+    from pydicom.data import get_testdata_file
+
+    import highdicom as hd
+
+
+    # Load a series of CT images
+    ct_series = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166', read=True),
+    ]
+    source_volume = hd.get_volume_from_series(ct_series)
+    original_source_geometry = source_volume.get_geometry()
+
+    # Some simple preprocessing operations applied to the source volume
+    source_volume = (
+        source_volume
+        .to_patient_orientation('RAH')
+        .crop_to_spatial_shape((10, 10, 3))
+    )
+
+    # Simulate a really simple segmentation model that just thresholds the source
+    # image at its mean, and places it into a segmentation with the same geometry
+    # as the (preprocessed) source volume
+    seg_volume = source_volume.with_array(
+        source_volume.array > source_volume.array.mean()
+    )
+
+    # Use match_geometry to automatically match the segmentation back to the
+    # original geometry of the source volume. This will ensure that the frames have
+    # the same "layout" in the segmentation as they did in the original series.
+    seg_volume = seg_volume.match_geometry(original_source_geometry)
+
+    # Description of liver segment produced by a manual algorithm
+    liver_description = hd.seg.SegmentDescription(
+        segment_number=1,
+        segment_label='liver',
+        segmented_property_category=codes.SCT.Organ,
+        segmented_property_type=codes.SCT.Liver,
+        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+    )
+
+    # Construct the Segmentation Image
+    seg = hd.seg.Segmentation(
+        source_images=ct_series,
+        pixel_array=seg_volume,
+        segmentation_type=hd.seg.SegmentationTypeValues.BINARY,
+        segment_descriptions=[liver_description],
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer='Foo Corp.',
+        manufacturer_model_name='Liver Segmentation Algorithm',
+        software_versions='0.0.1',
+        device_serial_number='1234567890',
+    )
+
+
+The :meth:`highdicom.Volume.match_geometry` method does not resample the array,
+and therefore can undo the effect of crops/permutations/flips etc but will fail
+if arbitrary resampling operations (e.g. a change of spacing or general 3D
+rotation) have been applied. If you wish to best match the orientation of the
+source volume without performning any resampling, you can use the
+:meth:`highdicom.Volume.match_orientation` method instead. This will at least
+ensure that the segmentation frames are encoded in approximately the same
+orientation as they were in the source images.
+
+Segmentations with Arbitrary Geometries
+---------------------------------------
+
 The second way to specify a segmentation that does not align spatially with the
 source images is by manually specifying the plane positions of the each frame
 in the segmentation mask, and also the orientations and pixel spacings of these
 planes if they do not match that in the source images. This is more flexible
-but less convenient than using the ``Volumes`` class. In this case, the
-correspondence between the items of the ``source_images`` list and axis 0 of
-the segmentation ``pixel_array`` is broken and the number of frames in each may
-differ.
+but less convenient than using the ``Volumes`` class, and we do not anticipate
+that this situation will arise for most users. In this case, the correspondence
+between the items of the ``source_images`` list and axis 0 of the segmentation
+``pixel_array`` is broken and the number of frames in each may differ.
 
 .. code-block:: python
 
@@ -717,6 +835,58 @@ differ.
         device_serial_number='1234567890',
     )
 
+.. _derivation-sequence:
+
+Per-Frame Derivation Image Sequences
+------------------------------------
+
+When creating a Segmentation, various per-frame metadata are placed within the
+"Per Frame Functional Groups Sequence" attribute, with one item of this
+sequence describing one frame of the Segmentation. Within each item, the
+"Derivation Image Sequence" is in particular worth discussing. This sequence
+specifies, which frame(s) of the source image (or image series) were used to
+derive the segmentation frame. The "Derivation Image Sequence" should always be
+present but may have length zero.
+
+Having a non-empty "Derivation Image Sequence" is important in some situations:
+
+- You want to be able to access segmentation frames by the source frame "SOP
+  Instance UID"
+  (:meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance`) or frame
+  number (:meth:`highdicom.seg.Segmentation.get_pixels_by_source_frame`). See
+  :ref:`seg-get-pixels`.
+- You want the segmentation to be viewable in a viewer that does not support
+  segmentations with an arbitrary geometrical relationship to the source
+  images (see :ref:`seg-viewers`).
+
+Highdicom attemps to automatically populate the "Derivation Image Sequence"
+whenever it is possible to do so. If you pass a plain NumPy array aligned with
+the source images to the Segmentation constructor, this is straightforward. If
+instead you pass a :class:`highdicom.Volume` object to the ``pixel_array``
+argument, or manually specify the ``plane_positions``, ``plane_orientation``
+and/or ``pixel_measures`` argumentsm, ``highdicom`` will attempt to match the
+spatial location of the each segmentation frame to those of the source
+frames/images, using a small tolerance to allow for small numerical errors.
+There are three possibilities here:
+
+- The orientation, spacing and positions of the frames all match. In this case,
+  the "Derivation Image Sequence" will indicate the matched frames, and further
+  use the "Spatial Locations Preserved" attribute that there is pixel-for-pixel
+  alignment.
+- Segmentation frames are related to source frames by only in-plane rotations,
+  flips, and or/scaling. There is still frame-by-frame correspondence, but no
+  pixel-for-pixel correspondence. In this situation, the "Derivation Image
+  Sequence" will indicate the matched frames, but the "Spatial Locations
+  Preserved" attribute will be set to ``'NO'`` to indicate that there is no
+  pixel-for-pixel alignment.
+- Neither of the above conditions holds (i.e. there is an out-of-plane rotation
+  and/or scaling between source frames and segmentation frames). In this
+  situation, the "Derivation Image Sequence" is left empty.
+
+If you require the "Derivation Image Sequence" be populated and you are using a
+:class:`highdicom.Volume` as input to the constructor, follow the method in the
+previous section to match the geometry before passing to the constructor.
+
 Constructing SEG Images from a Total Pixel Matrix
 -------------------------------------------------
 
@@ -736,8 +906,9 @@ tiles for you.
 
 To enable this latter option, pass the ``pixel_array`` as a single frame (i.e.
 a 2D labelmap array, a 3D labelmap array with a single frame stacked down the
-first axis, or a 4D array with a single frame stacked down the first dimension
-and any number of segments stacked down the last dimension) and set the
+first axis, a 4D array with a single frame stacked down the first dimension and
+any number of segments stacked down the last dimension), or a
+:class:`highdicom.Volume` equivalent of the previous options and set the
 ``tile_pixel_array`` argument to ``True``. You can optionally choose the size
 (in pixels) of each tile using the ``tile_size`` argument, or, by default, the
 tile size of the source image will be used (regardless of whether the
@@ -745,8 +916,9 @@ segmentation is represented at the same resolution as the source image).
 
 If you need to specify the plane positions of the image explicitly, you should
 pass a single item to the ``plane_positions`` argument giving the location of
-the top left corner of the full total pixel matrix. Otherwise, all the usual
-options are available to you.
+the top left corner of the full total pixel matrix, or alternatively (and more
+conveniently) pass a :meth:`highdicom.Volume`. Otherwise, all the usual options
+are available to you.
 
 .. code-block:: python
 
@@ -1276,18 +1448,21 @@ whose descriptions meet certain criteria. For example:
     assert segment_1_description.tracking_uid) == '1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'
 
 
-Reconstructing Segmentation Masks From DICOM SEGs
--------------------------------------------------
+.. _seg-get-pixels:
+
+Reconstructing Segmentation Masks By Source Frame or Source Instance
+--------------------------------------------------------------------
 
 `Highdicom` provides the
 :meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()` and
 :meth:`highdicom.seg.Segmentation.get_pixels_by_source_frame()` methods to
 handle reconstruction of segmentation masks from SEG objects in which each
-frame in the SEG object is derived from a single source frame. The only
-difference between the two methods is that the
-:meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()` is used when
-the segmentation is derived from a source series consisting of multiple
-single-frame instances, while
+frame in the SEG object is derived from one or more known source images or
+image frames, as described within the "Derivation Image Sequence" (see
+:ref:`derivation-sequence`). The only difference between the two methods is
+that the :meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()` is
+used when the segmentation is derived from a source series consisting of
+multiple single-frame instances, while
 :meth:`highdicom.seg.Segmentation.get_pixels_by_source_frame()` is used when
 the segmentation is derived from a single multiframe source instance.
 
@@ -1661,11 +1836,113 @@ Viewing DICOM SEG Images
 Unfortunately, DICOM SEG images are not widely supported by DICOM
 viewers. Viewers that do support SEG include:
 
-- The `OHIF Viewer <https://github.com/OHIF/Viewers>`_, an open-source
+- The `OHIF`_, an open-source
   web-based viewer.
 - `3D Slicer <https://www.slicer.org/>`_, an open-source desktop application
   for 3D medical image computing. It supports both display and creation of
   DICOM SEG files via the "Quantitative Reporting" plugin.
+- `Weasis`_, an open-source desktop DICOM
+  viewer. Its support for DICOM Segmentations is currently rather basic.
 
-Note that these viewers may not support all features of segmentation images
-that `highdicom` is able to encode.
+.. _seg-viewers:
+
+FAQ: My Viewer Won't Display My Segmentation
+--------------------------------------------
+
+We commonly receive questions from people who create segmentations with
+``highdicom`` that fail to display (or display incorrectly) in their chosen
+viewer. Nearly always, this is a limitation of the viewer in question, and not
+a problem with ``highdicom`` or the segmentation files it creates.
+``highdicom`` supports a lot of different options/features of Segmentations,
+and most viewers can only correctly display a subset of them.
+
+Rather than listing the (ever-changing) list of features that do or do not work
+in various viewers, we have compiled some general advice for things to try if
+you are experiencing problems:
+
+- Use the older ``"BINARY"`` segmentations instead of ``"FRACTIONAL"`` or the
+  newer ``"LABELMAP"`` segmentations. They are more widely supported. To our
+  knowledge, `OHIF`_ is the only viewer with support for ``"LABELMAP"``
+  currently.
+- Avoid image compression, since often viewers only support a limited subset of
+  compression methods (if any). Specifically, pass
+  ``transfer_syntax_uid=pydicom.uid.ExplicitVRLittleEndian`` (the default
+  value) to the :class:`highdicom.seg.Segmentation` constructor.
+- Ensure that the segmentation is spatially aligned (pixel-for-pixel) with the
+  source image(s). Many viewers (e.g. Weasis) will only correctly display a
+  segmentation under these circumstances as they do not attempt to use the
+  spatial metadata in the file to calculate the geometric relationship between
+  the source images and segmentation frames. To ensure this:
+
+  - If your segmentation was derived from a resampled version of the source
+    image (e.g. with a different spacing and/or with an arbitrary 3D
+    rotation), resample the segmentation back to the original source grid
+    before encoding it in a segmentation. Currently highdicom does not
+    provide tools for resampling, so you will have to do this in an external
+    tool.
+  - If you are passing a plain NumPy array to the segmentation constructor,
+    ensure that you are closely following the requirements for correspondence
+    between the frames of the segmentation array and the source images listed
+    in the documentation for the ``pixel_array`` argument of the
+    :class:`highdicom.seg.Segmentation` constructor. Alternatively, consider
+    passing a :class:`highdicom.Volume` instead, if that is appropriate in your
+    situation, to make this easier (and also check the following point).
+  - If you are passing a :class:`highdicom.Volume` to the constructor, make
+    sure you use the :class:`highdicom.Volume.match_geometry` method on the
+    segmentation volume first, following the explanation in
+    :ref:`seg-from-volume`. If this fails, you probably need to resample the
+    array first (as described above).
+  - Check that your segmentation file contains a *non-empty* "Derivation Image
+    Sequence" within each item of the "Per Frame Functional Groups Sequence"
+    (see :ref:`derivation-sequence`). Since many viewers do not check the
+    spatial metadata, they rely entirely on the "Derivation Image Sequence" to
+    know where to display segmentation frames. To check the "Derivation Image
+    Sequence", simply print the "Per Frame Functional Groups Sequence" of the
+    Segmentation (i.e. ``print(my_seg.PerFrameFunctionalGroupsSequence)``). You
+    should see something like the following example:
+
+    .. code-block:: text
+
+        [(0008,9124)  Derivation Image Sequence  1 item(s) ----
+           (0008,2112)  Source Image Sequence  1 item(s) ----
+              (0008,1150) Referenced SOP Class UID            UI: CT Image Storage
+              (0008,1155) Referenced SOP Instance UID         UI: 1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.96
+              (0028,135A) Spatial Locations Preserved         CS: 'YES'
+              (0040,A170)  Purpose of Reference Code Sequence  1 item(s) ----
+                 (0008,0100) Code Value                          SH: '121322'
+                 (0008,0102) Coding Scheme Designator            SH: 'DCM'
+                 (0008,0104) Code Meaning                        LO: 'Source image for image processing operation'
+                 ---------
+              ---------
+           (0008,9215)  Derivation Code Sequence  1 item(s) ----
+              (0008,0100) Code Value                          SH: '113076'
+              (0008,0102) Coding Scheme Designator            SH: 'DCM'
+              (0008,0104) Code Meaning                        LO: 'Segmentation'
+              ---------
+           ---------
+        (0020,9111)  Frame Content Sequence  1 item(s) ----
+           (0020,9157) Dimension Index Values              UL: [1, 1]
+           ---------
+        (0020,9113)  Plane Position Sequence  1 item(s) ----
+           (0020,0032) Image Position (Patient)            DS: [-125.000000, -128.100006, 105.519997]
+           ---------
+        (0062,000A)  Segment Identification Sequence  1 item(s) ----
+           (0062,000B) Referenced Segment Number           US: 1
+           ---------]
+
+    You should see that the *Derivation Image Sequence* contains at least 1 item,
+    and that the *Source Image Sequence* within it also contains at least one
+    item. Additionally, check that "Spatial Locations Preserved" value is
+    ``'YES'``.
+
+    If you have followed all of the above sub-bullets, ``highdicom`` should
+    have correctly inferred this information and added it to the segmentation.
+    If it is missing (and you are sure that you have followed the above steps),
+    please file an issue on the ``highdicom`` GitHub repo.
+
+We also strongly encourage you to file issues on existing open-source viewer
+software to communicate that support for more advanced DICOM Segmentation
+features is important to you.
+
+.. _`OHIF`: https://github.com/OHIF/Viewers
+.. _`Weasis`: https://weasis.org/en/index.html

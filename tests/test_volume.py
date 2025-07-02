@@ -29,6 +29,7 @@ from highdicom.seg import (
     SegmentationTypeValues,
 )
 from highdicom.spatial import (
+    RAS_PATIENT_REFERENCE_CONVENTION,
     _normalize_patient_orientation,
     _translate_affine_matrix,
 )
@@ -175,6 +176,37 @@ def test_volume_from_attributes(
     assert volume.channel_descriptors == ()
     assert volume.physical_extent == tuple(
         [n * s for n, s in zip(volume.spatial_shape, volume.spacing)]
+    )
+
+
+def test_volume_from_ras():
+    ras_affine = np.array(
+        [
+            [1.0, 0.0, 0.0, 10.0],
+            [0.0, 1.0, 0.0, 11.0],
+            [0.0, 0.0, 1.0, 12.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    vol = Volume(
+        array=np.zeros((10, 10, 10)),
+        affine=ras_affine,
+        coordinate_system="PATIENT",
+        from_reference_convention=RAS_PATIENT_REFERENCE_CONVENTION,
+    )
+    assert vol.position == (-10.0, -11.0, 12.0)
+    direction = np.array(
+        [
+            [-1.0, 0.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+    )
+    assert np.array_equal(vol.direction, direction)
+    assert vol.spacing == (1.0, 1.0, 1.0)
+    assert np.array_equal(
+        vol.get_affine(RAS_PATIENT_REFERENCE_CONVENTION),
+        ras_affine,
     )
 
 
@@ -561,6 +593,10 @@ def test_to_patient_orientation(desired):
     flipped = volume.to_patient_orientation(desired_tup)
     assert isinstance(flipped, Volume)
     assert flipped.get_closest_patient_orientation() == desired_tup
+
+    rematched = flipped.match_orientation(volume)
+    assert np.array_equal(rematched.affine, volume.affine)
+    assert np.array_equal(rematched.array, volume.array)
 
 
 def test_geometry_from_attributes():
