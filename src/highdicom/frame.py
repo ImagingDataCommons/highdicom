@@ -4,10 +4,10 @@ from typing import cast
 
 import numpy as np
 from PIL import Image
-from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate
 from pydicom.pixels.utils import pack_bits, unpack_bits
 from pydicom.pixels.encoders.base import get_encoder
+from pydicom.pixels.decoders.base import get_decoder
 from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
@@ -360,6 +360,7 @@ def decode_frame(
     pixel_representation: PixelRepresentationValues | int = 0,
     planar_configuration: PlanarConfigurationValues | int | None = None,
     index: int = 0,
+    pixel_keyword: str = 'PixelData',
 ) -> np.ndarray:
     """Decode pixel data of an individual frame.
 
@@ -397,6 +398,9 @@ def decode_frame(
         the byte array. In all other situations, this parameter is not
         required and will have no effect (since decoding a frame does not
         depend on the index of the frame).
+    pixel_keyword: str, optional
+        Keyword of the attribute where the pixel data value was stored. Should be
+        ``'PixelData'``, ``'FloatPixelData'``, or ``'DoubleFloatPixelData'``.
 
     Returns
     -------
@@ -441,28 +445,14 @@ def decode_frame(
         pixel_array = unpacked_frame[pixel_offset:pixel_offset + n_pixels]
         return pixel_array.reshape(rows, columns)
 
-    # The pydicom library does currently not support reading individual frames.
-    # This hack creates a small dataset containing only a single frame, which
-    # can then be decoded using the pydicom API.
-    file_meta = FileMetaDataset()
-    file_meta.TransferSyntaxUID = UID(transfer_syntax_uid)
-    ds = Dataset()
-    ds.file_meta = file_meta
-    ds.Rows = rows
-    ds.Columns = columns
-    ds.SamplesPerPixel = samples_per_pixel
-    ds.BitsAllocated = bits_allocated
-    ds.BitsStored = bits_stored
-    ds.HighBit = bits_stored - 1
-
     pixel_representation = PixelRepresentationValues(
         pixel_representation
     ).value
-    ds.PixelRepresentation = pixel_representation
     photometric_interpretation = PhotometricInterpretationValues(
         photometric_interpretation
     ).value
-    ds.PhotometricInterpretation = photometric_interpretation
+
+    kwargs = {}
     if samples_per_pixel > 1:
         if planar_configuration is None:
             raise ValueError(
@@ -472,13 +462,25 @@ def decode_frame(
         planar_configuration = PlanarConfigurationValues(
             planar_configuration
         ).value
-        ds.PlanarConfiguration = planar_configuration
+        kwargs['planar_configuration'] = planar_configuration
+
+    decoder = get_decoder(transfer_syntax_uid)
 
     if is_encapsulated:
-        ds.PixelData = encapsulate(frames=[value])
-    else:
-        ds.PixelData = value
+        # Unfortunately the decoder requires encapsulated data
+        value = encapsulate([value], has_bot=False)
 
-    array = ds.pixel_array
-
+    array, _ = decoder.as_array(
+        src=value,
+        rows=rows,
+        columns=columns,
+        number_of_frames=1,
+        samples_per_pixel=samples_per_pixel,
+        bits_allocated=bits_allocated,
+        bits_stored=bits_stored,
+        photometric_interpretation=photometric_interpretation,
+        pixel_representation=pixel_representation,
+        pixel_keyword=pixel_keyword,
+        **kwargs,
+    )
     return array

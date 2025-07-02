@@ -1,5 +1,6 @@
 import itertools
 from collections.abc import Generator, Iterator, Sequence
+import logging
 from typing_extensions import Self
 
 from pydicom import Dataset
@@ -20,10 +21,11 @@ _DEFAULT_SPACING_RELATIVE_TOLERANCE = 1e-2
 
 
 _DEFAULT_EQUALITY_TOLERANCE = 1e-5
-"""Tolerance value used by default in tests for equality"""
+"""Tolerance value used by default in tests for equality."""
 
-_DOT_PRODUCT_PERPENDICULAR_TOLERANCE = 1e-3
-"""Tolerance value used on the dot product to determine perpendicularity."""
+
+_DEFAULT_PERPENDICULAR_TOLERANCE = 1e-3
+"""Default tolerance on the dot product to determine perpendicularity."""
 
 
 PATIENT_ORIENTATION_OPPOSITES = {
@@ -42,6 +44,25 @@ VOLUME_INDEX_CONVENTION = (
     PixelIndexDirections.R,
 )
 """Indexing convention used within volumes."""
+
+
+LPS_PATIENT_REFERENCE_CONVENTION = (
+    PatientOrientationValuesBiped.L,
+    PatientOrientationValuesBiped.P,
+    PatientOrientationValuesBiped.H,
+)
+"""'LPS' patient coordinate definition used within DICOM."""
+
+
+RAS_PATIENT_REFERENCE_CONVENTION = (
+    PatientOrientationValuesBiped.R,
+    PatientOrientationValuesBiped.A,
+    PatientOrientationValuesBiped.H,
+)
+"""'RAS' patient coordinate definition used within NIfTI and elsewhere."""
+
+
+logger = logging.getLogger(__name__)
 
 
 def is_tiled_image(dataset: Dataset) -> bool:
@@ -641,17 +662,90 @@ def _get_spatial_information(
     return position, orientation, pixel_spacing, spacing_between_slices
 
 
+def _are_orientations_equal(
+    image_orientation_a: Sequence[float],
+    image_orientation_b: Sequence[float],
+    tol: float = _DEFAULT_EQUALITY_TOLERANCE,
+) -> bool:
+    """Determine whether two orientations are equal to a tolerance.
+
+    Parameters
+    ----------
+    image_orientation_a: Sequence[float]
+        Row and column cosines (6 element list) giving the orientation of the
+        first image.
+    image_orientation_b: Sequence[float]
+        Row and column cosines (6 element list) giving the orientation of the
+        second image.
+    tol: float, optional
+        Tolerance to use to determine equality in orientation.
+
+    Returns
+    -------
+    bool:
+        True if the two orientations are equal (to within ``tol``). False
+        otherwise.
+
+    """
+    # Might need something more sophisticated here
+    return np.allclose(
+        np.array(image_orientation_a),
+        np.array(image_orientation_b),
+        atol=tol,
+    )
+
+
+def _are_orientations_coplanar(
+    image_orientation_a: Sequence[float],
+    image_orientation_b: Sequence[float],
+    parallel_tol: float = _DEFAULT_PERPENDICULAR_TOLERANCE,
+) -> bool:
+    """Determine whether two orientations are coplanar.
+
+    Images with coplanar orientations are related by an in-plane rotation
+    (including flips).
+
+    Parameters
+    ----------
+    image_orientation_a: Sequence[float]
+        Row and column cosines (6 element list) giving the orientation of the
+        first image.
+    image_orientation_b: Sequence[float]
+        Row and column cosines (6 element list) giving the orientation of the
+        second image.
+    parallel_tol: float, optional
+        Tolerance used to determine whether slice normal vectors are parallel.
+        Slices are considered parallel if the dot product of their unit normal
+        vectors is within ``parallel_tol`` of 1.00 or -1.00.
+
+    Returns
+    -------
+    bool:
+        True if the two images are coplanar. False otherwise.
+
+    """
+    n_a = get_normal_vector(image_orientation_a)
+    n_b = get_normal_vector(image_orientation_b)
+
+    dot_product = n_a @ n_b
+    return (
+        abs(dot_product - 1.0) < parallel_tol or
+        abs(dot_product + 1.0) < parallel_tol
+    )
+
+
 def _are_images_coplanar(
     image_position_a: Sequence[float],
     image_orientation_a: Sequence[float],
     image_position_b: Sequence[float],
     image_orientation_b: Sequence[float],
     tol: float = _DEFAULT_EQUALITY_TOLERANCE,
+    parallel_tol: float = _DEFAULT_PERPENDICULAR_TOLERANCE,
 ) -> bool:
     """Determine whether two images or image frames are coplanar.
 
     Two images are coplanar in the frame of reference coordinate system if and
-    only if their normal vectors have the same (or opposite direction) and the
+    only if their normal vectors have the same (or opposite) direction and the
     shortest distance from the plane to the coordinate system origin is the
     same for both planes.
 
@@ -669,18 +763,27 @@ def _are_images_coplanar(
     image_orientation_b: Sequence[float]
         Row and column cosines (6 element list) giving the orientation of the
         second image.
-    tol: float
-        Tolerance to use to determine equality.
+    tol: float, optional
+        Tolerance to use to determine equality in origin distance.
+    parallel_tol: float, optional
+        Tolerance used to determine whether slice normal vectors are parallel.
+        Slices are considered parallel if the dot product of their unit normal
+        vectors is within ``parallel_tol`` of 1.00 or -1.00.
 
     Returns
     -------
-    bool
+    bool:
         True if the two images are coplanar. False otherwise.
 
     """
     n_a = get_normal_vector(image_orientation_a)
     n_b = get_normal_vector(image_orientation_b)
-    if 1.0 - np.abs(n_a @ n_b) > tol:
+
+    dot_product = n_a @ n_b
+    if not (
+        abs(dot_product - 1.0) < parallel_tol or
+        abs(dot_product + 1.0) < parallel_tol
+    ):
         return False
 
     # Find distances of both planes along n_a
@@ -739,7 +842,8 @@ def _normalize_patient_orientation(
     ----------
     c: Union[str, Sequence[Union[str, highdicom.enum.PatientOrientationValuesBiped]]]
         Patient orientation consisting of three directions, either L or R,
-        either A or P, and either F or H, in any order.
+        either A or P, and either F or H, in any order. I and S are accepted as
+        aliases for F and H respectively.
 
     Returns
     -------
@@ -751,7 +855,19 @@ def _normalize_patient_orientation(
     if len(c) != 3:
         raise ValueError('Length of pixel index convention must be 3.')
 
-    c = tuple(PatientOrientationValuesBiped(d) for d in c)
+    def _standardize(d):
+        if isinstance(d, PatientOrientationValuesBiped):
+            return d
+
+        if d == 'S':
+            return PatientOrientationValuesBiped.H
+
+        if d == 'I':
+            return PatientOrientationValuesBiped.F
+
+        return PatientOrientationValuesBiped(d)
+
+    c = tuple(_standardize(d) for d in c)
 
     c_set = {d.value for d in c}
 
@@ -1492,20 +1608,21 @@ def create_affine_matrix_from_components(
 
 def _transform_affine_matrix(
     affine: np.ndarray,
-    shape: Sequence[int],
+    shape: Sequence[int] | None = None,
     flip_indices: Sequence[bool] | None = None,
     flip_reference: Sequence[bool] | None = None,
     permute_indices: Sequence[int] | None = None,
     permute_reference: Sequence[int] | None = None,
 ) -> np.ndarray:
-    """Transform an affine matrix between conventions.
+    """Update an affine matrix to represent various operations.
 
     Parameters
     ----------
     affine: np.ndarray
         4 x 4 affine matrix to transform.
-    shape: Sequence[int]
-        Shape of the array.
+    shape: Sequence[int] | None, optional
+        Shape of the array. This is required if and only if ``flip_indices`` is
+        not ``None``. Otherwise it is ignored.
     flip_indices: Optional[Sequence[bool]], optional
         Whether to flip each of the pixel index axes to index from the other
         side of the array. Must consist of three boolean values, one for each
@@ -1529,12 +1646,18 @@ def _transform_affine_matrix(
     """
     if affine.shape != (4, 4):
         raise ValueError("Affine matrix must have shape (4, 4).")
-    if len(shape) != 3:
-        raise ValueError("Shape must have shape three elements.")
 
     transformed = affine.copy()
 
     if flip_indices is not None and any(flip_indices):
+        if shape is None:
+            raise TypeError(
+                "Argument 'shape' must be provided if 'flip_indices' "
+                "is provided and contains any True values."
+            )
+        if len(shape) != 3:
+            raise ValueError('Shape must have shape three elements.')
+
         # Move the origin to the opposite side of the array
         enable = np.array(flip_indices, np.uint8)
         offset = transformed[:3, :3] * (np.array(shape).reshape(3, 1) - 1)
@@ -1562,7 +1685,7 @@ def _transform_affine_matrix(
         if set(permute_indices) != {0, 1, 2}:
             raise ValueError(
                 'Argument "permute_indices" should contain elements 0, 1, '
-                "and 3 in some order."
+                'and 3 in some order.'
             )
         transformed = transformed[:, [*permute_indices, 3]]
 
@@ -1575,7 +1698,7 @@ def _transform_affine_matrix(
         if set(permute_reference) != {0, 1, 2}:
             raise ValueError(
                 'Argument "permute_reference" should contain elements 0, 1, '
-                "and 3 in some order."
+                'and 3 in some order.'
             )
         transformed = transformed[[*permute_reference, 3], :]
 
@@ -1615,24 +1738,28 @@ def _translate_affine_matrix(
     return result
 
 
-def _transform_affine_to_convention(
+def convert_affine_to_convention(
     affine: np.ndarray,
-    shape: Sequence[int],
     from_reference_convention: (
         str | Sequence[str | PatientOrientationValuesBiped]
     ),
     to_reference_convention: (
         str | Sequence[str | PatientOrientationValuesBiped]
-    )
+    ),
 ) -> np.ndarray:
-    """Transform an affine matrix between different conventions.
+    """Represent an affine matrix in a different patient coordinate convention.
+
+    The resulting affine represents the same volume but using a different
+    convention for the definition of the reference coordinate system.
+
+    A common use case is to convert between DICOM's ``'LPS'`` convention and
+    the ``'RAS'`` convention commonly used elsewhere (for example in NIfTI
+    files).
 
     Parameters
     ----------
     affine: np.ndarray
-        Affine matrix to transform.
-    shape: Sequence[int]
-        Shape of the array.
+        Affine matrix to convert.
     from_reference_convention: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]]],
         Reference convention used in the input affine.
     to_reference_convention: Union[str, Sequence[Union[str, PatientOrientationValuesBiped]]],
@@ -1641,7 +1768,66 @@ def _transform_affine_to_convention(
     Returns
     -------
     np.ndarray:
-        Affine matrix after operations are applied.
+        Affine matrix in the requested convention.
+
+    Note
+    ----
+    Reference conventions may be specified as either a sequence of three
+    :class:`highdicom.PatientOrientationValuesBiped` values, or a
+    string such as ``"FPL"`` using the same characters.
+
+    The first value gives the direction moved relative to the patient when
+    increasing the value of the first coordinate in reference space, and so on
+    for the next two values. A valid convention consists of either ``R`` or
+    ``L``, either ``A`` or ``P``, and either ``H`` or ``F``, in any order.
+
+    The commonly used ``'I'`` (*inferior*) and ``'S'`` (*superior*) are
+    acceptable aliases for ``'F'`` (*foot*) and ``'H'`` (*head*) respectively.
+
+    Thus, the following are all equivalent ways of expressing the "LPS"
+    convention used in DICOM:
+
+    * ``'LPH'``
+    * ``'LPS'``
+    * ``('L', 'P', 'H')``
+    * ``('L', 'P', 'S')``
+    * ``(highdicom.PatientOrientationValuesBiped.L, highdicom.PatientOrientationValuesBiped.P, highdicom.PatientOrientationValuesBiped.H)``
+
+    Furthermore, two special constants are defined for the most commonly used conventions:
+
+    * ``highdicom.spatial.LPS_PATIENT_REFERENCE_CONVENTION`` (used in DICOM, ITK, and elsewhere)
+    * ``highdicom.spatial.RAS_PATIENT_REFERENCE_CONVENTION`` (used in NIfTI and elsewhere)
+
+    Examples
+    --------
+
+    Convert an affine matrix from a NIfTI file (in NIfTI's ``'RAS'``
+    convention) into DICOM's LPS convention (requires ``nibabel`` package,
+    which must be installed separately):
+
+    >>> import nibabel
+    >>> import highdicom as hd
+    >>>
+    >>> # Load affine (RAS convention) from NIfTI file
+    >>> nifti_path = '/path/to/nifti.nii'
+    >>> affine_ras = nibabel.load(nifti_path).affine
+    >>> print(affine_ras)
+    [[  0.           0.          -0.765625   193.6171875 ]
+     [  0.          -0.765625     0.         348.70721436]
+     [ -1.           0.           0.           8.5       ]
+     [  0.           0.           0.           1.        ]]
+    >>>
+    >>> # Convert to DICOM LPS convention
+    >>> affine_lps = hd.spatial.convert_affine_to_convention(
+    ...     affine_ras,
+    ...     from_reference_convention="LPS",
+    ...     to_reference_convention="RAS",
+    ... )
+    >>> print(affine_lps)
+    [[   0.            0.            0.765625   -193.6171875 ]
+     [   0.            0.765625      0.         -348.70721436]
+     [  -1.            0.            0.            8.5       ]
+     [   0.            0.            0.            1.        ]]
 
     """  # noqa: E501
     from_reference_normed = _normalize_patient_orientation(
@@ -1664,7 +1850,6 @@ def _transform_affine_to_convention(
 
     return _transform_affine_matrix(
         affine=affine,
-        shape=shape,
         permute_indices=None,
         permute_reference=permute_reference,
         flip_indices=None,
@@ -3219,6 +3404,7 @@ def get_series_volume_positions(
     *,
     rtol: float | None = None,
     atol: float | None = None,
+    perpendicular_tol: float | None = None,
     sort: bool = True,
     allow_missing_positions: bool = False,
     allow_duplicate_positions: bool = False,
@@ -3257,6 +3443,12 @@ def get_series_volume_positions(
         Absolute tolerance for determining spacing regularity. If slice
         spacings vary by less that this value (in mm), they
         are considered to be regular. Incompatible with ``rtol``.
+    perpendicular_tol: float | None, optional
+        Tolerance used to determine whether slices are stacked perpendicular to
+        their shared normal vector. The direction of stacking is considered
+        perpendicular if the dot product of its unit vector with the slice
+        normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
+        default value of ``1e-3`` is used.
     sort: bool, optional
         Sort the image positions before finding the spacing. If True, this
         makes the function tolerant of unsorted inputs. Set to False to check
@@ -3341,6 +3533,7 @@ def get_series_volume_positions(
         image_orientation=image_orientation,
         rtol=rtol,
         atol=atol,
+        perpendicular_tol=perpendicular_tol,
         sort=sort,
         allow_duplicate_positions=allow_duplicate_positions,
         allow_missing_positions=allow_missing_positions,
@@ -3357,6 +3550,7 @@ def get_volume_positions(
     *,
     rtol: float | None = None,
     atol: float | None = None,
+    perpendicular_tol: float | None = None,
     sort: bool = True,
     allow_missing_positions: bool = False,
     allow_duplicate_positions: bool = False,
@@ -3393,15 +3587,21 @@ def get_volume_positions(
         Image orientation as direction cosine values taken directly from the
         ImageOrientationPatient attribute. 1D array of length 6. Either a numpy
         array or anything convertible to it may be passed.
-    rtol: float, optional
+    rtol: float | None, optional
         Relative tolerance for determining spacing regularity. If slice
         spacings vary by less that this proportion of the average spacing, they
         are considered to be regular. If neither ``rtol`` or ``atol`` are
         provided, a default relative tolerance of 0.01 is used.
-    atol: float, optional
+    atol: float | None, optional
         Absolute tolerance for determining spacing regularity. If slice
         spacings vary by less that this value (in mm), they
         are considered to be regular. Incompatible with ``rtol``.
+    perpendicular_tol: float | None, optional
+        Tolerance used to determine whether slices are stacked perpendicular to
+        their shared normal vector. The direction of stacking is considered
+        perpendicular if the dot product of its unit vector with the slice
+        normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
+        default value of ``1e-3`` is used.
     sort: bool, optional
         Sort the image positions before finding the spacing. If True, this
         makes the function tolerant of unsorted inputs. Set to False to check
@@ -3497,6 +3697,11 @@ def get_volume_positions(
         rtol = _DEFAULT_SPACING_RELATIVE_TOLERANCE
         atol = 0.0
 
+    if perpendicular_tol is None:
+        perpendicular_tol = _DEFAULT_PERPENDICULAR_TOLERANCE
+    if perpendicular_tol < 0.0:
+        raise ValueError("Argument 'perpendicular_tol' may not be negative.")
+
     image_positions_arr = np.array(image_positions)
 
     if image_positions_arr.ndim != 2 or image_positions_arr.shape[1] != 3:
@@ -3530,6 +3735,10 @@ def get_volume_positions(
     )
     if not allow_duplicate_positions:
         if unique_positions.shape[0] < image_positions_arr.shape[0]:
+            logger.info(
+                "Duplicate frame positions detected. Frame positions do "
+                "not constitute a volume."
+            )
             return None, None
 
     if len(unique_positions) == 1:
@@ -3564,6 +3773,10 @@ def get_volume_positions(
             # should only be zero spacings if some positions are related by
             # in-plane translations
             if np.isclose(spacing, 0.0, atol=_DEFAULT_EQUALITY_TOLERANCE):
+                logger.info(
+                    "Frame positions are related by in-plane translations and "
+                    "therefore do not constitute a volume."
+                )
                 return None, None
 
         origin_distance_multiples = (
@@ -3576,6 +3789,18 @@ def get_volume_positions(
             rtol=rtol,
             atol=atol,
         )
+        if not is_regular:
+            max_deviation = float(
+                np.abs(
+                    origin_distance_multiples -
+                    origin_distance_multiples.round()
+                ).max()
+            )
+            logger.info("Frame positions are not regularly spaced.")
+            logger.debug(
+                f"Maximum spacing deviation from regular: {max_deviation:.2e} "
+                "mm."
+            )
 
         inverse_sort_index = origin_distance_multiples.round().astype(np.int64)
 
@@ -3605,9 +3830,19 @@ def get_volume_positions(
             rtol=rtol,
             atol=atol,
         ).all()
+        if not is_regular:
+            logger.info("Frame positions are not regularly spaced.")
+            logger.debug(
+                f"Minimum spacing: {float(spacings.min()):.2e}, "
+                f"maximum spacing: {float(spacings.max()):.2e} mm."
+            )
 
     if is_regular and enforce_handedness:
         if spacing < 0.0:
+            logger.info(
+                "Frame positions are ordered according to the wrong "
+                "handedness."
+            )
             return None, None
 
     # Additionally check that the vector from the first to the last plane lies
@@ -3619,9 +3854,16 @@ def get_volume_positions(
 
     dot_product = normal_vector.T @ span
     is_perpendicular = (
-        abs(dot_product - 1.0) < _DOT_PRODUCT_PERPENDICULAR_TOLERANCE or
-        abs(dot_product + 1.0) < _DOT_PRODUCT_PERPENDICULAR_TOLERANCE
+        abs(dot_product - 1.0) < perpendicular_tol or
+        abs(dot_product + 1.0) < perpendicular_tol
     )
+
+    if not is_perpendicular:
+        logger.info(
+            "Frame positions are not located along a vector "
+            "normal to the image plane."
+        )
+        logger.debug(f"Dot product: {dot_product:.4f}")
 
     if is_regular and is_perpendicular:
         vol_positions = [

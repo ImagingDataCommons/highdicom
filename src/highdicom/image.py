@@ -1,8 +1,9 @@
 """Tools for working with general DICOM images."""
-from collections import Counter
+from collections import Counter, defaultdict
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from enum import Enum
+from itertools import chain
 import logging
 from os import PathLike
 import sqlite3
@@ -16,6 +17,7 @@ from typing_extensions import Self
 
 import numpy as np
 from pydicom import Dataset
+from pydicom.dataelem import DataElement
 from pydicom.encaps import get_frame
 from pydicom.tag import BaseTag
 from pydicom.datadict import (
@@ -26,7 +28,9 @@ from pydicom.datadict import (
 from pydicom.filebase import DicomIO, DicomBytesIO
 from pydicom.multival import MultiValue
 from pydicom.sr.coding import Code
+from pydicom.sr.codedict import codes
 from pydicom.uid import ParametricMapStorage
+from pydicom.valuerep import format_number_as_ds
 
 from highdicom._module_utils import (
     does_iod_have_pixel_data,
@@ -34,9 +38,16 @@ from highdicom._module_utils import (
 )
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.color import ColorManager
-from highdicom.content import LUT, VOILUTTransformation
+from highdicom.content import (
+    LUT,
+    PixelMeasuresSequence,
+    PlaneOrientationSequence,
+    PlanePositionSequence,
+    VOILUTTransformation
+)
 from highdicom.enum import (
     CoordinateSystemNames,
+    DimensionOrganizationTypeValues,
 )
 from highdicom.frame import decode_frame
 from highdicom.io import ImageFileReader, _wrapped_dcmread
@@ -49,9 +60,14 @@ from highdicom.pixels import (
     apply_lut,
     apply_voi_window,
 )
-from highdicom.seg.enum import SpatialLocationsPreservedValues
 from highdicom.spatial import (
+    _are_orientations_coplanar,
+    _are_orientations_equal,
+    _get_spatial_information,
+    ImageToReferenceTransformer,
+    compute_tile_positions_per_frame,
     get_image_coordinate_system,
+    get_normal_vector,
     get_series_volume_positions,
     get_volume_positions,
     is_tiled_image,
@@ -60,12 +76,14 @@ from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID as UID
 from highdicom.utils import (
     iter_tiled_full_frame_data,
+    are_plane_positions_tiled_full,
 )
 from highdicom.volume import (
     _DCM_PYTHON_TYPE_MAP,
     VolumeGeometry,
     Volume,
     RGB_COLOR_CHANNEL_DESCRIPTOR,
+    VOLUME_INDEX_CONVENTION,
 )
 
 
@@ -93,6 +111,11 @@ _DCM_SQL_TYPE_MAP = {
     'US': 'INTEGER',
     'UT': 'TEXT',
 }
+
+# This code is needed many times in loops so we precompute it
+_PURPOSE_CODE = CodedConcept.from_code(
+    codes.cid7202.SourceImageForImageProcessingOperation
+)
 
 
 class _ImageColorType(Enum):
@@ -1106,11 +1129,10 @@ class _Image(SOPClass):
 
     _coordinate_system: CoordinateSystemNames | None
     _is_tiled_full: bool
-    _single_source_frame_per_frame: bool
+    _has_frame_references: bool
     _dim_ind_pointers: list[BaseTag]
     # Mapping of tag value to (index column name, val column name(s))
     _dim_ind_col_names: dict[int, tuple[str, str | tuple[str, ...] | None]]
-    _locations_preserved: SpatialLocationsPreservedValues | None
     _db_con: sqlite3.Connection
     _file_reader: ImageFileReader | None
 
@@ -1175,6 +1197,1359 @@ class _Image(SOPClass):
 
         """
         return self._coordinate_system
+
+    @staticmethod
+    def _get_pixel_measures_sequence(
+        source_image: Dataset,
+        is_multiframe: bool,
+        coordinate_system: CoordinateSystemNames | None,
+    ) -> PixelMeasuresSequence | None:
+        """Get a Pixel Measures Sequence from the source image.
+
+        This is a helper method used in the constructor.
+
+        Parameters
+        ----------
+        source_image: pydicom.Dataset
+            The first source image.
+        is_multiframe: bool
+            Whether the source image is multiframe.
+        coordinate_system: highdicom.CoordinateSystemNames | None
+            The coordinate system of the source image.
+
+        Returns
+        -------
+        Union[highdicom.PixelMeasuresSequence, None]
+            A PixelMeasuresSequence derived from the source image, if this is
+            possible. Otherwise None.
+
+        """
+        if is_multiframe:
+            src_shared_fg = source_image.SharedFunctionalGroupsSequence[0]
+            pixel_measures = src_shared_fg.PixelMeasuresSequence
+        else:
+            if coordinate_system is not None:
+                pixel_measures = PixelMeasuresSequence(
+                    pixel_spacing=source_image.PixelSpacing,
+                    slice_thickness=source_image.SliceThickness,
+                    spacing_between_slices=source_image.get(
+                        'SpacingBetweenSlices',
+                        None
+                    )
+                )
+            else:
+                pixel_spacing = getattr(source_image, 'PixelSpacing', None)
+                if pixel_spacing is not None:
+                    pixel_measures = PixelMeasuresSequence(
+                        pixel_spacing=pixel_spacing,
+                        slice_thickness=source_image.get(
+                            'SliceThickness',
+                            None
+                        ),
+                        spacing_between_slices=source_image.get(
+                            'SpacingBetweenSlices',
+                            None
+                        )
+                    )
+                else:
+                    pixel_measures = None
+
+        return pixel_measures
+
+    @staticmethod
+    def _get_spatial_data_from_volume(
+        volume: Volume,
+        coordinate_system: CoordinateSystemNames | None,
+        frame_of_reference_uid: str,
+        plane_positions: Sequence[PlanePositionSequence] | None = None,
+        plane_orientation: PlaneOrientationSequence | None = None,
+        pixel_measures: PixelMeasuresSequence | None = None,
+    ) -> tuple[
+        np.ndarray,
+        Sequence[PlanePositionSequence],
+        PlaneOrientationSequence,
+        PixelMeasuresSequence,
+    ]:
+        if coordinate_system is None:
+            raise ValueError(
+                "A volume should not be passed if the source image(s) "
+                "has/have no FrameOfReferenceUID."
+            )
+        if coordinate_system != volume.coordinate_system:
+            raise ValueError(
+                "Coordinate system of the volume does not match that ) "
+                "of the source image(s)."
+            )
+        if volume.frame_of_reference_uid is not None:
+            if (
+                volume.frame_of_reference_uid !=
+                frame_of_reference_uid
+            ):
+                raise ValueError(
+                    "The volume passed as the pixel array has a "
+                    "different frame of reference to the source "
+                    "image."
+                )
+        if pixel_measures is not None:
+            raise TypeError(
+                "Argument 'pixel_measures' should not be provided if "
+                "'pixel_array' is a highdicom.Volume."
+            )
+        if plane_orientation is not None:
+            raise TypeError(
+                "Argument 'plane_orientation' should not be provided if "
+                "'pixel_array' is a highdicom.Volume."
+            )
+        if plane_positions is not None:
+            raise TypeError(
+                "Argument 'plane_positions' should not be provided if "
+                "'pixel_array' is a highdicom.Volume."
+            )
+
+        return (
+            volume.array,
+            volume.get_plane_positions(),
+            volume.get_plane_orientation(),
+            volume.get_pixel_measures(),
+        )
+
+    def _prepare_spatial_metadata(
+        self,
+        plane_positions: Sequence[PlanePositionSequence] | None,
+        plane_orientation: PlaneOrientationSequence | None,
+        pixel_measures: PixelMeasuresSequence | None,
+        source_images: Sequence[Dataset],
+        further_source_images: Sequence[Dataset],
+        tile_pixel_array: bool,
+        tile_size: Sequence[int] | None,
+        frame_shape: Sequence[int],
+        number_of_planes: int,
+        dimension_organization_type: DimensionOrganizationTypeValues,
+    ) -> tuple[
+        Sequence[PlanePositionSequence | None],
+        PlaneOrientationSequence | None,
+        PixelMeasuresSequence | None,
+        np.ndarray,
+        np.ndarray,
+        Sequence[Sequence[Dataset]] | None,
+    ]:
+        """Prepare spatial metadata when constructing a derived image.
+
+        Parameters
+        ----------
+        plane_positions: Sequence[highdicom.PlanePositionSequence] | None
+            Provided plane positions for the pixel array. May be ``None`` if
+            the plane positions are not provided by the user and therefore are
+            to be copied from the source images.
+        plane_orientation: highdicom.PlaneOrientationSequence | None
+            Provided plane orientation for the pixel array. May be ``None`` if
+            the orientation is not provided by the user and therefore is to be
+            copied from the source images.
+        pixel_measures: highdicom.PixelMeasuresSequence | None
+            Provided pixel measures for the pixel array. May be ``None`` if the
+            measures information is not provided by the user and therefore is
+            to be copied from the source images.
+        source_images: Sequence[Dataset]
+            The source images from which this image is derived. May be either a
+            single multframe image or a list of 1 or more single frame images.
+        further_source_images: Sequence[Dataset]
+            Further source images. Unlike source_images, these are never used
+            to define the spatial information of the pixel array. May contain
+            an arbitrary mix of single and multi-frame images from multiple
+            series.
+        tile_pixel_array: bool
+            Whether the input pixel array should be automatically tiled within
+            the constructor.
+        tile_size: Sequence[int] | None
+            The tile size when using automatic tiling.
+        frame_shape: Sequence[int]
+            Sequence of integers giving the row, column shape of the provided
+            pixel array.
+        number_of_planes: int
+            Number of planes in the input pixel array.
+        dimension_organization_type: highdicom.DimensionOrganizationTypeValues
+            Requested dimension organization type for the constructed image.
+
+        Returns
+        -------
+        Sequence[highdicom.PlanePositionSequence | None]:
+            Plane positions to be included in the dataset, or a list containing
+            a single ``None`` value if no position information is to be
+            included.
+        highdicom.PlaneOrientationSequence | None:
+            Plane orientation to be included in the dataset, if any.
+        highdicom.PixelMeasuresSequence | None:
+            Pixel measures to be included in the dataset, if any.
+        np.ndarray:
+            Array giving, for each plane of the input array, the raw values of
+            all attributes that describe its position. The first dimension is
+            sorted the same way as the input pixel array and the second is
+            sorted the same way as the dimension index sequence (without
+            segment number). Empty array if no spatial information is to be
+            included.
+        np.ndarray:
+            List of zero-based integer indices into the input planes giving the
+            order in which they should be arranged to correctly sort them for
+            inclusion into the image.
+        Sequence[Sequence[pydicom.Dataset]] | None:
+            List containing, at index i, a list of source image items
+            describing the source images for the plane at position i in the
+            input array. ``None`` if per-frame source image references are not
+            established.
+
+        """
+        src_img = source_images[0]
+        is_multiframe = is_multiframe_image(src_img)
+        is_tiled = is_tiled_image(src_img)
+
+        if (
+            not tile_pixel_array and
+            (plane_positions is None or pixel_measures is None)
+        ):
+            if frame_shape != (src_img.Rows, src_img.Columns):
+                raise ValueError(
+                    "Arguments 'plane_positions' and 'pixel_measures' must "
+                    "be provided if the shape of the input pixel_array does "
+                    "not match shape of the source image."
+                )
+
+        # Remember whether these values were provided by the user, or inferred
+        # from the source image. If inferred, we can skip some checks
+        orientation_is_copied = plane_orientation is None
+        measures_is_copied = pixel_measures is None
+
+        source_pixel_measures = self._get_pixel_measures_sequence(
+            source_image=src_img,
+            is_multiframe=is_multiframe,
+            coordinate_system=self._coordinate_system,
+        )
+        if pixel_measures is None:
+            pixel_measures = source_pixel_measures
+
+        if self._coordinate_system is None:
+            # Only one spatial location supported
+            src_img_item = self._get_derivation_source_image_item(
+                source_image=src_img,
+                frame_number=None,
+                locations_preserved=True,
+            )
+            return (
+                [None],  # plane positions
+                plane_orientation,
+                pixel_measures,
+                np.empty((0, )),  # plane_position_values
+                np.array([0]),  # plane_sort_index
+                [[src_img_item]],
+            )
+
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            source_plane_orientation = PlaneOrientationSequence(
+                coordinate_system=self._coordinate_system,
+                image_orientation=src_img.ImageOrientationSlide
+            )
+        else:
+            if is_multiframe:
+                src_sfg = src_img.SharedFunctionalGroupsSequence[0]
+
+                if 'PlaneOrientationSequence' not in src_sfg:
+                    raise ValueError(
+                        'Source images must have a shared '
+                        'orientation.'
+                    )
+
+                source_plane_orientation = (
+                    PlaneOrientationSequence.from_sequence(
+                        src_sfg.PlaneOrientationSequence
+                    )
+                )
+            else:
+                iop = src_img.ImageOrientationPatient
+
+                for image in source_images:
+                    if image.ImageOrientationPatient != iop:
+                        raise ValueError(
+                            'Source images must have a shared '
+                            'orientation.'
+                        )
+
+                source_plane_orientation = PlaneOrientationSequence(
+                    coordinate_system=self._coordinate_system,
+                    image_orientation=src_img.ImageOrientationPatient
+                )
+
+        if plane_orientation is None:
+            plane_orientation = source_plane_orientation
+
+        if tile_pixel_array:
+
+            (
+                plane_positions,
+                plane_position_values,
+                plane_sort_index,
+            ) = self._prepare_tiled_spatial_metadata(
+                plane_positions=plane_positions,
+                plane_orientation=plane_orientation,
+                pixel_measures=pixel_measures,
+                src_img=src_img,
+                frame_shape=frame_shape,
+                measures_is_copied=measures_is_copied,
+                orientation_is_copied=orientation_is_copied,
+                tile_size=tile_size,
+                source_plane_orientation=source_plane_orientation,
+                source_pixel_measures=source_pixel_measures,
+                dimension_organization_type=dimension_organization_type,
+            )
+
+            return (
+                plane_positions,
+                plane_orientation,
+                pixel_measures,
+                plane_position_values,
+                plane_sort_index,
+                None,  # derivation_source_image_items TODO
+            )
+
+        derivation_source_image_items = None
+        are_spatial_locations_preserved = False
+
+        # Check whether the segmentation and source images share an
+        # orientation, or have coplanar orientations (or neither)
+        if orientation_is_copied:
+            orientation_preserved = True
+        else:
+            orientation_preserved = (
+                _are_orientations_equal(
+                    plane_orientation.cosines,
+                    source_plane_orientation.cosines,
+                )
+            )
+            if orientation_preserved:
+                # Override provided value with that from the source image to
+                # account for small numerical differences
+                plane_orientation = source_plane_orientation
+
+        orientation_coplanar = (
+            orientation_preserved or
+            _are_orientations_coplanar(
+                plane_orientation.cosines,
+                source_plane_orientation.cosines,
+            )
+        )
+
+        # Check whether the segmentation and source images share
+        # pixel measures
+        if measures_is_copied:
+            measures_preserved = True
+        else:
+            measures_preserved = np.allclose(
+                pixel_measures[0].PixelSpacing,
+                source_pixel_measures[0].PixelSpacing,
+                atol=1e-4
+            )
+            if measures_preserved:
+                # Override provided value with that from the source image to
+                # account for small numerical differences
+                pixel_measures = source_pixel_measures
+
+        dimensions_preserved = (
+            frame_shape == (src_img.Rows, src_img.Columns)
+        )
+
+        all_but_positions_preserved = (
+            orientation_preserved and
+            measures_preserved and
+            dimensions_preserved
+        )
+
+        if plane_positions is None:
+            # Calculating source positions can be slow, so avoid unless
+            # necessary
+            dim_ind = self.DimensionIndexSequence
+            if is_multiframe:
+                plane_positions = dim_ind.get_plane_positions_of_image(
+                    src_img
+                )
+            else:
+                plane_positions = dim_ind.get_plane_positions_of_series(
+                    source_images
+                )
+            positions_are_copied = True
+            number_of_positions = len(plane_positions)
+
+            # Plane positions match the source images by definition
+            if number_of_planes != number_of_positions:
+                raise ValueError(
+                    'Number of plane positions in source image(s) does '
+                    'not match size of first dimension of '
+                    '"pixel_array" argument.'
+                )
+
+            if all_but_positions_preserved:
+                are_spatial_locations_preserved = True
+                if is_multiframe:
+                    derivation_source_image_items = [
+                        [
+                            _Image._get_derivation_source_image_item(
+                                source_image=source_images[0],
+                                frame_number=i + 1,
+                                locations_preserved=True,
+                            )
+                        ] for i in range(number_of_positions)
+                    ]
+                else:
+                    derivation_source_image_items = [
+                        [
+                            _Image._get_derivation_source_image_item(
+                                source_image=source_images[i],
+                                frame_number=None,
+                                locations_preserved=True,
+                            )
+                        ] for i in range(number_of_positions)
+                    ]
+        else:
+            positions_are_copied = False
+
+        # plane_position_values is an array giving, for each plane of
+        # the input array, the raw values of all attributes that
+        # describe its position. The first dimension is sorted the same
+        # way as the input pixel array and the second is sorted the
+        # same way as the dimension index sequence (without segment
+        # number) plane_sort_index is a list of indices into the input
+        # planes giving the order in which they should be arranged to
+        # correctly sort them for inclusion into the segmentation
+        sort_orientation = (
+            plane_orientation[0].ImageOrientationPatient
+            if self._coordinate_system == CoordinateSystemNames.PATIENT
+            else None
+        )
+
+        (
+            plane_position_values,
+            plane_sort_index,
+        ) = self.DimensionIndexSequence.get_index_values(
+            plane_positions,
+            image_orientation=sort_orientation,
+            index_convention=VOLUME_INDEX_CONVENTION,
+        )
+
+        if not positions_are_copied:
+            # Plane positions may not match source images
+            # TODO in this else block
+            if number_of_planes != len(plane_positions):
+                raise ValueError(
+                    'Number of PlanePositionSequence items provided '
+                    'via "plane_positions" argument does not match '
+                    'size of first dimension of "pixel_array" argument.'
+                )
+
+            if orientation_coplanar and not is_tiled:
+                (
+                    derivation_source_image_items,
+                    are_spatial_locations_preserved,
+                ) = self._match_planes(
+                    source_plane_orientation=(
+                        source_plane_orientation.cosines
+                    ),
+                    source_images=source_images,
+                    plane_position_values=plane_position_values,
+                    all_but_positions_preserved=all_but_positions_preserved,
+                )
+
+                if (
+                    derivation_source_image_items is not None and
+                    are_spatial_locations_preserved
+                ):
+                    # Found a close match between the provided plane
+                    # positions and those in the source images. Use those
+                    # in the source images instead to correct for small
+                    # numerical errors introduced in processing in the
+                    # spatial metadata
+                    dim_ind = self.DimensionIndexSequence
+                    if is_multiframe:
+                        source_plane_positions = (
+                            dim_ind.get_plane_positions_of_image(
+                                src_img
+                            )
+                        )
+
+                        plane_positions = [
+                            source_plane_positions[
+                                d[0].ReferencedFrameNumber - 1
+                            ]
+                            for d in derivation_source_image_items
+                        ]
+                    else:
+                        source_plane_positions = (
+                            dim_ind.get_plane_positions_of_series(
+                                source_images
+                            )
+                        )
+
+                        plane_positions = []
+                        for d in derivation_source_image_items:
+                            sop_uid = d[0].ReferencedSOPInstanceUID
+
+                            for ind, im in enumerate(source_images):
+                                if im.SOPInstanceUID == sop_uid:
+                                    plane_positions.append(
+                                        source_plane_positions[ind]
+                                    )
+
+        # Look for further per-frame matches in the further source images
+        image_series = defaultdict(list)
+
+        for im in further_source_images:
+
+            # Skip images that do not share a frame of reference
+            if im.FrameOfReferenceUID != self.FrameOfReferenceUID:
+                continue
+
+            if is_multiframe_image(im):
+                if not is_tiled_image(im):
+                    _, ori, spacing, _ = _get_spatial_information(im, 1)
+                    orientation_preserved = _are_orientations_equal(
+                        plane_orientation.cosines,
+                        ori,
+                    )
+                    orientation_coplanar = _are_orientations_coplanar(
+                        plane_orientation.cosines,
+                        ori,
+                    )
+
+                    measures_preserved = np.allclose(
+                        pixel_measures[0].PixelSpacing,
+                        spacing,
+                        atol=1e-4,
+                    )
+
+                    dimensions_preserved = (
+                        frame_shape == (im.Rows, im.Columns)
+                    )
+
+                    all_but_positions_preserved = (
+                        orientation_preserved and
+                        measures_preserved and
+                        dimensions_preserved
+                    )
+
+                    if orientation_coplanar:
+                        further_drv_src_imgs, _ = self._match_planes(
+                            source_plane_orientation=ori,
+                            source_images=[im],
+                            plane_position_values=plane_position_values,
+                            all_but_positions_preserved=(
+                                all_but_positions_preserved
+                            ),
+                        )
+                        if further_drv_src_imgs is not None:
+                            if derivation_source_image_items is None:
+                                derivation_source_image_items = (
+                                    further_drv_src_imgs
+                                )
+                            else:
+                                derivation_source_image_items = [
+                                    a + b for a, b in zip(
+                                        derivation_source_image_items,
+                                        further_drv_src_imgs,
+                                        strict=True,
+                                    )
+                                ]
+            else:
+                _, ori, spacing, _ = _get_spatial_information(im)
+
+                # Group images by series uid and basic spatial info
+                image_series[
+                    (
+                        im.SeriesInstanceUID,
+                        im.Rows,
+                        im.Columns,
+                        tuple(ori),
+                        tuple(spacing),
+                    )
+                ].append(im)
+
+        for (_, _, _, ori, spacing), images in image_series.items():
+            orientation_preserved = _are_orientations_equal(
+                plane_orientation.cosines,
+                ori,
+            )
+            orientation_coplanar = _are_orientations_coplanar(
+                plane_orientation.cosines,
+                ori,
+            )
+
+            measures_preserved = np.allclose(
+                pixel_measures[0].PixelSpacing,
+                spacing,
+                atol=1e-4,
+            )
+
+            im = images[0]
+            dimensions_preserved = (
+                frame_shape == (im.Rows, im.Columns)
+            )
+
+            all_but_positions_preserved = (
+                orientation_preserved and
+                measures_preserved and
+                dimensions_preserved
+            )
+
+            if orientation_coplanar:
+                further_drv_src_imgs, _ = self._match_planes(
+                    source_plane_orientation=ori,
+                    source_images=images,
+                    plane_position_values=plane_position_values,
+                    all_but_positions_preserved=all_but_positions_preserved,
+                )
+                if further_drv_src_imgs is not None:
+                    if derivation_source_image_items is None:
+                        derivation_source_image_items = further_drv_src_imgs
+                    else:
+                        derivation_source_image_items = [
+                            a + b for a, b in zip(
+                                derivation_source_image_items,
+                                further_drv_src_imgs,
+                                strict=True,
+                            )
+                        ]
+
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+            self._add_slide_coordinate_metadata(
+                source_image=src_img,
+                plane_orientation=plane_orientation,
+                plane_position_values=plane_position_values,
+                pixel_measures=pixel_measures,
+                are_spatial_locations_preserved=are_spatial_locations_preserved,
+                is_tiled=is_tiled,
+                total_pixel_matrix_size=None,
+            )
+
+        return (
+            plane_positions,
+            plane_orientation,
+            pixel_measures,
+            plane_position_values,
+            plane_sort_index,
+            derivation_source_image_items,
+        )
+
+    @staticmethod
+    def _match_planes(
+        source_plane_orientation: Sequence[float],
+        plane_position_values: np.ndarray,
+        source_images: Sequence[Dataset],
+        all_but_positions_preserved: bool,
+    ) -> tuple[list[list[Dataset]] | None, bool]:
+        """Establish references between plane and source images.
+
+        This method is used only for the patient coordinate system.
+
+        Parameters
+        ----------
+        source_plane_orientation: Sequence[float]
+            The orientation cosines of the source image.
+        plane_position_values: np.ndarray
+            Array of shape (n, 1, 3) giving for each input plane, the values of
+            the plane position.
+        source_images: Sequence[Dataset]
+            The source images from which this image is derived. May be either a
+            single multframe image or a list of 1 or more single frame images.
+        all_but_positions_preserved: bool
+            Whether the orientation, pixel spacing and frame size matches
+            between source images and the pixel array. This is a necessary but
+            not sufficient condition for spatial locations to be preserved.
+
+        Returns
+        -------
+        Sequence[Sequence[pydicom.Dataset]] | None:
+            Nested list containing, at index i, a list of items of the Source
+            Image Sequence to place into the Derivation Image Sequence for the
+            plane at position i in the input array. ``None`` if per-frame
+            source image references are not established.
+        bool:
+            Whether spatial locations are preserved between each frame of the
+            pixel array and its source image/frame.
+
+        """
+        are_spatial_locations_preserved = False
+        derivation_source_image_items = None
+
+        src_img = source_images[0]
+        is_multiframe = is_multiframe_image(src_img)
+        if is_multiframe:
+            source_position_values = np.array(
+                [
+                    _get_spatial_information(src_img, f + 1)[0]
+                    for f in range(src_img.NumberOfFrames)
+                ]
+            )
+        else:
+            source_position_values = np.array(
+                [
+                    _get_spatial_information(im)[0]
+                    for im in source_images
+                ]
+            )
+
+        def get_matched_items(
+            pairwise_distances: np.ndarray,
+            locations_preserved: bool,
+        ) -> list[list[Dataset]] | None:
+            min_distances = pairwise_distances.min(axis=1)
+
+            if np.all(min_distances < 1e-3):
+                derivation_source_image_items = []
+
+                for plane_index in range(pairwise_distances.shape[0]):
+                    # Find indices of matching source planes (there may be
+                    # multiple)
+                    matched_indices = np.nonzero(
+                        pairwise_distances[plane_index] ==
+                        min_distances[plane_index]
+                    )[0]
+
+                    if is_multiframe:
+                        derivation_source_image_items.append(
+                            [
+                                _Image._get_derivation_source_image_item(
+                                    source_image=source_images[0],
+                                    frame_number=i + 1,
+                                    locations_preserved=locations_preserved,
+                                ) for i in matched_indices
+                            ]
+                        )
+                    else:
+                        derivation_source_image_items.append(
+                            [
+                                _Image._get_derivation_source_image_item(
+                                    source_image=source_images[i],
+                                    frame_number=None,
+                                    locations_preserved=locations_preserved,
+                                ) for i in matched_indices
+                            ]
+                        )
+
+                return derivation_source_image_items
+
+            return None
+
+        # plane_position_values has singleton as second dimension, so this
+        # gives offset of each position from each source position via
+        # broadcasting
+        pairwise_offsets = plane_position_values - source_position_values
+
+        if all_but_positions_preserved:
+            # Check for matching of positions between source and planes
+            pairwise_distances = np.linalg.norm(
+                pairwise_offsets,
+                axis=-1,
+            )
+
+            derivation_source_image_items = get_matched_items(
+                pairwise_distances,
+                True,
+            )
+            are_spatial_locations_preserved = (
+                derivation_source_image_items is not None
+            )
+
+        if derivation_source_image_items is None:
+            # Positions do not match, but planes may still match after rotation
+            # or scaling. Check for this by matching on origin distances (NB
+            # some further check could be added here to ensure image planes
+            # actually overlap in the in-plane directions)
+            normal = get_normal_vector(source_plane_orientation)
+
+            out_of_plane_pairwise_distances = np.abs(pairwise_offsets @ normal)
+
+            derivation_source_image_items = get_matched_items(
+                out_of_plane_pairwise_distances,
+                False,
+            )
+
+        return derivation_source_image_items, are_spatial_locations_preserved
+
+    def _prepare_tiled_spatial_metadata(
+        self,
+        plane_positions: Sequence[PlanePositionSequence] | None,
+        plane_orientation: PlaneOrientationSequence,
+        pixel_measures: PixelMeasuresSequence,
+        src_img: Dataset,
+        frame_shape: Sequence[int],
+        orientation_is_copied: bool,
+        measures_is_copied: bool,
+        tile_size: Sequence[int],
+        source_pixel_measures: PixelMeasuresSequence,
+        source_plane_orientation: PlaneOrientationSequence,
+        dimension_organization_type: DimensionOrganizationTypeValues,
+    ) -> tuple[
+        Sequence[PlanePositionSequence | None],
+        np.ndarray,
+        np.ndarray,
+    ]:
+        """
+
+        Parameters
+        ----------
+        plane_positions: Sequence[PlanePositionSequence] | None
+            Provided plane positions for the pixel array. May be ``None`` if
+            the plane positions are not provided by the user and therefore are
+            to be copied from the source images.
+        plane_orientation: PlaneOrientationSequence
+            Orientation sequence for the new image.
+        pixel_measures: PixelMeasuresSequence
+            Pixel measures sequence for the new image.
+        src_img: Dataset
+            Source image multiframe dataset.
+        frame_shape: Sequence[int]
+            Frame shape of the pixel array.
+        orientation_is_copied: bool
+            Whether the orientation was copied from the source image.
+        measures_is_copied: bool
+            Whether the pixel measures copied from the source image.
+        tile_size: Sequence[int]
+            Tiling size to use for automated tiling.
+        source_pixel_measures: PixelMeasuresSequence
+            Pixel measures of the source image.
+        source_plane_orientation: PlaneOrientationSequence
+            Plane orientation of the source image.
+        dimension_organization_type: DimensionOrganizationTypeValues
+            Requested dimension organzation type of the new image.
+
+        Returns
+        -------
+        Sequence[PlanePositionSequence | None]:
+            Plane positions to be included in the dataset, or a list containing
+            a single ``None`` value if no position information is to be
+            included.
+        np.ndarray:
+            Array giving, for each plane of the input array, the raw values of
+            all attributes that describe its position. The first dimension is
+            sorted the same way as the input pixel array and the second is
+            sorted the same way as the dimension index sequence (without
+            segment number). Empty array if no spatial information is to be
+            included.
+        np.ndarray:
+            List of zero-based integer indices into the input planes giving the
+            order in which they should be arranged to correctly sort them for
+            inclusion into the image.
+
+        """
+        src_origin_seq = src_img.TotalPixelMatrixOriginSequence[0]
+        src_x_offset = src_origin_seq.XOffsetInSlideCoordinateSystem
+        src_y_offset = src_origin_seq.YOffsetInSlideCoordinateSystem
+        src_z_offset = src_origin_seq.get(
+            'ZOffsetInSlideCoordinateSystem',
+            0.0,
+        )
+
+        if plane_positions is None:
+            # Use the origin of the source image
+            x_offset = src_x_offset
+            y_offset = src_y_offset
+            z_offset = src_z_offset
+            origin_preserved = True
+        else:
+            if len(plane_positions) != 1:
+                raise ValueError(
+                    "If specifying plane_positions when the "
+                    '"tile_pixel_array" argument is True, a '
+                    "single plane position should be provided "
+                    "representing the position of the top  "
+                    "left corner of the total pixel matrix."
+                )
+            # Use the provided image origin
+            pp = plane_positions[0][0]
+            rp = pp.RowPositionInTotalImagePixelMatrix
+            cp = pp.ColumnPositionInTotalImagePixelMatrix
+            if rp != 1 or cp != 1:
+                raise ValueError(
+                    "When specifying a single plane position when "
+                    'the "tile_pixel_array" argument is True, the '
+                    "plane position must be at the top left corner "
+                    "of the total pixel matrix. I.e. it must have "
+                    "RowPositionInTotalImagePixelMatrix and "
+                    "ColumnPositionInTotalImagePixelMatrix equal to 1."
+                )
+            x_offset = pp.XOffsetInSlideCoordinateSystem
+            y_offset = pp.YOffsetInSlideCoordinateSystem
+            z_offset = pp.get(
+                'ZOffsetInSlideCoordinateSystem',
+                0.0,
+            )
+            origin_preserved = (
+                x_offset == src_x_offset and
+                y_offset == src_y_offset and
+                z_offset == src_z_offset
+            )
+
+        orientation = plane_orientation[0].ImageOrientationSlide
+        image_position = [x_offset, y_offset, z_offset]
+
+        are_total_pixel_matrix_locations_preserved = (
+            origin_preserved and
+            (
+                orientation_is_copied or
+                plane_orientation == source_plane_orientation
+            ) and
+            (
+                measures_is_copied or
+                (
+                    pixel_measures[0].PixelSpacing ==
+                    source_pixel_measures[0].PixelSpacing
+                )
+            )
+        )
+
+        if are_total_pixel_matrix_locations_preserved:
+            if (
+                frame_shape !=
+                (
+                    src_img.TotalPixelMatrixRows,
+                    src_img.TotalPixelMatrixColumns
+                )
+            ):
+                raise ValueError(
+                    "Shape of input pixel_array does not match shape "
+                    "of the total pixel matrix of the source image."
+                )
+
+            # The overall total pixel matrix can match the source
+            # image's but if the image is tiled differently, spatial
+            # locations within each frame are not preserved
+            are_spatial_locations_preserved = (
+                tile_size == (src_img.Rows, src_img.Columns) and
+                'DimensionOrganizationType' in src_img and
+                src_img.DimensionOrganizationType == 'TILED_FULL'
+            )
+        else:
+            are_spatial_locations_preserved = False
+
+        raw_plane_positions = compute_tile_positions_per_frame(
+            rows=self.Rows,
+            columns=self.Columns,
+            total_pixel_matrix_rows=frame_shape[0],
+            total_pixel_matrix_columns=frame_shape[1],
+            total_pixel_matrix_image_position=image_position,
+            image_orientation=orientation,
+            pixel_spacing=pixel_measures[0].PixelSpacing,
+        )
+        plane_sort_index = np.arange(len(raw_plane_positions))
+
+        # Only need to create the plane position DICOM objects if
+        # they will be placed into the object. Otherwise skip this
+        # as it is really inefficient
+        if (
+            dimension_organization_type !=
+            DimensionOrganizationTypeValues.TILED_FULL
+        ):
+            plane_positions = [
+                PlanePositionSequence(
+                    CoordinateSystemNames.SLIDE,
+                    image_position=coords,
+                    pixel_matrix_position=offsets,
+                )
+                for offsets, coords in raw_plane_positions
+            ]
+        else:
+            # Unneeded
+            plane_positions = [None]
+
+        # Match the format used elsewhere
+        plane_position_values = np.array(
+            [
+                [*offsets, *coords]
+                for offsets, coords in raw_plane_positions
+            ]
+        )
+
+        # compute_tile_positions_per_frame returns
+        # (c, r, x, y, z) but the dimension index sequence
+        # requires (r, c, x, y z). Swap here to correct for
+        # this
+        plane_position_values = plane_position_values[
+            :, [1, 0, 2, 3, 4]
+        ]
+
+        self._add_slide_coordinate_metadata(
+            source_image=src_img,
+            plane_orientation=plane_orientation,
+            plane_position_values=plane_position_values,
+            pixel_measures=pixel_measures,
+            are_spatial_locations_preserved=are_spatial_locations_preserved,
+            is_tiled=True,
+            total_pixel_matrix_size=frame_shape,
+        )
+
+        return (
+            plane_positions,
+            plane_position_values,
+            plane_sort_index,
+        )
+
+    @staticmethod
+    def _get_derivation_source_image_item(
+        source_image: Dataset,
+        frame_number: int | None,
+        locations_preserved: bool,
+    ) -> Dataset:
+        """Create an item of the Source Image Sequence from a source image.
+
+        Parameters
+        ----------
+        source_image: pydicom.Dataset
+            Dataset of the source image to record.
+        frame_number: int | None
+            Frame number (1-based) of the source image to record. This should
+            be provided (not None) if and only if the source image is a
+            multiframe image.
+        locations_preserved: bool
+            Whether the spatial locations are preserved between the source
+            image and derived image being created.
+
+        Returns
+        -------
+        pydicom.Dataset:
+            Dataset object representing an item of the Source Image Sequence
+            (as placed within the Derivation Image Sequence within the Per
+            Frame Functional Groups Sequence).
+
+        """
+        # NB this function is called many times in a loop when there are a
+        # large number of frames, and has been observed to dominate the
+        # creation time of some segmentations. Therefore we use low-level
+        # pydicom primitives to improve performance as much as possible
+        derivation_src_img_item = Dataset()
+
+        derivation_src_img_item.add(
+            DataElement(
+                0x00081150,  # ReferencedSOPClassUID
+                'UI',
+                source_image[0x00080016].value  # SOPClassUID
+            )
+        )
+        derivation_src_img_item.add(
+            DataElement(
+                0x00081155,  # ReferencedSOPInstanceUID
+                'UI',
+                source_image[0x00080018].value  # SOPInstanceUID
+            )
+        )
+        derivation_src_img_item.add(
+            DataElement(
+                0x0040a170,  # PurposeOfReferenceCodeSequence
+                'SQ',
+                [_PURPOSE_CODE]
+            )
+        )
+        derivation_src_img_item.add(
+            DataElement(
+                0x0028135a,  # SpatialLocationsPreserved
+                'CS',
+                'YES' if locations_preserved else 'NO'
+            )
+        )
+        if frame_number is not None:
+            # A single multi-frame source image
+            derivation_src_img_item.add(
+                DataElement(
+                    0x00081160,  # ReferencedFrameNumber
+                    'IS',
+                    frame_number,
+                )
+            )
+        return derivation_src_img_item
+
+    def _add_source_image_references(
+        self,
+        source_images: Sequence[Dataset],
+        further_source_images: Sequence[Dataset] | None,
+    ) -> None:
+        """Add source images to the source image sequence.
+
+        Parameters
+        ----------
+        source_images: pydicom.Dataset
+            Source images.
+        further_source_images: pydicom.Dataset | None
+            Further images provided by the user, if any. These are not used to
+            defined the spatial positions of the frames but are otherwise
+            treated the same way as regular source images.
+
+        """
+        if further_source_images is not None:
+            # We make no requirement here that images should be from the same
+            # series etc, but they should belong to the same study and be image
+            # objects
+            for s_img in further_source_images:
+                if not isinstance(s_img, Dataset):
+                    raise TypeError(
+                        "All items in 'further_source_images' should be "
+                        "of type 'pydicom.Dataset'."
+                    )
+                if s_img.StudyInstanceUID != self.StudyInstanceUID:
+                    raise ValueError(
+                        "All items in 'further_source_images' should belong "
+                        "to the same study as 'source_images'."
+                    )
+                if not does_iod_have_pixel_data(s_img.SOPClassUID):
+                    raise ValueError(
+                        "All items in 'further_source_images' should be "
+                        "image objects."
+                    )
+        else:
+            further_source_images = []
+
+        # Note that appending directly to the SourceImageSequence is typically
+        # slow so it's more efficient to build as a Python list then convert
+        # later. We save conversion for after the main loop
+        source_image_seq: list[Dataset] = []
+        referenced_series: dict[str, list[Dataset]] = defaultdict(list)
+        for s_img in chain(source_images, further_source_images):
+            ref = Dataset()
+            ref.ReferencedSOPClassUID = s_img.SOPClassUID
+            ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
+            source_image_seq.append(ref)
+            referenced_series[s_img.SeriesInstanceUID].append(ref)
+        self.SourceImageSequence = source_image_seq
+
+        # Common Instance Reference
+        ref_image_seq: list[Dataset] = []
+        for series_instance_uid, referenced_images in referenced_series.items():
+            ref = Dataset()
+            ref.SeriesInstanceUID = series_instance_uid
+            ref.ReferencedInstanceSequence = referenced_images
+            ref_image_seq.append(ref)
+        self.ReferencedSeriesSequence = ref_image_seq
+
+    def _add_slide_coordinate_metadata(
+        self,
+        source_image: Dataset,
+        plane_orientation: PlaneOrientationSequence,
+        plane_position_values: np.ndarray,
+        pixel_measures: PixelMeasuresSequence,
+        are_spatial_locations_preserved: bool,
+        is_tiled: bool,
+        total_pixel_matrix_size: tuple[int, int] | None = None,
+    ) -> None:
+        """Add metadata related to the slide coordinate system.
+
+        This is a helper method used in the constructor.
+
+        Parameters
+        ----------
+        source_image: pydicom.Dataset
+            The source image (assumed to be a single source image).
+        plane_orientation: highdicom.PlaneOrientationSequence
+            Plane orientation sequence for the segmentation.
+        plane_position_values: numpy.ndarray
+            Plane positions of each plane.
+        pixel_measures: highdicom.PixelMeasuresSequence
+            PixelMeasuresSequence for the segmentation.
+        are_spatial_locations_preserved: bool
+            Whether spatial locations are preserved between the source image
+            and the segmentation.
+        is_tiled: bool
+            Whether the source image is a tiled image.
+        total_pixel_matrix_size: Optional[Tuple[int, int]]
+            Size (rows, columns) of the total pixel matrix, if known. If None,
+            this will be deduced from the specified plane position values.
+            Explicitly providing the total pixel matrix size is required if the
+            total pixel matrix is smaller than the total area covered by the
+            provided tiles (i.e. the provided plane positions are padded).
+
+        """
+        plane_position_names = self.DimensionIndexSequence.get_index_keywords()
+
+        self.ImageOrientationSlide = deepcopy(
+            plane_orientation[0].ImageOrientationSlide
+        )
+        if are_spatial_locations_preserved and is_tiled:
+            self.TotalPixelMatrixOriginSequence = deepcopy(
+                source_image.TotalPixelMatrixOriginSequence
+            )
+            self.TotalPixelMatrixRows = source_image.TotalPixelMatrixRows
+            self.TotalPixelMatrixColumns = source_image.TotalPixelMatrixColumns
+            self.TotalPixelMatrixFocalPlanes = 1
+        elif are_spatial_locations_preserved and not is_tiled:
+            self.ImageCenterPointCoordinatesSequence = deepcopy(
+                source_image.ImageCenterPointCoordinatesSequence
+            )
+        else:
+            row_index = plane_position_names.index(
+                'RowPositionInTotalImagePixelMatrix'
+            )
+            row_offsets = plane_position_values[:, row_index]
+            col_index = plane_position_names.index(
+                'ColumnPositionInTotalImagePixelMatrix'
+            )
+            col_offsets = plane_position_values[:, col_index]
+            frame_indices = np.lexsort([row_offsets, col_offsets])
+            first_frame_index = frame_indices[0]
+            last_frame_index = frame_indices[-1]
+            x_index = plane_position_names.index(
+                'XOffsetInSlideCoordinateSystem'
+            )
+            x_origin = plane_position_values[first_frame_index, x_index]
+            y_index = plane_position_names.index(
+                'YOffsetInSlideCoordinateSystem'
+            )
+            y_origin = plane_position_values[first_frame_index, y_index]
+            z_index = plane_position_names.index(
+                'ZOffsetInSlideCoordinateSystem'
+            )
+            z_origin = plane_position_values[first_frame_index, z_index]
+
+            if is_tiled:
+                origin_item = Dataset()
+                origin_item.XOffsetInSlideCoordinateSystem = \
+                    format_number_as_ds(x_origin)
+                origin_item.YOffsetInSlideCoordinateSystem = \
+                    format_number_as_ds(y_origin)
+                origin_item.ZOffsetInSlideCoordinateSystem = \
+                    format_number_as_ds(z_origin)
+                self.TotalPixelMatrixOriginSequence = [origin_item]
+                self.TotalPixelMatrixFocalPlanes = 1
+                if total_pixel_matrix_size is None:
+                    self.TotalPixelMatrixRows = int(
+                        plane_position_values[last_frame_index, row_index] +
+                        self.Rows - 1
+                    )
+                    self.TotalPixelMatrixColumns = int(
+                        plane_position_values[last_frame_index, col_index] +
+                        self.Columns - 1
+                    )
+                else:
+                    self.TotalPixelMatrixRows = total_pixel_matrix_size[0]
+                    self.TotalPixelMatrixColumns = total_pixel_matrix_size[1]
+            else:
+                transform = ImageToReferenceTransformer(
+                    image_position=(x_origin, y_origin, z_origin),
+                    image_orientation=(
+                        plane_orientation[0].ImageOrientationSlide
+                    ),
+                    pixel_spacing=pixel_measures[0].PixelSpacing
+                )
+                center_image_coordinates = np.array(
+                    [[self.Columns / 2, self.Rows / 2]],
+                    dtype=float
+                )
+                center_reference_coordinates = transform(
+                    center_image_coordinates
+                )
+                x_center = center_reference_coordinates[0, 0]
+                y_center = center_reference_coordinates[0, 1]
+                z_center = center_reference_coordinates[0, 2]
+                center_item = Dataset()
+                center_item.XOffsetInSlideCoordinateSystem = \
+                    format_number_as_ds(x_center)
+                center_item.YOffsetInSlideCoordinateSystem = \
+                    format_number_as_ds(y_center)
+                center_item.ZOffsetInSlideCoordinateSystem = \
+                    format_number_as_ds(z_center)
+                self.ImageCenterPointCoordinatesSequence = [center_item]
+
+    @staticmethod
+    def _check_tiled_dimension_organization(
+        dimension_organization_type: (
+            DimensionOrganizationTypeValues |
+            str |
+            None
+        ),
+        is_tiled: bool,
+        omit_empty_frames: bool,
+        plane_positions: Sequence[PlanePositionSequence],
+        tile_pixel_array: bool,
+        rows: int,
+        columns: int,
+    ) -> DimensionOrganizationTypeValues | None:
+        """Checks that the specified Dimension Organization Type is valid.
+
+        Parameters
+        ----------
+        dimension_organization_type: Union[highdicom.enum.DimensionOrganizationTypeValues, str, None]
+           The specified DimensionOrganizationType for the output Segmentation.
+        is_tiled: bool
+            Whether the source image is a tiled image.
+        omit_empty_frames: bool
+            Whether it was specified to omit empty frames.
+        tile_pixel_array: bool
+            Whether the total pixel matrix was passed.
+        plane_positions: Sequence[highdicom.PlanePositionSequence]
+            Plane positions of all frames.
+        rows: int
+            Number of rows in each frame of the segmentation image.
+        columns: int
+            Number of columns in each frame of the segmentation image.
+
+        Returns
+        -------
+        Optional[highdicom.enum.DimensionOrganizationTypeValues]:
+            DimensionOrganizationType to use for the output Segmentation.
+
+        """  # noqa: E501
+        if (
+            dimension_organization_type ==
+            DimensionOrganizationTypeValues.THREE_DIMENSIONAL_TEMPORAL
+        ):
+            raise ValueError(
+                "Value of 'THREE_DIMENSIONAL_TEMPORAL' for "
+                "parameter 'dimension_organization_type' is not supported."
+            )
+        if is_tiled and dimension_organization_type is None:
+            dimension_organization_type = \
+                DimensionOrganizationTypeValues.TILED_SPARSE
+
+        if dimension_organization_type is not None:
+            dimension_organization_type = DimensionOrganizationTypeValues(
+                dimension_organization_type
+            )
+            tiled_dimension_organization_types = [
+                DimensionOrganizationTypeValues.TILED_SPARSE,
+                DimensionOrganizationTypeValues.TILED_FULL
+            ]
+
+            if (
+                dimension_organization_type in
+                tiled_dimension_organization_types
+            ):
+                if not is_tiled:
+                    raise ValueError(
+                        f"A value of {dimension_organization_type.value} "
+                        'for parameter "dimension_organization_type" is '
+                        'only valid if the source images are tiled.'
+                    )
+
+            if (
+                dimension_organization_type ==
+                DimensionOrganizationTypeValues.TILED_FULL
+            ):
+                # Need to check positions if they were not generated by us
+                # when using tile_pixel_array
+                if (
+                    not tile_pixel_array and
+                    not are_plane_positions_tiled_full(
+                        plane_positions,
+                        rows,
+                        columns,
+                    )
+                ):
+                    raise ValueError(
+                        'A value of "TILED_FULL" for parameter '
+                        '"dimension_organization_type" is not permitted '
+                        'because the "plane_positions" of the segmentation '
+                        'do not follow the relevant requirements. See '
+                        'https://dicom.nema.org/medical/dicom/current/output/'
+                        'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3 .'
+                    )
+                if omit_empty_frames:
+                    raise ValueError(
+                        'Parameter "omit_empty_frames" should be False if '
+                        'using "dimension_organization_type" of "TILED_FULL".'
+                    )
+
+        return dimension_organization_type
 
     def _standardize_frame_index(
         self,
@@ -1938,9 +3313,8 @@ class _Image(SOPClass):
         self._is_tiled_full = False
         self._dim_ind_pointers = []
         self._dim_ind_col_names = {}
-        self._single_source_frame_per_frame = False
-        self._locations_preserved = None
         self._missing_reference_instances = []
+        frame_references = []
         referenced_uids = self._get_ref_instance_uids()
         all_referenced_sops = {uids[2] for uids in referenced_uids}
 
@@ -1970,43 +3344,28 @@ class _Image(SOPClass):
                         col_defs.append(f'{kw} {sql_type} NOT NULL')
                         col_data.append([v])
 
-        if 'SourceImageSequence' in self:
-            self._single_source_frame_per_frame = (
-                len(self.SourceImageSequence) == 1
+        for source_image_item in self.get('SourceImageSequence', []):
+            ref_uid = source_image_item.ReferencedSOPInstanceUID,
+
+            locations_preserved = source_image_item.get(
+                'SpatialLocationsPreserved'
             )
-            locations_preserved = [
-                item.get('SpatialLocationsPreserved')
-                for item in self.SourceImageSequence
-            ]
-            if all(
-                v is not None and v == "YES" for v in locations_preserved
-            ):
-                self._locations_preserved = (
-                    SpatialLocationsPreservedValues.YES
+
+            frame_number: int | None = None
+            if 'ReferencedFrameNumber' in source_image_item:
+                frame_number = source_image_item.ReferencedFrameNumber
+
+            frame_references.append(
+                (
+                    1,
+                    ref_uid,
+                    frame_number,
+                    locations_preserved,
                 )
-            elif all(
-                v is not None and v == "NO" for v in locations_preserved
-            ):
-                self._locations_preserved = (
-                    SpatialLocationsPreservedValues.NO
-                )
-            if self._single_source_frame_per_frame:
-                ref_frame = self.SourceImageSequence[0].get(
-                    'ReferencedFrameNumber'
-                )
-                ref_uid = self.SourceImageSequence[0].ReferencedSOPInstanceUID
-                if ref_uid not in all_referenced_sops:
-                    self._missing_reference_instances.append(ref_uid)
-                col_defs.append('ReferencedFrameNumber INTEGER')
-                col_defs.append('ReferencedSOPInstanceUID VARCHAR NOT NULL')
-                col_defs.append(
-                    'FOREIGN KEY(ReferencedSOPInstanceUID) '
-                    'REFERENCES InstanceUIDs(SOPInstanceUID)'
-                )
-                col_data += [
-                    [ref_frame],
-                    [ref_uid],
-                ]
+            )
+
+            if ref_uid not in all_referenced_sops:
+                self._missing_reference_instances.append(ref_uid)
 
         referenced_uids = self._get_ref_instance_uids()
         self._db_con = sqlite3.connect(":memory:")
@@ -2090,6 +3449,7 @@ class _Image(SOPClass):
         extra_collection_pointers = []
         extra_collection_func_pointers = {}
         extra_collection_values: dict[int, list[Any]] = {}
+        frame_references = []
 
         for grp_ptr, ptr in [
             # PlanePositionSequence/ImagePositionPatient
@@ -2164,7 +3524,6 @@ class _Image(SOPClass):
         if hasattr(self, 'ImageOrientationSlide'):
             shared_image_orientation = self.ImageOrientationSlide
 
-        self._single_source_frame_per_frame = True
         self._missing_reference_instances = []
 
         if self._is_tiled_full:
@@ -2176,7 +3535,6 @@ class _Image(SOPClass):
             y_tag = tag_for_keyword('YOffsetInSlideCoordinateSystem')
             z_tag = tag_for_keyword('ZOffsetInSlideCoordinateSystem')
             tiled_full_dim_indices = {row_tag, col_tag}
-            self._single_source_frame_per_frame = False
             (
                 channel_numbers,
                 _,
@@ -2222,22 +3580,7 @@ class _Image(SOPClass):
                 _, indices = np.unique(vals, return_inverse=True)
                 dim_indices[ptr] = (indices + 1).tolist()
 
-            # There is no way to deduce whether the spatial locations are
-            # preserved in the tiled full case
-            self._locations_preserved = None
-
-            referenced_instances = None
-            referenced_frames = None
         else:
-            referenced_instances: list[str] | None = []
-            referenced_frames: list[int] | None = []
-
-            # Create a list of source images and check for spatial locations
-            # preserved
-            locations_preserved: list[
-                SpatialLocationsPreservedValues | None
-            ] = []
-
             # Some of the indexed pointers may be in the shared
             # functional groups
             if 'SharedFunctionalGroupsSequence' in self:
@@ -2245,7 +3588,10 @@ class _Image(SOPClass):
                 for ptr in extra_collection_pointers:
                     grp_ptr = extra_collection_func_pointers[ptr]
 
-            for frame_item in self.get('PerFrameFunctionalGroupsSequence', []):
+            for frame_number, frame_item in enumerate(
+                self.get('PerFrameFunctionalGroupsSequence', []),
+                1
+            ):
                 # Get dimension indices for this frame
                 if len(self._dim_ind_pointers) > 0:
                     content_seq = frame_item.FrameContentSequence[0]
@@ -2255,12 +3601,14 @@ class _Image(SOPClass):
                         indices = [indices]
                 else:
                     indices = []
+
                 if len(indices) != len(self._dim_ind_pointers):
                     raise RuntimeError(
                         'Unexpected mismatch between dimension index values in '
                         'per-frames functional groups sequence and items in '
                         'the dimension index sequence.'
                     )
+
                 for ptr in self._dim_ind_pointers:
                     dim_indices[ptr].append(indices[dim_ind_positions[ptr]])
 
@@ -2275,6 +3623,7 @@ class _Image(SOPClass):
                     else:
                         dim_val = frame_item[ptr].value
                     dim_values[ptr].append(dim_val)
+
                 for ptr in extra_collection_pointers:
                     # Check this wasn't already found in the shared functional
                     # groups
@@ -2291,63 +3640,38 @@ class _Image(SOPClass):
                         dim_val = frame_item[ptr].value
                     extra_collection_values[ptr].append(dim_val)
 
-                frame_source_instances = []
-                frame_source_frames = []
                 for der_im in getattr(
                     frame_item,
                     'DerivationImageSequence',
                     []
                 ):
-                    for src_im in getattr(
-                        der_im,
+                    for source_image_item in der_im.get(
                         'SourceImageSequence',
                         []
                     ):
-                        frame_source_instances.append(
-                            src_im.ReferencedSOPInstanceUID
+                        ref_uid = source_image_item.ReferencedSOPInstanceUID
+
+                        locations_preserved = source_image_item.get(
+                            'SpatialLocationsPreserved'
                         )
-                        if hasattr(src_im, 'SpatialLocationsPreserved'):
-                            locations_preserved.append(
-                                SpatialLocationsPreservedValues(
-                                    src_im.SpatialLocationsPreserved
-                                )
-                            )
-                        else:
-                            locations_preserved.append(
-                                None
+
+                        ref_frame_number: int | None = None
+                        if 'ReferencedFrameNumber' in source_image_item:
+                            ref_frame_number = (
+                                source_image_item.ReferencedFrameNumber
                             )
 
-                        if hasattr(src_im, 'ReferencedFrameNumber'):
-                            if isinstance(
-                                src_im.ReferencedFrameNumber,
-                                MultiValue
-                            ):
-                                frame_source_frames.extend(
-                                    [
-                                        int(f)
-                                        for f in src_im.ReferencedFrameNumber
-                                    ]
-                                )
-                            else:
-                                frame_source_frames.append(
-                                    int(src_im.ReferencedFrameNumber)
-                                )
-                        else:
-                            frame_source_frames.append(None)
-
-                if (
-                    len(set(frame_source_instances)) != 1 or
-                    len(set(frame_source_frames)) != 1
-                ):
-                    self._single_source_frame_per_frame = False
-                else:
-                    ref_instance_uid = frame_source_instances[0]
-                    if ref_instance_uid not in all_referenced_sops:
-                        self._missing_reference_instances.append(
-                            ref_instance_uid
+                        frame_references.append(
+                            (
+                                frame_number,
+                                ref_uid,
+                                ref_frame_number,
+                                locations_preserved,
+                            )
                         )
-                    referenced_instances.append(ref_instance_uid)
-                    referenced_frames.append(frame_source_frames[0])
+
+                        if ref_uid not in all_referenced_sops:
+                            self._missing_reference_instances.append(ref_uid)
 
                 # Check that this doesn't have a conflicting orientation
                 if shared_image_orientation is not None:
@@ -2378,27 +3702,6 @@ class _Image(SOPClass):
                             fm_pixel_spacing != shared_pixel_spacing
                         ):
                             shared_pixel_spacing = None
-
-            # Summarise
-            if any(
-                isinstance(v, SpatialLocationsPreservedValues) and
-                v == SpatialLocationsPreservedValues.NO
-                for v in locations_preserved
-            ):
-
-                self._locations_preserved = SpatialLocationsPreservedValues.NO
-            elif all(
-                isinstance(v, SpatialLocationsPreservedValues) and
-                v == SpatialLocationsPreservedValues.YES
-                for v in locations_preserved
-            ):
-                self._locations_preserved = SpatialLocationsPreservedValues.YES
-            else:
-                self._locations_preserved = None
-
-            if not self._single_source_frame_per_frame:
-                referenced_instances = None
-                referenced_frames = None
 
         self._db_con = sqlite3.connect(":memory:")
 
@@ -2484,33 +3787,23 @@ class _Image(SOPClass):
                 col_defs.append(f'{kw} {sql_type} NOT NULL')
                 col_data.append(extra_collection_values[t])
 
-        # Columns related to source frames, if they are usable for indexing
-        if (referenced_frames is None) != (referenced_instances is None):
-            raise TypeError(
-                "'referenced_frames' and 'referenced_instances' should be "
-                "provided together or not at all."
-            )
-        if referenced_instances is not None:
-            col_defs.append('ReferencedFrameNumber INTEGER')
-            col_defs.append('ReferencedSOPInstanceUID VARCHAR NOT NULL')
-            col_defs.append(
-                'FOREIGN KEY(ReferencedSOPInstanceUID) '
-                'REFERENCES InstanceUIDs(SOPInstanceUID)'
-            )
-            col_data += [
-                referenced_frames,
-                referenced_instances,
-            ]
-
         self._create_frame_lut(col_defs, col_data)
+        self._create_frame_references_lut(frame_references)
 
-    def _get_frame_lut_col_type(self, column_name: str) -> str:
+    def _get_frame_lut_col_type(
+        self,
+        table_name: str,
+        column_name: str,
+    ) -> str:
         """Get the SQL type of a column in the FrameLUT table.
 
         Parameters
         ----------
+        table_name: str
+            Name of a table in the database.
         column_name: str
-            Name of a colume in the FrameLUT whose type is requested.
+            Name of a column, in the table specified by table_name, whose type
+            is requested.
 
         Returns
         -------
@@ -2519,13 +3812,13 @@ class _Image(SOPClass):
 
         """
         query = (
-            "SELECT type FROM pragma_table_info('FrameLUT') "
+            f"SELECT type FROM pragma_table_info('{table_name}') "
             f"WHERE name = '{column_name}'"
         )
         result = list(self._db_con.execute(query))
         if len(result) == 0:
             raise ValueError(
-                f'No such colume found in frame LUT: {column_name}'
+                f'No such column found in {table_name}: {column_name}'
             )
         return result[0][0]
 
@@ -2567,7 +3860,7 @@ class _Image(SOPClass):
         for c in columns:
             # First check whether the column actually exists
             try:
-                self._get_frame_lut_col_type(c)
+                self._get_frame_lut_col_type('FrameLUT', c)
             except ValueError:
                 if none_if_missing:
                     return None
@@ -2587,6 +3880,7 @@ class _Image(SOPClass):
             return None
 
         if len(vals) != 1:
+            logger.info(f"Frames do not have a consistent {kw}.")
             raise RuntimeError(
                 f'Frames do not have a consistent {kw}.'
             )
@@ -2620,6 +3914,46 @@ class _Image(SOPClass):
             self._db_con.executemany(
                 f'INSERT INTO FrameLUT VALUES({placeholders})',
                 zip(*column_data),
+            )
+
+    def _create_frame_references_lut(
+        self,
+        frame_references: list[tuple[int, str, int | None, str | None]],
+    ) -> None:
+        """Create a SQL table containing frame-level references.
+
+        Parameters
+        ----------
+        frame_references: list[tuple[int, str, int | None, bool]]
+            List of frame references. Each item is a tuple containing:
+
+             * The (1-based) frame number of the frame
+             * The SOPInstanceUID of the referenced image.
+             * The (1-based) frame number of the referenced image if it is a
+               mutiframe image, or None otherwise.
+             * Optional str specifying whether spatial locations are preserved
+               in the reference.
+
+        """
+        if len(frame_references) == 0:
+            self._has_frame_references = False
+            return
+
+        self._has_frame_references = True
+        defs = (
+            'FrameNumber INTEGER NOT NULL, '
+            'ReferencedSOPInstanceUID VARCHAR NOT NULL, '
+            'ReferencedFrameNumber INTEGER, '
+            'SpatialLocationsPreserved VARCHAR, '
+            'FOREIGN KEY(ReferencedSOPInstanceUID) '
+            'REFERENCES InstanceUIDs(SOPInstanceUID)'
+        )
+        cmd = f'CREATE TABLE FrameReferenceLUT({defs})'
+        with self._db_con:
+            self._db_con.execute(cmd)
+            self._db_con.executemany(
+                'INSERT INTO FrameReferenceLUT VALUES(?, ?, ?, ?)',
+                frame_references,
             )
 
     def _get_ref_instance_uids(self) -> list[tuple[str, str, str]]:
@@ -2690,24 +4024,28 @@ class _Image(SOPClass):
 
     def _check_indexing_with_source_frames(
         self,
-        ignore_spatial_locations: bool = False
+        ignore_spatial_locations: bool,
+        assert_missing_frames_are_empty: bool,
+        source_sop_instance_uids: Sequence[str],
+        source_frame_numbers: Sequence[int] | None = None,
     ) -> None:
         """Check if indexing by source frames is possible.
 
         Raise exceptions with useful messages otherwise.
 
-        Possible problems include:
-            * Spatial locations are not preserved.
-            * The dataset does not specify that spatial locations are preserved
-              and the user has not asserted that they are.
-            * At least one frame in the image lists multiple
-              source frames.
-
         Parameters
         ----------
         ignore_spatial_locations: bool
-            Allows the user to ignore whether spatial locations are preserved
-            in the frames.
+            Whether to ignore the presence/value of the
+            SpatialLocationsPreserved attribute in the references.
+        assert_missing_frames_are_empty: bool
+            Whether to allow frame numbers/instance UIDs that are not
+            referenced and return blank frames for them.
+        source_sop_instance_uids: Sequence[str]
+            List of SOPInstanceUIDs. If source_frame_numbers is provided,
+            should have length 1.
+        source_frame_numbers: Sequence[int] | None
+            List of referenced frame numbers.
 
         """
         # Checks that it is possible to index using source frames in this
@@ -2718,32 +4056,99 @@ class _Image(SOPClass):
                 'image is stored using the DimensionOrganizationType '
                 '"TILED_FULL".'
             )
-        elif self._locations_preserved is None:
-            if not ignore_spatial_locations:
-                raise RuntimeError(
-                    'Indexing via source frames is not permissible since this '
-                    'image does not specify that spatial locations are '
-                    'preserved in the course of deriving the image '
-                    'from the source image. If you are confident that spatial '
-                    'locations are preserved, or do not require that spatial '
-                    'locations are preserved, you may override this behavior '
-                    "with the 'ignore_spatial_locations' parameter."
-                )
-        elif self._locations_preserved == SpatialLocationsPreservedValues.NO:
-            if not ignore_spatial_locations:
-                raise RuntimeError(
-                    'Indexing via source frames is not permissible since this '
-                    'image specifies that spatial locations are not preserved '
-                    'in the course of deriving the image from the '
-                    'source image. If you do not require that spatial '
-                    ' locations are preserved you may override this behavior '
-                    "with the 'ignore_spatial_locations' parameter."
-                )
-        if not self._single_source_frame_per_frame:
+        if not self._has_frame_references:
             raise RuntimeError(
-                'Indexing via source frames is not permissible since some '
-                'frames in the image specify multiple source frames.'
+                'Indexing via source frames is not possible because frames '
+                'do not contain information about source frames.'
             )
+
+        # Check that all frame numbers requested actually exist
+        if not assert_missing_frames_are_empty:
+            unique_uids = (
+                self._get_unique_referenced_sop_instance_uids()
+            )
+            missing_uids = set(source_sop_instance_uids) - unique_uids
+            if len(missing_uids) > 0:
+                msg = (
+                    f'SOP Instance UID(s) {list(missing_uids)} do not match '
+                    'any referenced source instances. To return an empty '
+                    'segmentation mask in this situation, use the '
+                    '"assert_missing_frames_are_empty" parameter.'
+                )
+                raise KeyError(msg)
+
+            if source_frame_numbers is not None:
+                max_frame_number = (
+                    self._get_max_referenced_frame_number()
+                )
+                for f in source_frame_numbers:
+                    if f > max_frame_number:
+                        msg = (
+                            f'Source frame number {f} is larger than any '
+                            'referenced source frame, so highdicom cannot be '
+                            'certain that it is valid. To return an empty '
+                            'segmentation mask in this situation, use the '
+                            "'assert_missing_frames_are_empty' parameter."
+                        )
+                        raise ValueError(msg)
+
+        if not ignore_spatial_locations:
+            table_name = 'TemporaryFrameTable'
+            column_defs = ['ReferencedSOPInstanceUID VARCHAR NOT NULL']
+            join_cols = ['ReferencedSOPInstanceUID']
+
+            if source_frame_numbers is None:
+                column_data = [source_sop_instance_uids]
+            else:
+                column_defs.append('ReferencedFrameNumber INTEGER NOT NULL')
+                join_cols.append('ReferencedSOPInstanceUID')
+                column_data = [
+                    [source_sop_instance_uids[0]] * len(source_frame_numbers),
+                    source_frame_numbers,
+                ]
+
+            join_str = ' AND '.join(
+                f'{table_name}.{c} = FrameReferenceLUT.{c}'
+                for c in join_cols
+            )
+
+            temp_table = _SQLTableDefinition(
+                table_name=table_name,
+                column_defs=column_defs,
+                column_data=zip(*column_data),
+            )
+
+            query = (
+                'SELECT SpatialLocationsPreserved FROM FrameReferenceLUT '
+                f'INNER JOIN {table_name} ON {join_str}'
+            )
+
+            with self._generate_temp_tables([temp_table]):
+                locations_preserved = [
+                    v[0] for v in self._db_con.execute(query)
+                ]
+
+            if any(v is not None and v != 'YES' for v in locations_preserved):
+                raise RuntimeError(
+                    'Indexing via source frames is not permissible since at '
+                    'least one requested frame specifies that spatial '
+                    'locations are not preserved in the course of deriving '
+                    'the image from the source image. If you do not require '
+                    'that spatial locations are preserved you may override  '
+                    "wthis behavior ith the 'ignore_spatial_locations' "
+                    'parameter.'
+                )
+
+            if any(v is None for v in locations_preserved):
+                raise RuntimeError(
+                    'Indexing via source frames is not permissible since at '
+                    'least one requested frame does not specify that spatial '
+                    'locations are preserved in the course of deriving the '
+                    'image from the source image. If you are confident that '
+                    'spatial locations are preserved, or do not require that '
+                    'spatial locations are preserved, you may override this '
+                    "behavior with the 'ignore_spatial_locations' parameter."
+                )
 
     @property
     def dimension_index_pointers(self) -> list[BaseTag]:
@@ -2786,7 +4191,7 @@ class _Image(SOPClass):
 
     def _do_columns_identify_unique_frames(
         self,
-        column_names: Sequence[str],
+        columns: Sequence[tuple[str, str]],
         filter: str | None = None,
     ) -> bool:
         """Check if a list of columns uniquely identifies frames.
@@ -2797,8 +4202,8 @@ class _Image(SOPClass):
 
         Parameters
         ----------
-        column_names: Sequence[str]
-            Column names.
+        columns: Sequence[tuple[str, str]]
+            Columns specified by tuples of (table_name, column_name).
         filter: str
             A SQL-syntax filter to apply. If provided, determines whether the
             given columns are sufficient to identify frames within the filtered
@@ -2811,21 +4216,30 @@ class _Image(SOPClass):
             frames.
 
         """
-        col_str = ", ".join(column_names)
         cur = self._db_con.cursor()
+
+        join_str = ''
+        if any(t == 'FrameReferenceLUT' for (t, _) in columns):
+            join_str = (
+                'JOIN FrameReferenceLUT ON '
+                'FrameLUT.FrameNumber = FrameReferenceLUT.FrameNumber'
+            )
 
         if filter is not None and filter != '':
             total = cur.execute(
-                f"SELECT COUNT(*) FROM FrameLUT {filter}"
+                f"SELECT COUNT(*) FROM FrameLUT {join_str} {filter}"
             ).fetchone()[0]
         else:
             total = self.number_of_frames
             filter = ''
 
-        n_unique_combos = cur.execute(
+        col_str = ", ".join([f'{t}.{c}' for (t, c) in columns])
+
+        query = (
             "SELECT COUNT(*) FROM "
-            f"(SELECT 1 FROM FrameLUT {filter} GROUP BY {col_str})"
-        ).fetchone()[0]
+            f"(SELECT 1 FROM FrameLUT {join_str} {filter} GROUP BY {col_str})"
+        )
+        n_unique_combos = cur.execute(query).fetchone()[0]
         return n_unique_combos == total
 
     def are_dimension_indices_unique(
@@ -2851,7 +4265,7 @@ class _Image(SOPClass):
             True if dimension indices are unique.
 
         """
-        column_names = []
+        columns = []
         for ptr in dimension_index_pointers:
             if isinstance(ptr, str):
                 t = tag_for_keyword(ptr)
@@ -2860,8 +4274,8 @@ class _Image(SOPClass):
                         f"Keyword '{ptr}' is not a valid DICOM keyword."
                     )
                 ptr = t
-            column_names.append(self._dim_ind_col_names[ptr][0])
-        return self._do_columns_identify_unique_frames(column_names)
+            columns.append(('FrameLUT', self._dim_ind_col_names[ptr][0]))
+        return self._do_columns_identify_unique_frames(columns)
 
     def get_source_image_uids(self) -> list[tuple[UID, UID, UID]]:
         """Get UIDs of source image instances referenced in the image.
@@ -2924,7 +4338,7 @@ class _Image(SOPClass):
         """
         cur = self._db_con.cursor()
         return cur.execute(
-            'SELECT MAX(ReferencedFrameNumber) FROM FrameLUT'
+            'SELECT MAX(ReferencedFrameNumber) FROM FrameReferenceLUT'
         ).fetchone()[0]
 
     def is_indexable_as_total_pixel_matrix(self) -> bool:
@@ -2977,6 +4391,7 @@ class _Image(SOPClass):
         self,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
         allow_missing_positions: bool = False,
         allow_duplicate_positions: bool = True,
         filter: str | None = None,
@@ -3002,6 +4417,12 @@ class _Image(SOPClass):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
         allow_missing_positions: bool, optional
             Allow volume positions for which no frame exists in the image.
         allow_duplicate_positions: bool, optional
@@ -3081,6 +4502,7 @@ class _Image(SOPClass):
             spacing_hint=slice_spacing_hint,
             rtol=rtol,
             atol=atol,
+            perpendicular_tol=perpendicular_tol,
         )
         if volume_positions is None:
             raise RuntimeError(
@@ -3127,6 +4549,7 @@ class _Image(SOPClass):
         self,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
         allow_missing_positions: bool = False,
         filter: str | None = None,
         slice_start: int | None = None,
@@ -3148,6 +4571,12 @@ class _Image(SOPClass):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
         allow_missing_positions: bool, optional
             Allow volume positions for which no frame exists in the image.
         filter: str | None, optional
@@ -3187,6 +4616,7 @@ class _Image(SOPClass):
         geometry, frame_positions = self._get_stacked_volume_geometry(
             rtol=rtol,
             atol=atol,
+            perpendicular_tol=perpendicular_tol,
             allow_missing_positions=allow_missing_positions,
             filter=filter,
             slice_start=slice_start,
@@ -3212,6 +4642,7 @@ class _Image(SOPClass):
         *,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
         allow_missing_positions: bool = False,
         allow_duplicate_positions: bool = True,
     ) -> VolumeGeometry | None:
@@ -3238,6 +4669,12 @@ class _Image(SOPClass):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
         allow_missing_positions: bool, optional
             Allow volume positions for which no frame exists in the image.
         allow_duplicate_positions: bool, optional
@@ -3256,10 +4693,15 @@ class _Image(SOPClass):
             return self._get_volume_geometry(
                 atol=atol,
                 rtol=rtol,
+                perpendicular_tol=perpendicular_tol,
                 allow_missing_positions=allow_missing_positions,
                 allow_duplicate_positions=allow_duplicate_positions,
             )
-        except RuntimeError:
+        except RuntimeError as e:
+            logger.info(
+                "Image is not a volume due to the following error. Earlier "
+                f"log messages may contain more information:\n {e}."
+            )
             return None
 
     def _get_volume_geometry(
@@ -3267,6 +4709,7 @@ class _Image(SOPClass):
         *,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
         allow_missing_positions: bool = False,
         allow_duplicate_positions: bool = True,
     ) -> VolumeGeometry:
@@ -3283,6 +4726,12 @@ class _Image(SOPClass):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
         allow_missing_positions: bool, optional
             Allow volume positions for which no frame exists in the image.
         allow_duplicate_positions: bool, optional
@@ -3297,6 +4746,9 @@ class _Image(SOPClass):
 
         """
         if self._coordinate_system is None:
+            logger.info(
+                "Image is not a volume because it has no FrameOfReferenceUID."
+            )
             raise RuntimeError(
                 "Image does not exist within a frame-of-reference "
                 "coordinate system."
@@ -3342,10 +4794,16 @@ class _Image(SOPClass):
                 geometry, _ = self._get_stacked_volume_geometry(
                     rtol=rtol,
                     atol=atol,
+                    perpendicular_tol=perpendicular_tol,
                     allow_missing_positions=allow_missing_positions,
                     allow_duplicate_positions=allow_duplicate_positions,
                 )
                 return geometry
+            else:
+                logger.info(
+                    "Image is not a volume because it exists in the slide "
+                    "coordinate system but is not tiled."
+                )
         else:
             # Single frame image, only supports patient coordinate system
             # currently
@@ -3369,6 +4827,11 @@ class _Image(SOPClass):
                         1.0
                     ),
                     coordinate_system=self._coordinate_system,
+                )
+            else:
+                logger.info(
+                    "Image is not a volume because it does not contain image "
+                    "position information."
                 )
 
         raise RuntimeError(
@@ -3432,6 +4895,44 @@ class _Image(SOPClass):
             cmd = (f'DROP TABLE {tdef.table_name}')
             with self._db_con:
                 self._db_con.execute(cmd)
+
+    @contextmanager
+    def _generate_temp_view(
+        self,
+        view_name: str,
+        select_statement: str,
+    ) -> Generator[None, None, None]:
+        """Create a database view that is cleaned up after exiting.
+
+        Parameters
+        ----------
+        view_name: str
+            The name of the view to be created.
+        select_statement: str
+            The SQL SELECT statement that defines the view.
+
+        Yields
+        ------
+        None:
+            Yields control to the "with" block, with the temporary tables
+            created.
+
+        """
+        drop_cmd = f'DROP VIEW IF EXISTS {view_name}'
+        create_cmd = f'CREATE VIEW {view_name} AS {select_statement}'
+        with self._db_con:
+            # Drop the view if it exists, this can happen if previous error was
+            # handled
+            self._db_con.execute(drop_cmd)
+            self._db_con.execute(create_cmd)
+
+        # Return control flow to "with" block
+        yield
+
+        # Clean up the view
+        cmd = (f'DROP VIEW {view_name}')
+        with self._db_con:
+            self._db_con.execute(cmd)
 
     def _get_pixels_by_frame(
         self,
@@ -3715,7 +5216,7 @@ class _Image(SOPClass):
         use_indices: bool,
         multiple_values: bool,
         allow_missing_values: bool = False,
-    ) -> dict[str, Any]:
+    ) -> dict[tuple[str, str], Any]:
         """Check and standardize queries used to specify dimensions.
 
         Parameters
@@ -3723,14 +5224,14 @@ class _Image(SOPClass):
         queries: Dict[Union[int, str], Any]
             Dictionary defining a filter or index along a dimension. The keys
             define the dimensions used. They may be either the tags or keywords
-            of attributes in the image's dimension index, or the special
-            values, 'ReferencedSOPInstanceUID', and 'ReferencedFrameNumber'.
-            The values of the dictionary give sequences of values of
-            corresponding dimension that define each slice of the output array
-            or a single value that is used to filter the frames. Note that
-            multiple dimensions may be used, in which case a frame must match
-            the values of all provided dimensions to be placed in the output
-            array.
+            of attributes in the image's dimension index, or the special values
+            'ReferencedSOPInstanceUID', 'ReferencedFrameNumber', and
+            'SpatialLocationsPreserved'. The values of the dictionary give
+            sequences of values of corresponding dimension that define each
+            slice of the output array or a single value that is used to filter
+            the frames. Note that multiple dimensions may be used, in which
+            case a frame must match the values of all provided dimensions to be
+            placed in the output array.
         use_indices: bool
             Whether indexing is done using (integer) dimension index values, as
             opposed to values themselves.
@@ -3743,12 +5244,13 @@ class _Image(SOPClass):
 
         Returns
         -------
-        dict[str, Any]:
-            Queries after validation, with keys matching the column names used
-            in the Frame LUT.
+        dict[tuple[str, str], Any]:
+            Queries after validation, with keys of the form
+            (TableName, ColumnName) from tables in the internal Sqlite
+            database.
 
         """
-        normalized_queries: dict[str, Any] = {}
+        normalized_queries: dict[tuple[str, str], Any] = {}
         tag: BaseTag | None = None
 
         if len(queries) == 0:
@@ -3758,17 +5260,25 @@ class _Image(SOPClass):
             n_values = len(list(queries.values())[0])
 
         for p, value in queries.items():
+            table_name = 'FrameLUT'  # default that may be overridden
+
             if isinstance(p, int):  # also covers BaseTag
                 tag = BaseTag(p)
 
             elif isinstance(p, str):
                 # Special cases
                 if p == 'ReferencedSOPInstanceUID':
+                    table_name = 'FrameReferenceLUT'
                     col_name = 'ReferencedSOPInstanceUID'
                     python_type = str
                 elif p == 'ReferencedFrameNumber':
+                    table_name = 'FrameReferenceLUT'
                     col_name = 'ReferencedFrameNumber'
                     python_type = int
+                elif p == 'SpatialLocationsPreserved':
+                    table_name = 'FrameReferenceLUT'
+                    col_name = 'SpatialLocationsPreserved'
+                    python_type = str
                 else:
                     t = tag_for_keyword(p)
 
@@ -3826,7 +5336,7 @@ class _Image(SOPClass):
 
             allowed_values = {
                 v[0] for v in self._db_con.execute(
-                    f"SELECT DISTINCT({col_name}) FROM FrameLUT;"
+                    f"SELECT DISTINCT({col_name}) FROM {table_name};"
                 )
             }
 
@@ -3879,17 +5389,16 @@ class _Image(SOPClass):
                             "present in the image."
                         )
 
-            if col_name in normalized_queries:
-                raise ValueError(
-                    'All dimensions must be unique.'
-                )
-            normalized_queries[col_name] = value
+            combined_name = (table_name, col_name)
+            if combined_name in normalized_queries:
+                raise ValueError('All dimensions must be unique.')
+            normalized_queries[combined_name] = value
 
         return normalized_queries
 
     def _prepare_channel_tables(
         self,
-        norm_channel_indices_list: list[dict[str, Any]],
+        norm_channel_indices_list: list[dict[tuple[str, str], Any]],
         remap_channel_indices: Sequence[int] | None = None,
     ) -> tuple[list[str], list[str], list[_SQLTableDefinition]]:
         """Prepare query elements for a query involving output channels.
@@ -3899,7 +5408,7 @@ class _Image(SOPClass):
 
         Parameters
         ----------
-        norm_channel_indices_list: list[dict[str, Any]]
+        norm_channel_indices_list: list[dict[tuple[str, str], Any]]
             List of dictionaries defining the channel dimensions. The first
             item in the list corresponds to axis 3 of the output array, if any,
             the next to axis 4 and so so. Each dictionary has a format
@@ -3934,15 +5443,15 @@ class _Image(SOPClass):
         ):
             channel_table_name = f'TemporaryChannelTable{i}'
             channel_column_defs = (
-                ['OutputChannelIndex INTEGER UNIQUE NOT NULL'] +
+                [f'OutputChannelIndex{i} INTEGER UNIQUE NOT NULL'] +
                 [
-                    f'{c} {self._get_frame_lut_col_type(c)} NOT NULL'
-                    for c in channel_indices_dict.keys()
+                    f'{c} {self._get_frame_lut_col_type(t, c)} NOT NULL'
+                    for t, c in channel_indices_dict.keys()
                 ]
             )
 
             selection_lines.append(
-                f'{channel_table_name}.OutputChannelIndex'
+                f'{channel_table_name}.OutputChannelIndex{i}'
             )
 
             num_channels = len(list(channel_indices_dict.values())[0])
@@ -3975,8 +5484,8 @@ class _Image(SOPClass):
             )
 
             channel_join_condition = ' AND '.join(
-                f'L.{col} = {channel_table_name}.{col}'
-                for col in channel_indices_dict.keys()
+                f'{tab}.{col} = {channel_table_name}.{col}'
+                for tab, col in channel_indices_dict.keys()
             )
             join_lines.append(
                 f'INNER JOIN {channel_table_name} ON {channel_join_condition}'
@@ -4020,10 +5529,10 @@ class _Image(SOPClass):
             )
 
             filter_comparisons = []
-            for c, v in norm_filters.items():
+            for (t, c), v in norm_filters.items():
                 if isinstance(v, str):
                     v = f"'{v}'"
-                filter_comparisons.append(f'L.{c} = {v}')
+                filter_comparisons.append(f'{t}.{c} = {v}')
 
             filter_str = 'WHERE ' + ' AND '.join(filter_comparisons)
 
@@ -4088,7 +5597,7 @@ class _Image(SOPClass):
         channel_indices: Union[List[Dict[Union[int, str], Sequence[Any]], None]], optional
             List of dictionaries defining the channel dimensions. The first
             item in the list corresponds to axis 3 of the output array, if any,
-            the next to axis 4 and so so. Each dictionary has a format
+            the next to axis 4 and so on. Each dictionary has a format
             identical to that of ``stack_indices``, however the dimensions used
             must be distinct. Note that each item in the list may contain
             multiple items, provided that the number of items in each value
@@ -4161,12 +5670,25 @@ class _Image(SOPClass):
 
         all_dimensions = [
             c.replace('_DimensionIndexValues', '')
-            for c in all_columns
+            for (_, c) in all_columns
         ]
         if len(set(all_dimensions)) != len(all_dimensions):
             raise ValueError(
                 'Dimensions used for stack, channel, and filter must all be '
                 'distinct.'
+            )
+
+        # Some queries will additionally require a join onto the
+        # FrameReferenceLUT table
+        require_frame_refs = any(
+            t == 'FrameReferenceLUT' for (t, _) in all_columns
+        )
+
+        frame_ref_join_line = ''
+        if require_frame_refs:
+            frame_ref_join_line = (
+                'INNER JOIN FrameReferenceLUT ON '
+                'FrameReferenceLUT.FrameNumber = FrameLUT.FrameNumber'
             )
 
         filter_str = self._prepare_filter_string(
@@ -4176,33 +5698,24 @@ class _Image(SOPClass):
         )
 
         if stack_table_def is None:
-            # Check for uniqueness
-            if not self._do_columns_identify_unique_frames(
-                all_columns,
-                filter=filter_str,
-            ):
-                raise RuntimeError(
-                    'The chosen dimensions do not uniquely identify frames of '
-                    'the image. You may need to provide further dimensions or '
-                    'a filter to disambiguate.'
-                )
-
             # Create temporary table of desired dimension indices
             stack_table_name = 'TemporaryStackTable'
 
             stack_column_defs = (
                 ['OutputFrameIndex INTEGER UNIQUE NOT NULL'] +
                 [
-                    f'{c} {self._get_frame_lut_col_type(c)} NOT NULL'
-                    for c in norm_stack_indices.keys()
+                    f'{c} {self._get_frame_lut_col_type(t, c)} NOT NULL'
+                    for (t, c) in norm_stack_indices.keys()
                 ]
             )
             stack_column_data = list(
                 (i, *row)
                 for i, row in enumerate(zip(*norm_stack_indices.values()))
             )
+
             stack_join_str = ' AND '.join(
-                f'F.{col} = L.{col}' for col in norm_stack_indices.keys()
+                f'{stack_table_name}.{col} = {tab}.{col}'
+                for tab, col in norm_stack_indices.keys()
             )
 
             stack_table_def = _SQLTableDefinition(
@@ -4211,11 +5724,16 @@ class _Image(SOPClass):
                 column_data=stack_column_data,
             )
         else:
-            stack_join_str = 'F.FrameNumber = L.FrameNumber'
+            stack_join_str = (
+                f'{stack_table_def.table_name}.FrameNumber = '
+                'FrameLUT.FrameNumber'
+            )
 
         selection_lines = [
-            'F.OutputFrameIndex',  # frame index of the output array
-            'L.FrameNumber - 1',  # frame *index* of the file
+            # frame index of the output array
+            f'{stack_table_def.table_name}.OutputFrameIndex',
+            # frame *index* of the file
+            'FrameLUT.FrameNumber - 1',
         ]
 
         (
@@ -4232,54 +5750,72 @@ class _Image(SOPClass):
         # Construct the query. The ORDER BY is not logically necessary but
         # seems to improve performance of the downstream numpy operations,
         # presumably as it is more cache efficient
-        query_template = (
-            'SELECT {selection_str} '
-            f'FROM {stack_table_def.table_name} F '
-            f'INNER JOIN FrameLUT L ON {stack_join_str} '
+        select_stmt = (
+            f'SELECT {selection_str} '
+            f'FROM FrameLUT '
+            f'{frame_ref_join_line} '
+            f'INNER JOIN {stack_table_def.table_name} ON {stack_join_str} '
             f'{" ".join(channel_join_lines)} '
             f'{filter_str} '
-            '{order_str}'
+            f'ORDER BY {stack_table_def.table_name}.OutputFrameIndex'
         )
 
+        view_name = "SelectionView"
+
         with self._generate_temp_tables([stack_table_def] + channel_table_defs):
+            with self._generate_temp_view(view_name, select_stmt):
 
-            if not allow_missing_combinations:
-                counting_query = query_template.format(
-                    selection_str='COUNT(*)',
-                    order_str='',
+                # Find max number of input frames per output frame/channel
+                output_columns = [
+                    'OutputFrameIndex',
+                    *(c.split('.')[1] for c in channel_selection_lines)
+                ]
+                counting_query = (
+                    f'SELECT MAX(GRP_SIZE) FROM( '
+                    f'SELECT COUNT(*) AS GRP_SIZE FROM {view_name} '
+                    f'GROUP BY {", ".join(output_columns)} )'
                 )
+                max_ip_frames = next(self._db_con.execute(counting_query))[0]
 
-                # Calculate the number of output frames
-                number_of_output_frames = len(stack_table_def.column_data)
-                for tdef in channel_table_defs:
-                    number_of_output_frames *= len(tdef.column_data)
-
-                # Use a query to find the number of input frames
-                found_number = next(self._db_con.execute(counting_query))[0]
-
-                # If these two numbers are not the same, there are missing
-                # frames
-                if found_number != number_of_output_frames:
+                # If output frames are not distinct, we have not identified a
+                # single input frame for each output frame
+                if max_ip_frames is not None and max_ip_frames > 1:
                     raise RuntimeError(
-                        'The requested set of frames includes frames that '
-                        'are missing from the image. You may need to allow '
-                        'missing combinations or add additional filters.'
+                        'The chosen dimensions do not uniquely identify frames '
+                        'of the image. You may need to provide further '
+                        'dimensions or a filter to disambiguate.'
                     )
 
-            full_query = query_template.format(
-                selection_str=selection_str,
-                order_str='ORDER BY F.OutputFrameIndex',
-            )
+                if not allow_missing_combinations:
+                    # Use a query to find the number of input frames
+                    counting_query = f'SELECT COUNT(*) FROM {view_name}'
+                    total_rows = next(self._db_con.execute(counting_query))[0]
 
-            yield (
-                (
-                    fi,
-                    (slice(None), slice(None)),
-                    (fo, slice(None), slice(None)),
-                    tuple(channel),
+                    # Calculate the number of output frames
+                    number_of_output_frames = len(stack_table_def.column_data)
+                    for tdef in channel_table_defs:
+                        number_of_output_frames *= len(tdef.column_data)
+
+                    # If these two numbers are not the same, there are missing
+                    # frames
+                    if total_rows != number_of_output_frames:
+                        raise RuntimeError(
+                            'The requested set of frames includes frames that '
+                            'are missing from the image. You may need to allow '
+                            'missing combinations or add additional filters.'
+                        )
+
+                query = f'SELECT * FROM {view_name}'
+
+                yield (
+                    (
+                        fi,
+                        (slice(None), slice(None)),
+                        (fo, slice(None), slice(None)),
+                        tuple(channel),
+                    )
+                    for (fo, fi, *channel) in self._db_con.execute(query)
                 )
-                for (fo, fi, *channel) in self._db_con.execute(full_query)
-            )
 
     @staticmethod
     def _standardize_slice_indices(
@@ -4615,8 +6151,8 @@ class _Image(SOPClass):
             allow_missing_combinations = True
 
         all_columns = [
-            'RowPositionInTotalImagePixelMatrix',
-            'ColumnPositionInTotalImagePixelMatrix',
+            ('FrameLUT', 'RowPositionInTotalImagePixelMatrix'),
+            ('FrameLUT', 'ColumnPositionInTotalImagePixelMatrix'),
         ]
         if channel_indices is not None:
             norm_channel_indices_list = [
@@ -4640,23 +6176,12 @@ class _Image(SOPClass):
 
         all_dimensions = [
             c.replace('_DimensionIndexValues', '')
-            for c in all_columns
+            for (_, c) in all_columns
         ]
         if len(all_dimensions) != len(all_dimensions):
             raise ValueError(
                 'Dimensions used for tile position, channel, and filter '
                 'must all be distinct.'
-            )
-
-        # Check for uniqueness
-        if not self._do_columns_identify_unique_frames(
-            all_columns,
-            filter=filter_str
-        ):
-            raise RuntimeError(
-                'The chosen dimensions do not uniquely identify frames of'
-                'the image. You may need to provide further dimensions or '
-                'a filter to disambiguate.'
             )
 
         (
@@ -4686,9 +6211,9 @@ class _Image(SOPClass):
         column_offset_start = column_start - tw + 1
 
         selection_lines = [
-            'L.RowPositionInTotalImagePixelMatrix',
-            'L.ColumnPositionInTotalImagePixelMatrix',
-            'L.FrameNumber - 1',
+            'FrameLUT.RowPositionInTotalImagePixelMatrix',
+            'FrameLUT.ColumnPositionInTotalImagePixelMatrix',
+            'FrameLUT.FrameNumber - 1',
         ]
 
         (
@@ -4706,92 +6231,111 @@ class _Image(SOPClass):
         # but seems to improve performance of the downstream numpy
         # operations, presumably as it is more cache efficient
         # Create temporary table of channel indices
-        query_template = (
-            'SELECT {selection_str} '
-            'FROM FrameLUT L '
+        select_stmt = (
+            f'SELECT {selection_str} '
+            'FROM FrameLUT '
             f'{" ".join(channel_join_lines)} '
             'WHERE ('
-            '    L.RowPositionInTotalImagePixelMatrix >= '
-            f'        {row_offset_start}'
-            f'    AND L.RowPositionInTotalImagePixelMatrix < {row_end}'
-            '    AND L.ColumnPositionInTotalImagePixelMatrix >= '
-            f'        {column_offset_start}'
-            f'    AND L.ColumnPositionInTotalImagePixelMatrix < {column_end}'
-            f'    {filter_str.replace("WHERE", "AND")} '
+            'FrameLUT.RowPositionInTotalImagePixelMatrix >= '
+            f'    {row_offset_start} '
+            f'AND FrameLUT.RowPositionInTotalImagePixelMatrix < {row_end} '
+            ' AND FrameLUT.ColumnPositionInTotalImagePixelMatrix >= '
+            f'    {column_offset_start} '
+            'AND FrameLUT.ColumnPositionInTotalImagePixelMatrix < '
+            f'{column_end} {filter_str.replace("WHERE", "AND")} '
             ') '
-            '{order_str}'
+            'ORDER BY '
+            '     FrameLUT.RowPositionInTotalImagePixelMatrix,'
+            '     FrameLUT.ColumnPositionInTotalImagePixelMatrix'
         )
 
-        order_str = (
-            'ORDER BY '
-            '     L.RowPositionInTotalImagePixelMatrix,'
-            '     L.ColumnPositionInTotalImagePixelMatrix'
-        )
+        view_name = 'SelectionView'
 
         with self._generate_temp_tables(channel_table_defs):
+            with self._generate_temp_view(view_name, select_stmt):
 
-            if (
-                not allow_missing_combinations and
-                self.get('DimensionOrganizationType', '') != "TILED_FULL"
-            ):
-                counting_query = query_template.format(
-                    selection_str='COUNT(*)',
-                    order_str='',
+                # Find max number of input frames per output frame/channel
+                output_columns = [
+                    'RowPositionInTotalImagePixelMatrix',
+                    'ColumnPositionInTotalImagePixelMatrix',
+                    *(c.split('.')[1] for c in channel_selection_lines)
+                ]
+                counting_query = (
+                    f'SELECT MAX(GRP_SIZE) FROM( '
+                    f'SELECT COUNT(*) AS GRP_SIZE FROM {view_name} '
+                    f'GROUP BY {", ".join(output_columns)} )'
                 )
+                max_ip_frames = next(self._db_con.execute(counting_query))[0]
 
-                # Calculate the number of output frames
-                v_frames = ((row_end - 2) // th) - ((row_start - 1) // th) + 1
-                h_frames = (
-                    ((column_end - 2) // tw) - ((column_start - 1) // tw) + 1
-                )
-                number_of_output_frames = v_frames * h_frames
-                for tdef in channel_table_defs:
-                    number_of_output_frames *= len(tdef.column_data)
-
-                # Use a query to find the number of input frames
-                found_number = next(self._db_con.execute(counting_query))[0]
-
-                # If these two numbers are not the same, there are missing
-                # frames
-                if found_number != number_of_output_frames:
+                # If output frames are not distinct, we have not identified a
+                # single input frame for each output frame
+                if max_ip_frames is not None and max_ip_frames > 1:
                     raise RuntimeError(
-                        'The requested set of frames includes frames that '
-                        'are missing from the image. You may need to allow '
-                        'missing frames or add additional filters.'
+                        'The chosen dimensions do not uniquely identify frames '
+                        'of the image. You may need to provide further '
+                        'dimensions or a filter to disambiguate.'
                     )
 
-            full_query = query_template.format(
-                selection_str=selection_str,
-                order_str=order_str,
-            )
+                if (
+                    not allow_missing_combinations and
+                    self.get('DimensionOrganizationType', '') != "TILED_FULL"
+                ):
+                    counting_query = f'SELECT COUNT(*) FROM {view_name}'
 
-            yield (
-                (
-                    fi,
+                    # Calculate the number of output frames
+                    v_frames = (
+                        ((row_end - 2) // th) - ((row_start - 1) // th) +
+                        1
+                    )
+                    h_frames = (
+                        ((column_end - 2) // tw) - ((column_start - 1) // tw) +
+                        1
+                    )
+                    number_of_output_frames = v_frames * h_frames
+                    for tdef in channel_table_defs:
+                        number_of_output_frames *= len(tdef.column_data)
+
+                    # Use a query to find the number of input frames
+                    found_number = next(self._db_con.execute(counting_query))[0]
+
+                    # If these two numbers are not the same, there are missing
+                    # frames
+                    if found_number != number_of_output_frames:
+                        raise RuntimeError(
+                            'The requested set of frames includes frames that '
+                            'are missing from the image. You may need to allow '
+                            'missing frames or add additional filters.'
+                        )
+
+                query = f'SELECT * FROM {view_name}'
+
+                yield (
                     (
-                        slice(
-                            max(row_start - rp, 0),
-                            min(row_end - rp, th)
+                        fi,
+                        (
+                            slice(
+                                max(row_start - rp, 0),
+                                min(row_end - rp, th)
+                            ),
+                            slice(
+                                max(column_start - cp, 0),
+                                min(column_end - cp, tw)
+                            ),
                         ),
-                        slice(
-                            max(column_start - cp, 0),
-                            min(column_end - cp, tw)
+                        (
+                            slice(
+                                max(rp - row_start, 0),
+                                min(rp + th - row_start, oh)
+                            ),
+                            slice(
+                                max(cp - column_start, 0),
+                                min(cp + tw - column_start, ow)
+                            ),
                         ),
-                    ),
-                    (
-                        slice(
-                            max(rp - row_start, 0),
-                            min(rp + th - row_start, oh)
-                        ),
-                        slice(
-                            max(cp - column_start, 0),
-                            min(cp + tw - column_start, ow)
-                        ),
-                    ),
-                    tuple(channel),
-                )
-                for (rp, cp, fi, *channel) in self._db_con.execute(full_query)
-            ), output_shape
+                        tuple(channel),
+                    )
+                    for (rp, cp, fi, *channel) in self._db_con.execute(query)
+                ), output_shape
 
     @classmethod
     def from_file(
@@ -4855,6 +6399,12 @@ class Image(_Image):
     """
 
     def __init__(self, *args, **kwargs):
+        """
+
+        Instances of this class should not be directly instantiated. Use the
+        from_dataset method or the imread function instead.
+
+        """
         raise RuntimeError(
             'Instances of this class should not be directly instantiated. Use '
             'the from_dataset method or the imread function instead.'
@@ -4883,6 +6433,7 @@ class Image(_Image):
         allow_missing_positions: bool = False,
         rtol: float | None = None,
         atol: float | None = None,
+        perpendicular_tol: float | None = None,
     ) -> Volume:
         """Create a :class:`highdicom.Volume` from the image.
 
@@ -5047,6 +6598,12 @@ class Image(_Image):
             Absolute tolerance for determining spacing regularity. If slice
             spacings vary by less that this value (in mm), they are considered
             to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked perpendicular to
+            their shared normal vector. The direction of stacking is considered
+            perpendicular if the dot product of its unit vector with the slice
+            normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
+            default value of ``1e-3`` is used.
 
         Returns
         -------
@@ -5146,9 +6703,9 @@ class Image(_Image):
             # Check that the combination of frame numbers uniquely identify
             # frames
             columns = [
-                'ImagePositionPatient_0',
-                'ImagePositionPatient_1',
-                'ImagePositionPatient_2'
+                ('FrameLUT', 'ImagePositionPatient_0'),
+                ('FrameLUT', 'ImagePositionPatient_1'),
+                ('FrameLUT', 'ImagePositionPatient_2'),
             ]
             if not self._do_columns_identify_unique_frames(columns):
                 raise RuntimeError(
@@ -5162,6 +6719,7 @@ class Image(_Image):
             ) = self._prepare_volume_positions_table(
                 rtol=rtol,
                 atol=atol,
+                perpendicular_tol=perpendicular_tol,
                 allow_missing_positions=allow_missing_positions,
                 slice_start=slice_start,
                 slice_end=slice_end,
@@ -5451,6 +7009,7 @@ def get_volume_from_series(
     apply_icc_profile: bool | None = None,
     atol: float | None = None,
     rtol: float | None = None,
+    perpendicular_tol: float | None = None,
 ) -> Volume:
     """Create volume from a series of single frame images.
 
@@ -5559,6 +7118,12 @@ def get_volume_from_series(
         Absolute tolerance for determining spacing regularity. If slice
         spacings vary by less that this value (in mm), they
         are considered to be regular. Incompatible with ``rtol``.
+    perpendicular_tol: float | None, optional
+        Tolerance used to determine whether slices are stacked perpendicular to
+        their shared normal vector. The direction of stacking is considered
+        perpendicular if the dot product of its unit vector with the slice
+        normal is within ``perpendicular_tol`` of 1.00. If ``None``, the
+        default value of ``1e-3`` is used.
 
     Returns
     -------
@@ -5613,6 +7178,7 @@ def get_volume_from_series(
             series_datasets,
             atol=atol,
             rtol=rtol,
+            perpendicular_tol=perpendicular_tol,
         )
         if slice_spacing is None:
             raise ValueError('Series is not a regularly-spaced volume.')
