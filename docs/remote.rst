@@ -126,9 +126,9 @@ consider contributing them to this documentation.
 Amazon Web Services S3
 ----------------------
 
-The `smart_open`_ package wraps an S3 client to expose a "file-like"
+The `s3fs`_ package wraps an S3 client to expose a "file-like"
 interface for accessing blobs. It can be installed with ``pip install
-'smart_open[s3]'``.
+s3fs``.
 
 In order to be able to access open IDC data without providing AWS credentials,
 it is necessary to configure your own client object such that it does not
@@ -136,32 +136,28 @@ require signing. This is demonstrated in the following example, which repeats
 the GCS from above using the counterpart of the same blob on AWS S3 (each DICOM
 file in the IDC is stored in two places, one on GSC and the other on S3). If
 you are accessing private files on S3, these steps will be different (consult
-the ``smart_open`` documentation for details).
+the ``s3fs`` documentation for details).
 
 .. code-block:: python
-
-  import boto3
-  from botocore import UNSIGNED
-  from botocore.config import Config
-  import smart_open
 
   import numpy as np
   import highdicom as hd
   import matplotlib.pyplot as plt
+  import s3fs
 
 
   # Configure a client to avoid the need for AWS credentials
-  s3_client = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+  s3_client = s3fs.S3FileSystem(
+      anon=True,  # no credentials needed to access pubilc data
+      default_block_size=500_000,  # see note below
+      use_ssl=False  # disable encryption for a further speed boost
+  )
 
   # URL to a whole slide image from the IDC "CCDS MCI" collection on AWS S3
   url = 's3://idc-open-data/763fe058-7d25-4ba7-9b29-fd3d6c41dc4b/210f0529-c767-4795-9acf-bad2f4877427.dcm'
 
   # Read the imge directly from the blob
-  with smart_open.open(
-      url,
-      mode="rb",
-      transport_params=dict(client=s3_client),
-  ) as reader:
+  with s3_client.open(url, mode="rb") as reader:
       im = hd.imread(reader, lazy_frame_retrieval=True)
 
       # Grab an arbitrary region of tile full pixel matrix
@@ -177,13 +173,24 @@ the ``smart_open`` documentation for details).
   plt.imshow(region)
   plt.show()
 
-The ``smart_open`` package can also wrap many other filesystems in this way,
-including Microsoft Azure, Hadoop distributed filesystem (HDFS), gzipped local
-files, files over ssh/scp/sftp, and more. In all cases, be aware that the
-mechanics of the underlying retrieval, as well as configuration such as
-buffering and chunk size, can have a significant impact on the performance of
-lazy frame retrieval.
+It is important to tune the ``default_block_size`` parameter to optimize performance. Ideally this value (in bytes) should be large enough to match the size of the raw (probably compressed) data for individual frames of the images, ensuring that each can be retrieved in a single request. However, any larger and unnecessary data will be retrieved, reducing efficiency. The default block size is around 50MB, which is orders of magnitude too large for most images. Above we set it to approximately 500kB, which is probably a reasonable choice for many types of DICOM image.
+
+The ``s3fs`` package is based on `fsspec`_, which provides abstractions over
+various file systems. There are a large number of other filesystems covered by
+either the `built-in`_ or `third-party`_ implementations (such as Azure,
+Hadoop, SFTP, HTTP, etc). The `smart_open`_ package also provides many similar
+wrappers for various filesystems, but is generally optimized for streaming use
+cases, not random-access use cases needed for this application.
+
+In all cases, be aware that the mechanics of the underlying retrieval, as well
+as configuration such as buffering and chunk size, can have a significant
+impact on the performance of lazy frame retrieval.
+
 
 .. _IDC: https://portal.imaging.datacommons.cancer.gov/
 .. _BlobReader: https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.fileio.BlobReader
 .. _smart_open: https://github.com/piskvorky/smart_open
+.. _s3fs: https://s3fs.readthedocs.io/en/latest/
+.. _fsspec: https://filesystem-spec.readthedocs.io/en/latest/
+.. _built-in: https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations
+.. _third-party: https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations

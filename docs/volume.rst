@@ -721,7 +721,7 @@ Writing a volume to a NIfTI file:
     import highdicom as hd
 
 
-    vol = Volume(...)
+    vol = hd.Volume(...)
 
     nifti = nib.Nifti1Image(
         vol.array,

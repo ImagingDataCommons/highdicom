@@ -569,7 +569,7 @@ Segmentations from Volumes
 In the simple cases we have seen so far, the geometry of the segmentation
 ``pixel_array`` has matched that of the source images, i.e. there is a spatial
 correspondence between a given pixel in the ``pixel_array`` and the
-corresponding pixel in the relevant source frame. While this covers most use
+corresponding pixel in the relevant source frame. While this covers many use
 cases, DICOM SEGs actually allow for more general segmentations in which there
 is a more complicated geometrical relationship between the source frames and
 the segmentation masks. This could arise when a source image is resampled or
@@ -892,7 +892,7 @@ There are three possibilities here:
 
 If you require the "Derivation Image Sequence" be populated and you are using a
 :class:`highdicom.Volume` as input to the constructor, follow the method in the
-previous section to match the geometry before passing to the constructor.
+`seg-from-volume`_ section to match the geometry before passing to the constructor.
 
 Constructing SEG Images from a Total Pixel Matrix
 -------------------------------------------------
@@ -922,10 +922,9 @@ tile size of the source image will be used (regardless of whether the
 segmentation is represented at the same resolution as the source image).
 
 If you need to specify the plane positions of the image explicitly, you should
-pass a single item to the ``plane_positions`` argument giving the location of
-the top left corner of the full total pixel matrix, or alternatively (and more
-conveniently) pass a :meth:`highdicom.Volume`. Otherwise, all the usual options
-are available to you.
+pass a :meth:`highdicom.Volume` or alternatively, pass single item to the
+``plane_positions`` argument giving the location of the top left corner of the
+full total pixel matrix. Otherwise, all the usual options are available to you.
 
 .. code-block:: python
 
@@ -1318,7 +1317,7 @@ attribute (5200, 9230) with the matching frame number, it is possible to
 determine the meaning of a certain segmentation frame. We will not describe the
 full details of this mechanism here.
 
-Instead, `highdicom` provides a family of methods to help users reconstruct
+Instead, `highdicom` provides a family of methods to help users access
 segmentation masks from SEG objects in a predictable and more intuitive way. We
 recommend using these methods over the basic ``.pixel_array`` in nearly all
 circumstances.
@@ -1461,23 +1460,24 @@ whose descriptions meet certain criteria. For example:
 
 .. _seg-get-pixels:
 
-Reconstructing Segmentation Masks By Source Frame or Source Instance
---------------------------------------------------------------------
+Accessing Segmentation Masks By Source Frame or Source Instance
+---------------------------------------------------------------
 
-`Highdicom` provides the
-:meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()` and
-:meth:`highdicom.seg.Segmentation.get_pixels_by_source_frame()` methods to
-handle reconstruction of segmentation masks from SEG objects in which each
-frame in the SEG object is derived from one or more known source images or
-image frames, as described within the "Derivation Image Sequence" (see
-:ref:`derivation-sequence`). The only difference between the two methods is
-that the :meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()` is
-used when the segmentation is derived from a source series consisting of
-multiple single-frame instances, while
+`Highdicom` provides various methods for accessing the pixels of a segmentation
+image. The choice of method depends on how you would like the resulting array
+to be arranged.
+
+The first two methods are used to access frames of the segmentation according
+to the frames/instances of the source image from which they are derived, as
+described within the "Derivation Image Sequence" (see
+:ref:`derivation-sequence`). The
+:meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()` is used when
+the segmentation is derived from a source series consisting of multiple
+single-frame instances, while
 :meth:`highdicom.seg.Segmentation.get_pixels_by_source_frame()` is used when
 the segmentation is derived from a single multiframe source instance.
 
-When reconstructing a segmentation mask using
+When accessing a segmentation mask using
 :meth:`highdicom.seg.Segmentation.get_pixels_by_source_instance()`, the user
 must provide a list of SOP Instance UIDs of the source images for which the
 segmentation mask should be constructed. Whatever order is chosen here will be
@@ -1524,7 +1524,7 @@ on GitHub.
     assert pixels.shape == (2, 16, 16, 1)
     assert np.unique(pixels).tolist() == [0, 1]
 
-This second example demonstrates reconstructing segmentation masks from a
+This second example demonstrates accessing segmentation masks from a
 segmentation derived from a multiframe image, in this case a whole slide
 microscopy image, and also demonstrates an example with multiple, in
 this case 20, segments:
@@ -1555,18 +1555,17 @@ this case 20, segments:
     # Each segment is still binary
     assert np.unique(pixels).tolist() == [0, 1]
 
-Note that these two methods may only be used when the segmentation's metadata
-indicates that each segmentation frame is derived from exactly one source
-instance or frame of a source instance. If this is not the case, a
-``RuntimeError`` is raised.
+Note that these two methods may only be used when the provided frame numbers or
+instance UIDs match exactly one segmentation frame per segment in the
+segmentation metadata If this is not the case, a ``RuntimeError`` is raised.
 
 In the general case, the
 :meth:`highdicom.seg.Segmentation.get_pixels_by_dimension_index_values()` method
 is available to query directly by the underlying dimension index values. We
 will not cover this advanced topic.
 
-Reconstructing Specific Segments
---------------------------------
+Accessing Specific Segments
+---------------------------
 
 A further optional parameter, ``segment_numbers``, allows the user to request
 only a subset of the segments available within the SEG object by providing a
@@ -1603,8 +1602,8 @@ After this, the array ``pixels[:, :, :, 0]`` contains the pixels for segment
 number 10, ``pixels[:, :, :, 1]`` contains the pixels for segment number 9, and
 ``pixels[:, :, :, 2]`` contains the pixels for segment number 8.
 
-Reconstructing Segmentation Masks as "Label Maps"
--------------------------------------------------
+Accessing Segmentation Masks as "Label Maps"
+--------------------------------------------
 
 If the segments do not overlap, it is possible to combine the multiple segments
 into a simple "label map" style mask, as described above. This can be achieved
@@ -1696,11 +1695,11 @@ the ``relabel`` parameter.
     # Now the output segments have been relabelled to 1, 2, 3
     assert np.unique(pixels).tolist() == [0, 1, 2, 3]
 
-Reconstructing Fractional Segmentations
----------------------------------------
+Accessing Fractional Segmentations
+----------------------------------
 
 For ``"FRACTIONAL"`` SEG objects, `highdicom` will rescale the pixel values in
-the segmentation masks from the integer values as which they are stored back
+the segmentation masks from the integer values used to store them back
 down to the range `0.0` to `1.0` as floating point values by scaling by the
 "MaximumFractionalValue" attribute. If desired, this behavior can be disabled
 by specifying ``rescale_fractional=False``, in which case the raw integer array
@@ -1730,8 +1729,8 @@ as stored in the SEG will be returned.
     print(np.unique(pixels))
     # [0.        0.2509804 0.5019608]
 
-Reconstructing Volumes
-----------------------
+Accessing Volumes
+-----------------
 
 If the segmentation is defined on a regularly-sampled 3D grid (possibly with
 omittted frames, tiled frames, and/or multiple segments), the
@@ -1759,8 +1758,8 @@ are also available here.
     # [   0.          0.          0.          1.      ]]
 
 
-Reconstructing Total Pixel Matrices from Tiled Segmentations
-------------------------------------------------------------
+Accessing Total Pixel Matrices from Tiled Segmentations
+-------------------------------------------------------
 
 For segmentations of digital pathology images that are stored as tiled images,
 the :meth:`highdicom.seg.Segmentation.get_pixels_by_source_frame()` method will
