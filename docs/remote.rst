@@ -148,7 +148,7 @@ the ``s3fs`` documentation for details).
 
   # Configure a client to avoid the need for AWS credentials
   s3_client = s3fs.S3FileSystem(
-      anon=True,  # no credentials needed to access pubilc data
+      anon=True,  # no credentials needed to access public data
       default_block_size=500_000,  # see note below
       use_ssl=False  # disable encryption for a further speed boost
   )
