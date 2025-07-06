@@ -73,7 +73,7 @@ def _istag_group_length(t: BaseTag) -> bool:
 def _isequal(v1: Any, v2: Any, float_tolerance: float = 1.0e-5) -> bool:
     def is_equal_float(x1: float, x2: float) -> bool:
         return abs(x1 - x2) < float_tolerance
-    if type(v1) != type(v2):
+    if type(v1) is type(v2):
         return False
     if isinstance(v1, DataElementSequence):
         for item1, item2 in zip(v1, v2):
@@ -112,7 +112,7 @@ def _isequal_dicom_dataset(ds1: Dataset, ds2: Dataset) -> bool:
     True if dicom datasets are equal otherwise False
 
     """
-    if type(ds1) != type(ds2):
+    if type(ds1) is type(ds2):
         return False
     if not isinstance(ds1, Dataset):
         return False
@@ -1154,8 +1154,8 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         destination: Dataset,
         level: int,
     ) -> None:
-        """Copies/adds attributes related to `common_ct_mr_pet_image_description`
-        to destination dicom Dataset
+        """Copies/adds attributes related to
+        `common_ct_mr_pet_image_description` to destination dicom Dataset
 
         Parameters
         ----------
@@ -1489,8 +1489,9 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             not self._has_plane_position(self._perframe_tags) and
             (
                 self._has_plane_position(self._shared_tags) or
-                self._has_plane_position(self._excluded_from_perframe_tags))
-            ):
+                self._has_plane_position(self._excluded_from_perframe_tags)
+            )
+        ):
             item = self._shared_functional_groups[0]
             self._add_module_to_dataset_plane_position(
                 self._legacy_datasets[0], item
