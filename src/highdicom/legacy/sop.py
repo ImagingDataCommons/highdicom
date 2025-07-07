@@ -62,8 +62,10 @@ def _istag_file_meta_information_group(t: BaseTag) -> bool:
 
 def _istag_repeating_group(t: BaseTag) -> bool:
     g = t.group
-    return (g >= 0x5000 and g <= 0x501e) or\
+    return (
+        (g >= 0x5000 and g <= 0x501e) or
         (g >= 0x6000 and g <= 0x601e)
+    )
 
 
 def _istag_group_length(t: BaseTag) -> bool:
@@ -185,8 +187,10 @@ class _GeometryOfSlice:
         """Returns False if two slices are not parallel else True
 
         """
-        if (not isinstance(slice1, _GeometryOfSlice) or
-                not isinstance(slice2, _GeometryOfSlice)):
+        if (
+            not isinstance(slice1, _GeometryOfSlice) or
+            not isinstance(slice2, _GeometryOfSlice)
+        ):
             raise TypeError(
                 'slice1 and slice2 are not of the same '
                 f'type: type(slice1) = {type(slice1)} and '
@@ -198,6 +202,7 @@ class _GeometryOfSlice:
             for el1, el2 in zip(n1, n2):
                 if abs(el1 - el2) > tolerance:
                     return False
+
             return True
 
 
@@ -231,8 +236,9 @@ class _FrameSet:
             tag_for_keyword('AcquisitionTime'),
             tag_for_keyword('SpecificCharacterSet')
         ]
-        self._excluded_from_perframe_tags =\
+        self._excluded_from_perframe_tags = (
             self._distinguishing_attributes_tags + tmp
+        )
         self._perframe_tags: List[BaseTag] = []
         self._shared_tags: List[BaseTag] = []
         self._find_per_frame_and_shared_tags()
