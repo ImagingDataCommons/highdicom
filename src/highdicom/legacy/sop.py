@@ -73,7 +73,7 @@ def _istag_group_length(t: BaseTag) -> bool:
 def _isequal(v1: Any, v2: Any, float_tolerance: float = 1.0e-5) -> bool:
     def is_equal_float(x1: float, x2: float) -> bool:
         return abs(x1 - x2) < float_tolerance
-    if type(v1) is type(v2):
+    if type(v1) is not type(v2):
         return False
     if isinstance(v1, DataElementSequence):
         for item1, item2 in zip(v1, v2):
@@ -112,7 +112,7 @@ def _isequal_dicom_dataset(ds1: Dataset, ds2: Dataset) -> bool:
     True if dicom datasets are equal otherwise False
 
     """
-    if type(ds1) is type(ds2):
+    if type(ds1) is not type(ds2):
         return False
     if not isinstance(ds1, Dataset):
         return False
@@ -377,14 +377,16 @@ class _FrameSetCollection:
             'ImageOrientationPatient',
             'PixelSpacing',
             'SliceThickness',
-            'AcquisitionContextSequence']
+            'AcquisitionContextSequence',
+        ]
         self._frame_sets: List[_FrameSet] = []
         frame_counts = []
         frameset_counter = 0
         while len(self.mixed_frames_copy) != 0:
             frameset_counter += 1
-            ds_list, distinguishing_tgs = \
+            ds_list, distinguishing_tgs = (
                 self._find_all_similar_to_first_datasets()
+            )
             # removing similar datasets from mixed frames
             for ds in ds_list:
                 if ds in self.mixed_frames_copy:
@@ -718,21 +720,6 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         self._word_data = bytearray()
         self._earliest_content_date_time = self._farthest_future_date_time
         self._add_common_ct_pet_mr_build_blocks()
-        if (
-            _SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid] ==
-            'legacy-converted-enhanced-ct-image'
-        ):
-            self._add_build_blocks_for_ct()
-        elif (
-            _SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid] ==
-            'legacy-converted-enhanced-mr-image'
-        ):
-            self._add_build_blocks_for_mr()
-        elif (
-            _SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid] ==
-            'legacy-converted-enhanced-pet-image'
-        ):
-            self._add_build_blocks_for_pet()
 
     def _is_empty_or_empty_items(self, attribute: DataElement) -> bool:
         """Takes a dicom DataElement and check if DataElement is empty or in
@@ -1363,10 +1350,10 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         )
 
     def _add_module_to_dataset_pixel_measures(
-            self,
-            source: Dataset,
-            destination: Dataset,
-        ) -> None:
+        self,
+        source: Dataset,
+        destination: Dataset,
+    ) -> None:
         """Copies/adds attributes related to `pixel_measures`
         to destination dicom Dataset
 
@@ -1515,10 +1502,10 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         return image_orientation_patient_tg in tags
 
     def _add_module_to_dataset_plane_orientation(
-            self,
-            source: Dataset,
-            destination: Dataset,
-        ) -> None:
+        self,
+        source: Dataset,
+        destination: Dataset,
+    ) -> None:
         """Copies/adds attributes related to `plane_orientation`
         to destination dicom Dataset
 
@@ -2701,112 +2688,34 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             out += (x.SOPInstanceUID, )
         return out
 
-    def _clear_build_blocks(self) -> None:
-        """Clears the array containing all methods for multiframe conversion"""
-        self._build_blocks = []
-
     def _add_common_ct_pet_mr_build_blocks(self) -> None:
         """Arranges common methods for multiframe conversion and
         put them in place.
 
         """
-        blocks = [
-            [self._add_module_to_mf_image_pixel, None],
-            [self._add_module_to_mf_composite_instance_contex, None],
-            [self._add_module_to_mf_enhanced_common_image, None],
-            [self._add_module_to_mf_acquisition_context, None],
-            [self._add_module_to_mf_frame_anatomy, None],
-            [self._add_module_to_mf_pixel_measures, None],
-            [self._add_module_to_mf_plane_orientation, None],
-            [self._add_module_to_mf_plane_position, None],
-            [self._add_module_to_mf_frame_voi_lut, None],
-            [self._add_module_to_mf_pixel_value_transformation, None],
-            [self._add_module_to_mf_referenced_image, None],
-            [self._add_module_to_mf_conversion_source, None],
-            [self._add_module_to_mf_frame_content, None],
-            [self._add_module_to_mf_pixel_data, None],
-            [self._add_module_to_mf_content_date_time, None],
-            [self._add_module_to_mf_instance_creation_date_time, None],
-            [self._add_module_to_mf_contributing_equipment, None],
-            [self._add_module_to_mf_unassigned_perframe, None],
-            [self._add_module_to_mf_unassigned_shared, None],
-        ]
-        for b in blocks:
-            self._build_blocks.append(b)
-
-    def _add_ct_specific_build_blocks(self) -> None:
-        """Arranges CT specific methods for multiframe conversion and
-        put them in place.
-
-        """
-        blocks = [
+        self._build_blocks.extend(
             [
-                self._add_module_to_mf_common_ct_mr_pet_image_description,
-                ('CT', )
-            ],
-            [self._add_module_to_mf_enhanced_ct_image, None],
-            [self._add_module_to_mf_contrast_bolus, None],
-        ]
-        for b in blocks:
-            self._build_blocks.append(b)
-
-    def _add_mr_specific_build_blocks(self) -> None:
-        """Arranges MRI specific methods for multiframe conversion and
-        put them in place
-
-        """
-        blocks = [
-            [
-                self._add_module_to_mf_common_ct_mr_pet_image_description,
-                ('MR', )
-            ],
-            [self._add_module_to_mf_enhanced_mr_image, None],
-            [self._add_module_to_mf_contrast_bolus, None],
-        ]
-        for b in blocks:
-            self._build_blocks.append(b)
-
-    def _add_pet_specific_build_blocks(self) -> None:
-        """Arranges PET specific methods for multiframe conversion and
-        put them in place
-
-        """
-        blocks = [
-            [
-                self._add_module_to_mf_common_ct_mr_pet_image_description,
-                ('PET', )
-            ],
-            [self._add_module_to_mf_enhanced_pet_image, None],
-        ]
-        for b in blocks:
-            self._build_blocks.append(b)
-
-    def _add_build_blocks_for_mr(self) -> None:
-        """Arranges all methods necessary for MRI multiframe conversion and
-        put them in place
-
-        """
-        self._clear_build_blocks()
-        self._add_common_ct_pet_mr_build_blocks()
-        self._add_mr_specific_build_blocks()
-
-    def _add_build_blocks_for_pet(self) -> None:
-        """Arranges all methods necessary for PET multiframe conversion and
-        put them in place
-
-        """
-        self._clear_build_blocks()
-        self._add_common_ct_pet_mr_build_blocks()
-        self._add_pet_specific_build_blocks()
-
-    def _add_build_blocks_for_ct(self) -> None:
-        """Arranges all methods necessary for CT multiframe conversion and
-        put them in place.
-
-        """
-        self._clear_build_blocks()
-        self._add_common_ct_pet_mr_build_blocks()
-        self._add_ct_specific_build_blocks()
+                [self._add_module_to_mf_image_pixel, None],
+                [self._add_module_to_mf_composite_instance_contex, None],
+                [self._add_module_to_mf_enhanced_common_image, None],
+                [self._add_module_to_mf_acquisition_context, None],
+                [self._add_module_to_mf_frame_anatomy, None],
+                [self._add_module_to_mf_pixel_measures, None],
+                [self._add_module_to_mf_plane_orientation, None],
+                [self._add_module_to_mf_plane_position, None],
+                [self._add_module_to_mf_frame_voi_lut, None],
+                [self._add_module_to_mf_pixel_value_transformation, None],
+                [self._add_module_to_mf_referenced_image, None],
+                [self._add_module_to_mf_conversion_source, None],
+                [self._add_module_to_mf_frame_content, None],
+                [self._add_module_to_mf_pixel_data, None],
+                [self._add_module_to_mf_content_date_time, None],
+                [self._add_module_to_mf_instance_creation_date_time, None],
+                [self._add_module_to_mf_contributing_equipment, None],
+                [self._add_module_to_mf_unassigned_perframe, None],
+                [self._add_module_to_mf_unassigned_shared, None],
+            ]
+        )
 
     def _run_conversion(self) -> None:
         """Runs all necessary methods to convert from single frame to
@@ -2898,8 +2807,24 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
             sort_key=sort_key,
             **kwargs
         )
-        self._add_build_blocks_for_ct()
+        self._add_ct_specific_build_blocks()
         self._run_conversion()
+
+    def _add_ct_specific_build_blocks(self) -> None:
+        """Arranges CT specific methods for multiframe conversion and
+        put them in place.
+
+        """
+        self._build_blocks.extend(
+            [
+                [
+                    self._add_module_to_mf_common_ct_mr_pet_image_description,
+                    ('CT', )
+                ],
+                [self._add_module_to_mf_enhanced_ct_image, None],
+                [self._add_module_to_mf_contrast_bolus, None],
+            ]
+        )
 
 
 class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
@@ -2978,8 +2903,23 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
             sort_key=sort_key,
             **kwargs
         )
-        self._add_build_blocks_for_pet()
+        self._add_pet_specific_build_blocks()
         self._run_conversion()
+
+    def _add_pet_specific_build_blocks(self) -> None:
+        """Arranges PET specific methods for multiframe conversion and
+        put them in place
+
+        """
+        self._build_blocks.extend(
+            [
+                [
+                    self._add_module_to_mf_common_ct_mr_pet_image_description,
+                    ('PET', )
+                ],
+                [self._add_module_to_mf_enhanced_pet_image, None],
+            ]
+        )
 
 
 class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
@@ -3055,5 +2995,21 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
             sort_key=sort_key,
             **kwargs
         )
-        self._add_build_blocks_for_mr()
+        self._add_mr_specific_build_blocks()
         self._run_conversion()
+
+    def _add_mr_specific_build_blocks(self) -> None:
+        """Arranges MRI specific methods for multiframe conversion and
+        put them in place
+
+        """
+        self._build_blocks.extend(
+            [
+                [
+                    self._add_module_to_mf_common_ct_mr_pet_image_description,
+                    ('MR', )
+                ],
+                [self._add_module_to_mf_enhanced_mr_image, None],
+                [self._add_module_to_mf_contrast_bolus, None],
+            ]
+        )
