@@ -125,10 +125,9 @@ def _isequal_dicom_dataset(ds1: Dataset, ds2: Dataset) -> bool:
     return True
 
 
-def _tag2kwstr(tg: BaseTag) -> str:
+def _display_tag(tg: BaseTag) -> str:
     """Converts tag to keyword and (group, element) form"""
-    return '{}-{:32.32s}'.format(
-        str(tg), keyword_for_tag(tg))
+    return f'{str(tg)}-{keyword_for_tag(tg):32.32s}'
 
 
 class _GeometryOfSlice:
@@ -298,6 +297,7 @@ class _FrameSet:
                     elem = ds[ttag]
                     pf_tgs.add(ttag)
                     rough_shared[ttag].append(elem.value)
+
         sh_tgs = set(rough_shared.keys())
         for ttag, v in rough_shared.items():
             if len(v) < len(self.frames):
@@ -308,6 +308,7 @@ class _FrameSet:
                 )
                 if not all_values_are_equal:
                     sh_tgs.remove(ttag)
+
         pf_tgs -= sh_tgs
         self._shared_tags = list(sh_tgs)
         self._perframe_tags = list(pf_tgs)
@@ -393,6 +394,7 @@ class _FrameSetCollection:
                     self.mixed_frames_copy = [
                         nds for nds in self.mixed_frames_copy if nds != ds
                     ]
+
             self._frame_sets.append(_FrameSet(ds_list, distinguishing_tgs))
             frame_counts.append(len(ds_list))
             # log information
@@ -406,11 +408,14 @@ class _FrameSetCollection:
                     f'\t\t{dg_i:02d}/{len(distinguishing_tgs)})\t{str(dg_tg)}-'
                     f'{keyword_for_tag(dg_tg):32.32s} = '
                     f'{str(ds_list[0][dg_tg].value):32.32s}')
+
             logger.debug('\t dicom datasets in this frame set:')
+
             for dicom_i, dicom_ds in enumerate(ds_list, 1):
                 logger.debug(
                     f'\t\t{dicom_i}/{len(ds_list)})\t '
                     f'{dicom_ds["SOPInstanceUID"]}')
+
         frames = ''
         for i, f_count in enumerate(frame_counts, 1):
             frames += f'{i:2d}){f_count:03d}\t'
@@ -422,11 +427,12 @@ class _FrameSetCollection:
         self._excluded_from_perframe_tags = {}
         for kwkw in self._distinguishing_attribute_keywords:
             self._excluded_from_perframe_tags[tag_for_keyword(kwkw)] = False
+
         excluded_kws = [
-            'AcquisitionDateTime'
-            'AcquisitionDate'
-            'AcquisitionTime'
-            'SpecificCharacterSet'
+            'AcquisitionDateTime',
+            'AcquisitionDate',
+            'AcquisitionTime',
+            'SpecificCharacterSet',
         ]
         for kwkw in excluded_kws:
             self._excluded_from_perframe_tags[tag_for_keyword(kwkw)] = False
@@ -453,19 +459,22 @@ class _FrameSetCollection:
                 distinguishing_tags_existing.append(tg)
             else:
                 distinguishing_tags_missing.append(tg)
+
         logger_msg = set()
         for ds in self.mixed_frames_copy:
             all_equal = True
             for tg in distinguishing_tags_missing:
                 if tg in ds:
                     logger_msg.add(
-                        f'{_tag2kwstr(tg)} is missing in all but '
+                        f'{_display_tag(tg)} is missing in all but '
                         f'{ds["SOPInstanceUID"]}'
                     )
                     all_equal = False
                     break
+
             if not all_equal:
                 continue
+
             for tg in distinguishing_tags_existing:
                 ref_val = similar_ds[0][tg].value
                 if tg not in ds:
@@ -475,16 +484,19 @@ class _FrameSetCollection:
                 if not _isequal(ref_val, new_val):
                     logger_msg.add(
                         'Inequality on distinguishing '
-                        f'attribute {_tag2kwstr(tg)} -> '
+                        f'attribute {_display_tag(tg)} -> '
                         f'{ref_val} != {new_val} \n'
                         f'series uid = {ds.SeriesInstanceUID}'
                     )
                     all_equal = False
                     break
+
             if all_equal:
                 similar_ds.append(ds)
+
         for msg_ in logger_msg:
             logger.info(msg_)
+
         return (similar_ds, distinguishing_tags_existing)
 
     @property
