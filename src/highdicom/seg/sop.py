@@ -3847,8 +3847,8 @@ class Segmentation(_Image):
 
             affine = volume_geometry[
                 :,
-                row_start - 1:,
-                column_start - 1:,
+                row_start:,
+                column_start:,
             ].affine
         else:
             # Check that the combination of frame numbers and segment numbers
