@@ -5131,6 +5131,24 @@ class TestSegmentationParsing:
         tpm2 = seg_no_dim_ind.get_total_pixel_matrix()
         assert np.array_equal(tpm1, tpm2)
 
+    def test_tiled_full_volume(self):
+        # Check that a tiled segmentation is read with the correct affine
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        f = data_dir / 'test_files/seg_image_sm_dots_tiled_full.dcm'
+        seg = segread(f)
+        origin_seq = seg.TotalPixelMatrixOriginSequence[0]
+
+        expected = np.array(
+            [
+                origin_seq.XOffsetInSlideCoordinateSystem,
+                origin_seq.YOffsetInSlideCoordinateSystem,
+                0.0
+            ]
+        )
+        vol = seg.get_volume()
+        assert np.array_equal(vol.position, expected)
+
     def test_shared_referenced_segment(self):
         # Test parsing when the referenced segment is in the shared functional
         # groups
