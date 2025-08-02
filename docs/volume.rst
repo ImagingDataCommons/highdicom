@@ -756,7 +756,7 @@ Creating a volume from an ITK Image:
     im = itk.image(...)
 
     # Reverse array dimension order
-    array = np.transpose(itk.array_from_image(im), [2, 1, 0])
+    array = itk.array_from_image(im).transpose([2, 1, 0])
 
     vol2 = hd.Volume.from_components(
         array=array,
@@ -771,14 +771,13 @@ Creating an ITK Image from a Volume:
 .. code-block:: python
 
     import itk
-    import numpy as np
     import highdicom as hd
 
 
     vol = hd.Volume(...)
 
     # Reverse array dimension order
-    array = np.transpose(vol.array, [2, 1, 0])
+    array = vol.array.transpose([2, 1, 0])
 
     im = itk.image_from_array(array)
     im.SetOrigin(vol.position)
