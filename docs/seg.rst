@@ -146,7 +146,7 @@ One particularly important characteristic of a segmentation image is its
 "Segmentation Type" (0062,0001). There are three options here, contained within
 the highdicom enum :class:`highdicom.seg.SegmentationTypeValues`:
 
-- ``"BINARY"`` segmentations stores each segment in a separate set of frames.
+- ``"BINARY"`` segmentations store each segment in a separate set of frames.
   Within each segment, pixels can only take the value 0 (meaning that the pixel
   does not belong to the segment) or 1 (meaning that the pixel does belong to
   the segment). Note that although the name may suggest that only one segment
@@ -659,8 +659,9 @@ do:
   This removes from you the requirement to ensure that the frames of your
   segmentation array are correctly aligned with those from the source images,
   removing a common source of error. As long as the affine matrix of the volume
-  you pass correctly describes the array, a correct segmentation will be
-  produced regardless of the correspondence with the source images.
+  you pass correctly describes the position of the pixel array in the
+  frame-of-reference coordinate system, a correct segmentation will be produced
+  regardless of the correspondence with the source images.
 * It *does not* change the way that the input array is encoded as frames in the
   segmentation. Regardless of whether or not you pass a volume or a "plain"
   NumPy array, each index down axis 0 of the input array becomes one frame in
@@ -672,11 +673,11 @@ do:
   "rearrange" the volume to match the layout of the source images.
 
 Sometimes, you may wish to ensure that the "layout" (i.e. which spatial
-direction is used as the frame direction, which as the row direction and which
+direction is used as the frame direction, which as the row direction, and which
 as the column direction) matches that of the source images, and this may
 involve undoing various operations (flips, crops, dimension permutations) that
 were done in your analysis pipeline. One common reason for this is that some
-viewers will only display the segmentation if is aligned in this way (see
+viewers will only display the segmentation if it is aligned in this way (see
 :ref:`seg-viewers`). While the segmentation constructor does not handle this
 for you, you should be able to use the :meth:`highdicom.Volume.match_geometry`
 method to automatically crop/pad/flip/permute your segmentation volume back to
@@ -851,7 +852,7 @@ When creating a Segmentation, various per-frame metadata are placed within the
 "Per Frame Functional Groups Sequence" attribute, with one item of this
 sequence describing one frame of the Segmentation. Within each item, the
 "Derivation Image Sequence" is in particular worth discussing. This sequence
-specifies, which frame(s) of the source image (or image series) were used to
+specifies, which frames of the source image (or image series) were used to
 derive the segmentation frame. The "Derivation Image Sequence" should always be
 present but may have length zero.
 
@@ -871,15 +872,15 @@ whenever it is possible to do so. If you pass a plain NumPy array aligned with
 the source images to the Segmentation constructor, this is straightforward. If
 instead you pass a :class:`highdicom.Volume` object to the ``pixel_array``
 argument, or manually specify the ``plane_positions``, ``plane_orientation``
-and/or ``pixel_measures`` argumentsm, ``highdicom`` will attempt to match the
+and/or ``pixel_measures`` arguments, ``highdicom`` will attempt to match the
 spatial location of the each segmentation frame to those of the source
 frames/images, using a small tolerance to allow for small numerical errors.
 There are three possibilities here:
 
 - The orientation, spacing and positions of the frames all match. In this case,
   the "Derivation Image Sequence" will indicate the matched frames, and further
-  use the "Spatial Locations Preserved" attribute that there is pixel-for-pixel
-  alignment.
+  use the "Spatial Locations Preserved" attribute to communicate that there is
+  pixel-for-pixel alignment.
 - Segmentation frames are related to source frames by only in-plane rotations,
   flips, and or/scaling. There is still frame-by-frame correspondence, but no
   pixel-for-pixel correspondence. In this situation, the "Derivation Image
@@ -890,7 +891,7 @@ There are three possibilities here:
   and/or scaling between source frames and segmentation frames). In this
   situation, the "Derivation Image Sequence" is left empty.
 
-If you require the "Derivation Image Sequence" be populated and you are using a
+If you require the "Derivation Image Sequence" to be populated and you are using a
 :class:`highdicom.Volume` as input to the constructor, follow the method in the
 `seg-from-volume`_ section to match the geometry before passing to the constructor.
 
@@ -1896,7 +1897,7 @@ you are experiencing problems:
     in the documentation for the ``pixel_array`` argument of the
     :class:`highdicom.seg.Segmentation` constructor. Alternatively, consider
     passing a :class:`highdicom.Volume` instead, if that is appropriate in your
-    situation, to make this easier (and also check the following point).
+    situation, to make this easier (then also check the following point).
   - If you are passing a :class:`highdicom.Volume` to the constructor, make
     sure you use the :class:`highdicom.Volume.match_geometry` method on the
     segmentation volume first, following the explanation in
