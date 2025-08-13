@@ -16,6 +16,7 @@ from highdicom.content import (
     PlanePositionSequence,
 )
 from highdicom.enum import ContentQualificationValues, CoordinateSystemNames
+from highdicom.image import _Image
 from highdicom.frame import encode_frame
 from highdicom.pm.content import DimensionIndexSequence, RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
@@ -35,6 +36,7 @@ from pydicom.uid import (
     RLELossless,
 )
 from pydicom.valuerep import format_number_as_ds
+from typing_extensions import Self
 
 
 class _PixelDataType(Enum):
@@ -45,7 +47,7 @@ class _PixelDataType(Enum):
     DOUBLE = 3
 
 
-class ParametricMap(SOPClass):
+class ParametricMap(_Image):
 
     """SOP class for a Parametric Map.
 
@@ -798,6 +800,40 @@ class ParametricMap(SOPClass):
         else:
             pixel_data = b''.join(frames)
         setattr(self, pixel_data_attr, pixel_data)
+
+        # Build lookup tables for efficient decoding
+        self._build_luts()
+
+    @classmethod
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> Self:
+        """Create instance from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing a Parametric Map.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
+
+        Returns
+        -------
+        highdicom.pm.ParametricMap
+            Representation of the supplied dataset as a highdicom
+            ParametricMap.
+
+        """
+        if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.30':
+            raise ValueError('Dataset is not a Parametric Map.')
+
+        pm = super().from_dataset(dataset, copy=copy)
+
+        return cast(Self, pm)
 
     def _get_pixel_data_type_and_attr(
         self,
