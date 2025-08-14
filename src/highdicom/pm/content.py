@@ -243,9 +243,11 @@ class DimensionIndexSequence(DataElementSequence):
     """Sequence of data elements describing dimension indices for the patient
     or slide coordinate system based on the Dimension Index functional
     group macro.
+
     Note
     ----
     The order of indices is fixed.
+
     """
 
     def __init__(

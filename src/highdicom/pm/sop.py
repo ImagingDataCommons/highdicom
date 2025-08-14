@@ -1,12 +1,11 @@
-from collections import defaultdict
-from concurrent.futures import Executor, Future, ProcessPoolExecutor
+"""Module for SOP classes of the PM modality."""
+from concurrent.futures import Executor
 from copy import deepcopy
 from typing import cast
 from collections.abc import Sequence
 from enum import Enum
 
 import numpy as np
-from pydicom.encaps import encapsulate, encapsulate_extended
 from highdicom.base_content import ContributingEquipment
 from highdicom.content import (
     _add_content_information,
@@ -36,6 +35,7 @@ from pydicom.uid import (
     JPEGLSLossless,
     RLELossless,
 )
+from pydicom.encaps import encapsulate, encapsulate_extended
 from pydicom.valuerep import format_number_as_ds
 from typing_extensions import Self
 
@@ -428,6 +428,7 @@ class ParametricMap(_Image):
 
         self.PresentationLUTShape = 'IDENTITY'
 
+        # TODO refactor this into the common method
         self.DimensionIndexSequence = DimensionIndexSequence(
             self._coordinate_system
         )
