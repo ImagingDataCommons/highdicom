@@ -28,11 +28,14 @@ from highdicom.ann.enum import (
     PixelOriginInterpretationValues,
 )
 from highdicom.ann.content import AnnotationGroup
+from highdicom.content import (
+    _add_content_information,
+    ContentCreatorIdentificationCodeSequence,
+)
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.base_content import ContributingEquipment
 from highdicom.io import _wrapped_dcmread
 from highdicom.sr.coding import CodedConcept
-from highdicom.valuerep import check_person_name, _check_code_string
 
 
 class MicroscopyBulkSimpleAnnotations(SOPClass):
@@ -67,6 +70,9 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         contributing_equipment: Sequence[
             ContributingEquipment
         ] | None = None,
+        content_creator_identification: None | (
+            ContentCreatorIdentificationCodeSequence
+        ) = None,
         **kwargs: Any
     ) -> None:
         """
@@ -116,6 +122,9 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
             Additional equipment that has contributed to the acquisition,
             creation or modification of this instance.
+        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
+            Identifying information for the person who created the content of
+            this microscopy bulk simple annotations instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -178,15 +187,16 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         self._add_contributing_equipment(contributing_equipment, src_img)
 
         # Microscopy Bulk Simple Annotations
-        if content_label is not None:
-            _check_code_string(content_label)
-            self.ContentLabel = content_label
-        else:
-            self.ContentLabel = f'{src_img.Modality}_ANN'
-        self.ContentDescription = content_description
-        if content_creator_name is not None:
-            check_person_name(content_creator_name)
-        self.ContentCreatorName = content_creator_name
+        _add_content_information(
+            dataset=self,
+            content_label=(
+                content_label if content_label is not None
+                else f'{src_img.Modality}_ANN'
+            ),
+            content_description=content_description,
+            content_creator_name=content_creator_name,
+            content_creator_identification=content_creator_identification,
+        )
 
         self.AnnotationCoordinateType = coordinate_type.value
         if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:

@@ -14,6 +14,7 @@ from collections.abc import Sequence
 
 from highdicom.color import CIELabColor
 from highdicom.content import (
+    _add_content_information,
     ContentCreatorIdentificationCodeSequence,
     ModalityLUTTransformation,
     PaletteColorLUTTransformation,
@@ -801,14 +802,13 @@ def _add_presentation_state_identification_attributes(
         this presentation state.
 
     """  # noqa: E501
-    _check_code_string(content_label)
-    dataset.ContentLabel = content_label
-    if content_description is not None:
-        if len(content_description) > 64:
-            raise ValueError(
-                'Argument "content_description" must not exceed 64 characters.'
-            )
-        dataset.ContentDescription = content_description
+    _add_content_information(
+        dataset=dataset,
+        content_label=content_label,
+        content_description=content_description,
+        content_creator_name=content_creator_name,
+        content_creator_identification=content_creator_identification,
+    )
     now = datetime.datetime.now()
     dataset.PresentationCreationDate = DA(now.date())
     dataset.PresentationCreationTime = TM(now.time())
@@ -828,22 +828,6 @@ def _add_presentation_state_identification_attributes(
                 concept_name.scheme_version
             )
         ]
-
-    if content_creator_name is not None:
-        check_person_name(content_creator_name)
-    dataset.ContentCreatorName = content_creator_name
-
-    if content_creator_identification is not None:
-        if not isinstance(
-            content_creator_identification,
-            ContentCreatorIdentificationCodeSequence
-        ):
-            raise TypeError(
-                'Argument "content_creator_identification" must be of type '
-                'ContentCreatorIdentificationCodeSequence.'
-            )
-        dataset.ContentCreatorIdentificationCodeSequence = \
-            content_creator_identification
 
     # Not technically part of PR IODs, but we include anyway
     now = datetime.datetime.now()

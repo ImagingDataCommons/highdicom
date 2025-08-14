@@ -32,21 +32,17 @@ from pydicom.sr.codedict import codes
 from pydicom.valuerep import PersonName, format_number_as_ds
 from pydicom.sr.coding import Code
 
-from highdicom._module_utils import (
-    ModuleUsageValues,
-    get_module_usage,
-    is_multiframe_image,
-)
 from highdicom.image import _Image
 from highdicom.base import _check_little_endian
 from highdicom.base_content import ContributingEquipment
 from highdicom.color import CIELabColor
 from highdicom.content import (
+    _add_content_information,
     ContentCreatorIdentificationCodeSequence,
     PaletteColorLUTTransformation,
     PlaneOrientationSequence,
     PlanePositionSequence,
-    PixelMeasuresSequence
+    PixelMeasuresSequence,
 )
 from highdicom.enum import (
     CoordinateSystemNames,
@@ -69,9 +65,9 @@ from highdicom.seg.enum import (
 )
 from highdicom.seg.utils import iter_segments
 from highdicom.spatial import (
-    get_image_coordinate_system,
     get_tile_array,
     get_volume_positions,
+    is_tiled_image,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.valuerep import (
@@ -508,29 +504,8 @@ class Segmentation(_Image):
         if len(source_images) == 0:
             raise ValueError('At least one source image is required.')
 
-        uniqueness_criteria = {
-            (
-                image.StudyInstanceUID,
-                image.SeriesInstanceUID,
-                image.Rows,
-                image.Columns,
-                getattr(image, 'FrameOfReferenceUID', None),
-            )
-            for image in source_images
-        }
-        if len(uniqueness_criteria) > 1:
-            raise ValueError(
-                'Source images must all be part of the same series and must '
-                'have the same image dimensions (number of rows/columns).'
-            )
-
         src_img = source_images[0]
-        is_multiframe = is_multiframe_image(src_img)
-        if is_multiframe and len(source_images) > 1:
-            raise ValueError(
-                'Only one source image should be provided in case images '
-                'are multi-frame images.'
-            )
+
         supported_transfer_syntaxes = {
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
@@ -576,52 +551,14 @@ class Segmentation(_Image):
             **kwargs
         )
 
-        # Frame of Reference
-        has_ref_frame_uid = hasattr(src_img, 'FrameOfReferenceUID')
-        if has_ref_frame_uid:
-            self.FrameOfReferenceUID = src_img.FrameOfReferenceUID
-            self.PositionReferenceIndicator = getattr(
-                src_img,
-                'PositionReferenceIndicator',
-                None
-            )
-        else:
-            # Only allow missing FrameOfReferenceUID if it is not required
-            # for this IOD
-            usage = get_module_usage('frame-of-reference', src_img.SOPClassUID)
-            if usage == ModuleUsageValues.MANDATORY:
-                raise ValueError(
-                    "Source images have no Frame Of Reference UID, but it is "
-                    "required by the IOD."
-                )
-
-        self._coordinate_system = get_image_coordinate_system(src_img)
-
-        if self._coordinate_system is None:
-            # It may be possible to generalize this, but for now only a single
-            # source frame is permitted when there is no coordinate system
-            if (
-                len(source_images) > 1 or
-                (is_multiframe and src_img.NumberOfFrames > 1)
-            ):
-                raise ValueError(
-                    "Only a single frame is supported when the source "
-                    "image has no Frame of Reference UID."
-                )
-            if plane_positions is not None:
-                raise TypeError(
-                    "If source images have no Frame Of Reference UID, the "
-                    'argument "plane_positions" may not be specified since the '
-                    "segmentation pixel array must be spatially aligned with "
-                    "the source images."
-                )
-            if plane_orientation is not None:
-                raise TypeError(
-                    "If source images have no Frame Of Reference UID, the "
-                    'argument "plane_orientation" may not be specified since '
-                    "the segmentation pixel array must be spatially aligned "
-                    "with the source images."
-                )
+        self._common_derived_image_init(
+            source_images=source_images,
+            further_source_images=further_source_images,
+            plane_positions=plane_positions,
+            plane_orientation=plane_orientation,
+            pyramid_label=pyramid_label,
+            pyramid_uid=pyramid_uid,
+        )
 
         # Check segment numbers
         described_segment_numbers = np.array([
@@ -676,7 +613,7 @@ class Segmentation(_Image):
         if pixel_array.ndim not in [3, 4]:
             raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
-        is_tiled = hasattr(src_img, 'TotalPixelMatrixRows')
+        is_tiled = is_tiled_image(src_img)
         if tile_pixel_array and not is_tiled:
             raise ValueError(
                 'When argument "tile_pixel_array" is True, the source image '
@@ -699,11 +636,6 @@ class Segmentation(_Image):
             self.Rows = pixel_array.shape[1]
             self.Columns = pixel_array.shape[2]
 
-        # General Reference
-        self._add_source_image_references(
-            source_images, further_source_images,
-        )
-
         # Segmentation Image
         self.ImageType = ['DERIVED', 'PRIMARY']
         self.SamplesPerPixel = 1
@@ -711,26 +643,16 @@ class Segmentation(_Image):
         self.PixelRepresentation = 0
         self.SegmentationType = segmentation_type.value
 
-        if content_label is not None:
-            _check_code_string(content_label)
-            self.ContentLabel = content_label
-        else:
-            self.ContentLabel = f'{src_img.Modality}_SEG'
-        self.ContentDescription = content_description
-        if content_creator_name is not None:
-            check_person_name(content_creator_name)
-        self.ContentCreatorName = content_creator_name
-        if content_creator_identification is not None:
-            if not isinstance(
-                content_creator_identification,
-                ContentCreatorIdentificationCodeSequence
-            ):
-                raise TypeError(
-                    'Argument "content_creator_identification" must be of type '
-                    'ContentCreatorIdentificationCodeSequence.'
-                )
-            self.ContentCreatorIdentificationCodeSequence = \
-                content_creator_identification
+        _add_content_information(
+            dataset=self,
+            content_label=(
+                content_label if content_label is not None
+                else f'{src_img.Modality}_SEG'
+            ),
+            content_description=content_description,
+            content_creator_name=content_creator_name,
+            content_creator_identification=content_creator_identification,
+        )
 
         if segmentation_type == SegmentationTypeValues.BINARY:
             dtype = np.uint8
@@ -772,18 +694,6 @@ class Segmentation(_Image):
             self.PixelPaddingValue = 0
 
         self.BitsStored = self.BitsAllocated
-        self.LossyImageCompression = getattr(
-            src_img,
-            'LossyImageCompression',
-            '00'
-        )
-        if self.LossyImageCompression == '01':
-            if 'LossyImageCompressionRatio' in src_img:
-                self.LossyImageCompressionRatio = \
-                    src_img.LossyImageCompressionRatio
-            if 'LossyImageCompressionMethod' in src_img:
-                self.LossyImageCompressionMethod = \
-                    src_img.LossyImageCompressionMethod
 
         self._configure_color(
             segmentation_type=segmentation_type,
@@ -792,33 +702,6 @@ class Segmentation(_Image):
             segment_descriptions=segment_descriptions,
             max_described_segment=int(described_segment_numbers.max()),
         )
-
-        # Multi-Resolution Pyramid
-        if pyramid_uid is not None:
-            if not is_tiled:
-                raise TypeError(
-                    'Argument "pyramid_uid" should only be specified '
-                    'for tiled images.'
-                )
-            if (
-                self._coordinate_system is None or
-                self._coordinate_system != CoordinateSystemNames.SLIDE
-            ):
-                raise TypeError(
-                    'Argument "pyramid_uid" should only be specified for '
-                    'segmentations in the SLIDE coordinate system.'
-                )
-            self.PyramidUID = pyramid_uid
-
-            if pyramid_label is not None:
-                _check_long_string(pyramid_label)
-                self.PyramidLabel = pyramid_label
-
-        elif pyramid_label is not None:
-            raise TypeError(
-                'Argument "pyramid_label" should not be specified if '
-                '"pyramid_uid" is not specified.'
-            )
 
         # Multi-Frame Functional Groups and Multi-Frame Dimensions
         include_segment_number = (

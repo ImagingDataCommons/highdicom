@@ -1045,7 +1045,7 @@ class TestSegmentation:
         assert instance.MaximumFractionalValue == 255
         assert instance.ContentLabel == self._content_label
         assert instance.ContentDescription is None
-        assert instance.ContentCreatorName is None
+        assert 'ContentCreatorName' not in instance
         with pytest.raises(AttributeError):
             instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
@@ -1527,7 +1527,7 @@ class TestSegmentation:
         assert instance.MaximumFractionalValue == 255
         assert instance.ContentLabel == self._content_label
         assert instance.ContentDescription is None
-        assert instance.ContentCreatorName is None
+        assert 'ContentCreatorName' not in instance
         with pytest.raises(AttributeError):
             instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
@@ -1623,7 +1623,7 @@ class TestSegmentation:
         assert instance.MaximumFractionalValue == 255
         assert instance.ContentLabel == self._content_label
         assert instance.ContentDescription is None
-        assert instance.ContentCreatorName is None
+        assert 'ContentCreatorName' not in instance
         with pytest.raises(AttributeError):
             instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
