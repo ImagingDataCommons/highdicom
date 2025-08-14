@@ -13,7 +13,11 @@ from pydicom import DataElement
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
-from pydicom.valuerep import DS, format_number_as_ds
+from pydicom.valuerep import (
+    DS,
+    format_number_as_ds,
+    PersonName,
+)
 from pydicom.uid import SegmentationStorage
 
 from highdicom.enum import (
@@ -43,9 +47,11 @@ from highdicom.sr.value_types import (
 )
 from highdicom.uid import UID
 from highdicom.valuerep import (
+    _check_code_string,
     _check_long_string,
     _check_long_text,
     _check_short_text,
+    check_person_name,
 )
 from highdicom._module_utils import (
     check_required_attributes,
@@ -3663,3 +3669,33 @@ class PaletteColorLUTTransformation(Dataset):
             first_mapped_value=self.first_mapped_value,
             dtype=dtype,
         )
+
+
+def _add_content_information(
+    dataset,
+    content_label: str,
+    content_description: str | None,
+    content_creator_name: str | PersonName | None = None,
+    content_creator_identification: None | (
+        ContentCreatorIdentificationCodeSequence
+    ) = None,
+):
+    _check_code_string(content_label)
+    dataset.ContentLabel = content_label
+    if content_description is not None:
+        _check_long_string(content_description)
+    dataset.ContentDescription = content_description
+    if content_creator_name is not None:
+        check_person_name(content_creator_name)
+        dataset.ContentCreatorName = content_creator_name
+    if content_creator_identification is not None:
+        if not isinstance(
+            content_creator_identification,
+            ContentCreatorIdentificationCodeSequence
+        ):
+            raise TypeError(
+                'Argument "content_creator_identification" must be of type '
+                'ContentCreatorIdentificationCodeSequence.'
+            )
+        dataset.ContentCreatorIdentificationCodeSequence = \
+            content_creator_identification

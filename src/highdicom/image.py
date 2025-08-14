@@ -33,7 +33,9 @@ from pydicom.uid import ParametricMapStorage
 from pydicom.valuerep import format_number_as_ds
 
 from highdicom._module_utils import (
+    ModuleUsageValues,
     does_iod_have_pixel_data,
+    get_module_usage,
     is_multiframe_image,
 )
 from highdicom.base import SOPClass, _check_little_endian
@@ -77,6 +79,9 @@ from highdicom.uid import UID as UID
 from highdicom.utils import (
     iter_tiled_full_frame_data,
     are_plane_positions_tiled_full,
+)
+from highdicom.valuerep import (
+    _check_long_string,
 )
 from highdicom.volume import (
     _DCM_PYTHON_TYPE_MAP,
@@ -1197,6 +1202,151 @@ class _Image(SOPClass):
 
         """
         return self._coordinate_system
+
+    def _common_derived_image_init(
+        self,
+        source_images: Sequence[Dataset],
+        further_source_images: Sequence[Dataset] | None,
+        plane_orientation: PlaneOrientationSequence | None = None,
+        plane_positions: Sequence[PlanePositionSequence] | None = None,
+        pyramid_label: str | None = None,
+        pyramid_uid: str | None = None,
+    ) -> None:
+        """Basic checks on validatity of source images.
+
+        Parameters
+        ----------
+        source_images: Sequence[pydicom.Dataset]
+            Source image datasets to check
+
+        """
+        uniqueness_criteria = {
+            (
+                image.StudyInstanceUID,
+                image.SeriesInstanceUID,
+                image.Rows,
+                image.Columns,
+                getattr(image, 'FrameOfReferenceUID', None),
+            )
+            for image in source_images
+        }
+        if len(uniqueness_criteria) > 1:
+            raise ValueError(
+                'Source images must all be part of the same series and must '
+                'have the same image dimensions (number of rows/columns).'
+            )
+
+        src_img = source_images[0]
+        is_multiframe = is_multiframe_image(src_img)
+        if is_multiframe and len(source_images) > 1:
+            raise ValueError(
+                'Only one source image should be provided in case images '
+                'are multi-frame images.'
+            )
+
+        # Frame of Reference
+        has_ref_frame_uid = hasattr(src_img, 'FrameOfReferenceUID')
+        if has_ref_frame_uid:
+            self.FrameOfReferenceUID = src_img.FrameOfReferenceUID
+            self.PositionReferenceIndicator = getattr(
+                src_img,
+                'PositionReferenceIndicator',
+                None
+            )
+        else:
+            # Only allow missing FrameOfReferenceUID if it is not required
+            # for this IOD
+            usage = get_module_usage('frame-of-reference', src_img.SOPClassUID)
+            if usage == ModuleUsageValues.MANDATORY:
+                raise ValueError(
+                    "Source images have no Frame Of Reference UID, but it is "
+                    "required by the IOD."
+                )
+
+        self._coordinate_system = get_image_coordinate_system(src_img)
+
+        if self._coordinate_system is None:
+            # It may be possible to generalize this, but for now only a single
+            # source frame is permitted when there is no coordinate system
+            if (
+                len(source_images) > 1 or
+                (is_multiframe and src_img.NumberOfFrames > 1)
+            ):
+                raise ValueError(
+                    "Only a single frame is supported when the source "
+                    "image has no Frame of Reference UID."
+                )
+            if plane_positions is not None:
+                raise TypeError(
+                    "If source images have no Frame Of Reference UID, the "
+                    'argument "plane_positions" may not be specified since the '
+                    "segmentation pixel array must be spatially aligned with "
+                    "the source images."
+                )
+            if plane_orientation is not None:
+                raise TypeError(
+                    "If source images have no Frame Of Reference UID, the "
+                    'argument "plane_orientation" may not be specified since '
+                    "the provided pixel array must be spatially aligned "
+                    "with the source images."
+                )
+
+        self._add_source_image_references(
+            source_images=source_images,
+            further_source_images=further_source_images,
+        )
+
+        self._init_pyramid(
+            pyramid_label=pyramid_label,
+            pyramid_uid=pyramid_uid,
+            is_tiled=is_tiled_image(src_img),
+        )
+
+        self.LossyImageCompression = getattr(
+            src_img,
+            'LossyImageCompression',
+            '00'
+        )
+        if self.LossyImageCompression == '01':
+            if 'LossyImageCompressionRatio' in src_img:
+                self.LossyImageCompressionRatio = \
+                    src_img.LossyImageCompressionRatio
+            if 'LossyImageCompressionMethod' in src_img:
+                self.LossyImageCompressionMethod = \
+                    src_img.LossyImageCompressionMethod
+
+    def _init_pyramid(
+        self,
+        pyramid_label: str | None,
+        pyramid_uid: str | None,
+        is_tiled: bool,
+    ) -> None:
+        # Multi-Resolution Pyramid
+        if pyramid_uid is not None:
+            if not is_tiled:
+                raise TypeError(
+                    'Argument "pyramid_uid" should only be specified '
+                    'for tiled images.'
+                )
+            if (
+                self._coordinate_system is None or
+                self._coordinate_system != CoordinateSystemNames.SLIDE
+            ):
+                raise TypeError(
+                    'Argument "pyramid_uid" should only be specified for '
+                    'segmentations in the SLIDE coordinate system.'
+                )
+            self.PyramidUID = pyramid_uid
+
+            if pyramid_label is not None:
+                _check_long_string(pyramid_label)
+                self.PyramidLabel = pyramid_label
+
+        elif pyramid_label is not None:
+            raise TypeError(
+                'Argument "pyramid_label" should not be specified if '
+                '"pyramid_uid" is not specified.'
+            )
 
     @staticmethod
     def _get_pixel_measures_sequence(

@@ -1,4 +1,5 @@
 from collections import defaultdict
+from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from copy import deepcopy
 from typing import cast
 from collections.abc import Sequence
@@ -6,25 +7,25 @@ from enum import Enum
 
 import numpy as np
 from pydicom.encaps import encapsulate, encapsulate_extended
-from highdicom.base import SOPClass
 from highdicom.base_content import ContributingEquipment
 from highdicom.content import (
+    _add_content_information,
     ContentCreatorIdentificationCodeSequence,
     PaletteColorLUTTransformation,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
 )
-from highdicom.enum import ContentQualificationValues, CoordinateSystemNames
+from highdicom.enum import (
+    ContentQualificationValues,
+    CoordinateSystemNames,
+    DimensionOrganizationTypeValues,
+)
 from highdicom.image import _Image
 from highdicom.frame import encode_frame
 from highdicom.pm.content import DimensionIndexSequence, RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
-from highdicom.valuerep import (
-    check_person_name,
-    _check_code_string,
-    _check_long_string,
-)
+from highdicom.volume import ChannelDescriptor, Volume
 from highdicom._module_utils import is_multiframe_image
 from pydicom import Dataset
 from pydicom.uid import (
@@ -62,7 +63,7 @@ class ParametricMap(_Image):
     def __init__(
         self,
         source_images: Sequence[Dataset],
-        pixel_array: np.ndarray,
+        pixel_array: np.ndarray | Volume,
         series_instance_uid: str,
         series_number: int,
         sop_instance_uid: str,
@@ -104,6 +105,17 @@ class ParametricMap(_Image):
             ContributingEquipment
         ] | None = None,
         use_extended_offset_table: bool = False,
+        workers: int | Executor = 0,
+        dimension_organization_type: (
+            DimensionOrganizationTypeValues |
+            str |
+            None
+        ) = None,
+        tile_pixel_array: bool = False,
+        tile_size: Sequence[int] | None = None,
+        pyramid_uid: str | None = None,
+        pyramid_label: str | None = None,
+        further_source_images: Sequence[Dataset] | None = None,
         **kwargs,
     ):
         """
@@ -113,7 +125,7 @@ class ParametricMap(_Image):
         source_images: Sequence[pydicom.dataset.Dataset]
             One or more single- or multi-frame images (or metadata of images)
             from which the parametric map was derived
-        pixel_array: numpy.ndarray
+        pixel_array: numpy.ndarray | highdicom.Volume
             2D, 3D, or 4D array of unsigned integer or floating-point data type
             representing one or more channels (images derived from source
             images via an image transformation) for one or more spatial image
@@ -159,7 +171,7 @@ class ParametricMap(_Image):
         contains_recognizable_visual_features: bool
             Whether the image contains recognizable visible features of the
             patient
-        real_world_value_mappings: Union[Sequence[highdicom.map.RealWorldValueMapping], Sequence[Sequence[highdicom.map.RealWorldValueMapping]]
+        real_world_value_mappings: Union[Sequence[highdicom.pm.RealWorldValueMapping], Sequence[Sequence[highdicom.pm.RealWorldValueMapping]]
             Descriptions of how stored values map to real-world values.
             Each channel encoded in `pixel_array` shall be described with one
             or more real-world value mappings. Multiple mappings might be
@@ -276,36 +288,9 @@ class ParametricMap(_Image):
 
         """  # noqa
         if len(source_images) == 0:
-            raise ValueError('At least one source image is required')
-        self._source_images = source_images
+            raise ValueError('At least one source image is required.')
 
-        uniqueness_criteria = {
-            (
-                image.StudyInstanceUID,
-                image.SeriesInstanceUID,  # TODO: Might be overly restrictive
-                image.Rows,
-                image.Columns,
-                image.FrameOfReferenceUID,
-            )
-            for image in self._source_images
-        }
-        if len(uniqueness_criteria) > 1:
-            raise ValueError(
-                'Source images must all be part of the same series and must'
-                'have the same image dimensions (number of rows/columns).'
-            )
-
-        src_img = self._source_images[0]
-        is_multiframe = is_multiframe_image(src_img)
-        # TODO: Revisit, may be overly restrictive
-        # Check Source Image Sequence attribute in General Reference module
-        if is_multiframe:
-            if len(self._source_images) > 1:
-                raise ValueError(
-                    'Only one source image should be provided in case images '
-                    'are multi-frame images.'
-                )
-            self._src_num_frames = src_img.NumberOfFrames
+        src_img = source_images[0]
 
         supported_transfer_syntaxes = {
             ImplicitVRLittleEndian,
@@ -326,12 +311,6 @@ class ParametricMap(_Image):
             raise ValueError(
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
-
-        if window_width <= 0:
-            raise ValueError('Window width must be greater than zero.')
-
-        if pixel_array.ndim == 2:
-            pixel_array = pixel_array[np.newaxis, ...]
 
         # There are different DICOM Attributes in the SOP instance depending
         # on what type of data is being saved. This lets us keep track of that
@@ -369,39 +348,50 @@ class ParametricMap(_Image):
             **kwargs,
         )
 
-        if hasattr(src_img, 'ImageOrientationSlide') or hasattr(
-            src_img, 'ImageCenterPointCoordinatesSequence'
-        ):
-            coordinate_system = CoordinateSystemNames.SLIDE
-        else:
-            coordinate_system = CoordinateSystemNames.PATIENT
-
-        # Frame of Reference
-        self.FrameOfReferenceUID = src_img.FrameOfReferenceUID
-        self.PositionReferenceIndicator = getattr(
-            src_img, 'PositionReferenceIndicator', None
+        self._common_derived_image_init(
+            source_images=source_images,
+            further_source_images=further_source_images,
+            plane_positions=plane_positions,
+            plane_orientation=plane_orientation,
+            pyramid_label=pyramid_label,
+            pyramid_uid=pyramid_uid,
         )
+        is_multiframe = is_multiframe_image(src_img)
 
-        # General Reference
-        self.SourceImageSequence: list[Dataset] = []
-        referenced_series: dict[str, list[Dataset]] = defaultdict(list)
-        for s_img in self._source_images:
-            ref = Dataset()
-            ref.ReferencedSOPClassUID = s_img.SOPClassUID
-            ref.ReferencedSOPInstanceUID = s_img.SOPInstanceUID
-            self.SourceImageSequence.append(ref)
-            referenced_series[s_img.SeriesInstanceUID].append(ref)
+        if isinstance(pixel_array, Volume):
+            if pixel_array.number_of_channel_dimensions == 1:
+                if pixel_array.channel_descriptors != (
+                    ChannelDescriptor('LUTLabel'),
+                ):
+                    raise ValueError(
+                        "Input volume should have no channels other than "
+                        "'LUTLabel'."
+                    )
+                vol_lut_labels = pixel_array.get_channel_values('LUTLabel')
+                # TODO check that the provided lut labels match
+            elif pixel_array.number_of_channel_dimensions != 0:
+                raise ValueError(
+                    "If 'pixel_array' is a highdicom.Volume, it should have "
+                    "0 or 1 channel dimensions."
+                )
 
-        # Common Instance Reference
-        self.ReferencedSeriesSequence: list[Dataset] = []
-        for (
-            series_instance_uid,
-            referenced_images,
-        ) in referenced_series.items():
-            ref = Dataset()
-            ref.SeriesInstanceUID = series_instance_uid
-            ref.ReferencedInstanceSequence = referenced_images
-            self.ReferencedSeriesSequence.append(ref)
+            (
+                pixel_array,
+                plane_positions,
+                plane_orientation,
+                pixel_measures,
+            ) = self._get_spatial_data_from_volume(
+                volume=pixel_array,
+                coordinate_system=self._coordinate_system,
+                frame_of_reference_uid=src_img.FrameOfReferenceUID,
+                plane_positions=plane_positions,
+                plane_orientation=plane_orientation,
+                pixel_measures=pixel_measures,
+            )
+        pixel_array = cast(np.ndarray, pixel_array)
+
+        if pixel_array.ndim == 2:
+            pixel_array = pixel_array[np.newaxis, ...]
 
         # Parametric Map Image
         image_flavor = ImageFlavorValues(image_flavor)
@@ -418,16 +408,6 @@ class ParametricMap(_Image):
             content_qualification
         )
         self.ContentQualification = content_qualification.value
-        self.LossyImageCompression = getattr(
-            src_img, 'LossyImageCompression', '00'
-        )
-        if self.LossyImageCompression == "01":
-            self.LossyImageCompressionRatio = (
-                src_img.LossyImageCompressionRatio
-            )
-            self.LossyImageCompressionMethod = (
-                src_img.LossyImageCompressionMethod
-            )
         self.SamplesPerPixel = 1
         self.PhotometricInterpretation = 'MONOCHROME2'
         self.BurnedInAnnotation = 'NO'
@@ -436,32 +416,21 @@ class ParametricMap(_Image):
         else:
             self.RecognizableVisualFeatures = 'NO'
 
-        if content_label is not None:
-            _check_code_string(content_label)
-            self.ContentLabel = content_label
-        else:
-            self.ContentLabel = 'MAP'
-        if content_description is not None:
-            _check_long_string(content_description)
-        self.ContentDescription = content_description
-        if content_creator_name is not None:
-            check_person_name(content_creator_name)
-        self.ContentCreatorName = content_creator_name
-        if content_creator_identification is not None:
-            if not isinstance(
-                content_creator_identification,
-                ContentCreatorIdentificationCodeSequence
-            ):
-                raise TypeError(
-                    'Argument "content_creator_identification" must be of type '
-                    'ContentCreatorIdentificationCodeSequence.'
-                )
-            self.ContentCreatorIdentificationCodeSequence = \
-                content_creator_identification
+        _add_content_information(
+            dataset=self,
+            content_label=(
+                content_label if content_label is not None else 'MAP'
+            ),
+            content_description=content_description,
+            content_creator_name=content_creator_name,
+            content_creator_identification=content_creator_identification,
+        )
 
         self.PresentationLUTShape = 'IDENTITY'
 
-        self.DimensionIndexSequence = DimensionIndexSequence(coordinate_system)
+        self.DimensionIndexSequence = DimensionIndexSequence(
+            self._coordinate_system
+        )
         dimension_organization = Dataset()
         dimension_organization.DimensionOrganizationUID = (
             self.DimensionIndexSequence[0].DimensionOrganizationUID
@@ -537,11 +506,11 @@ class ParametricMap(_Image):
         if is_multiframe:
             source_plane_positions = \
                 self.DimensionIndexSequence.get_plane_positions_of_image(
-                    self._source_images[0]
+                    source_images[0]
                 )
-            if coordinate_system == CoordinateSystemNames.SLIDE:
+            if self._coordinate_system == CoordinateSystemNames.SLIDE:
                 source_plane_orientation = PlaneOrientationSequence(
-                    coordinate_system=coordinate_system,
+                    coordinate_system=self._coordinate_system,
                     image_orientation=[
                         float(v) for v in src_img.ImageOrientationSlide
                     ],
@@ -552,10 +521,10 @@ class ParametricMap(_Image):
         else:
             source_plane_positions = \
                 self.DimensionIndexSequence.get_plane_positions_of_series(
-                    self._source_images
+                    source_images
                 )
             source_plane_orientation = PlaneOrientationSequence(
-                coordinate_system=coordinate_system,
+                coordinate_system=self._coordinate_system,
                 image_orientation=[
                     float(v) for v in src_img.ImageOrientationPatient
                 ],
@@ -591,7 +560,7 @@ class ParametricMap(_Image):
         plane_position_values, plane_sort_index = \
             self.DimensionIndexSequence.get_index_values(plane_positions)
 
-        if coordinate_system == CoordinateSystemNames.SLIDE:
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
             self.ImageOrientationSlide = \
                 plane_orientation[0].ImageOrientationSlide
             if are_spatial_locations_preserved:
@@ -652,7 +621,7 @@ class ParametricMap(_Image):
                 )
 
         sffg_item.PixelMeasuresSequence = pixel_measures
-        if coordinate_system == CoordinateSystemNames.PATIENT:
+        if self._coordinate_system == CoordinateSystemNames.PATIENT:
             sffg_item.PlaneOrientationSequence = plane_orientation
 
         # Identity Pixel Value Transformation
@@ -663,6 +632,8 @@ class ParametricMap(_Image):
         sffg_item.PixelValueTransformationSequence = [transformation_item]
 
         # Frame VOI LUT With LUT
+        if window_width <= 0:
+            raise ValueError('Window width must be greater than zero.')
         voi_lut_item = Dataset()
         voi_lut_item.WindowCenter = format_number_as_ds(float(window_center))
         voi_lut_item.WindowWidth = format_number_as_ds(float(window_width))
@@ -756,7 +727,7 @@ class ParametricMap(_Image):
                 pffg_item.DerivationImageSequence = []
 
                 # Plane Position (Patient/Slide)
-                if coordinate_system == CoordinateSystemNames.SLIDE:
+                if self._coordinate_system == CoordinateSystemNames.SLIDE:
                     pffg_item.PlanePositionSlideSequence = plane_positions[i]
                 else:
                     pffg_item.PlanePositionSequence = plane_positions[i]
@@ -848,7 +819,7 @@ class ParametricMap(_Image):
 
         Returns
         -------
-        Tuple[highdicom.map.sop._PixelDataType, str]
+        Tuple[highdicom.pm.sop._PixelDataType, str]
             A tuple where the first element is the enum value and the second
             value is the DICOM pixel data attribute for the given datatype.
             One of (``"PixelData"``, ``"FloatPixelData"``,
