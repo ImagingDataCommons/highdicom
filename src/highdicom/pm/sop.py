@@ -1,9 +1,9 @@
 """Module for SOP classes of the PM modality."""
-from concurrent.futures import Executor
-from copy import deepcopy
-from typing import cast
 from collections.abc import Sequence
+from concurrent.futures import Executor
 from enum import Enum
+import pkgutil
+from typing import cast
 
 import numpy as np
 from highdicom.base_content import ContributingEquipment
@@ -17,16 +17,20 @@ from highdicom.content import (
 )
 from highdicom.enum import (
     ContentQualificationValues,
-    CoordinateSystemNames,
     DimensionOrganizationTypeValues,
 )
 from highdicom.image import _Image
 from highdicom.frame import encode_frame
-from highdicom.pm.content import DimensionIndexSequence, RealWorldValueMapping
+from highdicom.pm.content import RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
+from highdicom.pr.content import (
+    _add_icc_profile_attributes,
+    _add_palette_color_lookup_table_attributes,
+)
+from highdicom.seg.content import DimensionIndexSequence
 from highdicom.volume import ChannelDescriptor, Volume
-from highdicom._module_utils import is_multiframe_image
 from pydicom import Dataset
+from pydicom.dataelem import DataElement
 from pydicom.uid import (
     UID,
     ExplicitVRLittleEndian,
@@ -35,7 +39,6 @@ from pydicom.uid import (
     JPEGLSLossless,
     RLELossless,
 )
-from pydicom.encaps import encapsulate, encapsulate_extended
 from pydicom.valuerep import format_number_as_ds
 from typing_extensions import Self
 
@@ -46,6 +49,13 @@ class _PixelDataType(Enum):
     USHORT = 1
     SINGLE = 2
     DOUBLE = 3
+
+
+_PIXEL_DATA_TYPE_MAP = {
+    _PixelDataType.USHORT: 'PixelData',
+    _PixelDataType.SINGLE: 'FloatPixelData',
+    _PixelDataType.DOUBLE: 'DoubleFloatPixelData',
+}
 
 
 class ParametricMap(_Image):
@@ -105,6 +115,7 @@ class ParametricMap(_Image):
             ContributingEquipment
         ] | None = None,
         use_extended_offset_table: bool = False,
+        icc_profile: bytes | None = None,
         workers: int | Executor = 0,
         dimension_organization_type: (
             DimensionOrganizationTypeValues |
@@ -296,7 +307,7 @@ class ParametricMap(_Image):
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
         }
-        if pixel_array.dtype.kind == 'u':
+        if np.dtype(pixel_array.dtype).kind == 'u':
             # If pixel data has unsigned or signed integer data type, then it
             # can be lossless compressed. The standard does not specify any
             # compression codecs for floating-point data types.
@@ -311,15 +322,6 @@ class ParametricMap(_Image):
             raise ValueError(
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
-
-        # There are different DICOM Attributes in the SOP instance depending
-        # on what type of data is being saved. This lets us keep track of that
-        # a bit easier
-        self._pixel_data_type_map = {
-            _PixelDataType.USHORT: 'PixelData',
-            _PixelDataType.SINGLE: 'FloatPixelData',
-            _PixelDataType.DOUBLE: 'DoubleFloatPixelData',
-        }
 
         super().__init__(
             study_instance_uid=src_img.StudyInstanceUID,
@@ -356,7 +358,10 @@ class ParametricMap(_Image):
             pyramid_label=pyramid_label,
             pyramid_uid=pyramid_uid,
         )
-        is_multiframe = is_multiframe_image(src_img)
+
+        self.copy_specimen_information(src_img)
+        self.copy_patient_and_study_information(src_img)
+        self._add_contributing_equipment(contributing_equipment, src_img)
 
         if isinstance(pixel_array, Volume):
             if pixel_array.number_of_channel_dimensions == 1:
@@ -390,56 +395,6 @@ class ParametricMap(_Image):
             )
         pixel_array = cast(np.ndarray, pixel_array)
 
-        if pixel_array.ndim == 2:
-            pixel_array = pixel_array[np.newaxis, ...]
-
-        # Parametric Map Image
-        image_flavor = ImageFlavorValues(image_flavor)
-        derived_pixel_contrast = DerivedPixelContrastValues(
-            derived_pixel_contrast
-        )
-        self.ImageType = [
-            "DERIVED",
-            "PRIMARY",
-            image_flavor.value,
-            derived_pixel_contrast.value,
-        ]
-        content_qualification = ContentQualificationValues(
-            content_qualification
-        )
-        self.ContentQualification = content_qualification.value
-        self.SamplesPerPixel = 1
-        self.PhotometricInterpretation = 'MONOCHROME2'
-        self.BurnedInAnnotation = 'NO'
-        if contains_recognizable_visual_features:
-            self.RecognizableVisualFeatures = 'YES'
-        else:
-            self.RecognizableVisualFeatures = 'NO'
-
-        _add_content_information(
-            dataset=self,
-            content_label=(
-                content_label if content_label is not None else 'MAP'
-            ),
-            content_description=content_description,
-            content_creator_name=content_creator_name,
-            content_creator_identification=content_creator_identification,
-        )
-
-        self.PresentationLUTShape = 'IDENTITY'
-
-        # TODO refactor this into the common method
-        self.DimensionIndexSequence = DimensionIndexSequence(
-            self._coordinate_system
-        )
-        dimension_organization = Dataset()
-        dimension_organization.DimensionOrganizationUID = (
-            self.DimensionIndexSequence[0].DimensionOrganizationUID
-        )
-        self.DimensionOrganizationSequence = [dimension_organization]
-
-        sffg_item = Dataset()
-
         # If the same set of mappings applies to all frames, the information
         # is stored in the Shared Functional Groups Sequence. Otherwise, it
         # is stored for each frame separately in the Per Frame Functional
@@ -450,7 +405,6 @@ class ParametricMap(_Image):
                 '"real_world_value_mappings" must be a flat sequence '
                 'of one or more RealWorldValueMapping items.'
             )
-            sffg_item.RealWorldValueMappingSequence = real_world_value_mappings
             try:
                 real_world_value_mappings[0]
             except IndexError as e:
@@ -490,13 +444,6 @@ class ParametricMap(_Image):
         else:
             raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
-        # Acquisition Context
-        self.AcquisitionContextSequence: list[Dataset] = []
-
-        # Image Pixel
-        self.Rows = pixel_array.shape[1]
-        self.Columns = pixel_array.shape[2]
-
         if len(real_world_value_mappings) != pixel_array.shape[3]:
             raise ValueError(
                 'Number of RealWorldValueMapping items provided via '
@@ -504,157 +451,56 @@ class ParametricMap(_Image):
                 'last dimension of "pixel_array" argument.'
             )
 
-        if is_multiframe:
-            source_plane_positions = \
-                self.DimensionIndexSequence.get_plane_positions_of_image(
-                    source_images[0]
-                )
-            if self._coordinate_system == CoordinateSystemNames.SLIDE:
-                source_plane_orientation = PlaneOrientationSequence(
-                    coordinate_system=self._coordinate_system,
-                    image_orientation=[
-                        float(v) for v in src_img.ImageOrientationSlide
-                    ],
-                )
-            else:
-                src_sfg = src_img.SharedFunctionalGroupsSequence[0]
-                source_plane_orientation = src_sfg.PlaneOrientationSequence
+        # Parametric Map Image
+        image_flavor = ImageFlavorValues(image_flavor)
+        derived_pixel_contrast = DerivedPixelContrastValues(
+            derived_pixel_contrast
+        )
+        self.ImageType = [
+            "DERIVED",
+            "PRIMARY",
+            image_flavor.value,
+            derived_pixel_contrast.value,
+        ]
+        content_qualification = ContentQualificationValues(
+            content_qualification
+        )
+        self.ContentQualification = content_qualification.value
+        self.SamplesPerPixel = 1
+        self.PhotometricInterpretation = 'MONOCHROME2'
+        self.BurnedInAnnotation = 'NO'
+        if contains_recognizable_visual_features:
+            self.RecognizableVisualFeatures = 'YES'
         else:
-            source_plane_positions = \
-                self.DimensionIndexSequence.get_plane_positions_of_series(
-                    source_images
-                )
-            source_plane_orientation = PlaneOrientationSequence(
-                coordinate_system=self._coordinate_system,
-                image_orientation=[
-                    float(v) for v in src_img.ImageOrientationPatient
-                ],
-            )
+            self.RecognizableVisualFeatures = 'NO'
 
-        if plane_positions is None:
-            if pixel_array.shape[0] != len(source_plane_positions):
-                raise ValueError(
-                    'Number of plane positions in source image(s) does not '
-                    'match size of first dimension of "pixel_array" argument.'
-                )
-            plane_positions = source_plane_positions
-        else:
-            if len(plane_positions) != pixel_array.shape[0]:
-                raise ValueError(
-                    'Number of PlanePositionSequence items provided via '
-                    '"plane_positions" argument does not match size of '
-                    'first dimension of "pixel_array" argument.'
-                )
-
-        if plane_orientation is None:
-            plane_orientation = source_plane_orientation
-
-        are_spatial_locations_preserved = (
-            all(
-                plane_positions[i] == source_plane_positions[i]
-                for i in range(len(plane_positions))
-            ) and
-            plane_orientation == source_plane_orientation
+        _add_content_information(
+            dataset=self,
+            content_label=(
+                content_label if content_label is not None else 'MAP'
+            ),
+            content_description=content_description,
+            content_creator_name=content_creator_name,
+            content_creator_identification=content_creator_identification,
         )
 
-        plane_position_names = self.DimensionIndexSequence.get_index_keywords()
-        plane_position_values, plane_sort_index = \
-            self.DimensionIndexSequence.get_index_values(plane_positions)
+        self.PresentationLUTShape = 'IDENTITY'
 
-        if self._coordinate_system == CoordinateSystemNames.SLIDE:
-            self.ImageOrientationSlide = \
-                plane_orientation[0].ImageOrientationSlide
-            if are_spatial_locations_preserved:
-                self.TotalPixelMatrixOriginSequence = \
-                    source_images[0].TotalPixelMatrixOriginSequence
-                self.TotalPixelMatrixRows = \
-                    source_images[0].TotalPixelMatrixRows
-                self.TotalPixelMatrixColumns = \
-                    source_images[0].TotalPixelMatrixColumns
-            else:
-                row_index = plane_position_names.index(
-                    'RowPositionInTotalImagePixelMatrix'
-                )
-                row_offsets = plane_position_values[:, row_index]
-                col_index = plane_position_names.index(
-                    'ColumnPositionInTotalImagePixelMatrix'
-                )
-                col_offsets = plane_position_values[:, col_index]
-                frame_indices = np.lexsort([row_offsets, col_offsets])
-                first_frame_index = frame_indices[0]
-                last_frame_index = frame_indices[-1]
-                x_index = plane_position_names.index(
-                    'XOffsetInSlideCoordinateSystem'
-                )
-                x_offset = plane_position_values[first_frame_index, x_index]
-                y_index = plane_position_names.index(
-                    'YOffsetInSlideCoordinateSystem'
-                )
-                y_offset = plane_position_values[first_frame_index, y_index]
-                origin_item = Dataset()
-                origin_item.XOffsetInSlideCoordinateSystem = x_offset
-                origin_item.YOffsetInSlideCoordinateSystem = y_offset
-                self.TotalPixelMatrixOriginSequence = [origin_item]
-                self.TotalPixelMatrixRows = int(
-                    plane_position_values[last_frame_index, row_index] +
-                    self.Rows
-                )
-                self.TotalPixelMatrixColumns = int(
-                    plane_position_values[last_frame_index, col_index] +
-                    self.Columns
-                )
-                self.ImageOrientationSlide = deepcopy(
-                    plane_orientation[0].ImageOrientationSlide
-                )
+        # TODO refactor this into the common method and include LUT label
+        # TODO generalize DimensionIndexSequence so we are not using the
+        # segmentation one here
+        self.DimensionIndexSequence = DimensionIndexSequence(
+            self._coordinate_system,
+            include_segment_number=False,
+        )
+        dimension_organization = Dataset()
+        dimension_organization.DimensionOrganizationUID = (
+            self.DimensionIndexSequence[0].DimensionOrganizationUID
+        )
+        self.DimensionOrganizationSequence = [dimension_organization]
 
-        # Multi-Frame Functional Groups and Multi-Frame Dimensions
-        if pixel_measures is None:
-            if is_multiframe:
-                src_shared_fg = src_img.SharedFunctionalGroupsSequence[0]
-                pixel_measures = src_shared_fg.PixelMeasuresSequence
-            else:
-                pixel_measures = PixelMeasuresSequence(
-                    pixel_spacing=[float(v) for v in src_img.PixelSpacing],
-                    slice_thickness=float(src_img.SliceThickness),
-                    spacing_between_slices=src_img.get(
-                        'SpacingBetweenSlices', None
-                    ),
-                )
-
-        sffg_item.PixelMeasuresSequence = pixel_measures
-        if self._coordinate_system == CoordinateSystemNames.PATIENT:
-            sffg_item.PlaneOrientationSequence = plane_orientation
-
-        # Identity Pixel Value Transformation
-        transformation_item = Dataset()
-        transformation_item.RescaleIntercept = 0
-        transformation_item.RescaleSlope = 1
-        transformation_item.RescaleType = 'US'
-        sffg_item.PixelValueTransformationSequence = [transformation_item]
-
-        # Frame VOI LUT With LUT
-        if window_width <= 0:
-            raise ValueError('Window width must be greater than zero.')
-        voi_lut_item = Dataset()
-        voi_lut_item.WindowCenter = format_number_as_ds(float(window_center))
-        voi_lut_item.WindowWidth = format_number_as_ds(float(window_width))
-        voi_lut_item.VOILUTFunction = 'LINEAR'
-        sffg_item.FrameVOILUTSequence = [voi_lut_item]
-
-        # Parametric Map Frame Type
-        frame_type_item = Dataset()
-        frame_type_item.FrameType = self.ImageType
-        sffg_item.ParametricMapFrameTypeSequence = [frame_type_item]
-
-        has_multiple_mappings = pixel_array.shape[3] > 1
-        if not has_multiple_mappings:
-            # Only if there is only a single set of mappings. Otherwise,
-            # the information will be stored in the Per-Frame Functional
-            # Groups Sequence.
-            sffg_item.RealWorldValueMappingSequence = \
-                real_world_value_mappings[0]
-
-        self.SharedFunctionalGroupsSequence = [sffg_item]
+        # Acquisition Context
+        self.AcquisitionContextSequence: list[Dataset] = []
 
         # Get the correct pixel data attribute
         pixel_data_type, pixel_data_attr = self._get_pixel_data_type_and_attr(
@@ -673,108 +519,112 @@ class ParametricMap(_Image):
             raise ValueError('Encountered unexpected pixel data type.')
 
         # Palette color lookup table
+        self._configure_color(
+            palette_color_lut_transformation=palette_color_lut_transformation,
+            icc_profile=icc_profile,
+            pixel_data_type=pixel_data_type,
+        )
+
+        def add_channel_callback(
+            item: Dataset,
+            mappings: Sequence[RealWorldValueMapping],
+        ):
+            # Mappings may contain multiple mappings. Directly add the whole
+            # list as a sequence
+            item.add(
+                DataElement(
+                    0x0040_9096,  # RealWorldValueMappingSequence
+                    'SQ',
+                    mappings,
+                )
+            )
+
+            return item
+
+        self._common_derived_multiframe(
+            source_images=source_images,
+            pixel_array=pixel_array,
+            dtype=pixel_array.dtype,
+            pixel_measures=pixel_measures,
+            plane_orientation=plane_orientation,
+            plane_positions=plane_positions,
+            omit_empty_frames=False,
+            workers=workers,
+            dimension_organization_type=dimension_organization_type,
+            tile_pixel_array=tile_pixel_array,
+            tile_size=tile_size,
+            further_source_images=further_source_images,
+            use_extended_offset_table=use_extended_offset_table,
+            channel_values=real_world_value_mappings,
+            add_channel_callback=add_channel_callback,
+            pixel_data_attr=pixel_data_attr,
+            channel_is_indexed=False,  # TODO change this and change the DimensionIndexSequence to match
+        )
+
+        # Identity Pixel Value Transformation
+        transformation_item = Dataset()
+        transformation_item.RescaleIntercept = 0
+        transformation_item.RescaleSlope = 1
+        transformation_item.RescaleType = 'US'
+        self.SharedFunctionalGroupsSequence[0].PixelValueTransformationSequence = [
+            transformation_item
+        ]
+
+        # Frame VOI LUT With LUT
+        if window_width <= 0:
+            raise ValueError('Window width must be greater than zero.')
+        voi_lut_item = Dataset()
+        voi_lut_item.WindowCenter = format_number_as_ds(float(window_center))
+        voi_lut_item.WindowWidth = format_number_as_ds(float(window_width))
+        voi_lut_item.VOILUTFunction = 'LINEAR'
+        self.SharedFunctionalGroupsSequence[0].FrameVOILUTSequence = [voi_lut_item]
+
+        # Parametric Map Frame Type
+        frame_type_item = Dataset()
+        frame_type_item.FrameType = self.ImageType
+        self.SharedFunctionalGroupsSequence[0].ParametricMapFrameTypeSequence = [
+            frame_type_item
+        ]
+
+    def _configure_color(
+        self,
+        palette_color_lut_transformation: PaletteColorLUTTransformation | None,
+        icc_profile: bytes | None,
+        pixel_data_type: _PixelDataType,
+    ) -> None:
         if palette_color_lut_transformation is not None:
             if pixel_data_type != _PixelDataType.USHORT:
                 raise ValueError(
                     'Use of palette_color_lut is only supported with integer-'
                     'valued pixel data.'
                 )
-            if not isinstance(
+
+            # Add the LUT to this instance
+            _add_palette_color_lookup_table_attributes(
+                self,
                 palette_color_lut_transformation,
-                PaletteColorLUTTransformation
-            ):
-                raise TypeError(
-                    'Argument "palette_color_lut_transformation" should be of '
-                    'type PaletteColorLookupTable.'
+            )
+
+            if icc_profile is None:
+                # Use default sRGB profile
+                icc_profile = pkgutil.get_data(
+                    'highdicom',
+                    '_icc_profiles/sRGB_v4_ICC_preference.icc'
                 )
+            _add_icc_profile_attributes(
+                self,
+                icc_profile=icc_profile
+            )
+
             self.PixelPresentation = 'COLOR_RANGE'
-
-            colors = ['Red', 'Green', 'Blue']
-            for color in colors:
-                desc_kw = f'{color}PaletteColorLookupTableDescriptor'
-                data_kw = f'{color}PaletteColorLookupTableData'
-                desc = getattr(palette_color_lut_transformation, desc_kw)
-                lut = getattr(palette_color_lut_transformation, data_kw)
-
-                setattr(self, desc_kw, desc)
-                setattr(self, data_kw, lut)
-
-            if hasattr(
-                palette_color_lut_transformation,
-                'PaletteColorLookupTableUID'
-            ):
-                self.PaletteColorLookupTableUID = (
-                    palette_color_lut_transformation.PaletteColorLookupTableUID
+        else:
+            if icc_profile is not None:
+                raise TypeError(
+                    "Argument 'icc_profile' should "
+                    "not be provided when 'palette_color_lut_transformation' is "
+                    f"not provided."
                 )
-        else:
             self.PixelPresentation = 'MONOCHROME'
-
-        self.copy_specimen_information(src_img)
-        self.copy_patient_and_study_information(src_img)
-        self._add_contributing_equipment(contributing_equipment, src_img)
-
-        dimension_position_values = [
-            np.unique(plane_position_values[:, index], axis=0)
-            for index in range(plane_position_values.shape[1])
-        ]
-
-        frames = []
-        self.PerFrameFunctionalGroupsSequence = []
-        for i in range(pixel_array.shape[0]):
-            for j in range(pixel_array.shape[3]):
-                pffg_item = Dataset()
-
-                # Derivation Image
-                pffg_item.DerivationImageSequence = []
-
-                # Plane Position (Patient/Slide)
-                if self._coordinate_system == CoordinateSystemNames.SLIDE:
-                    pffg_item.PlanePositionSlideSequence = plane_positions[i]
-                else:
-                    pffg_item.PlanePositionSequence = plane_positions[i]
-
-                # Frame Content
-                frame_content_item = Dataset()
-                frame_content_item.DimensionIndexValues = [
-                    int(
-                        np.where(
-                            dimension_position_values[idx] == pos
-                        )[0][0] + 1
-                    )
-                    for idx, pos in enumerate(plane_position_values[i])
-                ]
-
-                pffg_item.FrameContentSequence = [frame_content_item]
-
-                # Real World Value Mapping
-                if has_multiple_mappings:
-                    # Only if there are multiple sets of mappings. Otherwise,
-                    # the information will be stored in the Shared Functional
-                    # Groups Sequence.
-                    pffg_item.RealWorldValueMappingSequence = \
-                        real_world_value_mappings[j]
-
-                self.PerFrameFunctionalGroupsSequence.append(pffg_item)
-
-                plane = pixel_array[i, :, :, j]
-                frames.append(self._encode_frame(plane))
-
-        self.NumberOfFrames = len(frames)
-        if self.file_meta.TransferSyntaxUID.is_encapsulated:
-            if use_extended_offset_table:
-                (
-                    pixel_data,
-                    self.ExtendedOffsetTable,
-                    self.ExtendedOffsetTableLengths,
-                ) = encapsulate_extended(frames)
-            else:
-                pixel_data = encapsulate(frames)
-        else:
-            pixel_data = b''.join(frames)
-        setattr(self, pixel_data_attr, pixel_data)
-
-        # Build lookup tables for efficient decoding
-        self._build_luts()
 
     @classmethod
     def from_dataset(
@@ -837,12 +687,12 @@ class ParametricMap(_Image):
             if pixel_array.dtype.name == 'float32':
                 return (
                     _PixelDataType.SINGLE,
-                    self._pixel_data_type_map[_PixelDataType.SINGLE],
+                    _PIXEL_DATA_TYPE_MAP[_PixelDataType.SINGLE],
                 )
             elif pixel_array.dtype.name == 'float64':
                 return (
                     _PixelDataType.DOUBLE,
-                    self._pixel_data_type_map[_PixelDataType.DOUBLE],
+                    _PIXEL_DATA_TYPE_MAP[_PixelDataType.DOUBLE],
                 )
             else:
                 raise ValueError(
@@ -858,7 +708,7 @@ class ParametricMap(_Image):
                 )
             return (
                 _PixelDataType.USHORT,
-                self._pixel_data_type_map[_PixelDataType.USHORT],
+                _PIXEL_DATA_TYPE_MAP[_PixelDataType.USHORT],
             )
         raise ValueError(
             'Unsupported data type for pixel data. '

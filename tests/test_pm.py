@@ -28,6 +28,7 @@ from highdicom.pm.enum import (
     ImageFlavorValues,
 )
 from highdicom.pm.sop import ParametricMap
+from highdicom.spatial import sort_datasets
 from highdicom.uid import UID
 
 
@@ -318,23 +319,20 @@ class TestParametricMap(unittest.TestCase):
             dcmread(f)
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
-        self._ct_series = sorted(
-            ct_series,
-            key=lambda x: x.ImagePositionPatient[2]
-        )
+        self._ct_series = sort_datasets(ct_series)
 
     @staticmethod
-    def check_dimension_index_vals(seg):
+    def check_dimension_index_vals(pm):
         # Function to apply some checks (necessary but not sufficient for
         # correctness) to ensure that the dimension indices are correct
         is_patient_coord_system = hasattr(
-            seg.PerFrameFunctionalGroupsSequence[0],
+            pm.PerFrameFunctionalGroupsSequence[0],
             'PlanePositionSequence'
         )
         if is_patient_coord_system:
             # Build up the mapping from index to value
             index_mapping = defaultdict(list)
-            for f in seg.PerFrameFunctionalGroupsSequence:
+            for f in pm.PerFrameFunctionalGroupsSequence:
                 posn_index = f.FrameContentSequence[0].DimensionIndexValues[1]
                 # This is not general, but all the tests run here use axial
                 # images so just check the z coordinate
@@ -361,7 +359,7 @@ class TestParametricMap(unittest.TestCase):
                 'RowPositionInTotalImagePixelMatrix'
             ], [1, 2]):
                 index_mapping = defaultdict(list)
-                for f in seg.PerFrameFunctionalGroupsSequence:
+                for f in pm.PerFrameFunctionalGroupsSequence:
                     content_item = f.FrameContentSequence[0]
                     posn_index = content_item.DimensionIndexValues[dim_ind]
                     # This is not general, but all the tests run here use axial
@@ -415,10 +413,6 @@ class TestParametricMap(unittest.TestCase):
             window_width=window_width,
             content_label=content_label
         )
-
-        # Work around pydicom 3 decoding issue (should be able to remove this
-        # soon)
-        pmap.pixel_array_options(use_v2_backend=True)
 
         assert pmap.SOPClassUID == '1.2.840.10008.5.1.4.1.1.30'
         assert pmap.SOPInstanceUID == self._sop_instance_uid
@@ -738,11 +732,6 @@ class TestParametricMap(unittest.TestCase):
             window_width=window_width,
         )
         assert pmap.BitsAllocated == 64
-
-        # Work around pydicom 3 decoding issue (should be able to remove this
-        # soon)
-        pmap.pixel_array_options(use_v2_backend=True)
-
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
     def test_single_frame_ct_image_ushort_native(self):
@@ -857,10 +846,6 @@ class TestParametricMap(unittest.TestCase):
             window_center=window_center,
             window_width=window_width,
         )
-
-        # Work around pydicom 3 decoding issue (should be able to remove this
-        # soon)
-        pmap.pixel_array_options(use_v2_backend=True)
 
         assert np.array_equal(pmap.pixel_array, pixel_array)
 

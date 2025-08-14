@@ -1347,7 +1347,7 @@ class _Image(SOPClass):
         further_source_images: Sequence[Dataset] | None = None,
         use_extended_offset_table: bool = False,
         pixel_data_attr: str = 'PixelData',
-        channel_values: Sequence[int | str | float] | None = None,  # TODO generalize
+        channel_values: Sequence[Any] | None = None,  # TODO generalize
         add_channel_callback: Callable[[Dataset, Any], Dataset] | None = None,  # TODO generalize
         channel_is_indexed: bool = True,  # TODO generalize
         preprocess_channel_callback: Callable[
@@ -3497,7 +3497,14 @@ class _Image(SOPClass):
                 start = frame_index * frame_length
                 end = start + frame_length
 
-            return self.PixelData[start:end]
+            if 'PixelData' in self:
+                return self.PixelData[start:end]
+            elif 'FloatPixelData' in self:
+                return self.FloatPixelData[start:end]
+            elif 'DoubleFloatPixelData' in self:
+                return self.DoubleFloatPixelData[start:end]
+            else:
+                raise AttributeError('Dataset contains no pixel data.')
 
     def get_stored_frame(
         self,

@@ -2800,9 +2800,9 @@ class Volume(_VolumeBase):
         )
 
     @property
-    def dtype(self) -> type:
+    def dtype(self) -> np.dtype:
         """type: Datatype of the array."""
-        return self._array.dtype.type
+        return self._array.dtype
 
     @property
     def shape(self) -> tuple[int, ...]:
