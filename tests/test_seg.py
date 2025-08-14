@@ -897,6 +897,8 @@ class TestSegmentation:
     def check_dimension_index_vals(seg):
         # Function to apply some checks (necessary but not sufficient for
         # correctness) to ensure that the dimension indices are correct
+        sfgs = seg.SharedFunctionalGroupsSequence[0]
+
         if seg.SegmentationType != "LABELMAP":
             all_segment_numbers = []
             for f in seg.PerFrameFunctionalGroupsSequence:
@@ -908,9 +910,14 @@ class TestSegmentation:
                     # VM=1 so this is an int
                     posn_index = dim_ind_vals
 
-                seg_number = (
-                    f.SegmentIdentificationSequence[0].ReferencedSegmentNumber
-                )
+                if 'SegmentIdentificationSequence' in f:
+                    seg_number = (
+                        f.SegmentIdentificationSequence[0].ReferencedSegmentNumber
+                    )
+                else:
+                    seg_number = (
+                        sfgs.SegmentIdentificationSequence[0].ReferencedSegmentNumber
+                    )
 
                 assert seg_number == posn_index
                 all_segment_numbers.append(seg_number)
@@ -1077,12 +1084,13 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             self._ct_image.ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert instance.NumberOfFrames == 1
         assert len(instance.PerFrameFunctionalGroupsSequence) == 1
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
@@ -1161,6 +1169,7 @@ class TestSegmentation:
         assert pm_item.PixelSpacing == src_pm_item.PixelSpacing
         assert pm_item.SliceThickness == src_pm_item.SliceThickness
         assert not hasattr(shared_item, "PlaneOrientationSequence")
+        assert len(shared_item.SegmentIdentificationSequence) == 1
         assert instance.ImageOrientationSlide == \
             self._sm_image.ImageOrientationSlide
         assert instance.TotalPixelMatrixOriginSequence == \
@@ -1174,7 +1183,7 @@ class TestSegmentation:
         assert instance.NumberOfFrames == num_frames
         assert len(instance.PerFrameFunctionalGroupsSequence) == num_frames
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.PlanePositionSlideSequence) == 1
@@ -1242,6 +1251,7 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             src_im.ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         n_frames = len(self._ct_series_nonempty)
@@ -1254,7 +1264,7 @@ class TestSegmentation:
             ),
             1
         ):
-            assert len(frame_item.SegmentIdentificationSequence) == 1
+            assert not hasattr(frame_item, 'SegmentIdentificationSequence')
             assert len(frame_item.FrameContentSequence) == 1
             assert len(frame_item.DerivationImageSequence) == 1
             assert len(frame_item.PlanePositionSequence) == 1
@@ -1342,12 +1352,13 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             src_shared_item.PlaneOrientationSequence[0].ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert len(instance.PerFrameFunctionalGroupsSequence) == \
             self._ct_multiframe.NumberOfFrames
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
@@ -1429,12 +1440,13 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             src_im.ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert instance.NumberOfFrames == 4
         assert len(instance.PerFrameFunctionalGroupsSequence) == 4
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
@@ -1551,6 +1563,7 @@ class TestSegmentation:
         assert instance.Columns == self._cr_image.pixel_array.shape[1]
         assert len(instance.SharedFunctionalGroupsSequence) == 1
         shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.SegmentIdentificationSequence) == 1
         assert not hasattr(shared_item, 'PixelMeasuresSequence')
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
@@ -1558,7 +1571,7 @@ class TestSegmentation:
         assert instance.NumberOfFrames == 1
         assert len(instance.PerFrameFunctionalGroupsSequence) == 1
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert not hasattr(frame_item, 'PlanePositionSequence')

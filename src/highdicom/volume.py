@@ -2236,6 +2236,16 @@ class VolumeGeometry(_VolumeBase):
         """
         return self.spatial_shape
 
+    @property
+    def ndim(self) -> int:
+        """int: Number of dimensions.
+
+        For objects of type :class:`highdicom.VolumeGeometry`, this is
+        always 3.
+
+        """
+        return 3
+
     def __getitem__(
         self,
         index: int | slice | tuple[int | slice],
@@ -2811,6 +2821,15 @@ class Volume(_VolumeBase):
 
         """
         return tuple(self._array.shape[:3])
+
+    @property
+    def ndim(self) -> int:
+        """int: Number of dimensions.
+
+        This includes spatial and channel dimensions.
+
+        """
+        return self._array.ndim
 
     @property
     def number_of_channel_dimensions(self) -> int:
