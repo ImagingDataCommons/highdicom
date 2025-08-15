@@ -712,8 +712,9 @@ class Segmentation(_Image):
             include_segment_number=include_segment_number,
         )
         dimension_organization = Dataset()
-        dimension_organization.DimensionOrganizationUID = \
-        self.DimensionIndexSequence[0].DimensionOrganizationUID
+        dimension_organization.DimensionOrganizationUID = (
+            self.DimensionIndexSequence[0].DimensionOrganizationUID
+        )
         self.DimensionOrganizationSequence = [dimension_organization]
 
         # Checks on pixels and overlap
