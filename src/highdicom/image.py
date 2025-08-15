@@ -93,7 +93,6 @@ from highdicom.valuerep import (
 )
 from highdicom.volume import (
     _DCM_PYTHON_TYPE_MAP,
-    ChannelDescriptor,
     VolumeGeometry,
     Volume,
     RGB_COLOR_CHANNEL_DESCRIPTOR,
@@ -475,17 +474,35 @@ class _CombinedPixelTransform:
 
         # Determine input type and range of values
         input_range = None
-        if (
-            image.SOPClassUID == ParametricMapStorage and
-            image.BitsAllocated > 16
-        ):
-            # Parametric Maps are the only SOP Class (currently) that allows
-            # floating point pixels
-            if image.BitsAllocated == 32:
-                self.input_dtype = np.dtype(np.float32)
-            elif image.BitsAllocated == 64:
-                self.input_dtype = np.dtype(np.float64)
+
+        # Determine what pixel data keyword is present in the image
+        for kw in [
+            'PixelData',
+            'FloatPixelData',
+            'DoubleFloatPixelData',
+        ]:
+            if kw in image:
+                self.pixel_keyword = kw
+                break
         else:
+            # No pixel data keyword, which may be due to just the header being
+            # loaded. Parametric Maps are the only SOP Class (currently) that
+            # allows floating point pixels. PixelRepresentation is only present
+            # for PixelData (i.e. when the ImagePixel module is used)
+            if (
+                image.SOPClassUID == ParametricMapStorage and
+                'PixelRepresentation' not in image
+            ):
+                if image.BitsAllocated == 32:
+                    self.input_dtype = np.dtype(np.float32)
+                    self.pixel_keyword = 'FloatPixelData'
+                elif image.BitsAllocated == 64:
+                    self.input_dtype = np.dtype(np.float64)
+                    self.pixel_keyword = 'DoubleFloatPixelData'
+            else:
+                self.pixel_keyword = 'PixelData'
+
+        if self.pixel_keyword == 'PixelData':
             if image.PixelRepresentation == 1:
                 if image.BitsAllocated == 8:
                     self.input_dtype = np.dtype(np.int8)
@@ -986,7 +1003,7 @@ class _CombinedPixelTransform:
         self.bits_allocated = image.BitsAllocated
         self.bits_stored = image.get('BitsAllocated', image.BitsAllocated)
         self.photometric_interpretation = image.PhotometricInterpretation
-        self.pixel_representation = image.PixelRepresentation
+        self.pixel_representation = image.get('PixelRepresentation')
         self.planar_configuration = image.get('PlanarConfiguration')
 
     def __call__(
@@ -1026,6 +1043,7 @@ class _CombinedPixelTransform:
                 pixel_representation=self.pixel_representation,
                 planar_configuration=self.planar_configuration,
                 index=frame_index,
+                pixel_keyword=self.pixel_keyword,
             )
         elif isinstance(frame, np.ndarray):
             frame_out = frame
