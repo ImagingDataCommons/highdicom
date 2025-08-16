@@ -493,11 +493,12 @@ class _CombinedPixelTransform:
         else:
             # No pixel data keyword, which may be due to just the header being
             # loaded. Parametric Maps are the only SOP Class (currently) that
-            # allows floating point pixels. PixelRepresentation is only present
-            # for PixelData (i.e. when the ImagePixel module is used)
+            # allows floating point pixels. BitsStored is only present for
+            # PixelData (i.e. when the ImagePixel module is used) and as such
+            # can be used to decude the pixel type
             if (
                 image.SOPClassUID == ParametricMapStorage and
-                'PixelRepresentation' not in image
+                'BitsStored' not in image
             ):
                 if image.BitsAllocated == 32:
                     self.input_dtype = np.dtype(np.float32)
