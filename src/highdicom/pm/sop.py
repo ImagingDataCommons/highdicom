@@ -626,37 +626,6 @@ class ParametricMap(_Image):
                 )
             self.PixelPresentation = 'MONOCHROME'
 
-    @classmethod
-    def from_dataset(
-        cls,
-        dataset: Dataset,
-        copy: bool = True,
-    ) -> Self:
-        """Create instance from an existing dataset.
-
-        Parameters
-        ----------
-        dataset: pydicom.dataset.Dataset
-            Dataset representing a Parametric Map.
-        copy: bool
-            If True, the underlying dataset is deep-copied such that the
-            original dataset remains intact. If False, this operation will
-            alter the original dataset in place.
-
-        Returns
-        -------
-        highdicom.pm.ParametricMap
-            Representation of the supplied dataset as a highdicom
-            ParametricMap.
-
-        """
-        if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.30':
-            raise ValueError('Dataset is not a Parametric Map.')
-
-        pm = super().from_dataset(dataset, copy=copy)
-
-        return cast(Self, pm)
-
     def _get_pixel_data_type_and_attr(
         self,
         pixel_array: np.ndarray
@@ -717,38 +686,33 @@ class ParametricMap(_Image):
             'floating-point types.'
         )
 
-    def _encode_frame(self, pixel_array: np.ndarray) -> bytes:
-        """Encode a given pixel array.
+    @classmethod
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True,
+    ) -> Self:
+        """Create instance from an existing dataset.
 
         Parameters
         ----------
-        pixel_array: np.ndarray
-            The pixel array to encode
+        dataset: pydicom.dataset.Dataset
+            Dataset representing a Parametric Map.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
-        bytes
-            Encoded frame
-
-        Raises
-        ------
-        ValueError
-            If the `pixel_array` is not exactly two-dimensional.
+        highdicom.pm.ParametricMap
+            Representation of the supplied dataset as a highdicom
+            ParametricMap.
 
         """
-        if pixel_array.ndim != 2:
-            raise ValueError(
-                'Only single frame can be encoded at at time '
-                'in case of encapsulated format encoding.'
-            )
-        if self.file_meta.TransferSyntaxUID.is_encapsulated:
-            return encode_frame(
-                pixel_array,
-                transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
-                bits_allocated=self.BitsAllocated,
-                bits_stored=self.BitsStored,
-                photometric_interpretation=self.PhotometricInterpretation,
-                pixel_representation=self.PixelRepresentation
-            )
-        else:
-            return pixel_array.flatten().tobytes()
+        if dataset.SOPClassUID != '1.2.840.10008.5.1.4.1.1.30':
+            raise ValueError('Dataset is not a Parametric Map.')
+
+        pm = super().from_dataset(dataset, copy=copy)
+
+        return cast(Self, pm)

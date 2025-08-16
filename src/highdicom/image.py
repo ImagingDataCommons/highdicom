@@ -13,7 +13,13 @@ from typing import (
     BinaryIO,
     cast,
 )
-from collections.abc import Callable, Iterable, Iterator, Generator, Sequence
+from collections.abc import (
+    Callable,
+    Generator,
+    Iterable,
+    Iterator,
+    Sequence,
+)
 from typing_extensions import Self
 import warnings
 
@@ -36,7 +42,7 @@ from pydicom.multival import MultiValue
 from pydicom.pixels.utils import pack_bits
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
-from pydicom.uid import ParametricMapStorage
+from pydicom.uid import ParametricMapStorage, SegmentationStorage
 from pydicom.valuerep import format_number_as_ds
 
 from highdicom._module_utils import (
@@ -1488,7 +1494,6 @@ class _Image(SOPClass):
             included_plane_indices = range(len(plane_positions))
 
         # Dimension Organization Type
-        # TODO disallow TILED_FULL parametric maps with multiple channels
         dimension_organization_type = self._check_tiled_dimension_organization(
             dimension_organization_type=dimension_organization_type,
             is_tiled=is_tiled,
@@ -1497,6 +1502,7 @@ class _Image(SOPClass):
             tile_pixel_array=tile_pixel_array,
             rows=self.Rows,
             columns=self.Columns,
+            num_channels=1 if channel_values is None else len(channel_values),
         )
 
         if (
@@ -3302,8 +3308,8 @@ class _Image(SOPClass):
                     format_number_as_ds(z_center)
                 self.ImageCenterPointCoordinatesSequence = [center_item]
 
-    @staticmethod
     def _check_tiled_dimension_organization(
+        self,
         dimension_organization_type: (
             DimensionOrganizationTypeValues |
             str |
@@ -3315,6 +3321,7 @@ class _Image(SOPClass):
         tile_pixel_array: bool,
         rows: int,
         columns: int,
+        num_channels: int,
     ) -> DimensionOrganizationTypeValues | None:
         """Checks that the specified Dimension Organization Type is valid.
 
@@ -3334,6 +3341,8 @@ class _Image(SOPClass):
             Number of rows in each frame of the segmentation image.
         columns: int
             Number of columns in each frame of the segmentation image.
+        num_channels:
+            Number of channels included in this image.
 
         Returns
         -------
@@ -3357,10 +3366,10 @@ class _Image(SOPClass):
             dimension_organization_type = DimensionOrganizationTypeValues(
                 dimension_organization_type
             )
-            tiled_dimension_organization_types = [
+            tiled_dimension_organization_types = (
                 DimensionOrganizationTypeValues.TILED_SPARSE,
-                DimensionOrganizationTypeValues.TILED_FULL
-            ]
+                DimensionOrganizationTypeValues.TILED_FULL,
+            )
 
             if (
                 dimension_organization_type in
@@ -3395,6 +3404,22 @@ class _Image(SOPClass):
                         'https://dicom.nema.org/medical/dicom/current/output/'
                         'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3 .'
                     )
+
+                # A TILED_FULL image can only contain nultiple channels if they
+                # use certain values. Specifically multiple segments or
+                # multiple optical paths (but multiple real world value maps
+                # for a parametric map are NOT allowed). This check needs to be
+                # generalized but the following works for the types of channels
+                # currently supported (segments and RWVMs)
+                if num_channels > 1 and self.SOPClassUID != SegmentationStorage:
+                    raise ValueError(
+                        'A value of "TILED_FULL" for parameter '
+                        '"dimension_organization_type" is not permitted '
+                        'because the image contains multiple channels. See '
+                        'https://dicom.nema.org/medical/dicom/current/output/'
+                        'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3 .'
+                    )
+
                 if omit_empty_frames:
                     raise ValueError(
                         'Parameter "omit_empty_frames" should be False if '
@@ -5751,7 +5776,7 @@ class _Image(SOPClass):
 
         for tdef in table_defs:
             # Clean up the tables
-            cmd = (f'DROP TABLE {tdef.table_name}')
+            cmd = f'DROP TABLE {tdef.table_name}'
             with self._db_con:
                 self._db_con.execute(cmd)
 
@@ -5789,7 +5814,7 @@ class _Image(SOPClass):
         yield
 
         # Clean up the view
-        cmd = (f'DROP VIEW {view_name}')
+        cmd = f'DROP VIEW {view_name}'
         with self._db_con:
             self._db_con.execute(cmd)
 
