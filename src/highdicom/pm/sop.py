@@ -186,18 +186,18 @@ class ParametricMap(_Image):
             Whether the image contains recognizable visible features of the
             patient
         real_world_value_mappings: Union[Sequence[highdicom.pm.RealWorldValueMapping], Sequence[Sequence[highdicom.pm.RealWorldValueMapping]]
-            Descriptions of how stored values map to real-world values.
-            Each channel encoded in `pixel_array` shall be described with one
-            or more real-world value mappings. Multiple mappings might be
-            used for different representations such as log versus linear scales
-            or for different representations in different units.
-            If `pixel_array` is a 2D or 3D array and only one channel exists
-            at each spatial image position, then one or more real-world value
-            mappings shall be provided in a flat sequence.
-            If `pixel_array` is a 4D array and multiple channels exist at each
-            spatial image position, then one or more mappings shall be provided
-            for each channel in a nested sequence of length ``m``, where ``m``
-            shall match the channel dimension of the `pixel_array``.
+            Descriptions of how stored values map to real-world values. Each
+            channel encoded in ``pixel_array`` shall be described with one or
+            more real-world value mappings. Multiple mappings might be used for
+            different representations such as log versus linear scales or for
+            different representations in different units. If ``pixel_array`` is
+            a 2D or 3D array and only one channel exists at each spatial image
+            position, then one or more real-world value mappings shall be
+            provided in a flat sequence. If `pixel_array` is a 4D array and
+            multiple channels exist at each spatial image position, then one or
+            more mappings shall be provided for each channel in a nested
+            sequence of length ``m``, where ``m`` shall match the channel
+            dimension of the ``pixel_array``.
 
             In some situations the mapping may be difficult to describe (e.g., in
             case of a transformation performed by a deep convolutional neural
@@ -229,7 +229,7 @@ class ParametricMap(_Image):
             If ``None``, it will be assumed that the parametric map image has
             the same pixel measures as the source image(s).
         plane_orientation: Union[highdicom.PlaneOrientationSequence, None], optional
-            Orientation of planes in `pixel_array` relative to axes of
+            Orientation of planes in ``pixel_array`` relative to axes of
             three-dimensional patient or slide coordinate space.
             If ``None``, it will be assumed that the parametric map image as
             the same plane orientation as the source image(s).
@@ -277,22 +277,23 @@ class ParametricMap(_Image):
         ------
         ValueError
             When
-                * Length of `source_images` is zero.
-                * Items of `source_images` are not all part of the same study
+
+                * Length of ``source_images`` is zero.
+                * Items of ``source_images`` are not all part of the same study
                   and series.
-                * Items of `source_images` have different number of rows and
+                * Items of ``source_images`` have different number of rows and
                   columns.
-                * Length of `plane_positions` does not match number of 2D planes
+                * Length of ``plane_positions`` does not match number of 2D planes
                   in `pixel_array` (size of first array dimension).
-                * Transfer Syntax specified by `transfer_syntax_uid` is not
+                * Transfer Syntax specified by ``transfer_syntax_uid`` is not
                   supported for data type of `pixel_array`.
 
         Note
         ----
-        The assumption is made that planes in `pixel_array` are defined in
-        the same frame of reference as `source_images`. It is further assumed
-        that all image frame have the same type (i.e., the same `image_flavor`
-        and `derived_pixel_contrast`).
+        The assumption is made that planes in ``pixel_array`` are defined in
+        the same frame of reference as ``source_images``. It is further assumed
+        that all image frame have the same type (i.e., the same ``image_flavor``
+        and ``derived_pixel_contrast``).
 
         """  # noqa
         if len(source_images) == 0:
