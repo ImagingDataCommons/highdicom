@@ -2326,6 +2326,11 @@ class VOILUTTransformation(Dataset):
                     raise TypeError(
                         'Argument "window_width" must not be an empty sequence.'
                     )
+                for x in window_width:
+                    if x <= 0:
+                        raise ValueError(
+                            'Window width must be greater than zero.'
+                        )
                 self.WindowWidth = [
                     format_number_as_ds(float(x)) for x in window_width
                 ]
@@ -2335,6 +2340,8 @@ class VOILUTTransformation(Dataset):
                         'Length of "window_width" must match length of '
                         '"window_center".'
                     )
+                if window_width <= 0:
+                    raise ValueError('Window width must be greater than zero.')
                 self.WindowWidth = format_number_as_ds(float(window_width))
         if window_explanation is not None:
             if window_center is None:

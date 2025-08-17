@@ -106,7 +106,8 @@ def compute_plane_position_tiled_full(
         warnings.warn(
             "Passing a slice_thickness other than None has no effect and "
             "will be deprecated in a future version of the library.",
-            UserWarning
+            UserWarning,
+            stacklevel=2,
         )
     if row_index < 1 or column_index < 1:
         raise ValueError("Row and column indices must be positive integers.")

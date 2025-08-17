@@ -11,7 +11,6 @@ from typing import (
 )
 from collections.abc import Iterator, Sequence
 from typing_extensions import Self
-import warnings
 
 import numpy as np
 from pydicom.dataelem import DataElement

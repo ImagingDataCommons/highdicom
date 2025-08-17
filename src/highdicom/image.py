@@ -1373,7 +1373,9 @@ class _Image(SOPClass):
         use_extended_offset_table: bool = False,
         pixel_data_attr: str = 'PixelData',
         channel_values: Sequence[Any] | None = None,  # TODO generalize
-        add_channel_callback: Callable[[Dataset, Any], Dataset] | None = None,  # TODO generalize
+        add_channel_callback: (
+            Callable[[Dataset, Any], Dataset] | None
+        ) = None,  # TODO generalize
         channel_is_indexed: bool = True,  # TODO generalize
         preprocess_channel_callback: Callable[
             [np.ndarray, Any, int], np.ndarray
@@ -1381,8 +1383,8 @@ class _Image(SOPClass):
     ):
         if (channel_values is None) != (add_channel_callback is None):
             raise TypeError(
-                f"Argument 'add_channel_callback' should be provided if and only if "
-                "'channel_values' is provided."
+                "Argument 'add_channel_callback' should be provided if and "
+                "only if 'channel_values' is provided."
             )
 
         src_img = source_images[0]
@@ -1530,17 +1532,16 @@ class _Image(SOPClass):
         if self._coordinate_system == CoordinateSystemNames.PATIENT:
             inferred_dim_org_type = None
 
-            # To be considered "3D", an segmentation should have frames that are
-            # differentiated only by location. This rules out any image with channels
-            # where there is more than a single channel value
-            # Further, only images with multiple spatial positions in the
-            # final image should be considered to have 3D dimension
-            # organization type
+            # To be considered "3D", an segmentation should have frames that
+            # are differentiated only by location. This rules out any image
+            # with channels where there is more than a single channel value
+            # Further, only images with multiple spatial positions in the final
+            # image should be considered to have 3D dimension organization type
             if (
                 len(included_plane_indices) > 1 and
                 (
-                    channel_values is None
-                    or len(channel_values) == 1
+                    channel_values is None or
+                    len(channel_values) == 1
                 )
             ):
                 # Calculate the spacing using only the included planes, and
@@ -1676,7 +1677,14 @@ class _Image(SOPClass):
                     return pffg_item
 
                 add_channel_callback = _add_frame_label
-                preprocess_channel_callback = lambda x, _val, _ind: x
+
+                def preprocess_channel_callback(
+                    arr: np.ndarray,
+                    _: Any,  # value (unused0)
+                    __: int,  # index (unused)
+                ):
+                    return arr
+
                 channel_is_indexed = True
             else:
                 # Placeholder used just to have something to iterate over to
@@ -1685,7 +1693,8 @@ class _Image(SOPClass):
 
         if preprocess_channel_callback is None:
             # Default channel callback just indexes down the final dimension
-            preprocess_channel_callback = lambda arr, _, ind: arr[:, :, ind]
+            def preprocess_channel_callback(arr: np.ndarray, _: Any, ind: int):
+                return arr[:, :, ind]
 
         # Main frame loop: encode frames and create per-frame functional groups
         for channel_index, channel_value in enumerate(channel_values):
@@ -1791,7 +1800,10 @@ class _Image(SOPClass):
                         if derivation_source_image_items is not None else None
                     )
                     if channel_value is not None and channel_is_indexed:
-                        dimension_index_values = [int(channel_index) + 1] + dimension_index_values
+                        dimension_index_values = (
+                            [int(channel_index) + 1] +
+                            dimension_index_values
+                        )
 
                     pffg_item = self._get_pffg_item(
                         dimension_index_values=dimension_index_values,
@@ -1802,7 +1814,10 @@ class _Image(SOPClass):
 
                     if add_channel_callback is not None:
                         # Add the channel information to the per-frame item
-                        pffg_item = add_channel_callback(pffg_item, channel_value)
+                        pffg_item = add_channel_callback(
+                            pffg_item,
+                            channel_value,
+                        )
 
                     pffg_sequence.append(pffg_item)
 

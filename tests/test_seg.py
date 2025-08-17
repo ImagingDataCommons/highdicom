@@ -912,11 +912,15 @@ class TestSegmentation:
 
                 if 'SegmentIdentificationSequence' in f:
                     seg_number = (
-                        f.SegmentIdentificationSequence[0].ReferencedSegmentNumber
+                        f
+                        .SegmentIdentificationSequence[0]
+                        .ReferencedSegmentNumber
                     )
                 else:
                     seg_number = (
-                        sfgs.SegmentIdentificationSequence[0].ReferencedSegmentNumber
+                        sfgs
+                        .SegmentIdentificationSequence[0]
+                        .ReferencedSegmentNumber
                     )
 
                 assert seg_number == posn_index
