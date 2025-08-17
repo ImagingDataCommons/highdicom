@@ -2,6 +2,7 @@
 
 from highdicom.pm.content import DimensionIndexSequence, RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
+from highdicom.pm.pyramid import create_parametric_map_pyramid
 from highdicom.pm.sop import ParametricMap
 
 SOP_CLASS_UIDS = {
@@ -14,4 +15,5 @@ __all__ = [
     'ImageFlavorValues',
     'ParametricMap',
     'RealWorldValueMapping',
+    'create_parametric_map_pyramid',
 ]

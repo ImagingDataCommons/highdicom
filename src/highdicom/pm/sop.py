@@ -4,6 +4,7 @@ from concurrent.futures import Executor
 from enum import Enum
 import pkgutil
 from typing import cast
+import warnings
 
 import numpy as np
 from highdicom.base_content import ContributingEquipment
@@ -14,13 +15,13 @@ from highdicom.content import (
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
+    VOILUTTransformation,
 )
 from highdicom.enum import (
     ContentQualificationValues,
     DimensionOrganizationTypeValues,
 )
 from highdicom.image import _Image
-from highdicom.frame import encode_frame
 from highdicom.pm.content import RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
 from highdicom.pr.content import (
@@ -39,7 +40,6 @@ from pydicom.uid import (
     JPEGLSLossless,
     RLELossless,
 )
-from pydicom.valuerep import format_number_as_ds
 from typing_extensions import Self
 
 
@@ -87,8 +87,11 @@ class ParametricMap(_Image):
             Sequence[RealWorldValueMapping] |
             Sequence[Sequence[RealWorldValueMapping]]
         ),
-        window_center: float,
-        window_width: float,
+        window_center: float | None = None,
+        window_width: float | None = None,
+        voi_lut_transformations: (
+            Sequence[VOILUTTransformation] | None
+        ) = None,
         transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
         content_description: str | None = None,
         content_creator_name: str | None = None,
@@ -202,23 +205,17 @@ class ParametricMap(_Image):
             identity function that maps stored values to unit-less real-world
             values.
         window_center: Union[int, float, None], optional
-            Window center (intensity) for rescaling stored values for display
-            purposes by applying a linear transformation function. For example,
-            in case of floating-point values in the range ``[0.0, 1.0]``, the
-            window center may be ``0.5``, in case of floating-point values in
-            the range ``[-1.0, 1.0]`` the window center may be ``0.0``, in case
-            of unsigned integer values in the range ``[0, 255]`` the window
-            center may be ``128``.
+            This argument has been deprecated and will be removed in a future
+            release. Use the more flexible ``voi_lut_transformations`` argument
+            instead.
         window_width: Union[int, float, None], optional
-            Window width (contrast) for rescaling stored values for display
-            purposes by applying a linear transformation function. For example,
-            in case of floating-point values in the range ``[0.0, 1.0]``, the
-            window width may be ``1.0``, in case of floating-point values in the
-            range ``[-1.0, 1.0]`` the window width may be ``2.0``, and in
-            case of unsigned integer values in the range ``[0, 255]`` the
-            window width may be ``256``. In case of unbounded floating-point
-            values, a sensible window width should be chosen to allow for
-            stored values to be displayed on 8-bit monitors.
+            This argument has been deprecated and will be removed in a future
+            release. Use the more flexible ``voi_lut_transformations`` argument
+            instead.
+        voi_lut_transformations: Sequence[highdicom.VOILUTTransformation] | None, optional
+            One or more VOI transformations that describe a pixel
+            transformation to apply to frames. This will become a required
+            argument in a future release.
         transfer_syntax_uid: Union[str, None], optional
             UID of transfer syntax that should be used for encoding of
             data elements. Defaults to Explicit VR Little Endian
@@ -322,6 +319,49 @@ class ParametricMap(_Image):
             raise ValueError(
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
+
+        if (window_center is None) != (window_width is None):
+            raise TypeError(
+                "Arguments 'window_center' and 'window_width' should both "
+                "be None, or neither should be None."
+            )
+        if window_center is not None:
+            if voi_lut_transformations is not None:
+                raise TypeError(
+                    "Arguments 'window_center' and 'window_width' must be "
+                    "omitted if 'voi_lut_transformations' is provided."
+                )
+            warnings.warn(
+                "Arguments 'window_center' and 'window_width' are deprecated "
+                "and will be removed in a future version of the library. "
+                "Use the more flexible 'voi_lut_transformations' argument "
+                "instead.",
+                UserWarning,
+                stacklevel=2,
+            )
+            voi_lut_transformations = [
+               VOILUTTransformation(
+                   window_center=window_center,
+                   window_width=window_width,
+               )
+            ]
+        else:
+            if voi_lut_transformations is None:
+                raise TypeError(
+                    "Argument 'voi_lut_transformations' is required."
+                )
+            if len(voi_lut_transformations) < 1:
+                raise TypeError(
+                    "Argument 'voi_lut_transformations' must contain at least "
+                    'one item.'
+                )
+
+            for v in voi_lut_transformations:
+                if not isinstance(v, VOILUTTransformation):
+                    raise TypeError(
+                        "Argument 'voi_lut_transformations' must be a "
+                        'sequence of highdicom.VOILUTTransformation objects.'
+                    )
 
         super().__init__(
             study_instance_uid=src_img.StudyInstanceUID,
@@ -558,7 +598,8 @@ class ParametricMap(_Image):
             channel_values=real_world_value_mappings,
             add_channel_callback=add_channel_callback,
             pixel_data_attr=pixel_data_attr,
-            channel_is_indexed=False,  # TODO change this and change the DimensionIndexSequence to match
+            # TODO change this and change the DimensionIndexSequence to match
+            channel_is_indexed=False,
         )
 
         # Identity Pixel Value Transformation
@@ -566,25 +607,27 @@ class ParametricMap(_Image):
         transformation_item.RescaleIntercept = 0
         transformation_item.RescaleSlope = 1
         transformation_item.RescaleType = 'US'
-        self.SharedFunctionalGroupsSequence[0].PixelValueTransformationSequence = [
-            transformation_item
-        ]
+        (
+            self
+            .SharedFunctionalGroupsSequence[0]
+            .PixelValueTransformationSequence
+        ) = [transformation_item]
 
         # Frame VOI LUT With LUT
-        if window_width <= 0:
-            raise ValueError('Window width must be greater than zero.')
-        voi_lut_item = Dataset()
-        voi_lut_item.WindowCenter = format_number_as_ds(float(window_center))
-        voi_lut_item.WindowWidth = format_number_as_ds(float(window_width))
-        voi_lut_item.VOILUTFunction = 'LINEAR'
-        self.SharedFunctionalGroupsSequence[0].FrameVOILUTSequence = [voi_lut_item]
+        (
+            self
+            .SharedFunctionalGroupsSequence[0]
+            .FrameVOILUTSequence
+        ) = voi_lut_transformations
 
         # Parametric Map Frame Type
         frame_type_item = Dataset()
         frame_type_item.FrameType = self.ImageType
-        self.SharedFunctionalGroupsSequence[0].ParametricMapFrameTypeSequence = [
-            frame_type_item
-        ]
+        (
+            self
+            .SharedFunctionalGroupsSequence[0]
+            .ParametricMapFrameTypeSequence
+        ) = [frame_type_item]
 
     def _configure_color(
         self,
@@ -621,8 +664,8 @@ class ParametricMap(_Image):
             if icc_profile is not None:
                 raise TypeError(
                     "Argument 'icc_profile' should "
-                    "not be provided when 'palette_color_lut_transformation' is "
-                    f"not provided."
+                    "not be provided when 'palette_color_lut_transformation' "
+                    "is not provided."
                 )
             self.PixelPresentation = 'MONOCHROME'
 
