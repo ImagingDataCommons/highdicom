@@ -357,7 +357,7 @@ def decode_frame(
     bits_allocated: int,
     bits_stored: int,
     photometric_interpretation: PhotometricInterpretationValues | str,
-    pixel_representation: PixelRepresentationValues | int = 0,
+    pixel_representation: PixelRepresentationValues | int | None = 0,
     planar_configuration: PlanarConfigurationValues | int | None = None,
     index: int = 0,
     pixel_keyword: str = 'PixelData',
@@ -385,7 +385,7 @@ def decode_frame(
         Photometric interpretation
     pixel_representation: Union[highdicom.PixelRepresentationValues, int, None], optional
         Whether pixel samples are represented as unsigned integers or
-        2's complements
+        2's complements. May only be None for floating point pixel data.
     planar_configuration: Union[highdicom.PlanarConfigurationValues, int, None], optional
         Whether color samples are encoded by pixel (``R1G1B1R2G2B2...``) or
         by plane (``R1R2...G1G2...B1B2...``).
@@ -445,9 +445,10 @@ def decode_frame(
         pixel_array = unpacked_frame[pixel_offset:pixel_offset + n_pixels]
         return pixel_array.reshape(rows, columns)
 
-    pixel_representation = PixelRepresentationValues(
-        pixel_representation
-    ).value
+    if pixel_keyword == 'PixelData':
+        pixel_representation = PixelRepresentationValues(
+            pixel_representation
+        ).value
     photometric_interpretation = PhotometricInterpretationValues(
         photometric_interpretation
     ).value

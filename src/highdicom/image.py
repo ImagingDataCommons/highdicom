@@ -1,5 +1,6 @@
 """Tools for working with general DICOM images."""
 from collections import Counter, defaultdict
+from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from enum import Enum
@@ -12,13 +13,24 @@ from typing import (
     BinaryIO,
     cast,
 )
-from collections.abc import Iterable, Iterator, Generator, Sequence
+from collections.abc import (
+    Callable,
+    Generator,
+    Iterable,
+    Iterator,
+    Sequence,
+)
 from typing_extensions import Self
+import warnings
 
 import numpy as np
 from pydicom import Dataset
 from pydicom.dataelem import DataElement
-from pydicom.encaps import get_frame
+from pydicom.encaps import (
+    get_frame,
+    encapsulate,
+    encapsulate_extended,
+)
 from pydicom.tag import BaseTag
 from pydicom.datadict import (
     get_entry,
@@ -27,13 +39,16 @@ from pydicom.datadict import (
 )
 from pydicom.filebase import DicomIO, DicomBytesIO
 from pydicom.multival import MultiValue
+from pydicom.pixels.utils import pack_bits
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
-from pydicom.uid import ParametricMapStorage
+from pydicom.uid import ParametricMapStorage, SegmentationStorage
 from pydicom.valuerep import format_number_as_ds
 
 from highdicom._module_utils import (
+    ModuleUsageValues,
     does_iod_have_pixel_data,
+    get_module_usage,
     is_multiframe_image,
 )
 from highdicom.base import SOPClass, _check_little_endian
@@ -49,7 +64,7 @@ from highdicom.enum import (
     CoordinateSystemNames,
     DimensionOrganizationTypeValues,
 )
-from highdicom.frame import decode_frame
+from highdicom.frame import decode_frame, encode_frame
 from highdicom.io import ImageFileReader, _wrapped_dcmread
 from highdicom.pixels import (
     _check_rescale_dtype,
@@ -69,6 +84,7 @@ from highdicom.spatial import (
     get_image_coordinate_system,
     get_normal_vector,
     get_series_volume_positions,
+    get_tile_array,
     get_volume_positions,
     is_tiled_image,
 )
@@ -77,6 +93,9 @@ from highdicom.uid import UID as UID
 from highdicom.utils import (
     iter_tiled_full_frame_data,
     are_plane_positions_tiled_full,
+)
+from highdicom.valuerep import (
+    _check_long_string,
 )
 from highdicom.volume import (
     _DCM_PYTHON_TYPE_MAP,
@@ -112,9 +131,12 @@ _DCM_SQL_TYPE_MAP = {
     'UT': 'TEXT',
 }
 
-# This code is needed many times in loops so we precompute it
+# These codes are needed many times in loops so we precompute them
 _PURPOSE_CODE = CodedConcept.from_code(
     codes.cid7202.SourceImageForImageProcessingOperation
+)
+_DERIVATION_CODE = CodedConcept.from_code(
+    codes.cid7203.SegmentationImageDerivation
 )
 
 
@@ -458,17 +480,36 @@ class _CombinedPixelTransform:
 
         # Determine input type and range of values
         input_range = None
-        if (
-            image.SOPClassUID == ParametricMapStorage and
-            image.BitsAllocated > 16
-        ):
-            # Parametric Maps are the only SOP Class (currently) that allows
-            # floating point pixels
-            if image.BitsAllocated == 32:
-                self.input_dtype = np.dtype(np.float32)
-            elif image.BitsAllocated == 64:
-                self.input_dtype = np.dtype(np.float64)
+
+        # Determine what pixel data keyword is present in the image
+        for kw in [
+            'PixelData',
+            'FloatPixelData',
+            'DoubleFloatPixelData',
+        ]:
+            if kw in image:
+                self.pixel_keyword = kw
+                break
         else:
+            # No pixel data keyword, which may be due to just the header being
+            # loaded. Parametric Maps are the only SOP Class (currently) that
+            # allows floating point pixels. BitsStored is only present for
+            # PixelData (i.e. when the ImagePixel module is used) and as such
+            # can be used to decude the pixel type
+            if (
+                image.SOPClassUID == ParametricMapStorage and
+                'BitsStored' not in image
+            ):
+                if image.BitsAllocated == 32:
+                    self.input_dtype = np.dtype(np.float32)
+                    self.pixel_keyword = 'FloatPixelData'
+                elif image.BitsAllocated == 64:
+                    self.input_dtype = np.dtype(np.float64)
+                    self.pixel_keyword = 'DoubleFloatPixelData'
+            else:
+                self.pixel_keyword = 'PixelData'
+
+        if self.pixel_keyword == 'PixelData':
             if image.PixelRepresentation == 1:
                 if image.BitsAllocated == 8:
                     self.input_dtype = np.dtype(np.int8)
@@ -969,7 +1010,7 @@ class _CombinedPixelTransform:
         self.bits_allocated = image.BitsAllocated
         self.bits_stored = image.get('BitsAllocated', image.BitsAllocated)
         self.photometric_interpretation = image.PhotometricInterpretation
-        self.pixel_representation = image.PixelRepresentation
+        self.pixel_representation = image.get('PixelRepresentation')
         self.planar_configuration = image.get('PlanarConfiguration')
 
     def __call__(
@@ -1009,6 +1050,7 @@ class _CombinedPixelTransform:
                 pixel_representation=self.pixel_representation,
                 planar_configuration=self.planar_configuration,
                 index=frame_index,
+                pixel_keyword=self.pixel_keyword,
             )
         elif isinstance(frame, np.ndarray):
             frame_out = frame
@@ -1197,6 +1239,726 @@ class _Image(SOPClass):
 
         """
         return self._coordinate_system
+
+    def _common_derived_image_init(
+        self,
+        source_images: Sequence[Dataset],
+        further_source_images: Sequence[Dataset] | None,
+        plane_orientation: PlaneOrientationSequence | None = None,
+        plane_positions: Sequence[PlanePositionSequence] | None = None,
+        pyramid_label: str | None = None,
+        pyramid_uid: str | None = None,
+    ) -> None:
+        """Basic checks on validatity of source images.
+
+        Parameters
+        ----------
+        source_images: Sequence[pydicom.Dataset]
+            Source image datasets to check
+
+        """
+        uniqueness_criteria = {
+            (
+                image.StudyInstanceUID,
+                image.SeriesInstanceUID,
+                image.Rows,
+                image.Columns,
+                getattr(image, 'FrameOfReferenceUID', None),
+            )
+            for image in source_images
+        }
+        if len(uniqueness_criteria) > 1:
+            raise ValueError(
+                'Source images must all be part of the same series and must '
+                'have the same image dimensions (number of rows/columns).'
+            )
+
+        src_img = source_images[0]
+        is_multiframe = is_multiframe_image(src_img)
+        if is_multiframe and len(source_images) > 1:
+            raise ValueError(
+                'Only one source image should be provided in case images '
+                'are multi-frame images.'
+            )
+
+        # Frame of Reference
+        has_ref_frame_uid = hasattr(src_img, 'FrameOfReferenceUID')
+        if has_ref_frame_uid:
+            self.FrameOfReferenceUID = src_img.FrameOfReferenceUID
+            self.PositionReferenceIndicator = getattr(
+                src_img,
+                'PositionReferenceIndicator',
+                None
+            )
+        else:
+            # Only allow missing FrameOfReferenceUID if it is not required
+            # for this IOD
+            usage = get_module_usage('frame-of-reference', src_img.SOPClassUID)
+            if usage == ModuleUsageValues.MANDATORY:
+                raise ValueError(
+                    "Source images have no Frame Of Reference UID, but it is "
+                    "required by the IOD."
+                )
+
+        self._coordinate_system = get_image_coordinate_system(src_img)
+
+        if self._coordinate_system is None:
+            # It may be possible to generalize this, but for now only a single
+            # source frame is permitted when there is no coordinate system
+            if (
+                len(source_images) > 1 or
+                (is_multiframe and src_img.NumberOfFrames > 1)
+            ):
+                raise ValueError(
+                    "Only a single frame is supported when the source "
+                    "image has no Frame of Reference UID."
+                )
+            if plane_positions is not None:
+                raise TypeError(
+                    "If source images have no Frame Of Reference UID, the "
+                    'argument "plane_positions" may not be specified since the '
+                    "segmentation pixel array must be spatially aligned with "
+                    "the source images."
+                )
+            if plane_orientation is not None:
+                raise TypeError(
+                    "If source images have no Frame Of Reference UID, the "
+                    'argument "plane_orientation" may not be specified since '
+                    "the provided pixel array must be spatially aligned "
+                    "with the source images."
+                )
+
+        self._add_source_image_references(
+            source_images=source_images,
+            further_source_images=further_source_images,
+        )
+
+        self._init_pyramid(
+            pyramid_label=pyramid_label,
+            pyramid_uid=pyramid_uid,
+            is_tiled=is_tiled_image(src_img),
+        )
+
+        self.LossyImageCompression = getattr(
+            src_img,
+            'LossyImageCompression',
+            '00'
+        )
+        if self.LossyImageCompression == '01':
+            if 'LossyImageCompressionRatio' in src_img:
+                self.LossyImageCompressionRatio = \
+                    src_img.LossyImageCompressionRatio
+            if 'LossyImageCompressionMethod' in src_img:
+                self.LossyImageCompressionMethod = \
+                    src_img.LossyImageCompressionMethod
+
+    def _common_derived_multiframe(
+        self,
+        source_images: Sequence[Dataset],
+        pixel_array: np.ndarray,
+        dtype: type,
+        pixel_measures: PixelMeasuresSequence | None = None,
+        plane_orientation: PlaneOrientationSequence | None = None,
+        plane_positions: Sequence[PlanePositionSequence] | None = None,
+        omit_empty_frames: bool = False,
+        workers: int | Executor = 0,
+        dimension_organization_type: (
+            DimensionOrganizationTypeValues |
+            str |
+            None
+        ) = None,
+        tile_pixel_array: bool = False,
+        tile_size: Sequence[int] | None = None,
+        further_source_images: Sequence[Dataset] | None = None,
+        use_extended_offset_table: bool = False,
+        pixel_data_attr: str = 'PixelData',
+        channel_values: Sequence[Any] | None = None,  # TODO generalize
+        add_channel_callback: (
+            Callable[[Dataset, Any], Dataset] | None
+        ) = None,  # TODO generalize
+        channel_is_indexed: bool = True,  # TODO generalize
+        preprocess_channel_callback: Callable[
+            [np.ndarray, Any, int], np.ndarray
+        ] | None = None,
+    ):
+        if (channel_values is None) != (add_channel_callback is None):
+            raise TypeError(
+                "Argument 'add_channel_callback' should be provided if and "
+                "only if 'channel_values' is provided."
+            )
+
+        src_img = source_images[0]
+        is_tiled = is_tiled_image(src_img)
+        if tile_pixel_array and not is_tiled:
+            raise ValueError(
+                'When argument "tile_pixel_array" is True, the source image '
+                'must be a tiled image.'
+            )
+        if tile_pixel_array and pixel_array.shape[0] != 1:
+            raise ValueError(
+                'When argument "tile_pixel_array" is True, the input pixel '
+                'array must contain only one "frame" representing the '
+                'entire pixel matrix.'
+            )
+
+        # Image Pixel
+        if tile_pixel_array:
+            # By default use the same tile size as the source image (even if
+            # they are not spatially aligned)
+            tile_size = tile_size or (src_img.Rows, src_img.Columns)
+            self.Rows, self.Columns = (tile_size)
+        else:
+            self.Rows = pixel_array.shape[1]
+            self.Columns = pixel_array.shape[2]
+
+        (
+            plane_positions,
+            plane_orientation,
+            pixel_measures,
+            plane_position_values,
+            plane_sort_index,
+            derivation_source_image_items,
+        ) = self._prepare_spatial_metadata(
+            plane_positions=plane_positions,
+            plane_orientation=plane_orientation,
+            pixel_measures=pixel_measures,
+            source_images=source_images,
+            further_source_images=further_source_images or [],
+            tile_pixel_array=tile_pixel_array,
+            tile_size=tile_size,
+            frame_shape=pixel_array.shape[1:3],
+            number_of_planes=pixel_array.shape[0],
+            dimension_organization_type=dimension_organization_type,
+        )
+
+        # Shared functional groops
+        sffg_item = Dataset()
+        if (
+            self._coordinate_system is not None and
+            self._coordinate_system == CoordinateSystemNames.PATIENT
+        ):
+            sffg_item.PlaneOrientationSequence = plane_orientation
+
+            # Automatically populate the spacing between slices in the
+            # pixel measures if it was not provided. This is done on the
+            # initial plane positions, before any removals, to give the
+            # receiver more information about how to reconstruct a volume
+            # from the frames in the case that slices are omitted
+            if 'SpacingBetweenSlices' not in pixel_measures[0]:
+                ori = plane_orientation[0].ImageOrientationPatient
+                slice_spacing, _ = get_volume_positions(
+                    image_positions=plane_position_values[:, 0, :],
+                    image_orientation=ori,
+                )
+                if slice_spacing is not None:
+                    pixel_measures[0].SpacingBetweenSlices = (
+                        format_number_as_ds(slice_spacing)
+                    )
+
+        if pixel_measures is not None:
+            sffg_item.PixelMeasuresSequence = pixel_measures
+
+        # If there is only a single channel value, add it to the shared
+        # functional groups
+        if channel_values is not None and len(channel_values) == 1:
+            sffg_item = add_channel_callback(sffg_item, channel_values[0])
+
+            # Set to None so this is not used for per-frame items later
+            add_channel_callback = None
+
+        self.SharedFunctionalGroupsSequence = [sffg_item]
+
+        # Find indices such that empty planes are removed
+        if omit_empty_frames:
+            if tile_pixel_array:
+                included_plane_indices, is_empty = \
+                    self._get_nonempty_tile_indices(
+                        pixel_array,
+                        plane_positions=plane_positions,
+                        rows=self.Rows,
+                        columns=self.Columns,
+                    )
+            else:
+                included_plane_indices, is_empty = \
+                    self._get_nonempty_plane_indices(pixel_array)
+            if is_empty:
+                # Cannot omit empty frames when all frames are empty
+                omit_empty_frames = False
+                included_plane_indices = range(len(plane_positions))
+            else:
+                # Remove all empty plane positions from the list of sorted
+                # plane position indices
+                included_plane_indices_set = set(included_plane_indices)
+                plane_sort_index = [
+                    ind for ind in plane_sort_index
+                    if ind in included_plane_indices_set
+                ]
+        else:
+            included_plane_indices = range(len(plane_positions))
+
+        # Dimension Organization Type
+        dimension_organization_type = self._check_tiled_dimension_organization(
+            dimension_organization_type=dimension_organization_type,
+            is_tiled=is_tiled,
+            omit_empty_frames=omit_empty_frames,
+            plane_positions=plane_positions,
+            tile_pixel_array=tile_pixel_array,
+            rows=self.Rows,
+            columns=self.Columns,
+            num_channels=1 if channel_values is None else len(channel_values),
+        )
+
+        if (
+            self._coordinate_system is not None and
+            dimension_organization_type !=
+            DimensionOrganizationTypeValues.TILED_FULL
+        ):
+            # Get unique values of attributes in the Plane Position Sequence or
+            # Plane Position Slide Sequence, which define the position of the
+            # plane with respect to the three dimensional patient or slide
+            # coordinate system, respectively. These can subsequently be used
+            # to look up the relative position of a plane relative to the
+            # indexed dimension.
+            unique_dimension_values = [
+                np.unique(
+                    plane_position_values[included_plane_indices, index],
+                    axis=0
+                )
+                for index in range(plane_position_values.shape[1])
+            ]
+        else:
+            unique_dimension_values = [None]
+
+        if self._coordinate_system == CoordinateSystemNames.PATIENT:
+            inferred_dim_org_type = None
+
+            # To be considered "3D", an segmentation should have frames that
+            # are differentiated only by location. This rules out any image
+            # with channels where there is more than a single channel value
+            # Further, only images with multiple spatial positions in the final
+            # image should be considered to have 3D dimension organization type
+            if (
+                len(included_plane_indices) > 1 and
+                (
+                    channel_values is None or
+                    len(channel_values) == 1
+                )
+            ):
+                # Calculate the spacing using only the included planes, and
+                # enforce ordering
+                ori = plane_orientation[0].ImageOrientationPatient
+                spacing, _ = get_volume_positions(
+                    image_positions=plane_position_values[
+                        included_plane_indices, 0, :
+                    ],
+                    image_orientation=ori,
+                    sort=False,
+                )
+                if spacing is not None and spacing > 0.0:
+                    inferred_dim_org_type = (
+                        DimensionOrganizationTypeValues.THREE_DIMENSIONAL
+                    )
+
+            if (
+                dimension_organization_type ==
+                DimensionOrganizationTypeValues.THREE_DIMENSIONAL
+            ) and inferred_dim_org_type is None:
+                raise ValueError(
+                    'Dimension organization "3D" has been specified, '
+                    'but the source image is not a regularly-spaced 3D '
+                    'volume.'
+                )
+            dimension_organization_type = inferred_dim_org_type
+
+        if dimension_organization_type is not None:
+            self.DimensionOrganizationType = dimension_organization_type.value
+
+        if (
+            self._coordinate_system is not None and
+            self._coordinate_system == CoordinateSystemNames.SLIDE
+        ):
+            plane_position_names = (
+                self.DimensionIndexSequence.get_index_keywords()
+            )
+            row_dim_index = plane_position_names.index(
+                'RowPositionInTotalImagePixelMatrix'
+            )
+            col_dim_index = plane_position_names.index(
+                'ColumnPositionInTotalImagePixelMatrix'
+            )
+
+        is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
+        process_pool: Executor | None = None
+
+        if not isinstance(workers, (int, Executor)):
+            raise TypeError(
+                'Argument "workers" must be of type int or '
+                'concurrent.futures.Executor (or a derived class).'
+            )
+        using_multiprocessing = (
+            isinstance(workers, Executor) or workers != 0
+        )
+
+        # List of frames. In the case of native transfer syntaxes, we will
+        # collect a list of frames as flattened NumPy arrays for bitpacking at
+        # the end. In the case of encapsulated transfer syntaxes with no
+        # workers, we will accumulate a list of encoded frames to encapsulate
+        # at the end
+        frames: list[bytes] | list[np.ndarray] = []
+
+        # In the case of native encoding when the number pixels in a frame is
+        # not a multiple of 8. This array carries "leftover" pixels that
+        # couldn't be encoded in previous iterations, to future iterations. This
+        # saves having to keep the entire un-endoded array in memory, which can
+        # get extremely heavy on memory in the case of very large arrays
+        remainder_pixels = np.empty((0, ), dtype=np.uint8)
+
+        if is_encaps:
+            if using_multiprocessing:
+                # In the case of encapsulated transfer syntaxes with multiple
+                # workers, we will accumulate a list of encoded frames to
+                # encapsulate at the end
+                frame_futures: list[Future] = []
+
+                # Use the existing executor or create one
+                if isinstance(workers, Executor):
+                    process_pool = workers
+                else:
+                    # If workers is negative, pass None to use all processors
+                    process_pool = ProcessPoolExecutor(
+                        workers if workers > 0 else None
+                    )
+
+            # Parameters to use when calling the encode_frame function in
+            # either of the above two cases
+            encode_frame_kwargs = dict(
+                transfer_syntax_uid=self.file_meta.TransferSyntaxUID,
+                bits_allocated=self.BitsAllocated,
+                bits_stored=self.BitsStored,
+                photometric_interpretation=self.PhotometricInterpretation,
+                pixel_representation=self.PixelRepresentation
+            )
+        else:
+            if using_multiprocessing:
+                warnings.warn(
+                    "Setting workers != 0 or passing an instance of "
+                    "concurrent.futures.Executor when using a non-encapsulated "
+                    "transfer syntax has no effect.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                using_multiprocessing = False
+
+        # Information about individual frames is placed into the
+        # PerFrameFunctionalGroupsSequence. Note that a *very* significant
+        # efficiency gain is observed when building this as a Python list
+        # rather than a pydicom sequence, and then converting to a pydicom
+        # sequence at the end
+        pffg_sequence: list[Dataset] = []
+
+        if channel_values is None:
+            if self._coordinate_system is None:
+                # If there are no channels nor any spatial indoces, we need to
+                # create some dimension to index down
+                channel_values = ["Frame"]
+
+                # Function to use as callback to add the segment identification
+                def _add_frame_label(
+                    pffg_item: Dataset,
+                    frame_label: str,
+                ):
+                    pffg_item.FrameContentSequence[0].add(
+                        DataElement(
+                            0x00209453,  # FrameLabel
+                            'LO',
+                            frame_label,
+                        )
+                    )
+                    return pffg_item
+
+                add_channel_callback = _add_frame_label
+
+                def preprocess_channel_callback(
+                    arr: np.ndarray,
+                    _: Any,  # value (unused0)
+                    __: int,  # index (unused)
+                ):
+                    return arr
+
+                channel_is_indexed = True
+            else:
+                # Placeholder used just to have something to iterate over to
+                # get a single loop over plane positions
+                channel_values = [None]
+
+        if preprocess_channel_callback is None:
+            # Default channel callback just indexes down the final dimension
+            def preprocess_channel_callback(arr: np.ndarray, _: Any, ind: int):
+                return arr[:, :, ind]
+
+        # Main frame loop: encode frames and create per-frame functional groups
+        for channel_index, channel_value in enumerate(channel_values):
+
+            for plane_dim_ind, plane_index in enumerate(plane_sort_index, 1):
+
+                if tile_pixel_array:
+                    if (
+                        dimension_organization_type ==
+                        DimensionOrganizationTypeValues.TILED_FULL
+                    ):
+                        row_offset = int(
+                            plane_position_values[plane_index, row_dim_index]
+                        )
+                        column_offset = int(
+                            plane_position_values[plane_index, col_dim_index]
+                        )
+                    else:
+                        pos = plane_positions[plane_index][0]
+                        row_offset = pos.RowPositionInTotalImagePixelMatrix
+                        column_offset = (
+                            pos.ColumnPositionInTotalImagePixelMatrix
+                        )
+
+                    plane_array = get_tile_array(
+                        pixel_array[0],
+                        row_offset=row_offset,
+                        column_offset=column_offset,
+                        tile_rows=self.Rows,
+                        tile_columns=self.Columns,
+                    )
+                else:
+                    # Select the relevant existing frame
+                    plane_array = pixel_array[plane_index]
+
+                if channel_value is None:
+                    # Deal with all segments at once
+                    channel_array = plane_array
+                else:
+                    channel_array = preprocess_channel_callback(
+                        plane_array,
+                        channel_value,
+                        channel_index,
+                    )
+
+                # Even though completely empty planes were removed earlier,
+                # there may still be planes in which this specific segment is
+                # absent. Such frames should be removed
+                if omit_empty_frames and not np.any(channel_array):
+                    logger.debug(
+                        f'skip empty plane {plane_index} of channel '
+                        f'#{channel_index}'
+                    )
+                    continue
+
+                # Log a debug message
+                if channel_value is None:
+                    msg = f'add plane #{plane_index}'
+                else:
+                    msg = (
+                        f'add plane #{plane_index} for channel '
+                        f'#{channel_value}'
+                    )
+                logger.debug(msg)
+
+                if (
+                    dimension_organization_type !=
+                    DimensionOrganizationTypeValues.TILED_FULL
+                ):
+                    # No per-frame functional group for TILED FULL
+
+                    # Get the item of the PerFrameFunctionalGroupsSequence for
+                    # this segmentation frame
+                    if self._coordinate_system is not None:
+                        plane_pos_val = plane_position_values[plane_index]
+                        if (
+                            self._coordinate_system ==
+                            CoordinateSystemNames.SLIDE
+                        ):
+                            try:
+                                dimension_index_values = [
+                                    int(
+                                        np.where(
+                                            unique_dimension_values[idx] == pos
+                                        )[0][0] + 1
+                                    )
+                                    for idx, pos in enumerate(plane_pos_val)
+                                ]
+                            except IndexError as error:
+                                raise IndexError(
+                                    'Could not determine position of plane '
+                                    f'#{plane_index} in three dimensional '
+                                    'coordinate system based on dimension '
+                                    f'index values: {error}'
+                                ) from error
+                        else:
+                            dimension_index_values = [plane_dim_ind]
+                    else:
+                        dimension_index_values = []
+
+                    plane_derivation_items = (
+                        derivation_source_image_items[plane_index]
+                        if derivation_source_image_items is not None else None
+                    )
+                    if channel_value is not None and channel_is_indexed:
+                        dimension_index_values = (
+                            [int(channel_index) + 1] +
+                            dimension_index_values
+                        )
+
+                    pffg_item = self._get_pffg_item(
+                        dimension_index_values=dimension_index_values,
+                        plane_position=plane_positions[plane_index],
+                        derivation_source_image_items=plane_derivation_items,
+                        coordinate_system=self._coordinate_system,
+                    )
+
+                    if add_channel_callback is not None:
+                        # Add the channel information to the per-frame item
+                        pffg_item = add_channel_callback(
+                            pffg_item,
+                            channel_value,
+                        )
+
+                    pffg_sequence.append(pffg_item)
+
+                # Add the segmentation pixel array for this frame to the list
+                if is_encaps:
+                    if process_pool is None:
+                        # Encode this frame and add resulting bytes to the list
+                        # for encapsulation at the end
+                        frames.append(
+                            encode_frame(
+                                channel_array,
+                                **encode_frame_kwargs,
+                            )
+                        )
+                    else:
+                        # Submit this frame for encoding this frame and add the
+                        # future to the list for encapsulation at the end
+                        future = process_pool.submit(
+                            encode_frame,
+                            array=channel_array,
+                            **encode_frame_kwargs,
+                        )
+                        frame_futures.append(future)
+                else:
+                    flat_array = channel_array.flatten()
+                    if (
+                        self.BitsAllocated == 1 and
+                        (self.Rows * self.Columns) // 8 != 0
+                    ):
+                        # Need to encode a multiple of 8 pixels at a time
+                        full_array = np.concatenate(
+                            [remainder_pixels, flat_array]
+                        )
+                        # Round down to closest multiple of 8
+                        n_pixels_to_take = 8 * (len(full_array) // 8)
+                        to_encode = full_array[:n_pixels_to_take]
+                        remainder_pixels = full_array[n_pixels_to_take:]
+                    else:
+                        # Simple - each frame can be individually encoded
+                        to_encode = flat_array
+
+                    frames.append(self._encode_pixels_native(to_encode))
+
+        if (
+            dimension_organization_type !=
+            DimensionOrganizationTypeValues.TILED_FULL
+        ):
+            self.PerFrameFunctionalGroupsSequence = pffg_sequence
+
+        if is_encaps:
+            if process_pool is not None:
+                frames = [
+                    fut.result() for fut in frame_futures
+                ]
+
+                # Shutdown the pool if we created it, otherwise it is the
+                # caller's responsibility
+                if process_pool is not workers:
+                    process_pool.shutdown()
+
+            # Encapsulate all pre-compressed frames
+            self.NumberOfFrames = len(frames)
+            if use_extended_offset_table:
+                (
+                    self.PixelData,
+                    self.ExtendedOffsetTable,
+                    self.ExtendedOffsetTableLengths,
+                ) = encapsulate_extended(frames)
+            else:
+                # Encapsulated pixels are always put in PixelData attribute
+                self.PixelData = encapsulate(frames)
+        else:
+            self.NumberOfFrames = len(frames)
+
+            # May need to add in a final set of pixels
+            if len(remainder_pixels) > 0:
+                frames.append(self._encode_pixels_native(remainder_pixels))
+
+            setattr(self, pixel_data_attr, b''.join(frames))
+
+        # Add a null trailing byte if required (can't happen for floating pixel
+        # data)
+        if 'PixelData' in self and len(self.PixelData) % 2 == 1:
+            self.PixelData += b'0'
+
+        # Build lookup tables for efficient decoding
+        self._build_luts()
+
+    def _encode_pixels_native(self, planes: np.ndarray) -> bytes:
+        """Encode pixel planes using a native transfer syntax.
+
+        Parameters
+        ----------
+        planes: numpy.ndarray
+            Array representing one or more segmentation image planes. If
+            multiple image planes, planes stacked down the first dimension
+            (index 0).
+
+        Returns
+        -------
+        bytes
+            Encoded pixels
+
+        """
+        if self.BitsAllocated == 1:
+            return pack_bits(planes, pad=False)
+        else:
+            return planes.tobytes()
+
+    def _init_pyramid(
+        self,
+        pyramid_label: str | None,
+        pyramid_uid: str | None,
+        is_tiled: bool,
+    ) -> None:
+        # Multi-Resolution Pyramid
+        if pyramid_uid is not None:
+            if not is_tiled:
+                raise TypeError(
+                    'Argument "pyramid_uid" should only be specified '
+                    'for tiled images.'
+                )
+            if (
+                self._coordinate_system is None or
+                self._coordinate_system != CoordinateSystemNames.SLIDE
+            ):
+                raise TypeError(
+                    'Argument "pyramid_uid" should only be specified for '
+                    'segmentations in the SLIDE coordinate system.'
+                )
+            self.PyramidUID = pyramid_uid
+
+            if pyramid_label is not None:
+                _check_long_string(pyramid_label)
+                self.PyramidLabel = pyramid_label
+
+        elif pyramid_label is not None:
+            raise TypeError(
+                'Argument "pyramid_label" should not be specified if '
+                '"pyramid_uid" is not specified.'
+            )
 
     @staticmethod
     def _get_pixel_measures_sequence(
@@ -2261,6 +3023,118 @@ class _Image(SOPClass):
             )
         return derivation_src_img_item
 
+    @staticmethod
+    def _get_pffg_item(
+        dimension_index_values: list[int],
+        plane_position: PlanePositionSequence,
+        derivation_source_image_items: Sequence[Dataset] | None,
+        coordinate_system: CoordinateSystemNames | None,
+    ) -> Dataset:
+        """Get a single item of the Per Frame Functional Groups Sequence.
+
+        This is a helper method used in the common multiframe constructor.
+
+        Parameters
+        ----------
+        dimension_index_values: List[int]
+            Dimension index values for this frame.
+        plane_position: highdicom.seg.PlanePositionSequence
+            Plane position of this frame.
+        derivation_source_image_items: Sequence[pydicom.Dataset] | None
+            Items of the Source Image Sequence, to place into the Derivation
+            Image Sequence, if any, for this frame.
+        coordinate_system: Optional[highdicom.CoordinateSystemNames]
+            Coordinate system used, if any.
+
+        Returns
+        -------
+        pydicom.Dataset
+            Dataset representing the item of the Per Frame Functional Groups
+            Sequence for this frame frame.
+
+        """
+        # NB this function is called many times in a loop when there are a
+        # large number of frames, and has been observed to dominate the
+        # creation time of some segmentations. Therefore we use low-level
+        # pydicom primitives to improve performance as much as possible
+        pffg_item = Dataset()
+        frame_content_item = Dataset()
+
+        frame_content_item.add(
+            DataElement(
+                0x00209157,  # DimensionIndexValues
+                'UL',
+                dimension_index_values,
+            )
+        )
+
+        pffg_item.add(
+            DataElement(
+                0x00209111,  # FrameContentSequence
+                'SQ',
+                [frame_content_item]
+            )
+        )
+
+        if coordinate_system is not None:
+            if coordinate_system == CoordinateSystemNames.SLIDE:
+                pffg_item.add(
+                    DataElement(
+                        0x0048021a,  # PlanePositionSlideSequence
+                        'SQ',
+                        plane_position
+                    )
+                )
+            else:
+                pffg_item.add(
+                    DataElement(
+                        0x00209113,  # PlanePositionSequence
+                        'SQ',
+                        plane_position
+                    )
+                )
+
+        if (
+            derivation_source_image_items is not None and
+            len(derivation_source_image_items) > 0
+        ):
+            derivation_image_item = Dataset()
+            derivation_image_item.add(
+                DataElement(
+                    0x00089215,  # DerivationCodeSequence
+                    'SQ',
+                    [_DERIVATION_CODE]
+                )
+            )
+
+            derivation_image_item.add(
+                DataElement(
+                    0x00082112,  # SourceImageSequence
+                    'SQ',
+                    derivation_source_image_items,
+                )
+            )
+            pffg_item.add(
+                DataElement(
+                    0x00089124,  # DerivationImageSequence
+                    'SQ',
+                    [derivation_image_item]
+                )
+            )
+        else:
+            # Determining the source images that map to the frame is not
+            # always trivial. Since DerivationImageSequence is a type 2
+            # attribute, we leave its value empty.
+            pffg_item.add(
+                DataElement(
+                    0x00089124,  # DerivationImageSequence
+                    'SQ',
+                    []
+                )
+            )
+
+        return pffg_item
+
     def _add_source_image_references(
         self,
         source_images: Sequence[Dataset],
@@ -2450,8 +3324,8 @@ class _Image(SOPClass):
                     format_number_as_ds(z_center)
                 self.ImageCenterPointCoordinatesSequence = [center_item]
 
-    @staticmethod
     def _check_tiled_dimension_organization(
+        self,
         dimension_organization_type: (
             DimensionOrganizationTypeValues |
             str |
@@ -2463,6 +3337,7 @@ class _Image(SOPClass):
         tile_pixel_array: bool,
         rows: int,
         columns: int,
+        num_channels: int,
     ) -> DimensionOrganizationTypeValues | None:
         """Checks that the specified Dimension Organization Type is valid.
 
@@ -2482,6 +3357,8 @@ class _Image(SOPClass):
             Number of rows in each frame of the segmentation image.
         columns: int
             Number of columns in each frame of the segmentation image.
+        num_channels:
+            Number of channels included in this image.
 
         Returns
         -------
@@ -2505,10 +3382,10 @@ class _Image(SOPClass):
             dimension_organization_type = DimensionOrganizationTypeValues(
                 dimension_organization_type
             )
-            tiled_dimension_organization_types = [
+            tiled_dimension_organization_types = (
                 DimensionOrganizationTypeValues.TILED_SPARSE,
-                DimensionOrganizationTypeValues.TILED_FULL
-            ]
+                DimensionOrganizationTypeValues.TILED_FULL,
+            )
 
             if (
                 dimension_organization_type in
@@ -2543,6 +3420,22 @@ class _Image(SOPClass):
                         'https://dicom.nema.org/medical/dicom/current/output/'
                         'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3 .'
                     )
+
+                # A TILED_FULL image can only contain nultiple channels if they
+                # use certain values. Specifically multiple segments or
+                # multiple optical paths (but multiple real world value maps
+                # for a parametric map are NOT allowed). This check needs to be
+                # generalized but the following works for the types of channels
+                # currently supported (segments and RWVMs)
+                if num_channels > 1 and self.SOPClassUID != SegmentationStorage:
+                    raise ValueError(
+                        'A value of "TILED_FULL" for parameter '
+                        '"dimension_organization_type" is not permitted '
+                        'because the image contains multiple channels. See '
+                        'https://dicom.nema.org/medical/dicom/current/output/'
+                        'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3 .'
+                    )
+
                 if omit_empty_frames:
                     raise ValueError(
                         'Parameter "omit_empty_frames" should be False if '
@@ -2663,7 +3556,14 @@ class _Image(SOPClass):
                 start = frame_index * frame_length
                 end = start + frame_length
 
-            return self.PixelData[start:end]
+            if 'PixelData' in self:
+                return self.PixelData[start:end]
+            elif 'FloatPixelData' in self:
+                return self.FloatPixelData[start:end]
+            elif 'DoubleFloatPixelData' in self:
+                return self.DoubleFloatPixelData[start:end]
+            else:
+                raise AttributeError('Dataset contains no pixel data.')
 
     def get_stored_frame(
         self,
@@ -4892,7 +5792,7 @@ class _Image(SOPClass):
 
         for tdef in table_defs:
             # Clean up the tables
-            cmd = (f'DROP TABLE {tdef.table_name}')
+            cmd = f'DROP TABLE {tdef.table_name}'
             with self._db_con:
                 self._db_con.execute(cmd)
 
@@ -4930,7 +5830,7 @@ class _Image(SOPClass):
         yield
 
         # Clean up the view
-        cmd = (f'DROP VIEW {view_name}')
+        cmd = f'DROP VIEW {view_name}'
         with self._db_con:
             self._db_con.execute(cmd)
 

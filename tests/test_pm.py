@@ -21,6 +21,7 @@ from highdicom import (
     PixelMeasuresSequence,
     PlaneOrientationSequence,
 )
+from highdicom.content import VOILUTTransformation
 from highdicom.enum import ContentQualificationValues, CoordinateSystemNames
 from highdicom.pm.content import RealWorldValueMapping
 from highdicom.pm.enum import (
@@ -28,6 +29,7 @@ from highdicom.pm.enum import (
     ImageFlavorValues,
 )
 from highdicom.pm.sop import ParametricMap
+from highdicom.spatial import sort_datasets
 from highdicom.uid import UID
 
 
@@ -318,23 +320,20 @@ class TestParametricMap(unittest.TestCase):
             dcmread(f)
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
-        self._ct_series = sorted(
-            ct_series,
-            key=lambda x: x.ImagePositionPatient[2]
-        )
+        self._ct_series = sort_datasets(ct_series)
 
     @staticmethod
-    def check_dimension_index_vals(seg):
+    def check_dimension_index_vals(pm):
         # Function to apply some checks (necessary but not sufficient for
         # correctness) to ensure that the dimension indices are correct
         is_patient_coord_system = hasattr(
-            seg.PerFrameFunctionalGroupsSequence[0],
+            pm.PerFrameFunctionalGroupsSequence[0],
             'PlanePositionSequence'
         )
         if is_patient_coord_system:
             # Build up the mapping from index to value
             index_mapping = defaultdict(list)
-            for f in seg.PerFrameFunctionalGroupsSequence:
+            for f in pm.PerFrameFunctionalGroupsSequence:
                 posn_index = f.FrameContentSequence[0].DimensionIndexValues[1]
                 # This is not general, but all the tests run here use axial
                 # images so just check the z coordinate
@@ -361,7 +360,7 @@ class TestParametricMap(unittest.TestCase):
                 'RowPositionInTotalImagePixelMatrix'
             ], [1, 2]):
                 index_mapping = defaultdict(list)
-                for f in seg.PerFrameFunctionalGroupsSequence:
+                for f in pm.PerFrameFunctionalGroupsSequence:
                     content_item = f.FrameContentSequence[0]
                     posn_index = content_item.DimensionIndexValues[dim_ind]
                     # This is not general, but all the tests run here use axial
@@ -389,6 +388,14 @@ class TestParametricMap(unittest.TestCase):
         pixel_array = pixel_array.astype(np.float32)
         window_center = 0.5
         window_width = 1.0
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
         real_world_value_mapping = RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
@@ -411,14 +418,9 @@ class TestParametricMap(unittest.TestCase):
             self._device_serial_number,
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
-            window_center=window_center,
-            window_width=window_width,
+            voi_lut_transformations=voi_transformations,
             content_label=content_label
         )
-
-        # Work around pydicom 3 decoding issue (should be able to remove this
-        # soon)
-        pmap.pixel_array_options(use_v2_backend=True)
 
         assert pmap.SOPClassUID == '1.2.840.10008.5.1.4.1.1.30'
         assert pmap.SOPInstanceUID == self._sop_instance_uid
@@ -458,6 +460,14 @@ class TestParametricMap(unittest.TestCase):
         )
         window_center = 128
         window_width = 256
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
         real_world_value_mapping = RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
@@ -479,8 +489,7 @@ class TestParametricMap(unittest.TestCase):
             self._device_serial_number,
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
-            window_center=window_center,
-            window_width=window_width,
+            voi_lut_transformations=voi_transformations,
             content_qualification=ContentQualificationValues.SERVICE,
             image_flavor=ImageFlavorValues.WHOLE_BODY,
             derived_pixel_contrast=DerivedPixelContrastValues.NONE
@@ -509,6 +518,14 @@ class TestParametricMap(unittest.TestCase):
         )
         window_center = 128
         window_width = 256
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
         real_world_value_mapping = RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
@@ -546,8 +563,7 @@ class TestParametricMap(unittest.TestCase):
             self._device_serial_number,
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
-            window_center=window_center,
-            window_width=window_width,
+            voi_lut_transformations=voi_transformations,
             content_qualification=ContentQualificationValues.SERVICE,
             image_flavor=ImageFlavorValues.WHOLE_BODY,
             derived_pixel_contrast=DerivedPixelContrastValues.NONE,
@@ -586,6 +602,14 @@ class TestParametricMap(unittest.TestCase):
         )
         window_center = 128
         window_width = 256
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
         real_world_value_mapping = RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
@@ -607,8 +631,7 @@ class TestParametricMap(unittest.TestCase):
             self._device_serial_number,
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
-            window_center=window_center,
-            window_width=window_width,
+            voi_lut_transformations=voi_transformations,
             content_qualification=ContentQualificationValues.SERVICE,
             image_flavor=ImageFlavorValues.WHOLE_BODY,
             derived_pixel_contrast=DerivedPixelContrastValues.NONE
@@ -639,6 +662,13 @@ class TestParametricMap(unittest.TestCase):
         window_center = 128
         window_width = 256
 
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
         real_world_value_mapping = RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
@@ -660,8 +690,7 @@ class TestParametricMap(unittest.TestCase):
             self._device_serial_number,
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
-            window_center=window_center,
-            window_width=window_width,
+            voi_lut_transformations=voi_transformations,
             transfer_syntax_uid=JPEG2000Lossless
         )
         assert pmap.BitsAllocated == 8
@@ -677,6 +706,13 @@ class TestParametricMap(unittest.TestCase):
         )
         window_center = 128
         window_width = 256
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
 
         real_world_value_mapping = RealWorldValueMapping(
             lut_label='1',
@@ -699,8 +735,7 @@ class TestParametricMap(unittest.TestCase):
             self._device_serial_number,
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
-            window_center=window_center,
-            window_width=window_width,
+            voi_lut_transformations=voi_transformations,
             transfer_syntax_uid=JPEGLSLossless,
             use_extended_offset_table=True
         )
@@ -713,11 +748,19 @@ class TestParametricMap(unittest.TestCase):
         pixel_array = np.random.uniform(-1, 1, self._ct_image.pixel_array.shape)
         window_center = 0.0
         window_width = 2.0
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
         real_world_value_mapping = RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[-1, 1],
+            value_range=(-1.0, 1.0),
             intercept=0,
             slope=1
         )
@@ -734,16 +777,53 @@ class TestParametricMap(unittest.TestCase):
             self._device_serial_number,
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
-            window_center=window_center,
-            window_width=window_width,
+            voi_lut_transformations=voi_transformations,
         )
         assert pmap.BitsAllocated == 64
-
-        # Work around pydicom 3 decoding issue (should be able to remove this
-        # soon)
-        pmap.pixel_array_options(use_v2_backend=True)
-
         assert np.array_equal(pmap.pixel_array, pixel_array)
+
+    def test_single_frame_ct_image_double_wrong_value_range(self):
+        pixel_array = np.random.uniform(-1, 1, self._ct_image.pixel_array.shape)
+        window_center = 0.0
+        window_width = 2.0
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
+        real_world_value_mapping = RealWorldValueMapping(
+            lut_label='1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=(-1, 1),  # should be float
+            intercept=0,
+            slope=1
+        )
+
+        msg = (
+            "When using a floating point-valued pixel_array, "
+            "all items in 'real_world_value_mappings' must have "
+            "their value range specified with floats."
+        )
+        with pytest.raises(ValueError, match=msg):
+            ParametricMap(
+                [self._ct_image],
+                pixel_array,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                contains_recognizable_visual_features=False,
+                real_world_value_mappings=[real_world_value_mapping],
+                voi_lut_transformations=voi_transformations,
+            )
 
     def test_single_frame_ct_image_ushort_native(self):
         pixel_array = np.random.randint(
@@ -754,6 +834,14 @@ class TestParametricMap(unittest.TestCase):
         )
         window_center = 2**12 / 2.0
         window_width = 2**12
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
         real_world_value_mapping = RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
@@ -775,11 +863,58 @@ class TestParametricMap(unittest.TestCase):
             self._device_serial_number,
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
-            window_center=window_center,
-            window_width=window_width,
+            voi_lut_transformations=voi_transformations,
         )
         assert pmap.BitsAllocated == 16
         assert np.array_equal(pmap.pixel_array, pixel_array)
+
+    def test_single_frame_ct_image_ushort_wrong_value_range(self):
+        pixel_array = np.random.randint(
+            low=0,
+            high=2**12,
+            size=self._ct_image.pixel_array.shape,
+            dtype=np.uint16
+        )
+        window_center = 2**12 / 2.0
+        window_width = 2**12
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
+        real_world_value_mapping = RealWorldValueMapping(
+            lut_label='1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=(0.0, 4095.0),  # should be int
+            intercept=0,
+            slope=1
+        )
+
+        msg = (
+            "When using an integer-valued 'pixel_array', all items "
+            "in 'real_world_value_mappings' must have their value "
+            "range specified with integers."
+        )
+        with pytest.raises(ValueError, match=msg):
+            ParametricMap(
+                [self._ct_image],
+                pixel_array,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                contains_recognizable_visual_features=False,
+                real_world_value_mappings=[real_world_value_mapping],
+                voi_lut_transformations=voi_transformations,
+            )
 
     def test_single_frame_ct_image_ushort(self):
         pixel_array = np.random.randint(
@@ -790,6 +925,14 @@ class TestParametricMap(unittest.TestCase):
         )
         window_center = 2**16 / 2
         window_width = 2**16
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
         real_world_value_mapping = RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
@@ -811,8 +954,7 @@ class TestParametricMap(unittest.TestCase):
             self._device_serial_number,
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
-            window_center=window_center,
-            window_width=window_width,
+            voi_lut_transformations=voi_transformations,
         )
 
         retrieved_pixel_array = pmap.pixel_array
@@ -833,11 +975,19 @@ class TestParametricMap(unittest.TestCase):
         pixel_array = pixel_array.astype(np.float32)
         window_center = 0.0
         window_width = 2.0
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
         real_world_value_mapping = RealWorldValueMapping(
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[-1, 1],
+            value_range=(-1.0, 1.0),
             intercept=0,
             slope=1
         )
@@ -854,13 +1004,8 @@ class TestParametricMap(unittest.TestCase):
             self._device_serial_number,
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
-            window_center=window_center,
-            window_width=window_width,
+            voi_lut_transformations=voi_transformations,
         )
-
-        # Work around pydicom 3 decoding issue (should be able to remove this
-        # soon)
-        pmap.pixel_array_options(use_v2_backend=True)
 
         assert np.array_equal(pmap.pixel_array, pixel_array)
 
@@ -873,6 +1018,13 @@ class TestParametricMap(unittest.TestCase):
         )
         window_center = 128
         window_width = 256
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
 
         pixel_spacing = (0.5, 0.5)
         slice_thickness = 0.3
@@ -916,8 +1068,7 @@ class TestParametricMap(unittest.TestCase):
             self._device_serial_number,
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
-            window_center=window_center,
-            window_width=window_width,
+            voi_lut_transformations=voi_transformations,
             pixel_measures=pixel_measures,
             plane_orientation=plane_orientation,
             plane_positions=plane_positions
