@@ -566,6 +566,29 @@ class ParametricMap(_Image):
             pixel_data_type=pixel_data_type,
         )
 
+        # Check that the real world value maps are consistent with the provided
+        # data type
+        if pixel_data_type == _PixelDataType.USHORT:
+            if any(
+                any(m.is_floating_point() for m in m_list)
+                for m_list in real_world_value_mappings
+            ):
+                raise ValueError(
+                    "When using an integer-valued 'pixel_array', all items "
+                    "in 'real_world_value_mappings' must have their value "
+                    "range specified with integers."
+                )
+        else:
+            if not all(
+                all(m.is_floating_point() for m in m_list)
+                for m_list in real_world_value_mappings
+            ):
+                raise ValueError(
+                    "When using a floating point-valued pixel_array, "
+                    "all items in 'real_world_value_mappings' must have "
+                    "their value range specified with floats."
+                )
+
         def add_channel_callback(
             item: Dataset,
             mappings: Sequence[RealWorldValueMapping],

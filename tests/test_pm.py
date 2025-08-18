@@ -760,7 +760,7 @@ class TestParametricMap(unittest.TestCase):
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[-1, 1],
+            value_range=(-1.0, 1.0),
             intercept=0,
             slope=1
         )
@@ -781,6 +781,49 @@ class TestParametricMap(unittest.TestCase):
         )
         assert pmap.BitsAllocated == 64
         assert np.array_equal(pmap.pixel_array, pixel_array)
+
+    def test_single_frame_ct_image_double_wrong_value_range(self):
+        pixel_array = np.random.uniform(-1, 1, self._ct_image.pixel_array.shape)
+        window_center = 0.0
+        window_width = 2.0
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
+        real_world_value_mapping = RealWorldValueMapping(
+            lut_label='1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=(-1, 1),  # should be float
+            intercept=0,
+            slope=1
+        )
+
+        msg = (
+            "When using a floating point-valued pixel_array, "
+            "all items in 'real_world_value_mappings' must have "
+            "their value range specified with floats."
+        )
+        with pytest.raises(ValueError, match=msg):
+            ParametricMap(
+                [self._ct_image],
+                pixel_array,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                contains_recognizable_visual_features=False,
+                real_world_value_mappings=[real_world_value_mapping],
+                voi_lut_transformations=voi_transformations,
+            )
 
     def test_single_frame_ct_image_ushort_native(self):
         pixel_array = np.random.randint(
@@ -824,6 +867,54 @@ class TestParametricMap(unittest.TestCase):
         )
         assert pmap.BitsAllocated == 16
         assert np.array_equal(pmap.pixel_array, pixel_array)
+
+    def test_single_frame_ct_image_ushort_wrong_value_range(self):
+        pixel_array = np.random.randint(
+            low=0,
+            high=2**12,
+            size=self._ct_image.pixel_array.shape,
+            dtype=np.uint16
+        )
+        window_center = 2**12 / 2.0
+        window_width = 2**12
+
+        voi_transformations = [
+            VOILUTTransformation(
+                window_width=window_width,
+                window_center=window_center,
+            )
+        ]
+
+        real_world_value_mapping = RealWorldValueMapping(
+            lut_label='1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=(0.0, 4095.0),  # should be int
+            intercept=0,
+            slope=1
+        )
+
+        msg = (
+            "When using an integer-valued 'pixel_array', all items "
+            "in 'real_world_value_mappings' must have their value "
+            "range specified with integers."
+        )
+        with pytest.raises(ValueError, match=msg):
+            ParametricMap(
+                [self._ct_image],
+                pixel_array,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                contains_recognizable_visual_features=False,
+                real_world_value_mappings=[real_world_value_mapping],
+                voi_lut_transformations=voi_transformations,
+            )
 
     def test_single_frame_ct_image_ushort(self):
         pixel_array = np.random.randint(
@@ -896,7 +987,7 @@ class TestParametricMap(unittest.TestCase):
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[-1, 1],
+            value_range=(-1.0, 1.0),
             intercept=0,
             slope=1
         )

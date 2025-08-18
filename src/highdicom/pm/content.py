@@ -51,22 +51,22 @@ class RealWorldValueMapping(Dataset):
             should be restricted. For example, values may be stored as
             floating-point values with double precision, but limited to the
             range ``(-1.0, 1.0)`` or ``(0.0, 1.0)`` or stored as 16-bit
-            unsigned integer values but limited to range ``(0, 4094).
-            Note that the type of the values in `value_range` is significant
+            unsigned integer values but limited to range ``(0, 4094)``.
+            Note that the type of the values in ``value_range`` is significant
             and is used to determine whether values are stored as integers or
             floating-point values. Therefore, use ``(0.0, 1.0)`` instead of
             ``(0, 1)`` to specify a range of floating-point values.
         slope: Union[int, float, None], optional
             Slope of the linear mapping function applied to values in
-            `value_range`.
+            ``value_range``.
         intercept: Union[int, float, None], optional
             Intercept of the linear mapping function applied to values in
-            `value_range`.
+            ``value_range``.
         lut_data: Union[Sequence[int], Sequence[float], None], optional
             Sequence of values to serve as a lookup table for mapping stored
             values into real-world values in case of a non-linear relationship.
             The sequence should contain an entry for each value in the specified
-            `value_range` such that
+            ``value_range`` such that
             ``len(sequence) == value_range[1] - value_range[0] + 1``.
             For example, in case of a value range of ``(0, 255)``, the sequence
             shall have ``256`` entries - one for each value in the given range.
@@ -77,9 +77,9 @@ class RealWorldValueMapping(Dataset):
 
         Note
         ----
-        Either `slope` and `intercept` or `lut_data` must be specified.
-        Specify `slope` and `intercept` if the mapping can be described by a
-        linear function. Specify `lut_data` if the relationship between stored
+        Either ``slope`` and ``intercept`` or ``lut_data`` must be specified.
+        Specify ``slope` and ``intercept``` if the mapping can be described by a
+        linear function. Specify ``lut_data`` if the relationship between stored
         and real-world values is non-linear. Note, however, that a non-linear
         relationship can only be described for values that are stored as
         integers. Values stored as floating-point numbers must map linearly to
@@ -173,10 +173,15 @@ class RealWorldValueMapping(Dataset):
             return np.array(self.RealWorldValueLUTData)
         return None
 
+    def is_floating_point(self) -> bool:
+        """bool: Whether the value range is defined with floating point
+        values."""
+        return 'DoubleFloatRealWorldValueFirstValueMapped' in self
+
     @property
     def value_range(self) -> tuple[float, float]:
         """Tuple[float, float]: Range of valid input values."""
-        if 'DoubleFloatRealWorldValueFirstValueMapped' in self:
+        if self.is_floating_point():
             return (
                 self.DoubleFloatRealWorldValueFirstValueMapped,
                 self.DoubleFloatRealWorldValueLastValueMapped,
