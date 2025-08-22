@@ -236,7 +236,7 @@ def _create_references(
 def collect_evidence(
     evidence: Sequence[Dataset],
     content: Dataset,
-    study_instance_uid: str,
+    study_instance_uid: str | None = None,
 ) -> tuple[list[Dataset], list[Dataset]]:
     """Collect evidence for a SR document.
 
@@ -252,7 +252,11 @@ def collect_evidence(
     content: pydicom.dataset.Dataset
         SR document content
     study_instance_uid: str
-        Study instance UID of the SR being created.
+        Study instance UID of the SR being created. If not provided, the study
+        instance UID of the first ``evidence`` item is taken to the study
+        instance UID of the new SR. This is primarily for backwards
+        compatibility: it is recommended to always explicitly provide the study
+        instance UID.
 
     Returns
     -------
