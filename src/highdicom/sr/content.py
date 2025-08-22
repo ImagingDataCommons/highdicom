@@ -43,6 +43,10 @@ from highdicom._module_utils import (
 logger = logging.getLogger(__name__)
 
 
+# The pydicom codes.SCT.Source has an unnecessary "(attribute)" in the meaning
+_SOURCE = Code(value='260753009', scheme_designator='SCT', meaning='Source')
+
+
 def _check_valid_source_image_dataset(dataset: Dataset) -> None:
     """Raise an error if the image is not a valid source image reference.
 
@@ -449,7 +453,7 @@ class SourceImageForRegion(ImageContentItem):
                     '1-based.'
                 )
         super().__init__(
-            name=codes.SCT.Source,
+            name=_SOURCE,
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
             referenced_frame_numbers=referenced_frame_numbers,
@@ -718,7 +722,7 @@ class CoordinatesForMeasurement(ScoordContentItem):
             graphic_type: GraphicTypeValues | str,
             graphic_data: np.ndarray,
             source_image: SourceImageForRegion,
-            purpose: CodedConcept | Code = codes.SCT.Source,
+            purpose: CodedConcept | Code = _SOURCE,
     ) -> None:
         """
         Parameters
@@ -782,7 +786,7 @@ class CoordinatesForMeasurement3D(Scoord3DContentItem):
             graphic_data: np.ndarray,
             frame_of_reference_uid: str | UID,
             fiducial_uid: str | UID | None = None,
-            purpose: CodedConcept | Code = codes.SCT.Source,
+            purpose: CodedConcept | Code = _SOURCE,
     ):
         """
         Parameters

@@ -585,7 +585,7 @@ For more information see :doc:`tid1500parsing`.
     assert measurement.value == 10.0
 
     # Access the measurement's unit
-    assert measurement.unit == codes.UCUM.mm
+    assert measurement.unit == codes.UCUM.Millimeter
 
     # Get the diameter measurement in this group
     evaluation = group.get_qualitative_evaluations(

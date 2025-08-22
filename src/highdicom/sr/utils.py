@@ -235,15 +235,15 @@ def _create_references(
 
 def collect_evidence(
     evidence: Sequence[Dataset],
-    content: Dataset
+    content: Dataset,
+    study_instance_uid: str | None = None,
 ) -> tuple[list[Dataset], list[Dataset]]:
     """Collect evidence for a SR document.
 
-    Any `evidence` that is referenced in `content` via IMAGE or
-    COMPOSITE content items will be grouped together for inclusion in the
-    Current Requested Procedure Evidence Sequence and all remaining
-    evidence will be grouped for potential inclusion in the Pertinent Other
-    Evidence Sequence.
+    Any ``evidence`` that belongs to the same study as the new SR document will
+    be grouped together for inclusion in the Current Requested Procedure
+    Evidence Sequence and all remaining evidence will be grouped for potential
+    inclusion in the Pertinent Other Evidence Sequence.
 
     Parameters
     ----------
@@ -251,6 +251,12 @@ def collect_evidence(
         Metadata of instances that serve as evidence for the SR document content
     content: pydicom.dataset.Dataset
         SR document content
+    study_instance_uid: str
+        Study instance UID of the SR being created. If not provided, the study
+        instance UID of the first ``evidence`` item is taken to the study
+        instance UID of the new SR. This is primarily for backwards
+        compatibility: it is recommended to always explicitly provide the study
+        instance UID.
 
     Returns
     -------
@@ -262,10 +268,13 @@ def collect_evidence(
     Raises
     ------
     ValueError
-        When a SOP instance is referenced in `content` but not provided as
-        `evidence`
+        When a SOP instance is referenced in ``content`` but not provided as
+        ``evidence``
 
     """  # noqa: E501
+    if study_instance_uid is None and len(evidence) > 1:
+        study_instance_uid = evidence[0].StudyInstanceUID
+
     references = find_content_items(
         content,
         value_type=ValueTypeValues.IMAGE,
@@ -281,8 +290,12 @@ def collect_evidence(
         for ref in references
     }
     evd_uids = set()
-    ref_group: Mapping[tuple[str, str], list[Dataset]] = defaultdict(list)
-    unref_group: Mapping[tuple[str, str], list[Dataset]] = defaultdict(list)
+    same_study_group: Mapping[
+        tuple[str, str], list[Dataset]
+    ] = defaultdict(list)
+    other_study_group: Mapping[
+        tuple[str, str], list[Dataset]
+    ] = defaultdict(list)
     for evd in evidence:
         if evd.SOPInstanceUID in evd_uids:
             # Skip potential duplicates
@@ -291,10 +304,10 @@ def collect_evidence(
         evd_item.ReferencedSOPClassUID = evd.SOPClassUID
         evd_item.ReferencedSOPInstanceUID = evd.SOPInstanceUID
         key = (evd.StudyInstanceUID, evd.SeriesInstanceUID)
-        if evd.SOPInstanceUID in ref_uids:
-            ref_group[key].append(evd_item)
+        if evd.StudyInstanceUID == study_instance_uid:
+            same_study_group[key].append(evd_item)
         else:
-            unref_group[key].append(evd_item)
+            other_study_group[key].append(evd_item)
         evd_uids.add(evd.SOPInstanceUID)
     if not ref_uids.issubset(evd_uids):
         missing_uids = ref_uids.difference(evd_uids)
@@ -305,6 +318,6 @@ def collect_evidence(
             )
         )
 
-    ref_items = _create_references(ref_group)
-    unref_items = _create_references(unref_group)
-    return (ref_items, unref_items)
+    same_study_items = _create_references(same_study_group)
+    other_study_items = _create_references(other_study_group)
+    return (same_study_items, other_study_items)

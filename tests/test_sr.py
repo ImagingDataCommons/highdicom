@@ -4268,9 +4268,8 @@ class TestComprehensiveSR(unittest.TestCase):
             manufacturer=self._manufacturer
         )
         ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
-        assert len(ref_evd_items) == 2
-        with pytest.raises(AttributeError):
-            assert report.PertinentOtherEvidenceSequence
+        assert len(ref_evd_items) == 1
+        assert len(report.PertinentOtherEvidenceSequence) == 1
 
         evidence = report.get_evidence()
         assert len(evidence) == 2
@@ -4299,7 +4298,8 @@ class TestComprehensiveSR(unittest.TestCase):
 
     def test_current_and_other_evidence(self):
         ref_dataset2 = deepcopy(self._ref_dataset)
-        ref_dataset2.SeriesInstanceUID = '1.2.3'
+        ref_dataset2.StudyInstanceUID = '1.2.3.4.5'
+        ref_dataset2.SeriesInstanceUID = '1.2.3.4'
         ref_dataset2.SOPInstanceUID = '1.2.3'
 
         report = Comprehensive3DSR(
@@ -4313,10 +4313,10 @@ class TestComprehensiveSR(unittest.TestCase):
             institutional_department_name=self._department_name,
             manufacturer=self._manufacturer
         )
-        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
-        assert len(ref_evd_items) == 1
-        unref_evd_items = report.PertinentOtherEvidenceSequence
-        assert len(unref_evd_items) == 1
+        same_study_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(same_study_items) == 1
+        other_study_items = report.PertinentOtherEvidenceSequence
+        assert len(other_study_items) == 1
 
         evidence = report.get_evidence()
         assert len(evidence) == 2
@@ -4522,10 +4522,10 @@ class TestComprehensive3DSR(unittest.TestCase):
         assert report.Manufacturer == self._manufacturer
         assert report.Modality == 'SR'
 
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 1
         with pytest.raises(AttributeError):
-            assert report.CurrentRequestedProcedureEvidenceSequence
-        unref_evd_items = report.PertinentOtherEvidenceSequence
-        assert len(unref_evd_items) == 1
+            assert report.PertinentOtherEvidenceSequence
 
     def test_construction_content_is_sequence(self):
         report = Comprehensive3DSR(
@@ -4554,10 +4554,10 @@ class TestComprehensive3DSR(unittest.TestCase):
         assert report.Manufacturer == self._manufacturer
         assert report.Modality == 'SR'
 
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 1
         with pytest.raises(AttributeError):
-            assert report.CurrentRequestedProcedureEvidenceSequence
-        unref_evd_items = report.PertinentOtherEvidenceSequence
-        assert len(unref_evd_items) == 1
+            assert report.PertinentOtherEvidenceSequence
 
     def test_from_dataset(self):
         report = Comprehensive3DSR.from_dataset(self._sr_document)
@@ -4586,8 +4586,8 @@ class TestComprehensive3DSR(unittest.TestCase):
             institutional_department_name=self._department_name,
             manufacturer=self._manufacturer
         )
-        unref_evd_items = report.PertinentOtherEvidenceSequence
-        assert len(unref_evd_items) == 1
+        ref_evd_items = report.CurrentRequestedProcedureEvidenceSequence
+        assert len(ref_evd_items) == 1
 
 
 class TestSRUtilities(unittest.TestCase):

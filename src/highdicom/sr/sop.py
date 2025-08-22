@@ -242,11 +242,15 @@ class _SR(SOPClass):
         for tag, value in content.items():
             self[tag] = value
 
-        ref_items, unref_items = collect_evidence(evidence, content)
-        if len(ref_items) > 0:
-            self.CurrentRequestedProcedureEvidenceSequence = ref_items
-        if len(unref_items) > 0 and record_evidence:
-            self.PertinentOtherEvidenceSequence = unref_items
+        same_study_items, other_study_items = collect_evidence(
+            evidence,
+            content,
+            study_instance_uid=self.StudyInstanceUID,
+        )
+        if len(same_study_items) > 0:
+            self.CurrentRequestedProcedureEvidenceSequence = same_study_items
+        if len(other_study_items) > 0 and record_evidence:
+            self.PertinentOtherEvidenceSequence = other_study_items
 
         if requested_procedures is not None:
             self.ReferencedRequestSequence = requested_procedures
