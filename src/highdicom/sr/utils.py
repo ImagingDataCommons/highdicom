@@ -290,8 +290,12 @@ def collect_evidence(
         for ref in references
     }
     evd_uids = set()
-    same_study_group: Mapping[tuple[str, str], list[Dataset]] = defaultdict(list)
-    other_study_group: Mapping[tuple[str, str], list[Dataset]] = defaultdict(list)
+    same_study_group: Mapping[
+        tuple[str, str], list[Dataset]
+    ] = defaultdict(list)
+    other_study_group: Mapping[
+        tuple[str, str], list[Dataset]
+    ] = defaultdict(list)
     for evd in evidence:
         if evd.SOPInstanceUID in evd_uids:
             # Skip potential duplicates
