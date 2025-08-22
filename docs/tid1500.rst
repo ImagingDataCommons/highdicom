@@ -641,7 +641,7 @@ highdicom test data within the highdicom repository at
     nodule_measurement = hd.sr.Measurement(
         name=codes.SCT.Diameter,
         value=10.0,
-        unit=codes.UCUM.mm,
+        unit=codes.UCUM.Millimeter,
     )
     nodule_evaluation = hd.sr.QualitativeEvaluation(
         name=codes.DCM.LevelOfSignificance,
@@ -677,7 +677,7 @@ highdicom test data within the highdicom repository at
     aorta_measurement = hd.sr.Measurement(
         name=codes.SCT.Diameter,
         value=20.0,
-        unit=codes.UCUM.mm,
+        unit=codes.UCUM.Millimeter,
     )
 
     # Construct the measurement group
@@ -685,7 +685,7 @@ highdicom test data within the highdicom repository at
        referenced_region=region,
        tracking_identifier=aorta_roi_tracking_id,
        finding_type=codes.SCT.Aorta,
-       finding_category=structure_code,
+       finding_category=codes.SCT.AnatomicalStructure,
        measurements=[aorta_measurement],
     )
 
@@ -715,7 +715,7 @@ highdicom test data within the highdicom repository at
     vol_group = hd.sr.VolumetricROIMeasurementsAndQualitativeEvaluations(
        referenced_volume_surface=volume_surface,
        tracking_identifier=volumetric_roi_tracking_id,
-       finding_category=structure_code,
+       finding_category=codes.SCT.AnatomicalStructure,
        finding_type=codes.SCT.Vertebra,
        measurements=[vol_measurement],
     )
