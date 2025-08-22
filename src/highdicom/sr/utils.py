@@ -272,6 +272,9 @@ def collect_evidence(
         ``evidence``
 
     """  # noqa: E501
+    if study_instance_uid is None and len(evidence) > 1:
+        study_instance_uid = evidence[0].StudyInstanceUID
+
     references = find_content_items(
         content,
         value_type=ValueTypeValues.IMAGE,
