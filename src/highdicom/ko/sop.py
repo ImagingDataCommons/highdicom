@@ -138,10 +138,14 @@ class KeyObjectSelectionDocument(SOPClass):
         for tag, value in content[0].items():
             self[tag] = value
 
-        ref_items, unref_items = collect_evidence(evidence, content[0])
-        if len(ref_items) > 0:
-            self.CurrentRequestedProcedureEvidenceSequence = ref_items
-            if len(ref_items) > 1:
+        same_study_items, other_study_items = collect_evidence(
+            evidence,
+            content[0],
+            study_instance_uid=self.StudyInstanceUID,
+        )
+        if len(same_study_items) > 0:
+            self.CurrentRequestedProcedureEvidenceSequence = same_study_items
+            if len(other_study_items) > 1:
                 raise ValueError(
                     'Key Object Selection Documents that reference instances '
                     'from multiple studies are not supported.'
