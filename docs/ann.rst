@@ -35,7 +35,7 @@ contains. The required metadata elements include:
 * A ``uid`` (``str`` or :class:`highdicom.UID`) uniquely identifying the group.
   Usually, you will want to generate a UID for this.
 * An ``annotated_property_category`` and ``annotated_property_type``
-  (:class:`highdicom.sr.CodedConcept`) coded values (see :ref:`coding`)
+  (:class:`highdicom.sr.CodedConcept`), coded values (see :ref:`coding`)
   describing the category and specific structure that has been annotated.
 * A ``graphic_type`` (:class:`highdicom.ann.GraphicTypeValues`) indicating the
   "form" of the annotations. Permissible values are ``"ELLIPSE"``, ``"POINT"``,
@@ -45,8 +45,21 @@ contains. The required metadata elements include:
   algorithm used to generate the annotations (``"MANUAL"``,
   ``"SEMIAUTOMATIC"``, or ``"AUTOMATIC"``).
 
-Further optional metadata may optionally be provided, see the API documentation
-for more information.
+Further optional metadata may optionally be provided, including:
+
+* An ``algorithm_identification``
+  (:class:`highdicom.AlgorithmIdentificationSequence`), specifying information
+  about an algorithm that generated the annotations.
+* A list of ``anatomic_regions`` (a sequence of
+  :class:`highdicom.sr.CodedConcept` objects), giving coded values (see
+  :ref:`coding`) describing regions containing the annotations.
+* A list of ``primary_anatomic_structures`` (a sequence of
+  :class:`highdicom.sr.CodedConcept` objects) giving coded values (see
+  :ref:`coding`) describing anatomic structures of interest.
+* A free-text ``description`` of the annotation group.
+* A ``display_color`` (:class:`highdicom.color.CIELabColor`) giving a
+  recommended value for viewers to use to render these annotations. Note that
+  this is in CIE-Lab color space.
 
 The actual annotation data is passed to the group as a list of
 ``numpy.ndarray`` objects, each of shape (*N* x *D*). *N* is the number of
