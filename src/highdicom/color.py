@@ -2,7 +2,7 @@ import logging
 from io import BytesIO
 
 import numpy as np
-from PIL import Image, ImageCms
+from PIL import Image, ImageCms, ImageColor
 from PIL.ImageCms import (
     applyTransform,
     getProfileDescription,
@@ -11,9 +11,111 @@ from PIL.ImageCms import (
     ImageCmsTransform,
     isIntentSupported,
 )
+from typing_extensions import Self
 
 
 logger = logging.getLogger(__name__)
+
+
+def _rgb_to_xyz(r: float, g: float, b: float) -> tuple[float, float, float]:
+    # Adapted from ColorUtilities module of pixelmed:
+    # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
+
+    def convert_component(c: float) -> float:
+        c = c / 255.0
+        if c > 0.04045:
+            return ((c + 0.055) / 1.055) ** 2.4
+        return c / 12.92
+
+    r = convert_component(r) * 100
+    g = convert_component(g) * 100
+    b = convert_component(b) * 100
+
+    x = r * 0.4124 + g * 0.3576 + b * 0.1805
+    y = r * 0.2126 + g * 0.7152 + b * 0.0722
+    z = r * 0.0193 + g * 0.1192 + b * 0.9505
+
+    return x, y, z
+
+
+def _xyz_to_cielab(x: float, y: float, z: float) -> tuple[float, float, float]:
+    # Adapted from ColorUtilities module of pixelmed:
+    # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
+
+    x = x / 95.047
+    y = y / 100.0
+    z = z / 108.883
+
+    def convert_component(c: float) -> float:
+        if  c > 0.008856:
+            return c ** (1.0 / 3)
+        return 7.787 * x + (16.0 / 116)
+
+    x = convert_component(x)
+    y = convert_component(y)
+    z = convert_component(z)
+
+    l = 116 * y - 16
+    a = 500 * (x - y)
+    b = 200 * (y - z)
+
+    return l, a, b
+
+
+def _cielab_to_xyz(l_star: float, a_star: float, b_star: float) -> tuple[float, float, float]:
+    # Adapted from ColorUtilities module of pixelmed:
+    # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
+
+    y = ( l_star + 16 ) / 116
+    x = a_star / 500 + y
+    z = y - b_star / 200
+
+    def convert_component(c: float) -> float:
+        c3 = c ** 3
+
+        if c3 > 0.008856:
+            return c3
+        return (c - 16.0 / 116) / 7.787
+
+    x = convert_component(x)
+    y = convert_component(y)
+    z = convert_component(z)
+
+    x = 95.047  * x
+    y = 100.0  * y
+    z = 108.883  * z
+
+    return x, y, z
+
+def _xyz_to_rgb(x: float, y: float, z: float) -> tuple[float, float, float]:
+    # Adapted from ColorUtilities module of pixelmed:
+    # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
+    x = x / 100
+    y = y / 100
+    z = z / 100
+
+    r = x *  3.2406 + y * -1.5372 + z * -0.4986
+    g = x * -0.9689 + y *  1.8758 + z *  0.0415
+    b = x *  0.0557 + y * -0.2040 + z *  1.0570
+
+    def convert_component(c: float) -> float:
+        if c > 0.0031308:
+            return 1.055 * (c ** (1 / 2.4)) - 0.055
+        return 12.92 * c
+
+    r = convert_component(r) * 255
+    g = convert_component(g) * 255
+    b = convert_component(b) * 255
+
+    return r, g, b
+
+
+def _rgb_to_cielab(r: float, g: float, b: float) -> tuple[float, float, float]:
+    return _xyz_to_cielab(*_rgb_to_xyz(r, g, b))
+
+
+def _cielab_to_rgb(l_star: float, a_star: float, b_star: float) -> tuple[float, float, float]:
+    return _xyz_to_rgb(*_cielab_to_xyz(l_star, a_star, b_star))
 
 
 class CIELabColor:
@@ -57,6 +159,30 @@ class CIELabColor:
         a_val = int((a_star + 128.0) * 0xFFFF / 255.0)
         b_val = int((b_star + 128.0) * 0xFFFF / 255.0)
         self._value = (l_val, a_val, b_val)
+
+    @classmethod
+    def from_rgb(cls, r: float, g: float, b: float) -> Self:
+        return cls(*_rgb_to_cielab(r, g, b))
+
+    @classmethod
+    def from_color(cls, color: str) -> Self:
+        return cls.from_rgb(*ImageColor.getrgb(color))
+
+    def to_rgb(self) -> tuple[int, int, int]:
+        r, g, b = _cielab_to_rgb(self.l_star, self.a_star, self.b_star)
+        return int(r), int(g), int(b)
+
+    @property
+    def l_star(self) -> float:
+        return self._value[0] * (100.0 / 0xFFFF)
+
+    @property
+    def a_star(self) -> float:
+        return self._value[1] * (255.0 / 0xFFFF) - 128.0
+
+    @property
+    def b_star(self) -> float:
+        return self._value[2] * (255.0 / 0xFFFF) - 128.0
 
     @property
     def value(self) -> tuple[int, int, int]:
