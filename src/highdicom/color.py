@@ -170,7 +170,7 @@ class CIELabColor:
 
     def to_rgb(self) -> tuple[int, int, int]:
         r, g, b = _cielab_to_rgb(self.l_star, self.a_star, self.b_star)
-        return int(r), int(g), int(b)
+        return round(r), round(g), round(b)
 
     @property
     def l_star(self) -> float:
