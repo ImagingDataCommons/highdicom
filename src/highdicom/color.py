@@ -1,5 +1,6 @@
 import logging
 from io import BytesIO
+from collections.abc import Sequence
 
 import numpy as np
 from PIL import Image, ImageCms, ImageColor
@@ -47,9 +48,9 @@ def _xyz_to_cielab(x: float, y: float, z: float) -> tuple[float, float, float]:
     z = z / 108.883
 
     def convert_component(c: float) -> float:
-        if  c > 0.008856:
+        if c >= 8.85645167903563082e-3:
             return c ** (1.0 / 3)
-        return 7.787 * x + (16.0 / 116)
+        return (841.0 / 108.0) * c + (4.0 / 29.0)
 
     x = convert_component(x)
     y = convert_component(y)
@@ -167,6 +168,21 @@ class CIELabColor:
     @classmethod
     def from_color(cls, color: str) -> Self:
         return cls.from_rgb(*ImageColor.getrgb(color))
+
+    @classmethod
+    def from_dicom_value(cls, value: Sequence[int]) -> Self:
+        if len(value) != 3:
+            raise ValueError("Argument 'value' must have length 3.")
+
+        for v in value:
+            if v < 0 or v > 0xFFFF:
+                raise ValueError(
+                    "All values must lie in range 0 to 0xFFFF"
+                )
+
+        c = cls.__new__(cls)
+        c._value = (value[0], value[1], value[2])
+        return c
 
     def to_rgb(self) -> tuple[int, int, int]:
         r, g, b = _cielab_to_rgb(self.l_star, self.a_star, self.b_star)
