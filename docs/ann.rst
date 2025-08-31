@@ -59,7 +59,9 @@ Further optional metadata may optionally be provided, including:
 * A free-text ``description`` of the annotation group.
 * A ``display_color`` (:class:`highdicom.color.CIELabColor`) giving a
   recommended value for viewers to use to render these annotations. Note that
-  this is in CIE-Lab color space.
+  this is in CIE-Lab color space, but alternative constructors of the
+  :class:`highdicom.color.CIELabColor` class allow conversion from RGB values
+  or well-known color names.
 
 The actual annotation data is passed to the group as a list of
 ``numpy.ndarray`` objects, each of shape (*N* x *D*). *N* is the number of
@@ -101,6 +103,7 @@ Here is a simple example of constructing an annotation group:
         algorithm_type=hd.ann.AnnotationGroupGenerationTypeValues.MANUAL,
         graphic_type=hd.ann.GraphicTypeValues.POINT,
         graphic_data=graphic_data,
+        display_color=hd.color.CIELabColor.from_string('turquoise'),
     )
 
 Note that including two nuclei would be very unusual in practice: annotations
@@ -154,6 +157,7 @@ Here is the above example with an area measurement included:
         graphic_type=hd.ann.GraphicTypeValues.POINT,
         graphic_data=graphic_data,
         measurements=[area_measurement],
+        display_color=hd.color.CIELabColor.from_string('lawngreen'),
     )
 
 Constructing MicroscopyBulkSimpleAnnotation Objects
@@ -269,7 +273,7 @@ of matching groups, since the filters may match multiple groups.
 
     # If there are no matches, an empty list is returned
     groups = ann.get_annotation_groups(
-        annotated_property_type=Code('53982002', "SCT", "Cell membrane"),
+        annotated_property_type=Code('53982002', 'SCT', 'Cell membrane'),
     )
     assert len(groups) == 0
 

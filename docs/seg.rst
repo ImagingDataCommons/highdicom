@@ -85,6 +85,13 @@ description includes the following information:
   a human readable ID and unique ID to a specific segment. This can be used,
   for example, to uniquely identify particular lesions over multiple imaging
   studies. These are passed as strings.
+- **Display Color**: (Optional) You can provide a recommended color as a
+  :class:`highdicom.color.CIELabColor` to use when displaying this segment.
+  Some viewers will use this information to decide what color to render the
+  segment by default. This color should be provided in CIE-Lab color space, but
+  alternative constructors of the :class:`highdicom.color.CIELabColor` class
+  allow conversion from RGB values or well-known color names.
+
 
 Notice that the segment description makes use of coded concepts to ensure that
 the way a particular anatomical structure is described is standardized and
@@ -108,6 +115,7 @@ representing a liver that has been manually segmented.
         segmented_property_category=codes.SCT.Organ,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+        display_color=hd.color.CIELabColor.from_string('red'),
     )
 
 In this second example, we describe a segment representing a tumor that has
@@ -134,6 +142,7 @@ we must first provide more information about the algorithm used in an
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.AUTOMATIC,
         algorithm_identification=algorithm_identification,
         anatomic_regions=[codes.SCT.Kidney]
+        display_color=hd.color.CIELabColor.from_rgb(0, 0, 255),
     )
 
 For a description of how to access segment metadata in existing segmentations,

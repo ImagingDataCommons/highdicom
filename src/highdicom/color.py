@@ -1,3 +1,4 @@
+"""Utiliies for working with colors."""
 import logging
 from io import BytesIO
 from collections.abc import Sequence
@@ -19,9 +20,33 @@ logger = logging.getLogger(__name__)
 
 
 def _rgb_to_xyz(r: float, g: float, b: float) -> tuple[float, float, float]:
+    """Convert an RGB color to CIE XYZ representation.
+
+    Outputs are scaled between 0.0 and the white point (95.05, 100.0, 108.89).
+    As a private function, no checks are performed that input values are valid,
+    and output values are not clipped.
+
+    Parameters
+    ----------
+    r: float
+        Red component between 0 and 255 (inclusive).
+    g: float
+        Green component between 0 and 255 (inclusive).
+    b: float
+        Blue component between 0 and 255 (inclusive).
+
+    Returns
+    -------
+    x: float
+        X component as a float between 0.0 and 95.05.
+    y: float
+        Y component as a float between 0.0 and 100.0.
+    z: float
+        Z component as a float between 0.0 and 108.89.
+
+    """
     # Adapted from ColorUtilities module of pixelmed:
     # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
-
     def convert_component(c: float) -> float:
         c = c / 255.0
         if c > 0.04045:
@@ -39,10 +64,81 @@ def _rgb_to_xyz(r: float, g: float, b: float) -> tuple[float, float, float]:
     return x, y, z
 
 
-def _xyz_to_lab(x: float, y: float, z: float) -> tuple[float, float, float]:
+def _xyz_to_rgb(x: float, y: float, z: float) -> tuple[float, float, float]:
+    """Convert a CIE XYZ color to RGB representation.
+
+    Inputs are scaled between 0.0 and the white point (95.05, 100.0, 108.89).
+    As a private function, no checks are performed that input values are valid,
+    and output values are not clipped.
+
+    Parameters
+    ----------
+    x: float
+        X component as a float between 0.0 and 95.05.
+    y: float
+        Y component as a float between 0.0 and 100.0.
+    z: float
+        Z component as a float between 0.0 and 108.89.
+
+    Returns
+    -------
+    r: float
+        Red component between 0.0 and 255.0 (inclusive).
+    g: float
+        Green component between 0.0 and 255.0 (inclusive).
+    b: float
+        Blue component between 0.0 and 255.0 (inclusive).
+
+    """
     # Adapted from ColorUtilities module of pixelmed:
     # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
+    x = x / 100
+    y = y / 100
+    z = z / 100
 
+    r = x * 3.2406 + y * -1.5372 + z * -0.4986
+    g = x * -0.9689 + y * 1.8758 + z * 0.0415
+    b = x * 0.0557 + y * -0.2040 + z * 1.0570
+
+    def convert_component(c: float) -> float:
+        if c > 0.0031308:
+            return 1.055 * (c ** (1 / 2.4)) - 0.055
+        return 12.92 * c
+
+    r = convert_component(r) * 255
+    g = convert_component(g) * 255
+    b = convert_component(b) * 255
+
+    return r, g, b
+
+
+def _xyz_to_lab(x: float, y: float, z: float) -> tuple[float, float, float]:
+    """Convert a CIE XYZ color to CIE Lab representation.
+
+    As a private function, no checks are performed that input values are valid,
+    and output values are not clipped.
+
+    Parameters
+    ----------
+    x: float
+        X component.
+    y: float
+        Y component.
+    z: float
+        Z component.
+
+    Returns
+    -------
+    l_star: float
+        Lightness value in the range 0.0 (black) to 100.0 (white).
+    a_star: float
+        Red-green value from -128.0 (red) to 127.0 (green).
+    b_star: float
+        Blue-yellow value from -128.0 (blue) to 127.0 (yellow).
+
+    """
+    # Adapted from ColorUtilities module of pixelmed:
+    # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
     x = x / 95.047
     y = y / 100.0
     z = z / 108.883
@@ -56,18 +152,46 @@ def _xyz_to_lab(x: float, y: float, z: float) -> tuple[float, float, float]:
     y = convert_component(y)
     z = convert_component(z)
 
-    l = 116 * y - 16
+    lightness = 116 * y - 16
     a = 500 * (x - y)
     b = 200 * (y - z)
 
-    return l, a, b
+    return lightness, a, b
 
 
-def _lab_to_xyz(l_star: float, a_star: float, b_star: float) -> tuple[float, float, float]:
+def _lab_to_xyz(
+    l_star: float,
+    a_star: float,
+    b_star: float,
+) -> tuple[float, float, float]:
+    """Convert a CIE Lab color to CIE XYZ representation.
+
+    Outputs are scaled between 0.0 and the white point (95.05, 100.0, 108.89).
+    As a private function, no checks are performed that input values are valid,
+    and output values are not clipped.
+
+    Parameters
+    ----------
+    l_star: float
+        Lightness value in the range 0.0 (black) to 100.0 (white).
+    a_star: float
+        Red-green value from -128.0 (red) to 127.0 (green).
+    b_star: float
+        Blue-yellow value from -128.0 (blue) to 127.0 (yellow).
+
+    Returns
+    -------
+    x: float
+        X component.
+    y: float
+        Y component.
+    z: float
+        Z component.
+
+    """
     # Adapted from ColorUtilities module of pixelmed:
     # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
-
-    y = ( l_star + 16 ) / 116
+    y = (l_star + 16) / 116
     x = a_star / 500 + y
     z = y - b_star / 200
 
@@ -82,40 +206,71 @@ def _lab_to_xyz(l_star: float, a_star: float, b_star: float) -> tuple[float, flo
     y = convert_component(y)
     z = convert_component(z)
 
-    x = 95.047  * x
-    y = 100.0  * y
-    z = 108.883  * z
+    x = 95.047 * x
+    y = 100.0 * y
+    z = 108.883 * z
 
     return x, y, z
 
-def _xyz_to_rgb(x: float, y: float, z: float) -> tuple[float, float, float]:
-    # Adapted from ColorUtilities module of pixelmed:
-    # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
-    x = x / 100
-    y = y / 100
-    z = z / 100
-
-    r = x *  3.2406 + y * -1.5372 + z * -0.4986
-    g = x * -0.9689 + y *  1.8758 + z *  0.0415
-    b = x *  0.0557 + y * -0.2040 + z *  1.0570
-
-    def convert_component(c: float) -> float:
-        if c > 0.0031308:
-            return 1.055 * (c ** (1 / 2.4)) - 0.055
-        return 12.92 * c
-
-    r = convert_component(r) * 255
-    g = convert_component(g) * 255
-    b = convert_component(b) * 255
-
-    return r, g, b
-
 
 def _rgb_to_lab(r: float, g: float, b: float) -> tuple[float, float, float]:
+    """Convert an RGB color to CIE Lab representation.
+
+    As a private function, no checks are performed that input values are valid,
+    and output values are not clipped.
+
+    Parameters
+    ----------
+    r: float
+        Red component between 0 and 255 (inclusive).
+    g: float
+        Green component between 0 and 255 (inclusive).
+    b: float
+        Blue component between 0 and 255 (inclusive).
+
+    Returns
+    -------
+    l_star: float
+        Lightness value in the range 0.0 (black) to 100.0 (white).
+    a_star: float
+        Red-green value from -128.0 (red) to 127.0 (green).
+    b_star: float
+        Blue-yellow value from -128.0 (blue) to 127.0 (yellow).
+
+    """
     return _xyz_to_lab(*_rgb_to_xyz(r, g, b))
 
 
-def _lab_to_rgb(l_star: float, a_star: float, b_star: float) -> tuple[float, float, float]:
+def _lab_to_rgb(
+    l_star: float,
+    a_star: float,
+    b_star: float,
+) -> tuple[float, float, float]:
+    """Convert a CIE Lab color to RGB representation.
+
+    As a private function, no checks are performed that input values are valid,
+    and output values are not clipped. Lab colors that cannot be represented in
+    RGB will have values outside to 0.0 to 255.0 range.
+
+    Parameters
+    ----------
+    l_star: float
+        Lightness value in the range 0.0 (black) to 100.0 (white).
+    a_star: float
+        Red-green value from -128.0 (red) to 127.0 (green).
+    b_star: float
+        Blue-yellow value from -128.0 (blue) to 127.0 (yellow).
+
+    Returns
+    -------
+    r: float
+        Red component.
+    g: float
+        Green component.
+    b: float
+        Blue component.
+
+    """
     return _xyz_to_rgb(*_lab_to_xyz(l_star, a_star, b_star))
 
 
@@ -163,7 +318,9 @@ class CIELabColor:
 
     @property
     def value(self) -> tuple[int, int, int]:
-        """Tuple[int]:
+        """
+
+        Tuple[int]:
             Value formatted as a triplet of 16 bit unsigned integers (as stored
             within DICOM). This consists of a triplet of 16-bit unsigned
             integers for the L*, a*, and b* components in that order. The L*
@@ -270,7 +427,7 @@ class CIELabColor:
 
     @classmethod
     def from_string(cls, color: str) -> Self:
-        """Construct from a named color string.
+        """Construct from a string representing a color.
 
         Parameters
         ----------
@@ -288,7 +445,7 @@ class CIELabColor:
         Returns
         -------
         Self
-            Color constructed from the supplied str.
+            Color constructed from the supplied string.
 
         """
         return cls.from_rgb(*ImageColor.getrgb(color))
@@ -328,8 +485,9 @@ class CIELabColor:
                     return max(min(c, 255), 0)
                 else:
                     raise ValueError(
-                        'This color is not representable in RGB color space. Use '
-                        "'clip=True' to clip to the nearest representable value."
+                        'This color is not representable in RGB color space. '
+                        "Use 'clip=True' to clip to the nearest representable "
+                        'value.'
                     )
 
         return _check_component(r), _check_component(g), _check_component(b)
