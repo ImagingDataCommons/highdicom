@@ -309,15 +309,17 @@ class CIELabColor:
     >>> print(color.l_star, color.a_star, color.b_star)
     81.2664988174258 -44.07782101167315 -4.035019455252922
 
-    Within DICOM-files, the three components are represented using scaled and
+    Within DICOM files, the three components are represented using scaled and
     shifted unsigned 16 bit integer values. You can move between these
     representations like this:
 
     >>> import highdicom as hd
     >>>
     >>> color = hd.color.CIELabColor.from_string('orange')
+    >>> # Print the values that would actually be stored in a DICOM file
     >>> print(color.value)
     (49107, 39048, 53188)
+    >>> # Create a color directly from these values
     >>> color2 = hd.color.CIELabColor.from_dicom_value((49107, 39048, 53188))
     >>>> print(color2.to_rgb())
     (255, 165, 0)
