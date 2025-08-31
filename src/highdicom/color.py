@@ -39,7 +39,7 @@ def _rgb_to_xyz(r: float, g: float, b: float) -> tuple[float, float, float]:
     return x, y, z
 
 
-def _xyz_to_cielab(x: float, y: float, z: float) -> tuple[float, float, float]:
+def _xyz_to_lab(x: float, y: float, z: float) -> tuple[float, float, float]:
     # Adapted from ColorUtilities module of pixelmed:
     # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
 
@@ -63,7 +63,7 @@ def _xyz_to_cielab(x: float, y: float, z: float) -> tuple[float, float, float]:
     return l, a, b
 
 
-def _cielab_to_xyz(l_star: float, a_star: float, b_star: float) -> tuple[float, float, float]:
+def _lab_to_xyz(l_star: float, a_star: float, b_star: float) -> tuple[float, float, float]:
     # Adapted from ColorUtilities module of pixelmed:
     # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
 
@@ -111,12 +111,12 @@ def _xyz_to_rgb(x: float, y: float, z: float) -> tuple[float, float, float]:
     return r, g, b
 
 
-def _rgb_to_cielab(r: float, g: float, b: float) -> tuple[float, float, float]:
-    return _xyz_to_cielab(*_rgb_to_xyz(r, g, b))
+def _rgb_to_lab(r: float, g: float, b: float) -> tuple[float, float, float]:
+    return _xyz_to_lab(*_rgb_to_xyz(r, g, b))
 
 
-def _cielab_to_rgb(l_star: float, a_star: float, b_star: float) -> tuple[float, float, float]:
-    return _xyz_to_rgb(*_cielab_to_xyz(l_star, a_star, b_star))
+def _lab_to_rgb(l_star: float, a_star: float, b_star: float) -> tuple[float, float, float]:
+    return _xyz_to_rgb(*_lab_to_xyz(l_star, a_star, b_star))
 
 
 class CIELabColor:
@@ -156,56 +156,183 @@ class CIELabColor:
                 'Value for "b_star" must lie between -128.0 (blue) and 127.0'
                 ' (yellow).'
             )
-        l_val = int(l_star * 0xFFFF / 100.0)
-        a_val = int((a_star + 128.0) * 0xFFFF / 255.0)
-        b_val = int((b_star + 128.0) * 0xFFFF / 255.0)
+        l_val = round(l_star * 0xFFFF / 100.0)
+        a_val = round((a_star + 128.0) * 0xFFFF / 255.0)
+        b_val = round((b_star + 128.0) * 0xFFFF / 255.0)
         self._value = (l_val, a_val, b_val)
 
-    @classmethod
-    def from_rgb(cls, r: float, g: float, b: float) -> Self:
-        return cls(*_rgb_to_cielab(r, g, b))
+    @property
+    def value(self) -> tuple[int, int, int]:
+        """Tuple[int]:
+            Value formatted as a triplet of 16 bit unsigned integers (as stored
+            within DICOM). This consists of a triplet of 16-bit unsigned
+            integers for the L*, a*, and b* components in that order. The L*
+            component is linearly scaled from the typical range of 0 to 100.0
+            to the 16 bit integer range (0 to 65535, or ``0xFFFF``) and rounded
+            to the nearest integer. The a* and b* components are mapped from
+            their typical range (-128.0 to 127.0) by shifting to an unsigned
+            integer range by adding 128.0, then linearly scaling this to the 16
+            bit integer range and rounding to the nearest integer. Thus, -128.0
+            is represented as 0 (``0x0000``), 0.0 as 32896 (``0x8080``), and
+            127.0 as 65535 (``0xFFFF``).
 
-    @classmethod
-    def from_color(cls, color: str) -> Self:
-        return cls.from_rgb(*ImageColor.getrgb(color))
+        """
+        return self._value
+
+    @property
+    def l_star(self) -> float:
+        """float: L* component as value between 0 and 100.0."""
+        return self._value[0] * (100.0 / 0xFFFF)
+
+    @property
+    def a_star(self) -> float:
+        """float: a* component as value between -128.0 and 127.0."""
+        return self._value[1] * (255.0 / 0xFFFF) - 128.0
+
+    @property
+    def b_star(self) -> float:
+        """float: b* component as value between -128.0 and 127.0."""
+        return self._value[2] * (255.0 / 0xFFFF) - 128.0
 
     @classmethod
     def from_dicom_value(cls, value: Sequence[int]) -> Self:
+        """Create a color from the DICOM integer representation.
+
+        Parameters
+        ----------
+        value: Sequence[int]
+            The DICOM representation of a CIELab color. This consists of a
+            triplet of 16-bit unsigned integers for the L*, a*, and b*
+            components in that order. The L* component should be linearly
+            scaled from the typical range of 0 to 100.0 to the 16 bit integer
+            range (0 to 65535, or ``0xFFFF``) and rounded to the nearest
+            integer. The a* and b* components should be mapped from their
+            typical range (-128.0 to 127.0) by shifting to an unsigned integer
+            range by adding 128.0, then linearly scaling this to the 16 bit
+            integer range and rounding to the nearest integer. Thus, -128.0
+            should be represented as 0 (``0x0000``), 0.0 as 32896 (``0x8080``),
+            and 127.0 as 65535 (``0xFFFF``).
+
+        Returns
+        -------
+        Self
+            Color constructed from the supplied DICOM values.
+
+        """
         if len(value) != 3:
             raise ValueError("Argument 'value' must have length 3.")
 
         for v in value:
+            if not isinstance(v, int):
+                raise TypeError('Elements must be integers.')
+
             if v < 0 or v > 0xFFFF:
                 raise ValueError(
                     "All values must lie in range 0 to 0xFFFF"
                 )
 
         c = cls.__new__(cls)
-        c._value = (value[0], value[1], value[2])
+        c._value = tuple(value)
         return c
 
-    def to_rgb(self) -> tuple[int, int, int]:
-        r, g, b = _cielab_to_rgb(self.l_star, self.a_star, self.b_star)
-        return round(r), round(g), round(b)
+    @classmethod
+    def from_rgb(cls, r: float, g: float, b: float) -> Self:
+        """Create the color from RGB values.
 
-    @property
-    def l_star(self) -> float:
-        return self._value[0] * (100.0 / 0xFFFF)
+        Parameters
+        ----------
+        r: int | float
+            Red component value in range 0 to 255 (inclusive).
+        g: float
+            Green component value in range 0 to 255 (inclusive).
+        b: float
+            Blue component value in range 0 to 255 (inclusive).
 
-    @property
-    def a_star(self) -> float:
-        return self._value[1] * (255.0 / 0xFFFF) - 128.0
+        Returns
+        -------
+        Self
+            Color constructed from the supplied RGB values.
 
-    @property
-    def b_star(self) -> float:
-        return self._value[2] * (255.0 / 0xFFFF) - 128.0
+        Note
+        ----
 
-    @property
-    def value(self) -> tuple[int, int, int]:
-        """Tuple[int]:
-            Value formatted as a triplet of 16 bit unsigned integers.
+        Some valid CIELab colors lie outside the valid RGB range, and therefore
+        cannot be created with this method.
+
         """
-        return self._value
+        for c in [r, g, b]:
+            if not (0 <= c <= 255):
+                raise ValueError(
+                    'Each RGB component must lie in the range 0 to 255.'
+                )
+
+        return cls(*_rgb_to_lab(r, g, b))
+
+    @classmethod
+    def from_string(cls, color: str) -> Self:
+        """Construct from a named color string.
+
+        Parameters
+        ----------
+        color: str
+            Should be a string understood by PIL's ``getrgb()`` function (see
+            `here
+            <https://pillow.readthedocs.io/en/stable/reference/ImageColor.html#color-names>`_
+            for the documentation of that function or `here
+            <https://drafts.csswg.org/css-color-4/#named-colors>`_ for the
+            original list of colors). This includes many case-insensitive color
+            names (e.g. ``"red"``, ``"Crimson"``, or ``"INDIGO"``), hex codes
+            (e.g. ``"#ff7733"``) or decimal integers in the format of this
+            example: ``"RGB(255, 255, 0)"``.
+
+        Returns
+        -------
+        Self
+            Color constructed from the supplied str.
+
+        """
+        return cls.from_rgb(*ImageColor.getrgb(color))
+
+    def to_rgb(self, clip: bool = False) -> tuple[int, int, int]:
+        """Get an RGB representation of this color.
+
+        Note that the full gamut of representable CIE-Lab colors is a super-set
+        of those representable with RGB. By default, if the color is not
+        representable as an RGB color, a ``ValueError`` will be raised.
+
+        Parameters
+        ----------
+        clip: bool, optional
+            If the color cannot be represented in RGB, clip the values to the
+            range 0 to 255 to give the closest representable RGB color. If
+            ``False``, colors that cannot be represented in RGB will raise a
+            ``ValueError``.
+
+        Returns
+        -------
+        int:
+            Red component, between 0 and 255 (inclusive).
+        int:
+            Green component, between 0 and 255 (inclusive).
+        int:
+            Blue component, between 0 and 255 (inclusive).
+
+        """
+        r, g, b = _lab_to_rgb(self.l_star, self.a_star, self.b_star)
+
+        def _check_component(c):
+            if 0 <= round(c) <= 255:
+                return round(c)
+            else:
+                if clip:
+                    return max(min(c, 255), 0)
+                else:
+                    raise ValueError(
+                        'This color is not representable in RGB color space. Use '
+                        "'clip=True' to clip to the nearest representable value."
+                    )
+
+        return _check_component(r), _check_component(g), _check_component(b)
 
 
 class ColorManager:
