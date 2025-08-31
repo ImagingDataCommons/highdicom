@@ -58,8 +58,8 @@ Further optional metadata may optionally be provided, including:
   :ref:`coding`) describing anatomic structures of interest.
 * A free-text ``description`` of the annotation group.
 * A ``display_color`` (:class:`highdicom.color.CIELabColor`) giving a
-  recommended value for viewers to use to render these annotations. Note that
-  this is in CIE-Lab color space, but alternative constructors of the
+  recommended value for viewers to use to render these annotations. This is in
+  CIE-Lab color space, but alternative constructors of the
   :class:`highdicom.color.CIELabColor` class allow conversion from RGB values
   or well-known color names.
 

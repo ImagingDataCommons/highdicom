@@ -276,7 +276,53 @@ def _lab_to_rgb(
 
 class CIELabColor:
 
-    """Class to represent a color value in CIELab color space."""
+    """Class to represent a color value in CIELab color space.
+
+    Various places in DICOM use the CIE-Lab color space to represent colors.
+    This class is used to pass these colors around and convert them to and from
+    RGB representation.
+
+    Examples
+    --------
+
+    Construct a CIE-Lab color directly and convert it to RGB:
+
+    >>> import highdicom as hd
+    >>>
+    >>> color = hd.color.CIELabColor(50.0, 34.0, 12.4)
+    >>> print(color.to_rgb())
+    (177, 95, 99)
+
+    Construct a CIE-Lab color from an RGB color and examine the Lab components:
+
+    >>> import highdicom as hd
+    >>>
+    >>> color = hd.color.CIELabColor.from_rgb(0, 255, 0)
+    >>> print(color.l_star, color.a_star, color.b_star)
+    87.73632410162509 -86.1828793774319 83.1828793774319
+
+    Construct a CIE-Lab color from the name of a well-known color:
+
+    >>> import highdicom as hd
+    >>>
+    >>> color = hd.color.CIELabColor.from_string('turquoise')
+    >>> print(color.l_star, color.a_star, color.b_star)
+    81.2664988174258 -44.07782101167315 -4.035019455252922
+
+    Within DICOM-files, the three components are represented using scaled and
+    shifted unsigned 16 bit integer values. You can move between these
+    representations like this:
+
+    >>> import highdicom as hd
+    >>>
+    >>> color = hd.color.CIELabColor.from_string('orange')
+    >>> print(color.value)
+    (49107, 39048, 53188)
+    >>> color2 = hd.color.CIELabColor.from_dicom_value((49107, 39048, 53188))
+    >>>> print(color2.to_rgb())
+    (255, 165, 0)
+
+    """
 
     def __init__(
         self,
