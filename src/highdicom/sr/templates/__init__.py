@@ -1,3 +1,4 @@
+"""Classes implementing structured reporting templates"""
 from highdicom.sr.templates.common import (
     DeviceObserverIdentifyingAttributes,
     ObserverContext,
