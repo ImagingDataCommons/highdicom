@@ -182,6 +182,7 @@ class DiagnosticImagingReportHeading(Template):
             item.ContentSequence.extend(observation_context)
         super().__init__([item])
 
+
 class BasicDiagnosticImagingReport(Template):
     """:dcm:`TID 2000 <part16/chapter_A.html#sect_TID_2000>`
     Basic Diagnostic Imaging Report
