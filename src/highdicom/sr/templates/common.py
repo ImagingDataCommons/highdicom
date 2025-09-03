@@ -58,7 +58,6 @@ class CIDUnits(ABC):
     units: List[Units]
 
     def add_items(self, content: ContentSequence) -> None:
-
         """ Adds units as NumContentItems to a content sequence """
 
         for unit in self.units:
@@ -79,12 +78,15 @@ class CIDUnits(ABC):
 class AgeUnit(CIDUnits):
     name = codes.DCM.SubjectAge
 
-    def __init__(self, year: Union[int, None] = None,
-                 month: Union[int, None] = None,
-                 week: Union[int, None] = None,
-                 day: Union[int, None] = None,
-                 hour: Union[int, None] = None,
-                 minute: Union[int, None] = None) -> None:
+    def __init__(
+            self,
+            year: Union[int, None] = None,
+            month: Union[int, None] = None,
+            week: Union[int, None] = None,
+            day: Union[int, None] = None,
+            hour: Union[int, None] = None,
+            minute: Union[int, None] = None
+    ) -> None:
         self.units = [
             {'value': year, 'code_value': "a", 'code_meaning': "year"},
             {'value': month, 'code_value': "mo", 'code_meaning': "month"},
@@ -96,8 +98,11 @@ class AgeUnit(CIDUnits):
 
 
 class PressureUnit(CIDUnits):
-    def __init__(self, mmHg: Union[int, None] = None,
-                 kPa: Union[int, None] = None) -> None:
+    def __init__(
+            self,
+            mmHg: Union[int, None] = None,
+            kPa: Union[int, None] = None
+    ) -> None:
         self.units = [
             {'value': mmHg, 'code_value': "mm[Hg]", 'code_meaning': "mmHg"},
             {'value': kPa, 'code_value': "kPa", 'code_meaning': "kPa"}
@@ -167,7 +172,10 @@ class LanguageOfContentItemAndDescendants(Template):
     """:dcm:`TID 1204 <part16/chapter_A.html#sect_TID_1204>`
      Language of Content Item and Descendants"""
 
-    def __init__(self, language: CodedConcept):
+    def __init__(
+            self,
+            language: CodedConcept
+    ) -> None:
         """
 
         Parameters
@@ -707,7 +715,10 @@ class SubjectContextFetus(Template):
     """:dcm:`TID 1008 <part16/chapter_A.html#sect_TID_1008>`
      Subject Context Fetus"""
 
-    def __init__(self, subject_id: str):
+    def __init__(
+            self,
+            subject_id: str
+    ) -> None:
         """
 
         Parameters
@@ -1373,10 +1384,11 @@ class LanguageOfValue(CodeContentItem):
     Language of Value
     """
 
-    def __init__(self,
-                 language: Union[Code, CodedConcept],
-                 country_of_language: Optional[Union[Code, CodedConcept]] = None
-                 ) -> None:
+    def __init__(
+        self,
+        language: Union[Code, CodedConcept],
+        country_of_language: Optional[Union[Code, CodedConcept]] = None
+    ) -> None:
         super().__init__(
             name=codes.DCM.LanguageOfValue,
             value=language,

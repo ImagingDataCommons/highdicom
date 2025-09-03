@@ -35,9 +35,11 @@ class Therapy(CodeContentItem):
     Therapy
     """
 
-    def __init__(self,
-                 value: Union[Code, CodedConcept],
-                 status: Optional[Union[Code, CodedConcept]] = None) -> None:
+    def __init__(
+        self,
+        value: Union[Code, CodedConcept],
+        status: Optional[Union[Code, CodedConcept]] = None
+    ) -> None:
         super().__init__(
             name=CodedConcept(
                 value='277132007',
@@ -147,23 +149,25 @@ class ProblemList(Template):
     Problem List
     """
 
-    def __init__(self,
-                 concern_types: Optional[
-                     Sequence[str]] = None,
-                 cardiac_patient_risk_factors: Optional[
-                     Sequence[ProblemProperties]] = None,
-                 history_of_diabetes_mellitus: Optional[
-                     ProblemProperties] = None,
-                 history_of_hypertension: Optional[
-                     ProblemProperties] = None,
-                 history_of_hypercholesterolemia: Optional[
-                     ProblemProperties] = None,
-                 arrhythmia: Optional[
-                     ProblemProperties] = None,
-                 history_of_myocardial_infarction: Optional[
-                     ProblemProperties] = None,
-                 history_of_kidney_disease: Optional[
-                     ProblemProperties] = None) -> None:
+    def __init__(
+        self,
+        concern_types: Optional[
+            Sequence[str]] = None,
+        cardiac_patient_risk_factors: Optional[
+            Sequence[ProblemProperties]] = None,
+        history_of_diabetes_mellitus: Optional[
+            ProblemProperties] = None,
+        history_of_hypertension: Optional[
+            ProblemProperties] = None,
+        history_of_hypercholesterolemia: Optional[
+            ProblemProperties] = None,
+        arrhythmia: Optional[
+            ProblemProperties] = None,
+        history_of_myocardial_infarction: Optional[
+            ProblemProperties] = None,
+        history_of_kidney_disease: Optional[
+            ProblemProperties] = None
+    ) -> None:
         item = ContainerContentItem(
             name=CodedConcept(
                 value='11450-4',
@@ -262,14 +266,15 @@ class SocialHistory(Template):
     Social History
     """
 
-    def __init__(self,
-                 social_history: Optional[str] = None,
-                 social_histories: Optional[Sequence[str]] = None,
-                 tobacco_smoking_behavior: Optional[
-                     Union[Code, CodedConcept]] = None,
-                 drug_misuse_behavior: Optional[Union[Code,
-                                                      CodedConcept]] = None,
-                 ) -> None:
+    def __init__(
+        self,
+        social_history: Optional[str] = None,
+        social_histories: Optional[Sequence[str]] = None,
+        tobacco_smoking_behavior: Optional[
+            Union[Code, CodedConcept]] = None,
+        drug_misuse_behavior: Optional[Union[Code,
+                                             CodedConcept]] = None,
+    ) -> None:
         item = ContainerContentItem(
             name=CodedConcept(
                 value='29762-2',
@@ -335,21 +340,22 @@ class ProcedureProperties(Template):
     Procedure Properties
     """
 
-    def __init__(self,
-                 name: Union[CodedConcept, Code],
-                 value: Union[CodedConcept, Code],
-                 procedure_datetime: Optional[
-                     Union[str, datetime, DT]] = None,
-                 clinical_reports: Optional[
-                     Sequence[CompositeContentItem]] = None,
-                 clinical_reports_text: Optional[Sequence[str]] = None,
-                 service_delivery_location: Optional[str] = None,
-                 service_performer_person: Optional[str] = None,
-                 service_performer_organisation: Optional[str] = None,
-                 comment: Optional[str] = None,
-                 procedure_results: Optional[
-                     Sequence[Union[Code, CodedConcept]]] = None
-                 ) -> None:
+    def __init__(
+        self,
+        name: Union[CodedConcept, Code],
+        value: Union[CodedConcept, Code],
+        procedure_datetime: Optional[
+            Union[str, datetime, DT]] = None,
+        clinical_reports: Optional[
+            Sequence[CompositeContentItem]] = None,
+        clinical_reports_text: Optional[Sequence[str]] = None,
+        service_delivery_location: Optional[str] = None,
+        service_performer_person: Optional[str] = None,
+        service_performer_organisation: Optional[str] = None,
+        comment: Optional[str] = None,
+        procedure_results: Optional[
+            Sequence[Union[Code, CodedConcept]]] = None
+    ) -> None:
         item = CodeContentItem(
             name=name,
             value=value,
@@ -447,11 +453,12 @@ class PastSurgicalHistory(Template):
     Past Surgical History
     """
 
-    def __init__(self,
-                 histories: Optional[Sequence[str]] = None,
-                 procedure_properties: Optional[
-                     Sequence[ProcedureProperties]] = None
-                 ) -> None:
+    def __init__(
+        self,
+        histories: Optional[Sequence[str]] = None,
+        procedure_properties: Optional[
+            Sequence[ProcedureProperties]] = None
+    ) -> None:
         super().__init__()
         item = ContainerContentItem(
             name=CodedConcept(
@@ -501,13 +508,14 @@ class RelevantDiagnosticTestsAndOrLaboratoryData(Template):
     Relevant Diagnostic Tests and/or Laboratory Data
     """
 
-    def __init__(self,
-                 histories: Optional[Sequence[str]] = None,
-                 procedure_properties: Optional[
-                     Sequence[ProcedureProperties]] = None,
-                 cholesterol_in_HDL: Optional[float] = None,
-                 cholesterol_in_LDL: Optional[float] = None
-                 ) -> None:
+    def __init__(
+        self,
+        histories: Optional[Sequence[str]] = None,
+        procedure_properties: Optional[
+            Sequence[ProcedureProperties]] = None,
+        cholesterol_in_HDL: Optional[float] = None,
+        cholesterol_in_LDL: Optional[float] = None
+    ) -> None:
         super().__init__()
         item = ContainerContentItem(
             name=codes.LN.RelevantDiagnosticTestsAndOrLaboratoryData,
@@ -648,12 +656,13 @@ class HistoryOfMedicationUse(Template):
     History of Medication Use
     """
 
-    def __init__(self,
-                 medication_types_text: Optional[
-                     Sequence[MedicationTypeText]] = None,
-                 medication_types_code: Optional[
-                     Sequence[MedicationTypeCode]] = None,
-                 ) -> None:
+    def __init__(
+        self,
+        medication_types_text: Optional[
+            Sequence[MedicationTypeText]] = None,
+        medication_types_code: Optional[
+            Sequence[MedicationTypeCode]] = None,
+    ) -> None:
         super().__init__()
         item = ContainerContentItem(
             name=CodedConcept(
@@ -728,10 +737,12 @@ class HistoryOfFamilyMemberDiseases(Template):
     History of Family Member Diseases
     """
 
-    def __init__(self,
-                 histories: Optional[Sequence[str]] = None,
-                 family_histories_of_clinical_findings: Optional[
-                     Sequence[FamilyHistoryOfClinicalFinding]] = None) -> None:
+    def __init__(
+        self,
+        histories: Optional[Sequence[str]] = None,
+        family_histories_of_clinical_findings: Optional[
+            Sequence[FamilyHistoryOfClinicalFinding]] = None
+    ) -> None:
         super().__init__()
         item = ContainerContentItem(
             name=CodedConcept(
@@ -787,14 +798,15 @@ class MedicalDeviceUse(Template):
     Medical Device Use
     """
 
-    def __init__(self,
-                 datetime_started: Optional[
-                     Union[str, datetime, DT]] = None,
-                 datetime_ended: Optional[
-                     Union[str, datetime, DT]] = None,
-                 status: Optional[Union[Code, CodedConcept]] = None,
-                 comment: Optional[str] = None
-                 ) -> None:
+    def __init__(
+        self,
+        datetime_started: Optional[
+            Union[str, datetime, DT]] = None,
+        datetime_ended: Optional[
+            Union[str, datetime, DT]] = None,
+        status: Optional[Union[Code, CodedConcept]] = None,
+        comment: Optional[str] = None
+    ) -> None:
         super().__init__()
         item = ContainerContentItem(
             name=CodedConcept(
@@ -847,11 +859,12 @@ class HistoryOfMedicalDeviceUse(Template):
     History of medical device use
     """
 
-    def __init__(self,
-                 history: Optional[str] = None,
-                 medical_device_uses: Optional[
-                     Sequence[MedicalDeviceUse]] = None,
-                 ) -> None:
+    def __init__(
+        self,
+        history: Optional[str] = None,
+        medical_device_uses: Optional[
+            Sequence[MedicalDeviceUse]] = None,
+    ) -> None:
         super().__init__()
         item = ContainerContentItem(
             name=CodedConcept(

@@ -24,10 +24,11 @@ class EquivalentMeaningsOfConceptNameText(TextContentItem):
     Equivalent Meaning(s) of Concept Name Text
     """
 
-    def __init__(self,
-                 value: str,
-                 language_of_value: Optional[LanguageOfValue] = None
-                 ) -> None:
+    def __init__(
+        self,
+        value: str,
+        language_of_value: Optional[LanguageOfValue] = None
+    ) -> None:
         super().__init__(
             name=codes.DCM.EquivalentMeaningOfConceptName,
             value=value,
@@ -44,10 +45,11 @@ class EquivalentMeaningsOfConceptNameCode(CodeContentItem):
     Equivalent Meaning(s) of Concept Name Code
     """
 
-    def __init__(self,
-                 value: Union[Code, CodedConcept],
-                 language_of_value: Optional[LanguageOfValue] = None
-                 ) -> None:
+    def __init__(
+        self,
+        value: Union[Code, CodedConcept],
+        language_of_value: Optional[LanguageOfValue] = None
+    ) -> None:
         super().__init__(
             name=codes.DCM.EquivalentMeaningOfConceptName,
             value=value,
@@ -64,11 +66,12 @@ class ReportNarrativeCode(CodeContentItem):
     Report Narrative Code
     """
 
-    def __init__(self,
-                 value: Union[Code, CodedConcept],
-                 basic_diagnostic_imaging_report_observations: Optional[
-                     Sequence[ImageContentItem]] = None
-                 ) -> None:
+    def __init__(
+        self,
+        value: Union[Code, CodedConcept],
+        basic_diagnostic_imaging_report_observations: Optional[
+            Sequence[ImageContentItem]] = None
+    ) -> None:
         super().__init__(
             name=CodedConcept(
                 value='7002',
@@ -105,11 +108,12 @@ class ReportNarrativeText(TextContentItem):
     Report Narrative Text
     """
 
-    def __init__(self,
-                 value: str,
-                 basic_diagnostic_imaging_report_observations: Optional[
-                     Sequence[ImageContentItem]] = None
-                 ) -> None:
+    def __init__(
+        self,
+        value: str,
+        basic_diagnostic_imaging_report_observations: Optional[
+            Sequence[ImageContentItem]] = None
+    ) -> None:
         super().__init__(
             name=CodedConcept(
                 value='7002',
