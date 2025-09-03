@@ -1,4 +1,4 @@
-
+"""Sub-templates common to multiple root-level templates"""
 from abc import ABC
 import logging
 from typing import List, Optional, Self, Sequence, TypedDict, Union
