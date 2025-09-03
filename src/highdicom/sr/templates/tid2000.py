@@ -1,4 +1,4 @@
-
+"""Templates related to TID2000 Basic Diagnostic Imaging Report"""
 from typing import Optional, Sequence, Union
 from highdicom.sr.value_types import (
     Code,
