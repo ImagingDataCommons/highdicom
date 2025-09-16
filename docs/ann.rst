@@ -56,7 +56,7 @@ Further optional metadata may optionally be provided, including:
 * A list of ``primary_anatomic_structures`` (a sequence of
   :class:`highdicom.sr.CodedConcept` objects) giving coded values (see
   :ref:`coding`) describing anatomic structures of interest.
-* A free-text ``description`` of the annotation group.
+* A free-text ``description`` (``str``) of the annotation group.
 * A ``display_color`` (:class:`highdicom.color.CIELabColor`) giving a
   recommended value for viewers to use to render these annotations. This is in
   CIE-Lab color space, but alternative constructors of the

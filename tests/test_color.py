@@ -45,6 +45,11 @@ def test_from_rgb(r, g, b, l_out, a_out, b_out):
     assert abs(color.a_star - a_out) < 0.1
     assert abs(color.b_star - b_out) < 0.1
 
+    l_star, a_star, b_star = color.lab
+    assert abs(l_star - l_out) < 0.1
+    assert abs(a_star - a_out) < 0.1
+    assert abs(b_star - b_out) < 0.1
+
     assert color.to_rgb() == (r, g, b)
 
 

@@ -399,6 +399,20 @@ class CIELabColor:
         """float: b* component as value between -128.0 and 127.0."""
         return self._value[2] * (255.0 / 0xFFFF) - 128.0
 
+    @property
+    def lab(self) -> tuple[float, float, float]:
+        """
+
+        float:
+            L* component as value between 0 and 100.0.
+        float:
+            a* component as value between -128.0 and 127.0.
+        float:
+            b* component as value between -128.0 and 127.0.
+
+        """
+        return (self.l_star, self.a_star, self.b_star)
+
     @classmethod
     def from_dicom_value(cls, value: Sequence[int]) -> Self:
         """Create a color from the DICOM integer representation.
