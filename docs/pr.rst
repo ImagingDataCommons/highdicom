@@ -90,7 +90,63 @@ A presentation state may contain any number of Graphic Objects and Text
 Objects. These are grouped into Graphic Annotations, each of which relates to a
 single Graphic Layer.
 
-A Graphic Object
+A Graphic Object is represented by the :class:`highdicom.pr.GraphicObject` class.
+The parameters for construction of a Graphic Object are:
+
+- ``graphic_type`` (``str`` or :class:`highdicom.pr.GraphicTypeValues`). The
+  type of graphic (such as point, circle, or polygon). This also defines the
+  number of coordinates required in ``graphic_data``. See the documentation of
+  :class:`highdicom.pr.GraphicTypeValues` for details. Note that the graphic
+  types used in presentation states are similar to, but slightly different
+  from, those used in Structured Reports.
+- ``graphic_data`` (``numpy.ndarray``). An array of coordinates defining the
+  graphic object. The shape of the array should be (N, 2), where N is the
+  number of 2D points in this graphic object.  Each row of the array therefore
+  describes a (column, row) value for a single 2D point, and the interpretation
+  of the points depends upon the graphic type.
+- ``units`` (``str`` or :class:`highdicom.pr.AnnotationUnitsValues` The units
+  in which each point in graphic data is expressed. See documentation of
+  :class:`highdicom.pr.AnnotationUnitsValues` for details.
+
+Additional optional parameters include:
+- ``is_filled`` (``bool``): Whether the graphic object should be rendered as a
+  solid shape (``True``), or just an outline (``False``). Using ``True`` is
+  only valid when the graphic type is ``'CIRCLE'`` or ``'ELLIPSE'``, or the
+  graphic type is ``'INTERPOLATED'`` or ``'POLYLINE'`` and the first and last
+  points are equal giving a closed shape.
+- ``tracking_id`` (``str``): User defined text identifier for tracking this
+  finding or feature. Shall be unique within the domain in which it is used.
+- ``tracking_uid`` (``str``): Unique identifier for tracking this finding or
+  feature.
+
+Some examples of constructing Graphic Objects are given below:
+
+.. code-block:: python
+
+    import highdicom as hd
+    import numpy as np
+
+    # Graphic Object containing a point
+    polyline = hd.pr.GraphicObject(
+        graphic_type=hd.pr.GraphicTypeValues.POINT,
+        graphic_data=np.array([[15.0, 15.0]]),  # coordinates of point
+        units=hd.pr.AnnotationUnitsValues.PIXEL,  # units for graphic data
+    )
+
+    # Graphic Object containing a polyline
+    polyline = hd.pr.GraphicObject(
+        graphic_type=hd.pr.GraphicTypeValues.POLYLINE,
+        graphic_data=np.array([
+            [10.0, 10.0],
+            [20.0, 10.0],
+            [20.0, 20.0],
+            [10.0, 20.0]]
+        ),  # coordinates of polyline vertices
+        units=hd.pr.AnnotationUnitsValues.PIXEL,  # units for graphic data
+        tracking_id='Finding2',  # site-specific ID
+        tracking_uid=hd.UID()  # highdicom will generate a unique ID
+    )
+
 
 Constructing Presentation States
 --------------------------------
