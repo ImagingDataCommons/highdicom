@@ -3420,7 +3420,7 @@ class _Image(SOPClass):
                         'because the "plane_positions" of the segmentation '
                         'do not follow the relevant requirements. See '
                         'https://dicom.nema.org/medical/dicom/current/output/'
-                        'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3 .'
+                        'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3.'
                     )
 
                 # A TILED_FULL image can only contain nultiple channels if they
@@ -3435,7 +3435,7 @@ class _Image(SOPClass):
                         '"dimension_organization_type" is not permitted '
                         'because the image contains multiple channels. See '
                         'https://dicom.nema.org/medical/dicom/current/output/'
-                        'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3 .'
+                        'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3.'
                     )
 
                 if omit_empty_frames:

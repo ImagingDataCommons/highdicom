@@ -470,10 +470,11 @@ class ParametricMap(Image):
                 '"real_world_value_mappings" must be a nested sequence '
                 'of one or more RealWorldValueMapping items.'
             )
-            try:
-                real_world_value_mappings[0][0]
-            except IndexError as e:
-                raise TypeError(error_message) from e
+            if isinstance(
+                real_world_value_mappings[0],
+                RealWorldValueMapping
+            ):
+                raise TypeError(error_message)
             if not isinstance(
                 real_world_value_mappings[0][0],
                 RealWorldValueMapping

@@ -1,11 +1,9 @@
-import unittest
 from collections import defaultdict
 from pathlib import Path
 from typing import Sequence
 
 import numpy as np
 import pytest
-from pydicom import dcmread
 from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
@@ -15,6 +13,7 @@ from pydicom.uid import (
 )
 
 from highdicom import (
+
     PaletteColorLUT,
     PaletteColorLUTTransformation,
     PlanePositionSequence,
@@ -24,23 +23,26 @@ from highdicom import (
     imread,
 )
 from highdicom.content import VOILUTTransformation
-from highdicom.enum import ContentQualificationValues, CoordinateSystemNames
+from highdicom.enum import (
+    ContentQualificationValues,
+    CoordinateSystemNames,
+    DimensionOrganizationTypeValues,
+    InterpolationMethods,
+)
 from highdicom.pm.content import RealWorldValueMapping
 from highdicom.pm.enum import (
     DerivedPixelContrastValues,
     ImageFlavorValues,
 )
 from highdicom.pm.sop import ParametricMap
+from highdicom.pm.pyramid import create_parametric_map_pyramid
 from highdicom.spatial import sort_datasets
 from highdicom.uid import UID
 
 from .utils import write_and_read_dataset
 
 
-class TestRealWorldValueMapping(unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
+class TestRealWorldValueMapping():
 
     def test_failed_construction_missing_or_unnecessary_parameters(self):
         lut_label = '1'
@@ -290,10 +292,10 @@ class TestRealWorldValueMapping(unittest.TestCase):
             )
 
 
-class TestParametricMap(unittest.TestCase):
+class TestParametricMap():
 
+    @pytest.fixture(autouse=True)
     def setUp(self):
-        super().setUp()
         file_path = Path(__file__)
         data_dir = file_path.parent.parent.joinpath('data')
 
@@ -330,20 +332,20 @@ class TestParametricMap(unittest.TestCase):
             window_center=120,
         )
 
-        self._ct_image = dcmread(
+        self._ct_image = imread(
             str(data_dir.joinpath('test_files', 'ct_image.dcm'))
         )
 
-        self._ct_multiframe_image = dcmread(
+        self._ct_multiframe_image = imread(
             get_testdata_file('eCT_Supplemental.dcm')
         )
 
-        self._sm_image = dcmread(
+        self._sm_image = imread(
             str(data_dir.joinpath('test_files', 'sm_image.dcm'))
         )
 
         ct_series = [
-            dcmread(f)
+            imread(f)
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
         self._ct_series = sort_datasets(ct_series)
@@ -352,6 +354,16 @@ class TestParametricMap(unittest.TestCase):
             imread(get_testdata_file('eCT_Supplemental.dcm'))
             .get_volume()
         )
+
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            DimensionOrganizationTypeValues.TILED_FULL,
+            DimensionOrganizationTypeValues.TILED_SPARSE
+        ]
+    )
+    def tiled_dimension_organization(request):
+        return request.param
 
     @staticmethod
     def check_dimension_index_vals(pm):
@@ -1144,6 +1156,59 @@ class TestParametricMap(unittest.TestCase):
         assert vol.geometry_equal(self._ct_volume)
         assert np.array_equal(vol.array, self._ct_volume.array)
 
+    def test_from_volume_multichannel(self):
+        # Creating a parametric map from a volume with multiple channels
+        # aligned with the source images
+        channels = {'LUTLabel': ['LUT1', 'LUT2']}
+
+        channel_2 = 1000.0 - self._ct_volume.array
+
+        array = np.stack([self._ct_volume.array, channel_2], -1)
+        volume = self._ct_volume.with_array(array, channels=channels)
+
+        mapping1 = RealWorldValueMapping(
+            lut_label='LUT1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=[-10000.0, 10000.0],
+            intercept=0,
+            slope=1
+        )
+        mapping2 = RealWorldValueMapping(
+            lut_label='LUT2',
+            lut_explanation='feature_002',
+            unit=codes.UCUM.NoUnits,
+            value_range=[-10000.0, 10000.0],
+            intercept=0,
+            slope=1
+        )
+
+        instance = ParametricMap(
+            [self._ct_multiframe_image],
+            volume,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            contains_recognizable_visual_features=False,
+            real_world_value_mappings=[[mapping1], [mapping2]],
+            voi_lut_transformations=[self._voi_transformation],
+        )
+        for frame_item in instance.PerFrameFunctionalGroupsSequence:
+            assert len(frame_item.DerivationImageSequence) == 1
+
+        instance = ParametricMap.from_dataset(
+            write_and_read_dataset(instance)
+        )
+
+        vol = instance.get_volume()
+        assert vol.geometry_equal(self._ct_volume)
+        assert np.array_equal(vol.array, array)
+
     def test_from_volume_non_aligned(self):
         # Creating a parametric map from a volume that is not aligned with the
         # source images
@@ -1178,3 +1243,164 @@ class TestParametricMap(unittest.TestCase):
         vol = instance.get_volume()
         assert vol.geometry_equal(volume)
         assert np.array_equal(vol.array, volume.array)
+
+    def test_autotile(self, tiled_dimension_organization):
+        # Creating a parametric map from a total pixel matrix
+        tpm = self._sm_image.get_total_pixel_matrix().mean(axis=-1)
+
+        instance = ParametricMap(
+            [self._sm_image],
+            tpm,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            contains_recognizable_visual_features=False,
+            real_world_value_mappings=[self._float_mapping],
+            voi_lut_transformations=[self._voi_transformation],
+            tile_pixel_array=True,
+            dimension_organization_type=tiled_dimension_organization,
+        )
+
+        instance = ParametricMap.from_dataset(
+            write_and_read_dataset(instance)
+        )
+
+        new_tpm = instance.get_total_pixel_matrix()
+        assert np.array_equal(new_tpm, tpm)
+
+        volume = instance.get_volume()
+        assert np.array_equal(volume.array[0], tpm)
+
+    def test_invalid_tiled_full(self):
+        # Cannot use TILED_FULL when there are multiple channels
+        tpm = self._sm_image.get_total_pixel_matrix()[None, :, :, :2]
+
+        mapping1 = RealWorldValueMapping(
+            lut_label='LUT1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=[-10000.0, 10000.0],
+            intercept=0,
+            slope=1
+        )
+        mapping2 = RealWorldValueMapping(
+            lut_label='LUT2',
+            lut_explanation='feature_002',
+            unit=codes.UCUM.NoUnits,
+            value_range=[-10000.0, 10000.0],
+            intercept=0,
+            slope=1
+        )
+
+        msg = (
+            'A value of "TILED_FULL" for parameter '
+            '"dimension_organization_type" is not permitted '
+            'because the image contains multiple channels. See '
+            'https://dicom.nema.org/medical/dicom/current/output/'
+            'chtml/part03/sect_C.7.6.17.3.html#sect_C.7.6.17.3.'
+        )
+
+        with pytest.raises(ValueError, match=msg):
+            ParametricMap(
+                [self._sm_image],
+                tpm,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                contains_recognizable_visual_features=False,
+                real_world_value_mappings=[[mapping1], [mapping2]],
+                voi_lut_transformations=[self._voi_transformation],
+                tile_pixel_array=True,
+                dimension_organization_type="TILED_FULL",
+            )
+
+
+class TestParametricMapPyramid():
+
+    @pytest.fixture(autouse=True)
+    def setUp(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        self._sm_image = imread(
+            str(data_dir.joinpath('test_files', 'sm_image.dcm'))
+        )
+        self._pixel_array = (
+            self._sm_image
+            .get_total_pixel_matrix().mean(axis=-1)
+            [None]
+        )
+
+        self._series_instance_uid = UID()
+        self._series_number = 76
+        self._manufacturer = 'MyManufacturer'
+        self._manufacturer_model_name = 'MyModel'
+        self._software_versions = 'v1.0'
+        self._device_serial_number = '1-2-3'
+        self._content_description = 'test parametric map'
+        self._content_creator_name = 'will^i^am'
+        self._pyramid_uid = UID()
+        self._pyramid_label = 'Giza001'
+        self._series_description = 'A test pyramid'
+
+        self._float_mapping = RealWorldValueMapping(
+            lut_label='1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=(-10000.0, 10000.0),
+            intercept=0,
+            slope=1
+        )
+
+        self._voi_transformation = VOILUTTransformation(
+            window_width=128,
+            window_center=120,
+        )
+
+    def test_contruct_pm_pyramid(self):
+        pmaps = create_parametric_map_pyramid(
+            source_images=[self._sm_image],
+            pixel_arrays=[self._pixel_array],
+            interpolator=InterpolationMethods.LINEAR,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number,
+            contains_recognizable_visual_features=False,
+            real_world_value_mappings=[self._float_mapping],
+            voi_lut_transformations=[self._voi_transformation],
+            downsample_factors=[5.0],
+            pyramid_uid=self._pyramid_uid,
+            pyramid_label=self._pyramid_label,
+            series_description=self._series_description,
+        )
+
+        assert len(pmaps) == 2
+
+        for pm in pmaps:
+            assert isinstance(pm, ParametricMap)
+            assert pm.SeriesInstanceUID == self._series_instance_uid
+            assert pm.SeriesNumber == self._series_number
+            assert pm.Manufacturer == self._manufacturer
+            assert (
+                pm.ManufacturerModelName ==
+                self._manufacturer_model_name
+            )
+            assert pm.SoftwareVersions == self._software_versions
+            assert pm.DeviceSerialNumber == self._device_serial_number
+            assert pm.PyramidLabel == self._pyramid_label
+            assert pm.PyramidUID == self._pyramid_uid
+
+        assert pmaps[1].TotalPixelMatrixRows == 10
+        assert pmaps[1].TotalPixelMatrixColumns == 10
