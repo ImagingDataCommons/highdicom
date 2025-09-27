@@ -2,8 +2,9 @@
 from collections.abc import Sequence
 from concurrent.futures import Executor
 from enum import Enum
+from os import PathLike
 import pkgutil
-from typing import cast
+from typing import cast, BinaryIO
 import warnings
 
 import numpy as np
@@ -21,7 +22,7 @@ from highdicom.enum import (
     ContentQualificationValues,
     DimensionOrganizationTypeValues,
 )
-from highdicom.image import _Image
+from highdicom.image import _Image, Image
 from highdicom.pm.content import RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
 from highdicom.pr.content import (
@@ -58,7 +59,7 @@ _PIXEL_DATA_TYPE_MAP = {
 }
 
 
-class ParametricMap(_Image):
+class ParametricMap(Image):
 
     """SOP class for a Parametric Map.
 
@@ -364,7 +365,7 @@ class ParametricMap(_Image):
                         'sequence of highdicom.VOILUTTransformation objects.'
                     )
 
-        super().__init__(
+        super(_Image, self).__init__(
             study_instance_uid=src_img.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
@@ -783,3 +784,36 @@ class ParametricMap(_Image):
         pm = super().from_dataset(dataset, copy=copy)
 
         return cast(Self, pm)
+
+
+def pmread(
+    fp: str | bytes | PathLike | BinaryIO,
+    lazy_frame_retrieval: bool = False,
+) -> ParametricMap:
+    """Read a parametric map image stored in DICOM File Format.
+
+    Parameters
+    ----------
+    fp: Union[str, bytes, os.PathLike]
+        Any file-like object representing a DICOM file containing a
+        Parametric Map image.
+    lazy_frame_retrieval: bool
+        If True, the returned parametric map will retrieve frames from the file
+        as requested, rather than loading in the entire object to memory
+        initially. This may be a good idea if file reading is slow and you are
+        likely to need only a subset of the frames in the parametric map.
+
+    Returns
+    -------
+    highdicom.pm.ParametricMap
+        Parametric Map image read from the file.
+
+    """
+    # This is essentially a convenience alias for the classmethod (which is
+    # used so that it is inherited correctly by subclasses). It is used
+    # because it follows the format of other similar functions around the
+    # library
+    return ParametricMap.from_file(
+        fp,
+        lazy_frame_retrieval=lazy_frame_retrieval,
+    )

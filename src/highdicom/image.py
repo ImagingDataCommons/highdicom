@@ -31,6 +31,7 @@ from pydicom.encaps import (
     encapsulate,
     encapsulate_extended,
 )
+from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.tag import BaseTag
 from pydicom.datadict import (
     get_entry,
@@ -123,6 +124,7 @@ _DCM_SQL_TYPE_MAP = {
     'SL': 'INTEGER',
     'SS': 'INTEGER',
     'ST': 'TEXT',
+    'SQ': 'TEXT',  # only for codes
     'UI': 'TEXT',
     'UL': 'INTEGER',
     'UR': 'TEXT',
@@ -4184,6 +4186,32 @@ class _Image(SOPClass):
             ]
         )
 
+    @staticmethod
+    def _standardize_lut_value(elem: DataElement):
+        """Standardize a value of a data element to store in a LUT.
+
+        Most values are returned unchanged, however sequences are assumed to
+        represent codes and the code is returned as a single string.
+
+        Parameters
+        ----------
+        elem: pydicom.DataElement
+            Data Element
+
+        Returns
+        -------
+        Any:
+            Value from the element suitable for storing in SQL table.
+
+        """
+        v = elem.value
+
+        # Interpret a sequence as a code
+        if isinstance(v, DataElementSequence):
+            return v[0].CodingSchemeDesignator + v[0].CodeValue
+
+        return v
+
     def _build_luts(self) -> None:
         """Build lookup tables for efficient querying.
 
@@ -4364,6 +4392,10 @@ class _Image(SOPClass):
             (0x0020_9111, 0x0020_9056),
             # FrameContentSequence/InStackPositionNumber
             (0x0020_9111, 0x0020_9057),
+            # RealWorldValueMappingSequence/LUTLabel
+            (0x0040_9096, 0x0040_9210),
+            # RealWorldValueMappingSequence/QuantityDefinitionSequence
+            (0x0040_9096, 0x0040_9220),
         ]:
             if ptr in self._dim_ind_pointers:
                 # Skip if this attribute is already indexed due to being a
@@ -4387,7 +4419,7 @@ class _Image(SOPClass):
                     found = True
 
                     # Get the shared value
-                    dim_val = grp_seq[ptr].value
+                    dim_val = self._standardize_lut_value(grp_seq[ptr])
 
             # Check whether the attribute is in the first per-frame functional
             # group. If so, assume that it is there for all per-frame functional
@@ -4519,9 +4551,13 @@ class _Image(SOPClass):
 
                     grp_ptr = func_grp_pointers[ptr]
                     if grp_ptr is not None:
-                        dim_val = frame_item[grp_ptr][0][ptr].value
+                        dim_val = self._standardize_lut_value(
+                            frame_item[grp_ptr][0][ptr]
+                        )
                     else:
-                        dim_val = frame_item[ptr].value
+                        dim_val = self._standardize_lut_value(
+                            frame_item[ptr]
+                        )
                     dim_values[ptr].append(dim_val)
 
                 for ptr in extra_collection_pointers:
@@ -4535,9 +4571,13 @@ class _Image(SOPClass):
 
                     grp_ptr = extra_collection_func_pointers[ptr]
                     if grp_ptr is not None:
-                        dim_val = frame_item[grp_ptr][0][ptr].value
+                        dim_val = self._standardize_lut_value(
+                            frame_item[grp_ptr][0][ptr]
+                        )
                     else:
-                        dim_val = frame_item[ptr].value
+                        dim_val = self._standardize_lut_value(
+                            frame_item[ptr]
+                        )
                     extra_collection_values[ptr].append(dim_val)
 
                 for der_im in getattr(
