@@ -61,6 +61,7 @@ from highdicom.seg.enum import (
 )
 from highdicom.seg.utils import iter_segments
 from highdicom.spatial import (
+    get_image_coordinate_system,
     get_tile_array,
 )
 from highdicom.sr.coding import CodedConcept
@@ -534,14 +535,6 @@ class Segmentation(_Image):
             **kwargs
         )
 
-        self._common_derived_image_init(
-            source_images=source_images,
-            further_source_images=further_source_images,
-            plane_positions=plane_positions,
-            plane_orientation=plane_orientation,
-            pyramid_label=pyramid_label,
-            pyramid_uid=pyramid_uid,
-        )
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
         self._add_contributing_equipment(contributing_equipment, src_img)
@@ -578,26 +571,6 @@ class Segmentation(_Image):
                     "If 'pixel_array' is a highdicom.Volume, it should have "
                     "0 or 1 channel dimensions."
                 )
-
-            (
-                pixel_array,
-                plane_positions,
-                plane_orientation,
-                pixel_measures,
-            ) = self._get_spatial_data_from_volume(
-                volume=pixel_array,
-                coordinate_system=self._coordinate_system,
-                frame_of_reference_uid=src_img.FrameOfReferenceUID,
-                plane_positions=plane_positions,
-                plane_orientation=plane_orientation,
-                pixel_measures=pixel_measures,
-            )
-        pixel_array = cast(np.ndarray, pixel_array)
-
-        if pixel_array.ndim == 2:
-            pixel_array = pixel_array[np.newaxis, ...]
-        if pixel_array.ndim not in [3, 4]:
-            raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
 
         # Segmentation Image
         self.ImageType = ['DERIVED', 'PRIMARY']
@@ -707,7 +680,7 @@ class Segmentation(_Image):
 
         # TODO factor this into the common method
         self.DimensionIndexSequence = DimensionIndexSequence(
-            coordinate_system=self._coordinate_system,
+            coordinate_system=get_image_coordinate_system(src_img),
             include_segment_number=include_segment_number,
         )
         dimension_organization = Dataset()
@@ -739,10 +712,9 @@ class Segmentation(_Image):
                 dtype=dtype,
             )
 
-        self._common_derived_multiframe(
+        self._init_multiframe_image(
             source_images=source_images,
             pixel_array=pixel_array,
-            dtype=dtype,
             pixel_measures=pixel_measures,
             plane_orientation=plane_orientation,
             plane_positions=plane_positions,
@@ -751,6 +723,8 @@ class Segmentation(_Image):
             dimension_organization_type=dimension_organization_type,
             tile_pixel_array=tile_pixel_array,
             tile_size=tile_size,
+            pyramid_label=pyramid_label,
+            pyramid_uid=pyramid_uid,
             further_source_images=further_source_images,
             use_extended_offset_table=use_extended_offset_table,
             channel_values=channel_values,
@@ -1005,18 +979,18 @@ class Segmentation(_Image):
     @classmethod
     def _check_and_cast_pixel_array(
         cls,
-        pixel_array: np.ndarray,
+        pixel_array: np.ndarray | Volume,
         segment_numbers: np.ndarray,
         segmentation_type: SegmentationTypeValues,
         dtype: type,
-    ) -> tuple[np.ndarray, SegmentsOverlapValues]:
+    ) -> tuple[np.ndarray | Volume, SegmentsOverlapValues]:
         """Checks on the shape and data type of the pixel array.
 
         Also checks for overlapping segments and returns the result.
 
         Parameters
         ----------
-        pixel_array: numpy.ndarray
+        pixel_array: numpy.ndarray | highdicom.Volume
             The segmentation pixel array.
         segment_numbers: numpy.ndarray
             The segment numbers from the segment descriptions, in the order
@@ -1028,7 +1002,7 @@ class Segmentation(_Image):
 
         Returns
         -------
-        pixel_array: numpyp.ndarray
+        pixel_array: numpy.ndarray | highdicom.Volume
             Input pixel array with the data type simplified if possible.
         segments_overlap: highdicom.seg.SegmentationOverlaps
             The value for the SegmentationOverlaps attribute, inferred from the
@@ -1043,6 +1017,11 @@ class Segmentation(_Image):
         # results are reused wherever possible
         number_of_segments = len(segment_numbers)
 
+        plain_array = (
+            pixel_array.array if isinstance(pixel_array, Volume)
+            else pixel_array
+        )
+
         if pixel_array.ndim == 4:
             # Check that the number of segments in the array matches
             if pixel_array.shape[-1] != number_of_segments:
@@ -1055,7 +1034,7 @@ class Segmentation(_Image):
 
         if pixel_array.dtype in (np.bool_, np.uint8, np.uint16):
 
-            if pixel_array.ndim == 3:
+            if pixel_array.ndim in (2, 3):
                 # A label-map style array where pixel values represent
                 # segment associations
 
@@ -1073,7 +1052,7 @@ class Segmentation(_Image):
                     # to check the max pixel value, which is MUCH more
                     # efficient than calculating the set of unique values
                     has_undescribed_segments = (
-                        pixel_array.max() > number_of_segments
+                        plain_array.max() > number_of_segments
                     )
                 else:
                     # The general case, much slower
@@ -1081,7 +1060,7 @@ class Segmentation(_Image):
                         [np.array([0]), segment_numbers]
                     )
                     has_undescribed_segments = len(
-                        np.setdiff1d(pixel_array, numbers_with_bg)
+                        np.setdiff1d(plain_array, numbers_with_bg)
                     ) != 0
 
                 if has_undescribed_segments:
@@ -1094,7 +1073,7 @@ class Segmentation(_Image):
                 # cannot overlap
                 segments_overlap = SegmentsOverlapValues.NO
             else:
-                max_pixel = pixel_array.max()
+                max_pixel = plain_array.max()
 
                 # Pixel array is 4D where each segment is stacked down
                 # the last dimension
@@ -1114,14 +1093,14 @@ class Segmentation(_Image):
                     # A single segment does not overlap
                     segments_overlap = SegmentsOverlapValues.NO
                 else:
-                    sum_over_segments = pixel_array.sum(axis=-1)
+                    sum_over_segments = plain_array.sum(axis=-1)
                     if np.any(sum_over_segments > 1):
                         segments_overlap = SegmentsOverlapValues.YES
                     else:
                         segments_overlap = SegmentsOverlapValues.NO
 
         elif pixel_array.dtype in (np.float32, np.float64):
-            unique_values = np.unique(pixel_array)
+            unique_values = np.unique(plain_array)
             if np.min(unique_values) < 0.0 or np.max(unique_values) > 1.0:
                 raise ValueError(
                     'Floating point pixel array values must be in the '
@@ -1147,15 +1126,18 @@ class Segmentation(_Image):
                 if len(unique_values) == 1 and unique_values[0] == 0.0:
                     # All pixels are zero: there can be no overlap
                     segments_overlap = SegmentsOverlapValues.NO
-                elif pixel_array.ndim == 3 or pixel_array.shape[-1] == 1:
+                elif pixel_array.ndim in (2, 3) or pixel_array.shape[-1] == 1:
                     # A single segment does not overlap
                     segments_overlap = SegmentsOverlapValues.NO
-                elif pixel_array.sum(axis=-1).max() > 1:
+                elif plain_array.sum(axis=-1).max() > 1:
                     segments_overlap = SegmentsOverlapValues.YES
                 else:
                     segments_overlap = SegmentsOverlapValues.NO
             else:
-                if (pixel_array.ndim == 3) or (pixel_array.shape[-1] == 1):
+                if (
+                    (pixel_array.ndim in (2, 3)) or
+                    (pixel_array.shape[-1] == 1)
+                ):
                     # A single segment does not overlap
                     segments_overlap = SegmentsOverlapValues.NO
                 else:
@@ -1174,10 +1156,15 @@ class Segmentation(_Image):
                 )
 
             if pixel_array.ndim == 4:
-                pixel_array = cls._combine_segments(
-                    pixel_array,
-                    labelmap_dtype=dtype
-                )
+                if isinstance(pixel_array, Volume):
+                    pixel_array = pixel_array.with_array(
+                        cls._combine_segments(plain_array, dtype)
+                    )
+                else:
+                    pixel_array = cls._combine_segments(
+                        pixel_array,
+                        labelmap_dtype=dtype
+                    )
             else:
                 pixel_array = pixel_array.astype(dtype)
 

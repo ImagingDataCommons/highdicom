@@ -1242,23 +1242,37 @@ class _Image(SOPClass):
         """
         return self._coordinate_system
 
-    def _common_derived_image_init(
+    def _init_multiframe_image(
         self,
         source_images: Sequence[Dataset],
-        further_source_images: Sequence[Dataset] | None,
+        pixel_array: np.ndarray | Volume,
+        *,
+        pixel_measures: PixelMeasuresSequence | None = None,
         plane_orientation: PlaneOrientationSequence | None = None,
         plane_positions: Sequence[PlanePositionSequence] | None = None,
+        omit_empty_frames: bool = False,
+        workers: int | Executor = 0,
+        dimension_organization_type: (
+            DimensionOrganizationTypeValues |
+            str |
+            None
+        ) = None,
+        tile_pixel_array: bool = False,
+        tile_size: Sequence[int] | None = None,
+        further_source_images: Sequence[Dataset] | None = None,
         pyramid_label: str | None = None,
         pyramid_uid: str | None = None,
-    ) -> None:
-        """Basic checks on validatity of source images.
-
-        Parameters
-        ----------
-        source_images: Sequence[pydicom.Dataset]
-            Source image datasets to check
-
-        """
+        use_extended_offset_table: bool = False,
+        pixel_data_attr: str = 'PixelData',
+        channel_values: Sequence[Any] | None = None,  # TODO generalize
+        add_channel_callback: (
+            Callable[[Dataset, Any], Dataset] | None
+        ) = None,  # TODO generalize
+        channel_is_indexed: bool = True,  # TODO generalize
+        preprocess_channel_callback: Callable[
+            [np.ndarray, Any, int], np.ndarray
+        ] | None = None,
+    ):
         uniqueness_criteria = {
             (
                 image.StudyInstanceUID,
@@ -1277,6 +1291,7 @@ class _Image(SOPClass):
 
         src_img = source_images[0]
         is_multiframe = is_multiframe_image(src_img)
+        is_tiled = is_tiled_image(src_img)
         if is_multiframe and len(source_images) > 1:
             raise ValueError(
                 'Only one source image should be provided in case images '
@@ -1338,7 +1353,7 @@ class _Image(SOPClass):
         self._init_pyramid(
             pyramid_label=pyramid_label,
             pyramid_uid=pyramid_uid,
-            is_tiled=is_tiled_image(src_img),
+            is_tiled=is_tiled,
         )
 
         self.LossyImageCompression = getattr(
@@ -1354,43 +1369,34 @@ class _Image(SOPClass):
                 self.LossyImageCompressionMethod = \
                     src_img.LossyImageCompressionMethod
 
-    def _common_derived_multiframe(
-        self,
-        source_images: Sequence[Dataset],
-        pixel_array: np.ndarray,
-        dtype: type,
-        pixel_measures: PixelMeasuresSequence | None = None,
-        plane_orientation: PlaneOrientationSequence | None = None,
-        plane_positions: Sequence[PlanePositionSequence] | None = None,
-        omit_empty_frames: bool = False,
-        workers: int | Executor = 0,
-        dimension_organization_type: (
-            DimensionOrganizationTypeValues |
-            str |
-            None
-        ) = None,
-        tile_pixel_array: bool = False,
-        tile_size: Sequence[int] | None = None,
-        further_source_images: Sequence[Dataset] | None = None,
-        use_extended_offset_table: bool = False,
-        pixel_data_attr: str = 'PixelData',
-        channel_values: Sequence[Any] | None = None,  # TODO generalize
-        add_channel_callback: (
-            Callable[[Dataset, Any], Dataset] | None
-        ) = None,  # TODO generalize
-        channel_is_indexed: bool = True,  # TODO generalize
-        preprocess_channel_callback: Callable[
-            [np.ndarray, Any, int], np.ndarray
-        ] | None = None,
-    ):
+        if isinstance(pixel_array, Volume):
+            (
+                pixel_array,
+                plane_positions,
+                plane_orientation,
+                pixel_measures,
+            ) = self._get_spatial_data_from_volume(
+                volume=pixel_array,
+                coordinate_system=get_image_coordinate_system(src_img),
+                frame_of_reference_uid=src_img.FrameOfReferenceUID,
+                plane_positions=plane_positions,
+                plane_orientation=plane_orientation,
+                pixel_measures=pixel_measures,
+            )
+
+        pixel_array = cast(np.ndarray, pixel_array)
+
+        if pixel_array.ndim == 2:
+            pixel_array = pixel_array[np.newaxis, ...]
+        if pixel_array.ndim not in [3, 4]:
+            raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
+
         if (channel_values is None) != (add_channel_callback is None):
             raise TypeError(
                 "Argument 'add_channel_callback' should be provided if and "
                 "only if 'channel_values' is provided."
             )
 
-        src_img = source_images[0]
-        is_tiled = is_tiled_image(src_img)
         if tile_pixel_array and not is_tiled:
             raise ValueError(
                 'When argument "tile_pixel_array" is True, the source image '
@@ -1695,8 +1701,20 @@ class _Image(SOPClass):
 
         if preprocess_channel_callback is None:
             # Default channel callback just indexes down the final dimension
-            def preprocess_channel_callback(arr: np.ndarray, _: Any, ind: int):
-                return arr[:, :, ind]
+            if pixel_array.ndim == 4:
+                def preprocess_channel_callback(
+                    arr: np.ndarray,
+                    _: Any,
+                    ind: int
+                ):
+                    return arr[:, :, ind]
+            else:
+                def preprocess_channel_callback(
+                    arr: np.ndarray,
+                    _: Any,
+                    __: int,
+                ):
+                    return arr
 
         # Main frame loop: encode frames and create per-frame functional groups
         for channel_index, channel_value in enumerate(channel_values):

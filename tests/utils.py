@@ -28,7 +28,9 @@ def write_and_read_dataset(dataset: Dataset):
             implicit_vr=implicit_vr,
             little_endian=little_endian,
         )
-        return dcmread(fp, force=True)
+        dcm = dcmread(fp, force=True)
+        dcm.buffer = None  # avoid warnings when deepcopied
+        return dcm
 
 
 def find_readable_images() -> list[tuple[str, str | None]]:

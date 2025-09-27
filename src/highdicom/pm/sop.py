@@ -29,6 +29,7 @@ from highdicom.pr.content import (
     _add_icc_profile_attributes,
     _add_palette_color_lookup_table_attributes,
 )
+from highdicom.spatial import get_image_coordinate_system
 from highdicom.seg.content import DimensionIndexSequence
 from highdicom.volume import ChannelDescriptor, Volume
 from pydicom import Dataset
@@ -392,15 +393,6 @@ class ParametricMap(Image):
             **kwargs,
         )
 
-        self._common_derived_image_init(
-            source_images=source_images,
-            further_source_images=further_source_images,
-            plane_positions=plane_positions,
-            plane_orientation=plane_orientation,
-            pyramid_label=pyramid_label,
-            pyramid_uid=pyramid_uid,
-        )
-
         self.copy_specimen_information(src_img)
         self.copy_patient_and_study_information(src_img)
         self._add_contributing_equipment(contributing_equipment, src_img)
@@ -486,27 +478,8 @@ class ParametricMap(Image):
                     "0 or 1 channel dimensions."
                 )
 
-            (
-                pixel_array,
-                plane_positions,
-                plane_orientation,
-                pixel_measures,
-            ) = self._get_spatial_data_from_volume(
-                volume=pixel_array,
-                coordinate_system=self._coordinate_system,
-                frame_of_reference_uid=src_img.FrameOfReferenceUID,
-                plane_positions=plane_positions,
-                plane_orientation=plane_orientation,
-                pixel_measures=pixel_measures,
-            )
-
-        pixel_array = cast(np.ndarray, pixel_array)
-        if pixel_array.ndim == 2:
-            pixel_array = pixel_array[np.newaxis, ..., np.newaxis]
-        elif pixel_array.ndim == 3:
-            pixel_array = pixel_array[..., np.newaxis]
-
-        if len(real_world_value_mappings) != pixel_array.shape[3]:
+        n_channels = pixel_array.shape[3] if pixel_array.ndim == 4 else 1
+        if len(real_world_value_mappings) != n_channels:
             raise ValueError(
                 'Number of RealWorldValueMapping items provided via '
                 '"real_world_value_mappings" argument does not match size of '
@@ -552,7 +525,7 @@ class ParametricMap(Image):
         # TODO generalize DimensionIndexSequence so we are not using the
         # segmentation one here
         self.DimensionIndexSequence = DimensionIndexSequence(
-            self._coordinate_system,
+            get_image_coordinate_system(src_img),
             include_segment_number=False,
         )
         dimension_organization = Dataset()
@@ -565,11 +538,16 @@ class ParametricMap(Image):
         self.AcquisitionContextSequence: list[Dataset] = []
 
         # Get the correct pixel data attribute
+        plain_array = (
+            pixel_array.array
+            if isinstance(pixel_array, Volume)
+            else pixel_array
+        )
         pixel_data_type, pixel_data_attr = self._get_pixel_data_type_and_attr(
-            pixel_array
+            plain_array
         )
         if pixel_data_type == _PixelDataType.USHORT:
-            self.BitsAllocated = int(pixel_array.itemsize * 8)
+            self.BitsAllocated = int(plain_array.itemsize * 8)
             self.BitsStored = self.BitsAllocated
             self.HighBit = self.BitsStored - 1
             self.PixelRepresentation = 0
@@ -626,10 +604,9 @@ class ParametricMap(Image):
 
             return item
 
-        self._common_derived_multiframe(
+        self._init_multiframe_image(
             source_images=source_images,
             pixel_array=pixel_array,
-            dtype=pixel_array.dtype,
             pixel_measures=pixel_measures,
             plane_orientation=plane_orientation,
             plane_positions=plane_positions,
@@ -638,6 +615,8 @@ class ParametricMap(Image):
             dimension_organization_type=dimension_organization_type,
             tile_pixel_array=tile_pixel_array,
             tile_size=tile_size,
+            pyramid_label=pyramid_label,
+            pyramid_uid=pyramid_uid,
             further_source_images=further_source_images,
             use_extended_offset_table=use_extended_offset_table,
             channel_values=real_world_value_mappings,
