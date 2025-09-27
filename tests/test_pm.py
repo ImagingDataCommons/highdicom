@@ -1183,6 +1183,30 @@ class TestParametricMap():
             slope=1
         )
 
+        # Should fail if the LUTLabels are mimatched between the volume and the
+        # real_world_value_mappings parameter
+        msg = (
+            "The LUTLabels of the 'real_world_value_mappings' "
+            "must match those within the channel indentifiers "
+            "of the 'pixel_array'."
+        )
+        with pytest.raises(ValueError, match=msg):
+            ParametricMap(
+                [self._ct_multiframe_image],
+                volume,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                contains_recognizable_visual_features=False,
+                real_world_value_mappings=[[mapping2], [mapping1]],
+                voi_lut_transformations=[self._voi_transformation],
+            )
+
         instance = ParametricMap(
             [self._ct_multiframe_image],
             volume,

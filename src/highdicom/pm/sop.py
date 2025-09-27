@@ -405,38 +405,6 @@ class ParametricMap(Image):
         self.copy_patient_and_study_information(src_img)
         self._add_contributing_equipment(contributing_equipment, src_img)
 
-        if isinstance(pixel_array, Volume):
-            if pixel_array.number_of_channel_dimensions == 1:
-                if pixel_array.channel_descriptors != (
-                    ChannelDescriptor('LUTLabel'),
-                ):
-                    raise ValueError(
-                        "Input volume should have no channels other than "
-                        "'LUTLabel'."
-                    )
-                vol_lut_labels = pixel_array.get_channel_values('LUTLabel')
-                # TODO check that the provided lut labels match
-            elif pixel_array.number_of_channel_dimensions != 0:
-                raise ValueError(
-                    "If 'pixel_array' is a highdicom.Volume, it should have "
-                    "0 or 1 channel dimensions."
-                )
-
-            (
-                pixel_array,
-                plane_positions,
-                plane_orientation,
-                pixel_measures,
-            ) = self._get_spatial_data_from_volume(
-                volume=pixel_array,
-                coordinate_system=self._coordinate_system,
-                frame_of_reference_uid=src_img.FrameOfReferenceUID,
-                plane_positions=plane_positions,
-                plane_orientation=plane_orientation,
-                pixel_measures=pixel_measures,
-            )
-        pixel_array = cast(np.ndarray, pixel_array)
-
         # If the same set of mappings applies to all frames, the information
         # is stored in the Shared Functional Groups Sequence. Otherwise, it
         # is stored for each frame separately in the Per Frame Functional
@@ -456,10 +424,6 @@ class ParametricMap(Image):
                 RealWorldValueMapping
             ):
                 raise TypeError(error_message)
-            if pixel_array.ndim == 2:
-                pixel_array = pixel_array[np.newaxis, ..., np.newaxis]
-            elif pixel_array.ndim == 3:
-                pixel_array = pixel_array[..., np.newaxis]
             real_world_value_mappings = cast(
                 Sequence[Sequence[RealWorldValueMapping]],
                 [real_world_value_mappings]
@@ -486,6 +450,61 @@ class ParametricMap(Image):
             )
         else:
             raise ValueError('Pixel array must be a 2D, 3D, or 4D array.')
+
+        if isinstance(pixel_array, Volume):
+            if pixel_array.number_of_channel_dimensions == 1:
+                if pixel_array.channel_descriptors != (
+                    ChannelDescriptor('LUTLabel'),
+                ):
+                    raise ValueError(
+                        "Input volume should have no channels other than "
+                        "'LUTLabel'."
+                    )
+
+                for channel_mappings, vol_lut_label in zip(
+                    real_world_value_mappings,
+                    pixel_array.get_channel_values('LUTLabel')
+                ):
+                    if len(channel_mappings) != 1:
+                        raise ValueError(
+                            'Only a single mapping should be provided in '
+                            "each item within 'real_world_value_mappings' "
+                            "when a Volume is passed as the 'pixel_array'."
+                        )
+                    mapping = channel_mappings[0]
+
+                    if vol_lut_label != mapping.LUTLabel:
+                        raise ValueError(
+                            "The LUTLabels of the 'real_world_value_mappings' "
+                            "must match those within the channel indentifiers "
+                            "of the 'pixel_array'."
+                        )
+
+            elif pixel_array.number_of_channel_dimensions != 0:
+                raise ValueError(
+                    "If 'pixel_array' is a highdicom.Volume, it should have "
+                    "0 or 1 channel dimensions."
+                )
+
+            (
+                pixel_array,
+                plane_positions,
+                plane_orientation,
+                pixel_measures,
+            ) = self._get_spatial_data_from_volume(
+                volume=pixel_array,
+                coordinate_system=self._coordinate_system,
+                frame_of_reference_uid=src_img.FrameOfReferenceUID,
+                plane_positions=plane_positions,
+                plane_orientation=plane_orientation,
+                pixel_measures=pixel_measures,
+            )
+
+        pixel_array = cast(np.ndarray, pixel_array)
+        if pixel_array.ndim == 2:
+            pixel_array = pixel_array[np.newaxis, ..., np.newaxis]
+        elif pixel_array.ndim == 3:
+            pixel_array = pixel_array[..., np.newaxis]
 
         if len(real_world_value_mappings) != pixel_array.shape[3]:
             raise ValueError(
