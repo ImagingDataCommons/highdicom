@@ -20,6 +20,8 @@ from highdicom import (
     PlanePositionSequence,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
+    Volume,
+    imread,
 )
 from highdicom.content import VOILUTTransformation
 from highdicom.enum import ContentQualificationValues, CoordinateSystemNames
@@ -31,6 +33,8 @@ from highdicom.pm.enum import (
 from highdicom.pm.sop import ParametricMap
 from highdicom.spatial import sort_datasets
 from highdicom.uid import UID
+
+from .utils import write_and_read_dataset
 
 
 class TestRealWorldValueMapping(unittest.TestCase):
@@ -304,6 +308,28 @@ class TestParametricMap(unittest.TestCase):
         self._content_description = 'Test Parametric Map'
         self._content_creator_name = 'Will^I^Am'
 
+        self._integer_mapping = RealWorldValueMapping(
+            lut_label='1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=[0, 255],
+            intercept=0,
+            slope=1
+        )
+        self._float_mapping = RealWorldValueMapping(
+            lut_label='1',
+            lut_explanation='feature_001',
+            unit=codes.UCUM.NoUnits,
+            value_range=[-10000.0, 10000.0],
+            intercept=0,
+            slope=1
+        )
+
+        self._voi_transformation = VOILUTTransformation(
+            window_width=128,
+            window_center=120,
+        )
+
         self._ct_image = dcmread(
             str(data_dir.joinpath('test_files', 'ct_image.dcm'))
         )
@@ -321,6 +347,11 @@ class TestParametricMap(unittest.TestCase):
             for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
         ]
         self._ct_series = sort_datasets(ct_series)
+
+        self._ct_volume = (
+            imread(get_testdata_file('eCT_Supplemental.dcm'))
+            .get_volume()
+        )
 
     @staticmethod
     def check_dimension_index_vals(pm):
@@ -1083,3 +1114,67 @@ class TestParametricMap(unittest.TestCase):
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
         assert instance.ImageOrientationSlide == list(image_orientation)
         self.check_dimension_index_vals(instance)
+
+    def test_from_volume(self):
+        # Creating a parametric map from a volume aligned with the source
+        # images
+        instance = ParametricMap(
+            [self._ct_multiframe_image],
+            self._ct_volume,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            contains_recognizable_visual_features=False,
+            real_world_value_mappings=[self._float_mapping],
+            voi_lut_transformations=[self._voi_transformation],
+        )
+        for frame_item in instance.PerFrameFunctionalGroupsSequence:
+            assert len(frame_item.DerivationImageSequence) == 1
+
+        instance = ParametricMap.from_dataset(
+            write_and_read_dataset(instance)
+        )
+
+        vol = instance.get_volume()
+        assert vol.geometry_equal(self._ct_volume)
+        assert np.array_equal(vol.array, self._ct_volume.array)
+
+    def test_from_volume_non_aligned(self):
+        # Creating a parametric map from a volume that is not aligned with the
+        # source images
+        volume = Volume(
+            array=self._ct_volume.array,
+            affine=np.eye(4),
+            coordinate_system='PATIENT',
+        )
+
+        instance = ParametricMap(
+            [self._ct_multiframe_image],
+            volume,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+            contains_recognizable_visual_features=False,
+            real_world_value_mappings=[self._float_mapping],
+            voi_lut_transformations=[self._voi_transformation],
+        )
+        for frame_item in instance.PerFrameFunctionalGroupsSequence:
+            assert len(frame_item.DerivationImageSequence) == 0
+
+        instance = ParametricMap.from_dataset(
+            write_and_read_dataset(instance)
+        )
+
+        vol = instance.get_volume()
+        assert vol.geometry_equal(volume)
+        assert np.array_equal(vol.array, volume.array)
