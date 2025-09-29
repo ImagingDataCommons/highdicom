@@ -1760,7 +1760,7 @@ class TestSegmentation:
         )
         assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
         assert instance.PhotometricInterpretation == 'PALETTE COLOR'
-        assert hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'ICCProfile')
         assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
         assert hasattr(instance, 'RedPaletteColorLookupTableData')
         assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')

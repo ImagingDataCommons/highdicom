@@ -2,10 +2,8 @@
 import datetime
 import logging
 from collections import defaultdict
-from io import BytesIO
 
 import numpy as np
-from PIL.ImageCms import ImageCmsProfile
 from pydicom.dataset import Dataset
 from pydicom.sr.coding import Code
 from pydicom.multival import MultiValue
@@ -15,6 +13,7 @@ from collections.abc import Sequence
 from highdicom.color import CIELabColor
 from highdicom.content import (
     _add_content_information,
+    _add_palette_color_lookup_table_attributes,
     ContentCreatorIdentificationCodeSequence,
     ModalityLUTTransformation,
     PaletteColorLUTTransformation,
@@ -1568,76 +1567,6 @@ def _get_icc_profile(referenced_images: Sequence[Dataset]) -> bytes:
         )
 
     return icc_profiles[0]
-
-
-def _add_icc_profile_attributes(
-    dataset: Dataset,
-    icc_profile: bytes
-) -> None:
-    """Add attributes of module ICC Profile.
-
-    Parameters
-    ----------
-    dataset: pydicom.Dataset
-        Dataset to which attributes should be added
-    icc_profile: bytes
-        ICC color profile to include in the presentation state.
-        The profile must follow the constraints listed in :dcm:`C.11.15
-        <part03/sect_C.11.15.html>`.
-
-    """
-    if icc_profile is None:
-        raise TypeError('Argument "icc_profile" is required.')
-
-    cms_profile = ImageCmsProfile(BytesIO(icc_profile))
-    device_class = cms_profile.profile.device_class.strip()
-    if device_class not in ('scnr', 'spac'):
-        raise ValueError(
-            'The device class of the ICC Profile must be "scnr" or "spac", '
-            f'got "{device_class}".'
-        )
-    color_space = cms_profile.profile.xcolor_space.strip()
-    if color_space != 'RGB':
-        raise ValueError(
-            'The color space of the ICC Profile must be "RGB", '
-            f'got "{color_space}".'
-        )
-    pcs = cms_profile.profile.connection_space.strip()
-    if pcs not in ('Lab', 'XYZ'):
-        raise ValueError(
-            'The profile connection space of the ICC Profile must '
-            f'be "Lab" or "XYZ", got "{pcs}".'
-        )
-
-    dataset.ICCProfile = icc_profile
-
-
-def _add_palette_color_lookup_table_attributes(
-    dataset: Dataset,
-    palette_color_lut_transformation: PaletteColorLUTTransformation
-) -> None:
-    """Add attributes from the Palette Color Lookup Table module.
-
-    Parameters
-    ----------
-    dataset: pydicom.Dataset
-        Dataset to which attributes should be added
-    palette_color_lut_transformation: highdicom.PaletteColorLUTTransformation
-        Description of the Palette Color LUT Transformation for transforming
-        grayscale into RGB color pixel values
-
-    """  # noqa: E501
-    if not isinstance(
-        palette_color_lut_transformation,
-        PaletteColorLUTTransformation
-    ):
-        raise TypeError(
-            'Argument "palette_color_lut_transformation" must be of type '
-            'PaletteColorLUTTransformation.'
-        )
-
-    for element in palette_color_lut_transformation:
-        dataset[element.tag] = element
 
 
 def _add_softcopy_presentation_lut_attributes(

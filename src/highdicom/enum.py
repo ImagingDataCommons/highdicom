@@ -380,3 +380,17 @@ class InterpolationMethods(Enum):
 
     LINEAR = 'LINEAR'
     """Linear (or bi-linear or tri-linear) interpolator."""
+
+
+class PixelDataKeywords(Enum):
+
+    """Keywords used to store pixel data."""
+
+    PIXEL_DATA = 'PixelData'
+    """Integer-valued pixel data of any size (Image Pixel Module)."""
+
+    FLOAT_PIXEL_DATA = 'FloatPixelData'
+    """32-bit-float-valued pixel data (Floating Point Image Pixel Module)."""
+
+    DOUBLE_FLOAT_PIXEL_DATA = 'DoubleFloatPixelData'
+    """64-bit-float-valued pixel data (Double Floating Point Image Pixel Module)."""  # noqa: E501

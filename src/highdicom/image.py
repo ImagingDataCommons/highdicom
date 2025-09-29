@@ -55,7 +55,10 @@ from highdicom._module_utils import (
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.color import ColorManager
 from highdicom.content import (
+    _add_icc_profile_attributes,
+    _add_palette_color_lookup_table_attributes,
     LUT,
+    PaletteColorLUTTransformation,
     PixelMeasuresSequence,
     PlaneOrientationSequence,
     PlanePositionSequence,
@@ -64,6 +67,10 @@ from highdicom.content import (
 from highdicom.enum import (
     CoordinateSystemNames,
     DimensionOrganizationTypeValues,
+    PhotometricInterpretationValues,
+    PixelDataKeywords,
+    PixelRepresentationValues,
+    PlanarConfigurationValues,
 )
 from highdicom.frame import decode_frame, encode_frame
 from highdicom.io import ImageFileReader, _wrapped_dcmread
@@ -485,11 +492,11 @@ class _CombinedPixelTransform:
 
         # Determine what pixel data keyword is present in the image
         for kw in [
-            'PixelData',
-            'FloatPixelData',
-            'DoubleFloatPixelData',
+            PixelDataKeywords.PIXEL_DATA,
+            PixelDataKeywords.FLOAT_PIXEL_DATA,
+            PixelDataKeywords.DOUBLE_FLOAT_PIXEL_DATA,
         ]:
-            if kw in image:
+            if kw.value in image:
                 self.pixel_keyword = kw
                 break
         else:
@@ -504,14 +511,16 @@ class _CombinedPixelTransform:
             ):
                 if image.BitsAllocated == 32:
                     self.input_dtype = np.dtype(np.float32)
-                    self.pixel_keyword = 'FloatPixelData'
+                    self.pixel_keyword = PixelDataKeywords.FLOAT_PIXEL_DATA
                 elif image.BitsAllocated == 64:
                     self.input_dtype = np.dtype(np.float64)
-                    self.pixel_keyword = 'DoubleFloatPixelData'
+                    self.pixel_keyword = (
+                        PixelDataKeywords.DOUBLE_FLOAT_PIXEL_DATA
+                    )
             else:
-                self.pixel_keyword = 'PixelData'
+                self.pixel_keyword = PixelDataKeywords.PIXEL_DATA
 
-        if self.pixel_keyword == 'PixelData':
+        if self.pixel_keyword == PixelDataKeywords.PIXEL_DATA:
             if image.PixelRepresentation == 1:
                 if image.BitsAllocated == 8:
                     self.input_dtype = np.dtype(np.int8)
@@ -1244,9 +1253,24 @@ class _Image(SOPClass):
 
     def _init_multiframe_image(
         self,
-        source_images: Sequence[Dataset],
         pixel_array: np.ndarray | Volume,
         *,
+        source_images: Sequence[Dataset],
+        image_type: Sequence[str],
+        photometric_interpretation: PhotometricInterpretationValues | str,
+        bits_allocated: int,
+        bits_stored: int | None = None,
+        samples_per_pixel: int = 1,
+        planar_configuration: (
+            PlanarConfigurationValues | int
+        ) = PlanarConfigurationValues.COLOR_BY_PIXEL,
+        pixel_representation: (
+            PixelRepresentationValues | int
+        ) = PixelRepresentationValues.UNSIGNED_INTEGER,
+        contains_recognizable_visual_features: bool | None = None,
+        burned_in_annotation: bool | None = None,
+        palette_color_lut_transformation: PaletteColorLUTTransformation | None,
+        icc_profile: bytes | None = None,
         pixel_measures: PixelMeasuresSequence | None = None,
         plane_orientation: PlaneOrientationSequence | None = None,
         plane_positions: Sequence[PlanePositionSequence] | None = None,
@@ -1263,7 +1287,7 @@ class _Image(SOPClass):
         pyramid_label: str | None = None,
         pyramid_uid: str | None = None,
         use_extended_offset_table: bool = False,
-        pixel_data_attr: str = 'PixelData',
+        pixel_data_keyword: PixelDataKeywords = PixelDataKeywords.PIXEL_DATA,
         channel_values: Sequence[Any] | None = None,  # TODO generalize
         add_channel_callback: (
             Callable[[Dataset, Any], Dataset] | None
@@ -1344,6 +1368,57 @@ class _Image(SOPClass):
                     "the provided pixel array must be spatially aligned "
                     "with the source images."
                 )
+
+        # (Float/DoubleFloat) Image Pixel module
+        self.BitsAllocated = bits_allocated
+        self.SamplesPerPixel = samples_per_pixel
+        if samples_per_pixel > 1:
+            self.PlanarConfiguration = PlanarConfigurationValues(
+                planar_configuration
+            ).value
+        photometric_interpretation = PhotometricInterpretationValues(
+            photometric_interpretation
+        )
+        self.PhotometricInterpretation = photometric_interpretation.value
+
+        pixel_data_keyword = PixelDataKeywords(pixel_data_keyword)
+
+        if pixel_data_keyword == PixelDataKeywords.PIXEL_DATA:
+            # Attributes in the Image Pixel Module but not the
+            # Float/DoubleFloat Image Pixel modules
+            if bits_stored is None:
+                bits_stored = bits_allocated
+            self.BitsStored = bits_stored
+            self.HighBit = bits_allocated - 1
+            self.PixelRepresentation = PixelRepresentationValues(
+                pixel_representation
+            ).value
+
+        # General Image module
+        self.ImageType = list(image_type)
+        if burned_in_annotation is not None:
+            self.BurnedInAnnotation = (
+                'YES' if burned_in_annotation else 'NO'
+            )
+        if contains_recognizable_visual_features is not None:
+            self.RecognizableVisualFeatures = (
+                'YES' if contains_recognizable_visual_features else 'NO'
+            )
+        self.PresentationLUTShape = (
+            'INVERSE'
+            if photometric_interpretation ==
+            PhotometricInterpretationValues.MONOCHROME1
+            else 'IDENTITY'
+        )
+
+        if palette_color_lut_transformation is not None:
+            _add_palette_color_lookup_table_attributes(
+                self,
+                palette_color_lut_transformation,
+            )
+
+        if icc_profile is not None:
+            _add_icc_profile_attributes(self, icc_profile)
 
         self._add_source_image_references(
             source_images=source_images,
@@ -1916,7 +1991,7 @@ class _Image(SOPClass):
             if len(remainder_pixels) > 0:
                 frames.append(self._encode_pixels_native(remainder_pixels))
 
-            setattr(self, pixel_data_attr, b''.join(frames))
+            setattr(self, pixel_data_keyword.value, b''.join(frames))
 
         # Add a null trailing byte if required (can't happen for floating pixel
         # data)

@@ -3,7 +3,6 @@ from concurrent.futures import Executor
 import logging
 from copy import deepcopy
 from os import PathLike
-import pkgutil
 from typing import (
     Any,
     BinaryIO,
@@ -44,10 +43,8 @@ from highdicom.content import (
 from highdicom.enum import (
     CoordinateSystemNames,
     DimensionOrganizationTypeValues,
-)
-from highdicom.pr.content import (
-    _add_icc_profile_attributes,
-    _add_palette_color_lookup_table_attributes,
+    PhotometricInterpretationValues,
+    PixelRepresentationValues,
 )
 from highdicom.seg.content import (
     DimensionIndexSequence,
@@ -573,10 +570,6 @@ class Segmentation(_Image):
                 )
 
         # Segmentation Image
-        self.ImageType = ['DERIVED', 'PRIMARY']
-        self.SamplesPerPixel = 1
-        self.PhotometricInterpretation = 'MONOCHROME2'
-        self.PixelRepresentation = 0
         self.SegmentationType = segmentation_type.value
 
         _add_content_information(
@@ -592,8 +585,7 @@ class Segmentation(_Image):
 
         if segmentation_type == SegmentationTypeValues.BINARY:
             dtype = np.uint8
-            self.BitsAllocated = 1
-            self.HighBit = 0
+            bits_allocated = 1
             if (
                 self.file_meta.TransferSyntaxUID != JPEG2000Lossless and
                 self.file_meta.TransferSyntaxUID.is_encapsulated
@@ -605,8 +597,7 @@ class Segmentation(_Image):
                 )
         elif segmentation_type == SegmentationTypeValues.FRACTIONAL:
             dtype = np.uint8
-            self.BitsAllocated = 8
-            self.HighBit = 7
+            bits_allocated = 8
             segmentation_fractional_type = SegmentationFractionalTypeValues(
                 fractional_type
             )
@@ -624,14 +615,10 @@ class Segmentation(_Image):
                 raise ValueError(
                     "Too many segments to represent with a 16 bit integer."
                 )
-            self.BitsAllocated = np.iinfo(dtype).bits
-            self.HighBit = self.BitsAllocated - 1
-            self.BitsStored = self.BitsAllocated
+            bits_allocated = np.iinfo(dtype).bits
             self.PixelPaddingValue = 0
 
-        self.BitsStored = self.BitsAllocated
-
-        self._configure_color(
+        photometric_interpretation = self._configure_color(
             segmentation_type=segmentation_type,
             palette_color_lut_transformation=palette_color_lut_transformation,
             icc_profile=icc_profile,
@@ -715,6 +702,13 @@ class Segmentation(_Image):
         self._init_multiframe_image(
             source_images=source_images,
             pixel_array=pixel_array,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            samples_per_pixel=1,
+            image_type=['DERIVED', 'PRIMARY'],
+            pixel_representation=PixelRepresentationValues.UNSIGNED_INTEGER,
+            palette_color_lut_transformation=palette_color_lut_transformation,
+            icc_profile=icc_profile,
             pixel_measures=pixel_measures,
             plane_orientation=plane_orientation,
             plane_positions=plane_positions,
@@ -888,7 +882,7 @@ class Segmentation(_Image):
         icc_profile: bytes | None,
         segment_descriptions: Sequence[SegmentDescription],
         max_described_segment: int,
-    ) -> None:
+    ) -> PhotometricInterpretationValues:
         # Use PALETTE COLOR photometric interpretation in the case
         # of a labelmap segmentation with a provided LUT, MONOCHROME2
         # otherwise
@@ -902,10 +896,10 @@ class Segmentation(_Image):
                         "'palette_color_lut_transformation' "
                         "is not specified."
                     )
+                return PhotometricInterpretationValues.MONOCHROME2
             else:
                 # Using photometric interpretation "PALETTE COLOR"
                 # need to specify the LUT in this case
-                self.PhotometricInterpretation = 'PALETTE COLOR'
 
                 # Checks on the validity of the LUT
                 if not isinstance(
@@ -944,25 +938,9 @@ class Segmentation(_Image):
                             'color when using a palette color LUT.'
                         )
 
-                # Add the LUT to this instance
-                _add_palette_color_lookup_table_attributes(
-                    self,
-                    palette_color_lut_transformation,
-                )
-
-                if icc_profile is None:
-                    # Use default sRGB profile
-                    icc_profile = pkgutil.get_data(
-                        'highdicom',
-                        '_icc_profiles/sRGB_v4_ICC_preference.icc'
-                    )
-                _add_icc_profile_attributes(
-                    self,
-                    icc_profile=icc_profile
-                )
+                return PhotometricInterpretationValues.PALETTE_COLOR
 
         else:
-            self.PhotometricInterpretation = 'MONOCHROME2'
             if palette_color_lut_transformation is not None:
                 raise TypeError(
                     "Argument 'palette_color_lut_transformation' should "
@@ -975,6 +953,7 @@ class Segmentation(_Image):
                     "not be provided when 'segmentation_type' is "
                     f"'{segmentation_type.value}'."
                 )
+            return PhotometricInterpretationValues.MONOCHROME2
 
     @classmethod
     def _check_and_cast_pixel_array(

@@ -48,6 +48,7 @@ from highdicom.enum import (
     PatientSexValues,
     PhotometricInterpretationValues,
     PixelIndexDirections,
+    PixelDataKeywords,
     PixelRepresentationValues,
     PlanarConfigurationValues,
     PatientOrientationValuesBiped,
@@ -80,7 +81,6 @@ from highdicom.volume import (
 
 
 __all__ = [
-    'RGB_COLOR_CHANNEL_DESCRIPTOR',
     'AlgorithmIdentificationSequence',
     'AnatomicalOrientationTypeValues',
     'AxisHandedness',
@@ -104,8 +104,9 @@ __all__ = [
     'PatientOrientationValuesQuadruped',
     'PatientSexValues',
     'PhotometricInterpretationValues',
-    'PixelMeasuresSequence',
+    'PixelDataKeywords',
     'PixelIndexDirections',
+    'PixelMeasuresSequence',
     'PixelRepresentationValues',
     'PlanarConfigurationValues',
     'PlaneOrientationSequence',
@@ -113,9 +114,10 @@ __all__ = [
     'PresentationLUT',
     'PresentationLUTShapeValues',
     'PresentationLUTTransformation',
+    'RGBColorChannels',
+    'RGB_COLOR_CHANNEL_DESCRIPTOR',
     'ReferencedImageSequence',
     'RescaleTypeValues',
-    'RGBColorChannels',
     'SOPClass',
     'SegmentedPaletteColorLUT',
     'SpecimenCollection',
@@ -136,6 +138,7 @@ __all__ = [
     'ann',
     'color',
     'frame',
+    'get_volume_from_series',
     'imread',
     'io',
     'ko',
@@ -148,5 +151,4 @@ __all__ = [
     'spatial',
     'sr',
     'utils',
-    'get_volume_from_series',
 ]

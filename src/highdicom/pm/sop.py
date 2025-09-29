@@ -1,9 +1,7 @@
 """Module for SOP classes of the PM modality."""
 from collections.abc import Sequence
 from concurrent.futures import Executor
-from enum import Enum
 from os import PathLike
-import pkgutil
 from typing import cast, BinaryIO
 import warnings
 
@@ -21,14 +19,12 @@ from highdicom.content import (
 from highdicom.enum import (
     ContentQualificationValues,
     DimensionOrganizationTypeValues,
+    PhotometricInterpretationValues,
+    PixelDataKeywords,
 )
 from highdicom.image import _Image, Image
 from highdicom.pm.content import RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
-from highdicom.pr.content import (
-    _add_icc_profile_attributes,
-    _add_palette_color_lookup_table_attributes,
-)
 from highdicom.spatial import get_image_coordinate_system
 from highdicom.seg.content import DimensionIndexSequence
 from highdicom.volume import ChannelDescriptor, Volume
@@ -43,21 +39,6 @@ from pydicom.uid import (
     RLELossless,
 )
 from typing_extensions import Self
-
-
-class _PixelDataType(Enum):
-    """Helper class for tracking the type of the pixel data."""
-
-    USHORT = 1
-    SINGLE = 2
-    DOUBLE = 3
-
-
-_PIXEL_DATA_TYPE_MAP = {
-    _PixelDataType.USHORT: 'PixelData',
-    _PixelDataType.SINGLE: 'FloatPixelData',
-    _PixelDataType.DOUBLE: 'DoubleFloatPixelData',
-}
 
 
 class ParametricMap(Image):
@@ -491,7 +472,7 @@ class ParametricMap(Image):
         derived_pixel_contrast = DerivedPixelContrastValues(
             derived_pixel_contrast
         )
-        self.ImageType = [
+        image_type = [
             "DERIVED",
             "PRIMARY",
             image_flavor.value,
@@ -501,13 +482,6 @@ class ParametricMap(Image):
             content_qualification
         )
         self.ContentQualification = content_qualification.value
-        self.SamplesPerPixel = 1
-        self.PhotometricInterpretation = 'MONOCHROME2'
-        self.BurnedInAnnotation = 'NO'
-        if contains_recognizable_visual_features:
-            self.RecognizableVisualFeatures = 'YES'
-        else:
-            self.RecognizableVisualFeatures = 'NO'
 
         _add_content_information(
             dataset=self,
@@ -518,8 +492,6 @@ class ParametricMap(Image):
             content_creator_name=content_creator_name,
             content_creator_identification=content_creator_identification,
         )
-
-        self.PresentationLUTShape = 'IDENTITY'
 
         # TODO refactor this into the common method and include LUT label
         # TODO generalize DimensionIndexSequence so we are not using the
@@ -543,31 +515,23 @@ class ParametricMap(Image):
             if isinstance(pixel_array, Volume)
             else pixel_array
         )
-        pixel_data_type, pixel_data_attr = self._get_pixel_data_type_and_attr(
-            plain_array
-        )
-        if pixel_data_type == _PixelDataType.USHORT:
-            self.BitsAllocated = int(plain_array.itemsize * 8)
-            self.BitsStored = self.BitsAllocated
-            self.HighBit = self.BitsStored - 1
-            self.PixelRepresentation = 0
-        elif pixel_data_type == _PixelDataType.SINGLE:
-            self.BitsAllocated = 32
-        elif pixel_data_type == _PixelDataType.DOUBLE:
-            self.BitsAllocated = 64
-        else:
-            raise ValueError('Encountered unexpected pixel data type.')
+        pixel_data_keyword = self._get_pixel_data_keyword(plain_array)
+        bits_allocated = {
+            PixelDataKeywords.PIXEL_DATA: int(plain_array.itemsize * 8),
+            PixelDataKeywords.FLOAT_PIXEL_DATA: 32,
+            PixelDataKeywords.DOUBLE_FLOAT_PIXEL_DATA: 64,
+        }[pixel_data_keyword]
 
         # Palette color lookup table
         self._configure_color(
             palette_color_lut_transformation=palette_color_lut_transformation,
             icc_profile=icc_profile,
-            pixel_data_type=pixel_data_type,
+            pixel_data_keyword=pixel_data_keyword,
         )
 
         # Check that the real world value maps are consistent with the provided
         # data type
-        if pixel_data_type == _PixelDataType.USHORT:
+        if pixel_data_keyword == PixelDataKeywords.PIXEL_DATA:
             if any(
                 any(m.is_floating_point() for m in m_list)
                 for m_list in real_world_value_mappings
@@ -607,6 +571,16 @@ class ParametricMap(Image):
         self._init_multiframe_image(
             source_images=source_images,
             pixel_array=pixel_array,
+            image_type=image_type,
+            photometric_interpretation=(
+                PhotometricInterpretationValues.MONOCHROME2
+            ),
+            bits_allocated=bits_allocated,
+            samples_per_pixel=1,
+            palette_color_lut_transformation=palette_color_lut_transformation,
+            icc_profile=icc_profile,
+            contains_recognizable_visual_features=False,
+            burned_in_annotation=False,
             pixel_measures=pixel_measures,
             plane_orientation=plane_orientation,
             plane_positions=plane_positions,
@@ -621,7 +595,7 @@ class ParametricMap(Image):
             use_extended_offset_table=use_extended_offset_table,
             channel_values=real_world_value_mappings,
             add_channel_callback=add_channel_callback,
-            pixel_data_attr=pixel_data_attr,
+            pixel_data_keyword=pixel_data_keyword,
             # TODO change this and change the DimensionIndexSequence to match
             channel_is_indexed=False,
         )
@@ -657,31 +631,14 @@ class ParametricMap(Image):
         self,
         palette_color_lut_transformation: PaletteColorLUTTransformation | None,
         icc_profile: bytes | None,
-        pixel_data_type: _PixelDataType,
+        pixel_data_keyword: PixelDataKeywords,
     ) -> None:
         if palette_color_lut_transformation is not None:
-            if pixel_data_type != _PixelDataType.USHORT:
+            if pixel_data_keyword != PixelDataKeywords.PIXEL_DATA:
                 raise ValueError(
                     'Use of palette_color_lut is only supported with integer-'
                     'valued pixel data.'
                 )
-
-            # Add the LUT to this instance
-            _add_palette_color_lookup_table_attributes(
-                self,
-                palette_color_lut_transformation,
-            )
-
-            if icc_profile is None:
-                # Use default sRGB profile
-                icc_profile = pkgutil.get_data(
-                    'highdicom',
-                    '_icc_profiles/sRGB_v4_ICC_preference.icc'
-                )
-            _add_icc_profile_attributes(
-                self,
-                icc_profile=icc_profile
-            )
 
             self.PixelPresentation = 'COLOR_RANGE'
         else:
@@ -693,11 +650,11 @@ class ParametricMap(Image):
                 )
             self.PixelPresentation = 'MONOCHROME'
 
-    def _get_pixel_data_type_and_attr(
+    def _get_pixel_data_keyword(
         self,
         pixel_array: np.ndarray
-    ) -> tuple[_PixelDataType, str]:
-        """Get the data type and name of pixel data attribute.
+    ) -> PixelDataKeywords:
+        """Get the pixel data keyword to use.
 
         Parameters
         ----------
@@ -706,11 +663,8 @@ class ParametricMap(Image):
 
         Returns
         -------
-        Tuple[highdicom.pm.sop._PixelDataType, str]
-            A tuple where the first element is the enum value and the second
-            value is the DICOM pixel data attribute for the given datatype.
-            One of (``"PixelData"``, ``"FloatPixelData"``,
-            ``"DoubleFloatPixelData"``)
+        highdicom.enum.PixelDataKeywords:
+            Pixel data keyword where this pixel data should be stored.
 
         Raises
         ------
@@ -721,15 +675,9 @@ class ParametricMap(Image):
         """
         if pixel_array.dtype.kind == 'f':
             if pixel_array.dtype.name == 'float32':
-                return (
-                    _PixelDataType.SINGLE,
-                    _PIXEL_DATA_TYPE_MAP[_PixelDataType.SINGLE],
-                )
+                return PixelDataKeywords.FLOAT_PIXEL_DATA
             elif pixel_array.dtype.name == 'float64':
-                return (
-                    _PixelDataType.DOUBLE,
-                    _PIXEL_DATA_TYPE_MAP[_PixelDataType.DOUBLE],
-                )
+                return PixelDataKeywords.DOUBLE_FLOAT_PIXEL_DATA
             else:
                 raise ValueError(
                     'Unsupported floating-point type for pixel data: '
@@ -742,10 +690,7 @@ class ParametricMap(Image):
                     'Unsupported unsigned integer type for pixel data: '
                     '16-bit unsigned integer types are supported.'
                 )
-            return (
-                _PixelDataType.USHORT,
-                _PIXEL_DATA_TYPE_MAP[_PixelDataType.USHORT],
-            )
+            return PixelDataKeywords.PIXEL_DATA
         raise ValueError(
             'Unsupported data type for pixel data. '
             'Supported are 8-bit or 16-bit unsigned integer types as well as '

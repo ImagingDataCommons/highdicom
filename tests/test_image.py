@@ -19,15 +19,15 @@ from highdicom import (
 from highdicom._module_utils import (
     does_iod_have_pixel_data,
 )
-from highdicom.content import VOILUTTransformation
+from highdicom.content import (
+    _add_icc_profile_attributes,
+    VOILUTTransformation,
+)
 from highdicom.image import (
     _CombinedPixelTransform,
 )
 from highdicom.pixels import (
     apply_voi_window,
-)
-from highdicom.pr.content import (
-    _add_icc_profile_attributes,
 )
 from highdicom.pm import (
     RealWorldValueMapping,
