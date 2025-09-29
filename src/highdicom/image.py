@@ -1269,6 +1269,10 @@ class _Image(SOPClass):
         ) = PixelRepresentationValues.UNSIGNED_INTEGER,
         contains_recognizable_visual_features: bool | None = None,
         burned_in_annotation: bool | None = None,
+        use_default_pixel_value_transformation: bool = False,
+        shared_voi_lut_transformations: (
+            Sequence[VOILUTTransformation] | None
+        ) = None,
         palette_color_lut_transformation: PaletteColorLUTTransformation | None,
         icc_profile: bytes | None = None,
         pixel_measures: PixelMeasuresSequence | None = None,
@@ -1548,6 +1552,17 @@ class _Image(SOPClass):
 
             # Set to None so this is not used for per-frame items later
             add_channel_callback = None
+
+        if use_default_pixel_value_transformation:
+            # Identity Pixel Value Transformation
+            transformation_item = Dataset()
+            transformation_item.RescaleIntercept = 0
+            transformation_item.RescaleSlope = 1
+            transformation_item.RescaleType = 'US'
+            sffg_item.PixelValueTransformationSequence = [transformation_item]
+
+        if shared_voi_lut_transformations is not None:
+            sffg_item.FrameVOILUTSequence = shared_voi_lut_transformations
 
         self.SharedFunctionalGroupsSequence = [sffg_item]
 

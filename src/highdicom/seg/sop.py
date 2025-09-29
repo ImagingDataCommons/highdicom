@@ -707,6 +707,7 @@ class Segmentation(_Image):
             samples_per_pixel=1,
             image_type=['DERIVED', 'PRIMARY'],
             pixel_representation=PixelRepresentationValues.UNSIGNED_INTEGER,
+            use_default_pixel_value_transformation=False,
             palette_color_lut_transformation=palette_color_lut_transformation,
             icc_profile=icc_profile,
             pixel_measures=pixel_measures,

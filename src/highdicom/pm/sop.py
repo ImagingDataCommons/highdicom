@@ -577,9 +577,13 @@ class ParametricMap(Image):
             ),
             bits_allocated=bits_allocated,
             samples_per_pixel=1,
+            use_default_pixel_value_transformation=True,
+            shared_voi_lut_transformations=voi_lut_transformations,
             palette_color_lut_transformation=palette_color_lut_transformation,
             icc_profile=icc_profile,
-            contains_recognizable_visual_features=False,
+            contains_recognizable_visual_features=(
+                contains_recognizable_visual_features
+            ),
             burned_in_annotation=False,
             pixel_measures=pixel_measures,
             plane_orientation=plane_orientation,
@@ -599,24 +603,6 @@ class ParametricMap(Image):
             # TODO change this and change the DimensionIndexSequence to match
             channel_is_indexed=False,
         )
-
-        # Identity Pixel Value Transformation
-        transformation_item = Dataset()
-        transformation_item.RescaleIntercept = 0
-        transformation_item.RescaleSlope = 1
-        transformation_item.RescaleType = 'US'
-        (
-            self
-            .SharedFunctionalGroupsSequence[0]
-            .PixelValueTransformationSequence
-        ) = [transformation_item]
-
-        # Frame VOI LUT With LUT
-        (
-            self
-            .SharedFunctionalGroupsSequence[0]
-            .FrameVOILUTSequence
-        ) = voi_lut_transformations
 
         # Parametric Map Frame Type
         frame_type_item = Dataset()
