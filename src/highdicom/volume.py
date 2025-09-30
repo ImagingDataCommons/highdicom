@@ -39,6 +39,7 @@ from highdicom.content import (
 from highdicom.uid import UID
 
 from pydicom.datadict import (
+    dictionary_description,
     get_entry,
     tag_for_keyword,
     keyword_for_tag,
@@ -187,6 +188,19 @@ class ChannelDescriptor:
     def keyword(self) -> str:
         """str: The DICOM keyword or custom string for the descriptor."""
         return self._keyword
+
+    @property
+    def description(self) -> str | None:
+        """str: The DICOM description for the descriptor.
+
+        The description is a short textual description of the attribute taken
+        from the standard.
+
+        ``None`` for custom descriptors.
+
+        """
+        if not self.is_custom:
+            return dictionary_description(self._tag)
 
     @property
     def tag(self) -> BaseTag | None:

@@ -25,8 +25,6 @@ from highdicom.enum import (
 from highdicom.image import _Image, Image
 from highdicom.pm.content import RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
-from highdicom.spatial import get_image_coordinate_system
-from highdicom.seg.content import DimensionIndexSequence
 from highdicom.volume import ChannelDescriptor, Volume
 from pydicom import Dataset
 from pydicom.dataelem import DataElement
@@ -493,19 +491,6 @@ class ParametricMap(Image):
             content_creator_identification=content_creator_identification,
         )
 
-        # TODO refactor this into the common method and include LUT label
-        # TODO generalize DimensionIndexSequence so we are not using the
-        # segmentation one here
-        self.DimensionIndexSequence = DimensionIndexSequence(
-            get_image_coordinate_system(src_img),
-            include_segment_number=False,
-        )
-        dimension_organization = Dataset()
-        dimension_organization.DimensionOrganizationUID = (
-            self.DimensionIndexSequence[0].DimensionOrganizationUID
-        )
-        self.DimensionOrganizationSequence = [dimension_organization]
-
         # Acquisition Context
         self.AcquisitionContextSequence: list[Dataset] = []
 
@@ -571,6 +556,9 @@ class ParametricMap(Image):
         self._init_multiframe_image(
             source_images=source_images,
             pixel_array=pixel_array,
+            functional_groups_module=(
+                'parametric-map-multi-frame-functional-groups'
+            ),
             image_type=image_type,
             photometric_interpretation=(
                 PhotometricInterpretationValues.MONOCHROME2
@@ -600,8 +588,6 @@ class ParametricMap(Image):
             channel_values=real_world_value_mappings,
             add_channel_callback=add_channel_callback,
             pixel_data_keyword=pixel_data_keyword,
-            # TODO change this and change the DimensionIndexSequence to match
-            channel_is_indexed=False,
         )
 
         # Parametric Map Frame Type
@@ -674,7 +660,7 @@ class ParametricMap(Image):
             if pixel_array.dtype not in (np.uint8, np.uint16):
                 raise ValueError(
                     'Unsupported unsigned integer type for pixel data: '
-                    '16-bit unsigned integer types are supported.'
+                    '8- and 16-bit unsigned integer types are supported.'
                 )
             return PixelDataKeywords.PIXEL_DATA
         raise ValueError(

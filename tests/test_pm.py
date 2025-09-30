@@ -493,6 +493,13 @@ class TestParametricMap():
         voi_lut_item = sffg_item.FrameVOILUTSequence[0]
         assert voi_lut_item.WindowCenter == str(window_center)
         assert voi_lut_item.WindowWidth == str(window_width)
+        assert not hasattr(pmap, 'ICCProfile')
+        assert not hasattr(pmap, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(pmap, 'RedPaletteColorLookupTableData')
+        assert not hasattr(pmap, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(pmap, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(pmap, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(pmap, 'BluePaletteColorLookupTableData')
 
     def test_multi_frame_sm_image_ushort_native(self):
         pixel_array = np.random.randint(
@@ -540,6 +547,8 @@ class TestParametricMap():
         sffg_item = instance.SharedFunctionalGroupsSequence[0]
         assert hasattr(sffg_item, 'RealWorldValueMappingSequence')
         assert len(sffg_item.RealWorldValueMappingSequence) == 1
+        assert hasattr(sffg_item, 'PixelValueTransformationSequence')
+        assert hasattr(sffg_item, 'FrameVOILUTSequence')
         pffg_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert not hasattr(pffg_item, 'RealWorldValueMappingSequence')
         assert instance.BitsAllocated == 8
@@ -551,6 +560,13 @@ class TestParametricMap():
         assert instance.ImageType[2] == 'WHOLE_BODY'
         assert instance.ImageType[3] == 'NONE'
         assert instance.PixelPresentation == 'MONOCHROME'
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
 
     def test_multi_frame_palette_lut(self):
         pixel_array = np.random.randint(
@@ -682,6 +698,8 @@ class TestParametricMap():
         sffg_item = instance.SharedFunctionalGroupsSequence[0]
         assert hasattr(sffg_item, 'RealWorldValueMappingSequence')
         assert len(sffg_item.RealWorldValueMappingSequence) == 1
+        assert hasattr(sffg_item, 'PixelValueTransformationSequence')
+        assert hasattr(sffg_item, 'FrameVOILUTSequence')
         pffg_item = instance.PerFrameFunctionalGroupsSequence[0]
         assert not hasattr(pffg_item, 'RealWorldValueMappingSequence')
         assert instance.BitsAllocated == 8
@@ -693,6 +711,13 @@ class TestParametricMap():
         assert instance.ImageType[2] == 'WHOLE_BODY'
         assert instance.ImageType[3] == 'NONE'
         assert instance.PixelPresentation == 'MONOCHROME'
+        assert not hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'RedPaletteColorLookupTableData')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'GreenPaletteColorLookupTableData')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(instance, 'BluePaletteColorLookupTableData')
 
     def test_multi_frame_sm_image_ushort_encapsulated_jpeg2000(self):
         pytest.importorskip("openjpeg")

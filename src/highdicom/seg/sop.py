@@ -46,10 +46,7 @@ from highdicom.enum import (
     PhotometricInterpretationValues,
     PixelRepresentationValues,
 )
-from highdicom.seg.content import (
-    DimensionIndexSequence,
-    SegmentDescription,
-)
+from highdicom.seg.content import SegmentDescription
 from highdicom.seg.enum import (
     SegmentationFractionalTypeValues,
     SegmentationTypeValues,
@@ -57,10 +54,6 @@ from highdicom.seg.enum import (
     SegmentAlgorithmTypeValues,
 )
 from highdicom.seg.utils import iter_segments
-from highdicom.spatial import (
-    get_image_coordinate_system,
-    get_tile_array,
-)
 from highdicom.sr.coding import CodedConcept
 from highdicom.volume import (
     ChannelDescriptor,
@@ -636,6 +629,8 @@ class Segmentation(_Image):
             segmentation_type != SegmentationTypeValues.LABELMAP
         )
         if include_segment_number:
+            # Include ReferencedSegmentNumber as an indexed channel
+            channel_dimension_index = ChannelDescriptor(0x0062_000b)
             channel_values = described_segment_numbers.tolist()
 
             # Function to use as callback to add the segment identification
@@ -662,19 +657,9 @@ class Segmentation(_Image):
 
             add_channel_callback = _add_segment_identification
         else:
+            channel_dimension_index = None
             channel_values = None
             add_channel_callback = None
-
-        # TODO factor this into the common method
-        self.DimensionIndexSequence = DimensionIndexSequence(
-            coordinate_system=get_image_coordinate_system(src_img),
-            include_segment_number=include_segment_number,
-        )
-        dimension_organization = Dataset()
-        dimension_organization.DimensionOrganizationUID = (
-            self.DimensionIndexSequence[0].DimensionOrganizationUID
-        )
-        self.DimensionOrganizationSequence = [dimension_organization]
 
         # Checks on pixels and overlap
         pixel_array, segments_overlap = self._check_and_cast_pixel_array(
@@ -702,6 +687,9 @@ class Segmentation(_Image):
         self._init_multiframe_image(
             source_images=source_images,
             pixel_array=pixel_array,
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
             photometric_interpretation=photometric_interpretation,
             bits_allocated=bits_allocated,
             samples_per_pixel=1,
@@ -722,6 +710,7 @@ class Segmentation(_Image):
             pyramid_uid=pyramid_uid,
             further_source_images=further_source_images,
             use_extended_offset_table=use_extended_offset_table,
+            channel_dimension_index=channel_dimension_index,
             channel_values=channel_values,
             add_channel_callback=add_channel_callback,
             preprocess_channel_callback=preprocess_channel_callback,
@@ -1151,49 +1140,6 @@ class Segmentation(_Image):
         return pixel_array, segments_overlap
 
     @staticmethod
-    def _get_nonempty_plane_indices(
-        pixel_array: np.ndarray
-    ) -> tuple[list[int], bool]:
-        """Get a list of all indices of original planes that are non-empty.
-
-        Empty planes (without any positive pixels in any of the segments) do
-        not need to be included in the segmentation image. This method finds a
-        list of indices of the input frames that are non-empty, and therefore
-        should be included in the segmentation image.
-
-        Parameters
-        ----------
-        pixel_array: numpy.ndarray
-            Segmentation pixel array
-
-        Returns
-        -------
-        included_plane_indices : List[int]
-            List giving for each plane position in the resulting segmentation
-            image the index of the corresponding frame in the original pixel
-            array.
-        is_empty: bool
-            Whether the entire image is empty. If so, empty frames should not
-            be omitted.
-
-        """
-        # This list tracks which source image each non-empty frame came from
-        source_image_indices = [
-            i for i, frm in enumerate(pixel_array)
-            if np.any(frm)
-        ]
-
-        if len(source_image_indices) == 0:
-            logger.warning(
-                'Encoding an empty segmentation with "omit_empty_frames" '
-                'set to True. Reverting to encoding all frames since omitting '
-                'all frames is not possible.'
-            )
-            return (list(range(pixel_array.shape[0])), True)
-
-        return (source_image_indices, False)
-
-    @staticmethod
     def _combine_segments(
         pixel_array: np.ndarray,
         labelmap_dtype: type,
@@ -1230,68 +1176,6 @@ class Segmentation(_Image):
         pixel_array = indices * is_non_empty
 
         return pixel_array
-
-    @staticmethod
-    def _get_nonempty_tile_indices(
-        pixel_array: np.ndarray,
-        plane_positions: Sequence[PlanePositionSequence],
-        rows: int,
-        columns: int,
-    ) -> tuple[list[int], bool]:
-        """Get a list of all indices of tile locations that are non-empty.
-
-        This is similar to _get_nonempty_plane_indices, but works on a total
-        pixel matrix rather than a set of frames. Empty planes (without any
-        positive pixels in any of the segments) do not need to be included in
-        the segmentation image. This method finds a list of indices of the
-        input frames that are non-empty, and therefore should be included in
-        the segmentation image.
-
-        Parameters
-        ----------
-        pixel_array: numpy.ndarray
-            Segmentation pixel array
-        plane_positions: Sequence[highdicom.PlanePositionSequence]
-            Plane positions of each tile.
-        rows: int
-            Number of rows in each tile.
-        columns: int
-            Number of columns in each tile.
-
-        Returns
-        -------
-        included_plane_indices : List[int]
-            List giving for each plane position in the resulting segmentation
-            image the index of the corresponding frame in the original pixel
-            array.
-        is_empty: bool
-            Whether the entire image is empty. If so, empty frames should not
-            be omitted.
-
-        """
-        # This list tracks which source image each non-empty frame came from
-        source_image_indices = [
-            i for i, pos in enumerate(plane_positions)
-            if np.any(
-                get_tile_array(
-                    pixel_array[0],
-                    row_offset=pos[0].RowPositionInTotalImagePixelMatrix,
-                    column_offset=pos[0].ColumnPositionInTotalImagePixelMatrix,
-                    tile_rows=rows,
-                    tile_columns=columns,
-                )
-            )
-        ]
-
-        if len(source_image_indices) == 0:
-            logger.warning(
-                'Encoding an empty segmentation with "omit_empty_frames" '
-                'set to True. Reverting to encoding all frames since omitting '
-                'all frames is not possible.'
-            )
-            return (list(range(len(plane_positions))), True)
-
-        return (source_image_indices, False)
 
     @staticmethod
     def _get_segment_pixel_array(

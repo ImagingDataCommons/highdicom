@@ -31,6 +31,7 @@ from highdicom import (
     PaletteColorLUT,
     PaletteColorLUTTransformation,
 )
+from highdicom.image import DimensionIndexSequence
 from highdicom.base_content import ContributingEquipment
 from highdicom.color import CIELabColor
 from highdicom.content import (
@@ -48,7 +49,6 @@ from highdicom.image import get_volume_from_series
 from highdicom.seg import (
     create_segmentation_pyramid,
     segread,
-    DimensionIndexSequence,
     SegmentationTypeValues,
     SegmentAlgorithmTypeValues,
     Segmentation,
@@ -549,40 +549,6 @@ class TestPlaneOrientationSequence(unittest.TestCase):
             )
 
 
-class TestDimensionIndexSequence(unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-
-    def test_construction(self):
-        seq = DimensionIndexSequence(
-            coordinate_system='PATIENT'
-        )
-        assert len(seq) == 2
-        assert seq[0].DimensionIndexPointer == 0x0062000B
-        assert seq[0].FunctionalGroupPointer == 0x0062000A
-        assert seq[1].DimensionIndexPointer == 0x00200032
-        assert seq[1].FunctionalGroupPointer == 0x00209113
-
-    def test_construction_2(self):
-        seq = DimensionIndexSequence(
-            coordinate_system='SLIDE'
-        )
-        assert len(seq) == 6
-        assert seq[0].DimensionIndexPointer == 0x0062000B
-        assert seq[0].FunctionalGroupPointer == 0x0062000A
-        assert seq[1].DimensionIndexPointer == 0x0048021F
-        assert seq[1].FunctionalGroupPointer == 0x0048021A
-        assert seq[2].DimensionIndexPointer == 0x0048021E
-        assert seq[2].FunctionalGroupPointer == 0x0048021A
-        assert seq[3].DimensionIndexPointer == 0x0040072A
-        assert seq[3].FunctionalGroupPointer == 0x0048021A
-        assert seq[4].DimensionIndexPointer == 0x0040073A
-        assert seq[4].FunctionalGroupPointer == 0x0048021A
-        assert seq[5].DimensionIndexPointer == 0x0040074A
-        assert seq[5].FunctionalGroupPointer == 0x0048021A
-
-
 class TestSegmentation:
 
     @pytest.fixture(autouse=True)
@@ -868,7 +834,10 @@ class TestSegmentation:
             else:
                 orientation = src.ImageOrientationPatient
 
-        dim_index = DimensionIndexSequence(coordinate_system)
+        dim_index = DimensionIndexSequence(
+            coordinate_system,
+            'segmentation-multi-frame-functional-groups'
+        )
         if hasattr(src, 'NumberOfFrames'):
             plane_positions = dim_index.get_plane_positions_of_image(src)
         else:
@@ -1089,6 +1058,8 @@ class TestSegmentation:
         assert po_item.ImageOrientationPatient == \
             self._ct_image.ImageOrientationPatient
         assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert instance.NumberOfFrames == 1
@@ -1174,6 +1145,8 @@ class TestSegmentation:
         assert pm_item.SliceThickness == src_pm_item.SliceThickness
         assert not hasattr(shared_item, "PlaneOrientationSequence")
         assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert instance.ImageOrientationSlide == \
             self._sm_image.ImageOrientationSlide
         assert instance.TotalPixelMatrixOriginSequence == \
@@ -1256,6 +1229,8 @@ class TestSegmentation:
         assert po_item.ImageOrientationPatient == \
             src_im.ImageOrientationPatient
         assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         n_frames = len(self._ct_series_nonempty)
@@ -1357,6 +1332,8 @@ class TestSegmentation:
         assert po_item.ImageOrientationPatient == \
             src_shared_item.PlaneOrientationSequence[0].ImageOrientationPatient
         assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert len(instance.PerFrameFunctionalGroupsSequence) == \
@@ -1445,6 +1422,8 @@ class TestSegmentation:
         assert po_item.ImageOrientationPatient == \
             src_im.ImageOrientationPatient
         assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert instance.NumberOfFrames == 4
@@ -1570,6 +1549,8 @@ class TestSegmentation:
         assert len(shared_item.SegmentIdentificationSequence) == 1
         assert not hasattr(shared_item, 'PixelMeasuresSequence')
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 1
         assert instance.NumberOfFrames == 1
@@ -1667,6 +1648,8 @@ class TestSegmentation:
         shared_item = instance.SharedFunctionalGroupsSequence[0]
         assert not hasattr(shared_item, 'PixelMeasuresSequence')
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 1
         assert instance.NumberOfFrames == 2
@@ -4526,7 +4509,10 @@ class TestSegmentation:
 
     def test_get_plane_positions_of_image_patient(self):
         seq = DimensionIndexSequence(
-            coordinate_system='PATIENT'
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
         )
         plane_positions = seq.get_plane_positions_of_image(self._ct_multiframe)
         for position in plane_positions:
@@ -4534,7 +4520,10 @@ class TestSegmentation:
 
     def test_get_plane_positions_of_image_slide(self):
         seq = DimensionIndexSequence(
-            coordinate_system='SLIDE'
+            coordinate_system='SLIDE',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
         )
         plane_positions = seq.get_plane_positions_of_image(self._sm_image)
         for position in plane_positions:
@@ -4542,7 +4531,10 @@ class TestSegmentation:
 
     def test_get_plane_positions_of_series(self):
         seq = DimensionIndexSequence(
-            coordinate_system='PATIENT'
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
         )
         plane_positions = seq.get_plane_positions_of_series(self._ct_series)
         for position in plane_positions:

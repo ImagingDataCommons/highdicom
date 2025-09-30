@@ -12,6 +12,7 @@ import pytest
 import re
 
 from highdicom import (
+    DimensionIndexSequence,
     Image,
     Volume,
     imread,
@@ -35,7 +36,77 @@ from highdicom.pm import (
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
+from highdicom.volume import ChannelDescriptor
 from tests.utils import find_readable_images
+
+
+class TestDimensionIndexSequence():
+
+    def test_construction_1(self):
+        seq = DimensionIndexSequence(
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+        )
+        assert len(seq) == 1
+        assert seq[0].DimensionIndexPointer == 0x00200032
+        assert seq[0].FunctionalGroupPointer == 0x00209113
+
+    def test_construction_2(self):
+        seq = DimensionIndexSequence(
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+            channel_dimensions=[ChannelDescriptor("ReferencedSegmentNumber")],
+        )
+        assert len(seq) == 2
+        assert seq[0].DimensionIndexPointer == 0x0062000B
+        assert seq[0].FunctionalGroupPointer == 0x0062000A
+        assert seq[1].DimensionIndexPointer == 0x00200032
+        assert seq[1].FunctionalGroupPointer == 0x00209113
+
+    def test_construction_3(self):
+        seq = DimensionIndexSequence(
+            coordinate_system='SLIDE',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+        )
+        assert len(seq) == 5
+        assert seq[0].DimensionIndexPointer == 0x0048021F
+        assert seq[0].FunctionalGroupPointer == 0x0048021A
+        assert seq[1].DimensionIndexPointer == 0x0048021E
+        assert seq[1].FunctionalGroupPointer == 0x0048021A
+        assert seq[2].DimensionIndexPointer == 0x0040072A
+        assert seq[2].FunctionalGroupPointer == 0x0048021A
+        assert seq[3].DimensionIndexPointer == 0x0040073A
+        assert seq[3].FunctionalGroupPointer == 0x0048021A
+        assert seq[4].DimensionIndexPointer == 0x0040074A
+        assert seq[4].FunctionalGroupPointer == 0x0048021A
+
+    def test_construction_4(self):
+        seq = DimensionIndexSequence(
+            coordinate_system='SLIDE',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+            channel_dimensions=[ChannelDescriptor("ReferencedSegmentNumber")],
+        )
+        assert len(seq) == 6
+        assert seq[0].DimensionIndexPointer == 0x0062000B
+        assert seq[0].FunctionalGroupPointer == 0x0062000A
+        assert seq[1].DimensionIndexPointer == 0x0048021F
+        assert seq[1].FunctionalGroupPointer == 0x0048021A
+        assert seq[2].DimensionIndexPointer == 0x0048021E
+        assert seq[2].FunctionalGroupPointer == 0x0048021A
+        assert seq[3].DimensionIndexPointer == 0x0040072A
+        assert seq[3].FunctionalGroupPointer == 0x0048021A
+        assert seq[4].DimensionIndexPointer == 0x0040073A
+        assert seq[4].FunctionalGroupPointer == 0x0048021A
+        assert seq[5].DimensionIndexPointer == 0x0040074A
+        assert seq[5].FunctionalGroupPointer == 0x0048021A
 
 
 def test_slice_spacing():

@@ -48,10 +48,12 @@ from pydicom.valuerep import format_number_as_ds
 
 from highdicom._module_utils import (
     ModuleUsageValues,
+    construct_module_tree,
     does_iod_have_pixel_data,
     get_module_usage,
     is_multiframe_image,
 )
+from highdicom._modules import MODULE_ATTRIBUTE_MAP
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.color import ColorManager
 from highdicom.content import (
@@ -65,10 +67,12 @@ from highdicom.content import (
     VOILUTTransformation
 )
 from highdicom.enum import (
+    AxisHandedness,
     CoordinateSystemNames,
     DimensionOrganizationTypeValues,
     PhotometricInterpretationValues,
     PixelDataKeywords,
+    PixelIndexDirections,
     PixelRepresentationValues,
     PlanarConfigurationValues,
 )
@@ -86,6 +90,7 @@ from highdicom.pixels import (
 from highdicom.spatial import (
     _are_orientations_coplanar,
     _are_orientations_equal,
+    _get_slice_distances,
     _get_spatial_information,
     ImageToReferenceTransformer,
     compute_tile_positions_per_frame,
@@ -95,18 +100,21 @@ from highdicom.spatial import (
     get_tile_array,
     get_volume_positions,
     is_tiled_image,
+    map_pixel_into_coordinate_system,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID as UID
 from highdicom.utils import (
     iter_tiled_full_frame_data,
     are_plane_positions_tiled_full,
+    compute_plane_position_slide_per_frame,
 )
 from highdicom.valuerep import (
     _check_long_string,
 )
 from highdicom.volume import (
     _DCM_PYTHON_TYPE_MAP,
+    ChannelDescriptor,
     VolumeGeometry,
     Volume,
     RGB_COLOR_CHANNEL_DESCRIPTOR,
@@ -147,6 +155,17 @@ _PURPOSE_CODE = CodedConcept.from_code(
 _DERIVATION_CODE = CodedConcept.from_code(
     codes.cid7203.SegmentationImageDerivation
 )
+
+
+# Tags used for spatial dimensions
+_SPATIAL_TAGS = {
+    0x0020_0032,  # ImagePositionPatient
+    0x0040_072a,  # XOffsetInSlideCoordinateSystem
+    0x0040_073a,  # YOffsetInSlideCoordinateSystem
+    0x0040_074a,  # ZOffsetInSlideCoordinateSystem
+    0x0048_021e,  # ColumnPositionInTotalImagePixelMatrix
+    0x0048_021f,  # RowPositionInTotalImagePixelMatrix
+}
 
 
 class _ImageColorType(Enum):
@@ -1169,6 +1188,546 @@ class _SQLTableDefinition:
         self.column_data = sanitized_column_data
 
 
+class DimensionIndexSequence(DataElementSequence):
+
+    """Sequence of data elements describing dimension indices for the patient
+    or slide coordinate system based on the Dimension Index functional
+    group macro.
+
+    Note
+    ----
+    The order of indices is fixed.
+
+    """
+
+    def __init__(
+        self,
+        coordinate_system: str | CoordinateSystemNames | None,
+        functional_groups_module: str,
+        channel_dimensions: Sequence[ChannelDescriptor] | None = None,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        coordinate_system: Union[str, highdicom.CoordinateSystemNames, None]
+            Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
+            imaging. If None, the imaging does not belong within a frame of
+            reference.
+
+        """
+        super().__init__()
+        if coordinate_system is None:
+            self._coordinate_system = None
+        else:
+            self._coordinate_system = CoordinateSystemNames(coordinate_system)
+
+        if functional_groups_module not in MODULE_ATTRIBUTE_MAP:
+            raise KeyError(
+                f"Value of '{functional_groups_module}' for parameter "
+                "'functional_groups_module' is not an existing module name."
+            )
+        if (
+            (
+                functional_groups_module ==
+                'sparse-multi-frame-functional-groups'
+            ) or (
+                not functional_groups_module.endswith(
+                    '-multi-frame-functional-groups'
+                )
+            )
+        ):
+            raise ValueError(
+                f"Value of '{functional_groups_module}' for parameter "
+                "'functional_groups_module' is not a multi-frame "
+                "functional groups module."
+            )
+
+        module_tree = construct_module_tree(functional_groups_module)
+        per_frame_tree = (
+            module_tree
+            ['attributes']
+            ['PerFrameFunctionalGroupsSequence']
+            ['attributes']
+        )
+
+        dim_uid = UID()
+
+        if channel_dimensions is not None:
+
+            for desc in channel_dimensions:
+
+                if not isinstance(desc, ChannelDescriptor):
+                    raise TypeError(
+                        "Items of 'channel_dimensions' must have type "
+                        'highdicom.ChannelDescriptor.'
+                    )
+
+                if desc.is_custom:
+                    raise ValueError(
+                        "Channels descriptors used in 'channel_dimensions' may "
+                        'not be custom.'
+                    )
+
+                channel_index = Dataset()
+                channel_index.DimensionIndexPointer = desc.tag
+                for seq_name, seq_info in per_frame_tree.items():
+                    if desc.keyword in seq_info['attributes']:
+                        break
+                else:
+                    raise ValueError(
+                        f"The specified channel descriptor ('{desc.keyword}') "
+                        'may not be used as an index within the specified '
+                        f"module ('{functional_groups_module}')."
+                    )
+                channel_index.FunctionalGroupPointer = tag_for_keyword(seq_name)
+                channel_index.DimensionOrganizationUID = dim_uid
+                channel_index.DimensionDescriptionLabel = desc.description
+                self.append(channel_index)
+
+        if self._coordinate_system == CoordinateSystemNames.SLIDE:
+
+            x_axis_index = Dataset()
+            x_axis_index.DimensionIndexPointer = tag_for_keyword(
+                'XOffsetInSlideCoordinateSystem'
+            )
+            x_axis_index.FunctionalGroupPointer = tag_for_keyword(
+                'PlanePositionSlideSequence'
+            )
+            x_axis_index.DimensionOrganizationUID = dim_uid
+            x_axis_index.DimensionDescriptionLabel = (
+                'X Offset in Slide Coordinate System'
+            )
+
+            y_axis_index = Dataset()
+            y_axis_index.DimensionIndexPointer = tag_for_keyword(
+                'YOffsetInSlideCoordinateSystem'
+            )
+            y_axis_index.FunctionalGroupPointer = tag_for_keyword(
+                'PlanePositionSlideSequence'
+            )
+            y_axis_index.DimensionOrganizationUID = dim_uid
+            y_axis_index.DimensionDescriptionLabel = (
+                'Y Offset in Slide Coordinate System'
+            )
+
+            z_axis_index = Dataset()
+            z_axis_index.DimensionIndexPointer = tag_for_keyword(
+                'ZOffsetInSlideCoordinateSystem'
+            )
+            z_axis_index.FunctionalGroupPointer = tag_for_keyword(
+                'PlanePositionSlideSequence'
+            )
+            z_axis_index.DimensionOrganizationUID = dim_uid
+            z_axis_index.DimensionDescriptionLabel = (
+                'Z Offset in Slide Coordinate System'
+            )
+
+            column_dimension_index = Dataset()
+            column_dimension_index.DimensionIndexPointer = tag_for_keyword(
+                'ColumnPositionInTotalImagePixelMatrix'
+            )
+            column_dimension_index.FunctionalGroupPointer = tag_for_keyword(
+                'PlanePositionSlideSequence'
+            )
+            column_dimension_index.DimensionOrganizationUID = dim_uid
+            column_dimension_index.DimensionDescriptionLabel = (
+                'Column Position In Total Image Pixel Matrix'
+            )
+
+            row_dimension_index = Dataset()
+            row_dimension_index.DimensionIndexPointer = tag_for_keyword(
+                'RowPositionInTotalImagePixelMatrix'
+            )
+            row_dimension_index.FunctionalGroupPointer = tag_for_keyword(
+                'PlanePositionSlideSequence'
+            )
+            row_dimension_index.DimensionOrganizationUID = dim_uid
+            row_dimension_index.DimensionDescriptionLabel = (
+                'Row Position In Total Image Pixel Matrix'
+            )
+
+            # Organize frames for each segment similar to TILED_FULL, with
+            # segment position changing least frequently, followed by position
+            # of the row (from top to bottom) and then position of the column
+            # (from left to right) changing most frequently
+            self.extend([
+                row_dimension_index,
+                column_dimension_index,
+                x_axis_index,
+                y_axis_index,
+                z_axis_index,
+            ])
+
+        elif self._coordinate_system == CoordinateSystemNames.PATIENT:
+
+            image_position_index = Dataset()
+            image_position_index.DimensionIndexPointer = tag_for_keyword(
+                'ImagePositionPatient'
+            )
+            image_position_index.FunctionalGroupPointer = tag_for_keyword(
+                'PlanePositionSequence'
+            )
+            image_position_index.DimensionOrganizationUID = dim_uid
+            image_position_index.DimensionDescriptionLabel = (
+                'Image Position Patient'
+            )
+
+            self.append(image_position_index)
+
+        elif self._coordinate_system is None:
+            if channel_dimensions is None or len(channel_dimensions) == 0:
+                # Use frame label here just for the sake of using something
+                frame_label_index = Dataset()
+                frame_label_index.DimensionIndexPointer = tag_for_keyword(
+                    'FrameLabel'
+                )
+                frame_label_index.FunctionalGroupPointer = tag_for_keyword(
+                    'FrameContentSequence'
+                )
+                frame_label_index.DimensionOrganizationUID = dim_uid
+                frame_label_index.DimensionDescriptionLabel = 'Frame Label'
+                self.append(frame_label_index)
+        else:
+            raise ValueError(
+                f'Unknown coordinate system "{self._coordinate_system}"'
+            )
+
+        # Check that the resulting sequence does not contain duplicate
+        # attributes
+        ptrs = {item.DimensionIndexPointer for item in self}
+        if len(ptrs) < len(self):
+            raise ValueError(
+                'Specified channel dimensions lead to duplicate dimension '
+                'indices.'
+            )
+
+    def get_plane_positions_of_image(
+        self,
+        image: Dataset
+    ) -> list[PlanePositionSequence]:
+        """Gets plane positions of frames in multi-frame image.
+
+        Parameters
+        ----------
+        image: Dataset
+            Multi-frame image
+
+        Returns
+        -------
+        List[highdicom.PlanePositionSequence]
+            Plane position of each frame in the image
+
+        """
+        is_multiframe = is_multiframe_image(image)
+        if not is_multiframe:
+            raise ValueError('Argument "image" must be a multi-frame image.')
+
+        if self._coordinate_system is None:
+            raise ValueError(
+                'Cannot calculate plane positions when images do not exist '
+                'within a frame of reference.'
+            )
+        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
+            if hasattr(image, 'PerFrameFunctionalGroupsSequence'):
+                plane_positions = [PlanePositionSequence.from_sequence(
+                    item.PlanePositionSlideSequence
+                )
+                    for item in image.PerFrameFunctionalGroupsSequence
+                ]
+            else:
+                # If Dimension Organization Type is TILED_FULL, plane
+                # positions are implicit and need to be computed.
+                plane_positions = compute_plane_position_slide_per_frame(image)
+        else:
+            plane_positions = [
+                PlanePositionSequence.from_sequence(item.PlanePositionSequence)
+                for item in image.PerFrameFunctionalGroupsSequence
+            ]
+
+        return plane_positions
+
+    def get_plane_positions_of_series(
+        self,
+        images: Sequence[Dataset]
+    ) -> list[PlanePositionSequence]:
+        """Gets plane positions for series of single-frame images.
+
+        Parameters
+        ----------
+        images: Sequence[Dataset]
+            Series of single-frame images
+
+        Returns
+        -------
+        List[highdicom.PlanePositionSequence]
+            Plane position of each frame in the image
+
+        """
+        is_multiframe = any([is_multiframe_image(img) for img in images])
+        if is_multiframe:
+            raise ValueError(
+                'Argument "images" must be a series of single-frame images.'
+            )
+
+        if self._coordinate_system is None:
+            raise ValueError(
+                'Cannot calculate plane positions when images do not exist '
+                'within a frame of reference.'
+            )
+        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
+            plane_positions = []
+            for img in images:
+                # Unfortunately, the image position is not specified relative to
+                # the top left corner but to the center of the image.
+                # Therefore, we need to compute the offset and subtract it.
+                center_item = img.ImageCenterPointCoordinatesSequence[0]
+                x_center = center_item.XOffsetInSlideCoordinateSystem
+                y_center = center_item.YOffsetInSlideCoordinateSystem
+                z_center = center_item.ZOffsetInSlideCoordinateSystem
+                offset_coordinate = map_pixel_into_coordinate_system(
+                    index=((img.Columns / 2, img.Rows / 2)),
+                    image_position=(x_center, y_center, z_center),
+                    image_orientation=img.ImageOrientationSlide,
+                    pixel_spacing=img.PixelSpacing
+                )
+                center_coordinate = np.array((0., 0., 0.), dtype=float)
+                origin_coordinate = center_coordinate - offset_coordinate
+                plane_positions.append(
+                    PlanePositionSequence(
+                        coordinate_system=CoordinateSystemNames.SLIDE,
+                        image_position=origin_coordinate,
+                        pixel_matrix_position=(1, 1)
+                    )
+                )
+        else:
+            plane_positions = [
+                PlanePositionSequence(
+                    coordinate_system=CoordinateSystemNames.PATIENT,
+                    image_position=img.ImagePositionPatient
+                )
+                for img in images
+            ]
+
+        return plane_positions
+
+    def get_index_position(self, pointer: str) -> int:
+        """Get relative position of a given dimension in the dimension index.
+
+        Parameters
+        ----------
+        pointer: str
+            Name of the dimension (keyword of the attribute),
+            e.g., ``"ReferencedSegmentNumber"``
+
+        Returns
+        -------
+        int
+            Zero-based relative position
+
+        Examples
+        --------
+        >>> dimension_index = DimensionIndexSequence("SLIDE")
+        >>> i = dimension_index.get_index_position("ReferencedSegmentNumber")
+        >>> dimension_description = dimension_index[i]
+        >>> dimension_description
+        (0020, 9164) Dimension Organization UID          ...
+        (0020, 9165) Dimension Index Pointer             AT: (0062, 000b)
+        (0020, 9167) Functional Group Pointer            AT: (0062, 000a)
+        (0020, 9421) Dimension Description Label         LO: 'Segment Number'
+
+        """
+        indices = [
+            i
+            for i, indexer in enumerate(self)
+            if indexer.DimensionIndexPointer == tag_for_keyword(pointer)
+        ]
+        if len(indices) == 0:
+            raise ValueError(
+                f'Dimension index does not contain a dimension "{pointer}".'
+            )
+        return indices[0]
+
+    def get_index_values(
+        self,
+        plane_positions: Sequence[PlanePositionSequence],
+        image_orientation: Sequence[float] | None = None,
+        index_convention: (
+            str |
+            Sequence[PixelIndexDirections | str]
+        ) = (
+            PixelIndexDirections.R,
+            PixelIndexDirections.D,
+        ),
+        handedness: AxisHandedness | str = AxisHandedness.RIGHT_HANDED,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Get values of indexed attributes that specify position of planes.
+
+        Parameters
+        ----------
+        plane_positions: Sequence[highdicom.PlanePositionSequence]
+            Plane position of frames in a multi-frame image or in a series of
+            single-frame images.
+        image_orientation: Union[Sequence[float], None], optional
+            An image orientation to use to order frames within a 3D coordinate
+            system. By default (if ``image_orientation`` is ``None``), the
+            plane positions are ordered using their raw numerical values and
+            not along any particular spatial vector. If ``image_orientation``
+            is provided, planes are ordered along the positive direction of the
+            vector normal to the specified. Should be a sequence of 6 floats.
+            This is only valid when plane position inputs contain only the
+            ImagePositionPatient.
+        index_convention: Sequence[Union[highdicom.enum.PixelIndexDirections, str]], optional
+            Convention used to determine how to order frames if
+            ``image_orientation`` is specified. Should be a sequence of two
+            :class:`highdicom.enum.PixelIndexDirections` or their string
+            representations, giving in order, the indexing conventions used for
+            specifying pixel indices. For example ``('R', 'D')`` means that the
+            first pixel index indexes the columns from left to right, and the
+            second pixel index indexes the rows from top to bottom (this is the
+            convention typically used within DICOM). As another example ``('D',
+            'R')`` would switch the order of the indices to give the convention
+            typically used within NumPy.
+
+            Alternatively, a single shorthand string may be passed that combines
+            the string representations of the two directions. So for example,
+            passing ``'RD'`` is equivalent to passing ``('R', 'D')``.
+
+            This is used in combination with the ``handedness`` to determine
+            the positive direction used to order frames.
+        handedness: Union[highdicom.enum.AxisHandedness, str], optional
+            Choose the frame order such that the frame axis creates a
+            coordinate system with this handedness in the when combined with
+            the within-frame convention given by ``index_convention``.
+
+        Returns
+        -------
+        dimension_index_values: numpy.ndarray
+            Array of dimension index values. The first dimension corresponds
+            to the items in the input plane_positions sequence. The second
+            dimension corresponds to the dimensions of the dimension index.
+            The third dimension (if any) corresponds to the multiplicity
+            of the values, and is omitted if this is 1 for all dimensions.
+        plane_indices: numpy.ndarray
+            1D array of planes indices for sorting frames according to their
+            spatial position specified by the dimension index
+
+        Note
+        ----
+        Includes only values of indexed attributes that specify the spatial
+        position of planes relative to the total pixel matrix or the frame of
+        reference, and excludes values of the Referenced Segment Number
+        attribute.
+
+        """  # noqa: E501
+        if self._coordinate_system is None:
+            raise RuntimeError(
+                'Cannot calculate index values for multiple plane '
+                'positions when images do not exist within a frame of '
+                'reference.'
+            )
+
+        # For each spatial dimension obtain the value of the attribute that the
+        # Dimension Index Pointer points to in the element of the Plane
+        # Position Sequence or Plane Position Slide Sequence. Per definition,
+        # this is the Image Position Patient attribute in case of the patient
+        # coordinate system, or the X/Y/Z Offset In Slide Coordinate System and
+        # the Column/Row Position in Total Image Pixel Matrix attributes in
+        # case of the the slide coordinate system.
+        indexers = [
+            dim_ind for dim_ind in self
+            if dim_ind.DimensionIndexPointer in _SPATIAL_TAGS
+        ]
+        plane_position_values = np.array([
+            [
+                np.array(p[0][indexer.DimensionIndexPointer].value)
+                for indexer in indexers
+            ]
+            for p in plane_positions
+        ])
+
+        if image_orientation is not None:
+            if not hasattr(plane_positions[0][0], 'ImagePositionPatient'):
+                raise ValueError(
+                    'Provided "image_orientation" is only valid when '
+                    'plane_positions contain the ImagePositionPatient.'
+                )
+            normal_vector = get_normal_vector(
+                image_orientation,
+                index_convention=index_convention,
+                handedness=handedness,
+            )
+            origin_distances = _get_slice_distances(
+                plane_position_values[:, 0, :],
+                normal_vector,
+            )
+            _, plane_sort_indices = np.unique(
+                origin_distances,
+                return_index=True,
+            )
+        else:
+            # Build an array that can be used to sort planes according to the
+            # Dimension Index Value based on the order of the items in the
+            # Dimension Index Sequence.
+            _, plane_sort_indices = np.unique(
+                plane_position_values,
+                axis=0,
+                return_index=True
+            )
+
+        if len(plane_sort_indices) != len(plane_positions):
+            raise ValueError(
+                'Input image/frame positions are not unique according to the '
+                'Dimension Index Pointers. The generated segmentation would be '
+                'ambiguous. Ensure that source images/frames have distinct '
+                'locations.'
+            )
+
+        return (plane_position_values, plane_sort_indices)
+
+    def get_index_keywords(self) -> list[str]:
+        """Get keywords of attributes that specify the position of planes.
+
+        Returns
+        -------
+        List[str]
+            Keywords of indexed attributes
+
+        Note
+        ----
+        Includes only keywords of indexed attributes that specify the spatial
+        position of planes relative to the total pixel matrix or the frame of
+        reference, and excludes the keyword of the Referenced Segment Number
+        attribute.
+
+        Examples
+        --------
+        >>> dimension_index = DimensionIndexSequence('SLIDE')
+        >>> plane_positions = [
+        ...     PlanePositionSequence('SLIDE', [10.0, 0.0, 0.0], [1, 1]),
+        ...     PlanePositionSequence('SLIDE', [30.0, 0.0, 0.0], [1, 2]),
+        ...     PlanePositionSequence('SLIDE', [50.0, 0.0, 0.0], [1, 3])
+        ... ]
+        >>> values, indices = dimension_index.get_index_values(plane_positions)
+        >>> names = dimension_index.get_index_keywords()
+        >>> for name in names:
+        ...     print(name)
+        RowPositionInTotalImagePixelMatrix
+        ColumnPositionInTotalImagePixelMatrix
+        XOffsetInSlideCoordinateSystem
+        YOffsetInSlideCoordinateSystem
+        ZOffsetInSlideCoordinateSystem
+        >>> index = names.index("XOffsetInSlideCoordinateSystem")
+        >>> print(values[:, index])
+        [10. 30. 50.]
+
+        """
+        return [
+            keyword_for_tag(indexer.DimensionIndexPointer)
+            for indexer in self
+            if indexer.DimensionIndexPointer in _SPATIAL_TAGS
+        ]
+
+
 class _Image(SOPClass):
 
     """Base class representing a general DICOM image.
@@ -1259,6 +1818,7 @@ class _Image(SOPClass):
         image_type: Sequence[str],
         photometric_interpretation: PhotometricInterpretationValues | str,
         bits_allocated: int,
+        functional_groups_module: str,
         bits_stored: int | None = None,
         samples_per_pixel: int = 1,
         planar_configuration: (
@@ -1296,11 +1856,22 @@ class _Image(SOPClass):
         add_channel_callback: (
             Callable[[Dataset, Any], Dataset] | None
         ) = None,  # TODO generalize
-        channel_is_indexed: bool = True,  # TODO generalize
+        channel_dimension_index: ChannelDescriptor | None = None,
         preprocess_channel_callback: Callable[
             [np.ndarray, Any, int], np.ndarray
         ] | None = None,
     ):
+        """
+
+        Parameters
+        ----------
+        channel_dimension_index: highdicom.ChannelDescriptor | None
+            If there is a channel dimension and it should be included in the
+            dimension index sequence, provide the descriptor of the relevant
+            attribute here. Otherwise, pass ``None``. It is not required that
+            the channel, if present, be included in the DimensionIndexSequence.
+
+        """
         uniqueness_criteria = {
             (
                 image.StudyInstanceUID,
@@ -1497,6 +2068,21 @@ class _Image(SOPClass):
         else:
             self.Rows = pixel_array.shape[1]
             self.Columns = pixel_array.shape[2]
+
+        # Multi-frame Dimension
+        channel_is_indexed = channel_dimension_index is not None
+        self.DimensionIndexSequence = DimensionIndexSequence(
+            coordinate_system=self._coordinate_system,
+            functional_groups_module=functional_groups_module,
+            channel_dimensions=(
+                [channel_dimension_index] if channel_is_indexed else None
+            ),
+        )
+        dimension_organization = Dataset()
+        dimension_organization.DimensionOrganizationUID = (
+            self.DimensionIndexSequence[0].DimensionOrganizationUID
+        )
+        self.DimensionOrganizationSequence = [dimension_organization]
 
         (
             plane_positions,
@@ -3059,6 +3645,110 @@ class _Image(SOPClass):
             plane_position_values,
             plane_sort_index,
         )
+
+    @staticmethod
+    def _get_nonempty_plane_indices(
+        pixel_array: np.ndarray
+    ) -> tuple[list[int], bool]:
+        """Get a list of all indices of original planes that are non-empty.
+
+        Empty planes (without any positive pixels in any of the channels) do
+        not need to be included in the image. This method finds a
+        list of indices of the input frames that are non-empty, and therefore
+        should be included in the image.
+
+        Parameters
+        ----------
+        pixel_array: numpy.ndarray
+            Segmentation pixel array
+
+        Returns
+        -------
+        included_plane_indices : List[int]
+            List giving for each plane position in the resulting segmentation
+            image the index of the corresponding frame in the original pixel
+            array.
+        is_empty: bool
+            Whether the entire image is empty. If so, empty frames should not
+            be omitted.
+
+        """
+        # This list tracks which source image each non-empty frame came from
+        source_image_indices = [
+            i for i, frm in enumerate(pixel_array)
+            if np.any(frm)
+        ]
+
+        if len(source_image_indices) == 0:
+            logger.warning(
+                'Encoding an empty image with "omit_empty_frames" '
+                'set to True. Reverting to encoding all frames since omitting '
+                'all frames is not possible.'
+            )
+            return (list(range(pixel_array.shape[0])), True)
+
+        return (source_image_indices, False)
+
+    @staticmethod
+    def _get_nonempty_tile_indices(
+        pixel_array: np.ndarray,
+        plane_positions: Sequence[PlanePositionSequence],
+        rows: int,
+        columns: int,
+    ) -> tuple[list[int], bool]:
+        """Get a list of all indices of tile locations that are non-empty.
+
+        This is similar to _get_nonempty_plane_indices, but works on a total
+        pixel matrix rather than a set of frames. Empty planes (without any
+        positive pixels in any of the channels) do not need to be included in
+        the image. This method finds a list of indices of the input frames that
+        are non-empty, and therefore should be included in the image.
+
+        Parameters
+        ----------
+        pixel_array: numpy.ndarray
+            Pixel array
+        plane_positions: Sequence[highdicom.PlanePositionSequence]
+            Plane positions of each tile.
+        rows: int
+            Number of rows in each tile.
+        columns: int
+            Number of columns in each tile.
+
+        Returns
+        -------
+        included_plane_indices : List[int]
+            List giving for each plane position in the resulting segmentation
+            image the index of the corresponding frame in the original pixel
+            array.
+        is_empty: bool
+            Whether the entire image is empty. If so, empty frames should not
+            be omitted.
+
+        """
+        # This list tracks which source image each non-empty frame came from
+        source_image_indices = [
+            i for i, pos in enumerate(plane_positions)
+            if np.any(
+                get_tile_array(
+                    pixel_array[0],
+                    row_offset=pos[0].RowPositionInTotalImagePixelMatrix,
+                    column_offset=pos[0].ColumnPositionInTotalImagePixelMatrix,
+                    tile_rows=rows,
+                    tile_columns=columns,
+                )
+            )
+        ]
+
+        if len(source_image_indices) == 0:
+            logger.warning(
+                'Encoding an empty image with "omit_empty_frames" '
+                'set to True. Reverting to encoding all frames since omitting '
+                'all frames is not possible.'
+            )
+            return (list(range(len(plane_positions))), True)
+
+        return (source_image_indices, False)
 
     @staticmethod
     def _get_derivation_source_image_item(
