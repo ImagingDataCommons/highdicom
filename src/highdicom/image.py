@@ -5192,8 +5192,6 @@ class _Image(SOPClass):
             (0x0020_9111, 0x0020_9057),
             # RealWorldValueMappingSequence/LUTLabel
             (0x0040_9096, 0x0040_9210),
-            # RealWorldValueMappingSequence/QuantityDefinitionSequence
-            (0x0040_9096, 0x0040_9220),
         ]:
             if ptr in self._dim_ind_pointers:
                 # Skip if this attribute is already indexed due to being a
