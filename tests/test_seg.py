@@ -57,7 +57,11 @@ from highdicom.seg import (
     SegmentationFractionalTypeValues,
 )
 from highdicom.seg.utils import iter_segments
-from highdicom.spatial import VOLUME_INDEX_CONVENTION, sort_datasets
+from highdicom.spatial import (
+    VOLUME_INDEX_CONVENTION,
+    create_affine_matrix_from_attributes,
+    sort_datasets,
+)
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.volume import RGB_COLOR_CHANNEL_DESCRIPTOR, Volume
@@ -1152,7 +1156,7 @@ class TestSegmentation:
         assert instance.TotalPixelMatrixOriginSequence == \
             self._sm_image.TotalPixelMatrixOriginSequence
         assert len(instance.DimensionOrganizationSequence) == 1
-        assert len(instance.DimensionIndexSequence) == 6
+        assert len(instance.DimensionIndexSequence) == 3
 
         # Number of frames should be number of frames in the segmentation mask
         # that are non-empty, due to sparsity
@@ -1165,7 +1169,7 @@ class TestSegmentation:
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.PlanePositionSlideSequence) == 1
         frame_content_item = frame_item.FrameContentSequence[0]
-        assert len(frame_content_item.DimensionIndexValues) == 6
+        assert len(frame_content_item.DimensionIndexValues) == 3
         for derivation_image_item in frame_item.DerivationImageSequence:
             assert len(derivation_image_item.SourceImageSequence) == 1
             source_image_item = derivation_image_item.SourceImageSequence[0]
@@ -2805,6 +2809,8 @@ class TestSegmentation:
         )
         assert instance.DimensionOrganizationType == "TILED_FULL"
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
+        assert not hasattr(instance, 'DimensionIndexSequence')
+        assert hasattr(instance, 'DimensionOrganizationSequence')
 
     def test_construction_tiled_full_labelmap(self):
         instance = Segmentation(
@@ -2825,6 +2831,8 @@ class TestSegmentation:
         )
         assert instance.DimensionOrganizationType == "TILED_FULL"
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
+        assert not hasattr(instance, 'DimensionIndexSequence')
+        assert hasattr(instance, 'DimensionOrganizationSequence')
 
     def test_construction_further_source_images(self):
         # Further source images that are aligned
@@ -4463,7 +4471,8 @@ class TestSegmentation:
         self.check_dimension_index_vals(instance)
 
     def test_spatial_positions_not_preserved(self):
-        pixel_spacing = (0.5, 0.5)
+        origin = (1.2, 4.5, 0.0)
+        pixel_spacing = (0.005, 0.005)
         slice_thickness = 0.3
         pixel_measures = PixelMeasuresSequence(
             pixel_spacing=pixel_spacing,
@@ -4474,13 +4483,62 @@ class TestSegmentation:
             coordinate_system=CoordinateSystemNames.SLIDE,
             image_orientation=image_orientation
         )
+        affine = create_affine_matrix_from_attributes(
+            image_orientation=image_orientation,
+            pixel_spacing=pixel_spacing,
+            image_position=origin,
+            index_convention="RD",  # use column, row
+        )
+
+        # Arbitrary tile positions
+        # use (column, row ) format to match input to PlanePositionSequence
+        tile_positions = np.array(
+            [
+                [8361, 7917],
+                [9464, 6091],
+                [3188, 6036],
+                [8391, 9097],
+                [2063, 6274],
+                [6, 7616],
+                [9409, 447],
+                [305, 3222],
+                [5675, 3033],
+                [8130, 642],
+                [9921, 4617],
+                [633, 8264],
+                [3650, 4208],
+                [2078, 1986],
+                [507, 1362],
+                [4151, 3298],
+                [5998, 2695],
+                [6603, 7279],
+                [663, 522],
+                [7736, 9028],
+                [622, 8943],
+                [2147, 1407],
+                [2566, 9502],
+                [834, 9156],
+                [9859, 7794]
+            ]
+        )
+        n = tile_positions.shape[0]
+
+        # Subtract 1 (since top left pixel has position 1, 1) and add column of
+        # ones
+        tile_positions_aug = np.column_stack(
+            [tile_positions - 1, np.ones((n, 1))]
+        )
+
+        # Ignore the third column of the affine since there is no slice offset
+        plane_position_values = (affine[:3, [0, 1, 3]] @ tile_positions_aug.T).T
+
         plane_positions = [
             PlanePositionSequence(
                 coordinate_system=CoordinateSystemNames.SLIDE,
-                image_position=(i * 1.0, i * 1.0, 1.0),
-                pixel_matrix_position=(i * 1, i * 1)
+                pixel_matrix_position=tp.tolist(),
+                image_position=pp.tolist(),
             )
-            for i in range(self._sm_image.pixel_array.shape[0])
+            for tp, pp in zip(tile_positions, plane_position_values)
         ]
         instance = Segmentation(
             source_images=[self._sm_image],
@@ -4506,6 +4564,45 @@ class TestSegmentation:
         assert pm_item.SliceThickness == slice_thickness
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
         self.check_dimension_index_vals(instance)
+
+        # Check that the correct origin was inferred from the plane positions
+        origin_seq = instance.TotalPixelMatrixOriginSequence[0]
+        assert origin_seq.XOffsetInSlideCoordinateSystem == origin[0]
+        assert origin_seq.YOffsetInSlideCoordinateSystem == origin[1]
+        assert origin_seq.ZOffsetInSlideCoordinateSystem == origin[2]
+
+        # Repeat with plane positions that are inconsistent with the tile
+        # positions - should raise an error
+        bad_plane_positions = [
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.SLIDE,
+                pixel_matrix_position=tp.tolist(),
+                image_position=(1.0, 1.0, 1.0),  # same position for every tile
+            )
+            for tp in tile_positions
+        ]
+        msg = (
+            "Some plane positions are not consistent with the provided "
+            "plane orientation and pixel measures."
+        )
+        with pytest.raises(ValueError, match=msg):
+            Segmentation(
+                source_images=[self._sm_image],
+                pixel_array=self._sm_pixel_array,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=self._segment_descriptions,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number,
+                pixel_measures=pixel_measures,
+                plane_orientation=plane_orientation,
+                plane_positions=bad_plane_positions
+            )
 
     def test_get_plane_positions_of_image_patient(self):
         seq = DimensionIndexSequence(

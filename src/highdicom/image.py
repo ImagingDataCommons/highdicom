@@ -94,20 +94,21 @@ from highdicom.spatial import (
     _get_spatial_information,
     ImageToReferenceTransformer,
     compute_tile_positions_per_frame,
+    create_rotation_matrix,
     get_image_coordinate_system,
     get_normal_vector,
     get_series_volume_positions,
     get_tile_array,
     get_volume_positions,
     is_tiled_image,
-    map_pixel_into_coordinate_system,
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID as UID
 from highdicom.utils import (
+    get_plane_positions_of_image,
+    get_plane_positions_of_series,
     iter_tiled_full_frame_data,
     are_plane_positions_tiled_full,
-    compute_plane_position_slide_per_frame,
 )
 from highdicom.valuerep import (
     _check_long_string,
@@ -1286,40 +1287,16 @@ class DimensionIndexSequence(DataElementSequence):
 
         if self._coordinate_system == CoordinateSystemNames.SLIDE:
 
-            x_axis_index = Dataset()
-            x_axis_index.DimensionIndexPointer = tag_for_keyword(
-                'XOffsetInSlideCoordinateSystem'
+            row_dimension_index = Dataset()
+            row_dimension_index.DimensionIndexPointer = tag_for_keyword(
+                'RowPositionInTotalImagePixelMatrix'
             )
-            x_axis_index.FunctionalGroupPointer = tag_for_keyword(
+            row_dimension_index.FunctionalGroupPointer = tag_for_keyword(
                 'PlanePositionSlideSequence'
             )
-            x_axis_index.DimensionOrganizationUID = dim_uid
-            x_axis_index.DimensionDescriptionLabel = (
-                'X Offset in Slide Coordinate System'
-            )
-
-            y_axis_index = Dataset()
-            y_axis_index.DimensionIndexPointer = tag_for_keyword(
-                'YOffsetInSlideCoordinateSystem'
-            )
-            y_axis_index.FunctionalGroupPointer = tag_for_keyword(
-                'PlanePositionSlideSequence'
-            )
-            y_axis_index.DimensionOrganizationUID = dim_uid
-            y_axis_index.DimensionDescriptionLabel = (
-                'Y Offset in Slide Coordinate System'
-            )
-
-            z_axis_index = Dataset()
-            z_axis_index.DimensionIndexPointer = tag_for_keyword(
-                'ZOffsetInSlideCoordinateSystem'
-            )
-            z_axis_index.FunctionalGroupPointer = tag_for_keyword(
-                'PlanePositionSlideSequence'
-            )
-            z_axis_index.DimensionOrganizationUID = dim_uid
-            z_axis_index.DimensionDescriptionLabel = (
-                'Z Offset in Slide Coordinate System'
+            row_dimension_index.DimensionOrganizationUID = dim_uid
+            row_dimension_index.DimensionDescriptionLabel = (
+                'Row Position In Total Image Pixel Matrix'
             )
 
             column_dimension_index = Dataset()
@@ -1334,28 +1311,13 @@ class DimensionIndexSequence(DataElementSequence):
                 'Column Position In Total Image Pixel Matrix'
             )
 
-            row_dimension_index = Dataset()
-            row_dimension_index.DimensionIndexPointer = tag_for_keyword(
-                'RowPositionInTotalImagePixelMatrix'
-            )
-            row_dimension_index.FunctionalGroupPointer = tag_for_keyword(
-                'PlanePositionSlideSequence'
-            )
-            row_dimension_index.DimensionOrganizationUID = dim_uid
-            row_dimension_index.DimensionDescriptionLabel = (
-                'Row Position In Total Image Pixel Matrix'
-            )
-
             # Organize frames for each segment similar to TILED_FULL, with
-            # segment position changing least frequently, followed by position
-            # of the row (from top to bottom) and then position of the column
-            # (from left to right) changing most frequently
+            # followed by position of the row (from top to bottom) changing
+            # least frequently and then position of the column (from left to
+            # right) changing most frequently
             self.extend([
                 row_dimension_index,
                 column_dimension_index,
-                x_axis_index,
-                y_axis_index,
-                z_axis_index,
             ])
 
         elif self._coordinate_system == CoordinateSystemNames.PATIENT:
@@ -1417,34 +1379,15 @@ class DimensionIndexSequence(DataElementSequence):
         List[highdicom.PlanePositionSequence]
             Plane position of each frame in the image
 
+        Note
+        ----
+
+        This method now defers entirely to
+        :func:`highdicom.utils.get_plane_positions_of_image`, and the latter
+        should be preferred in user code.
+
         """
-        is_multiframe = is_multiframe_image(image)
-        if not is_multiframe:
-            raise ValueError('Argument "image" must be a multi-frame image.')
-
-        if self._coordinate_system is None:
-            raise ValueError(
-                'Cannot calculate plane positions when images do not exist '
-                'within a frame of reference.'
-            )
-        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
-            if hasattr(image, 'PerFrameFunctionalGroupsSequence'):
-                plane_positions = [PlanePositionSequence.from_sequence(
-                    item.PlanePositionSlideSequence
-                )
-                    for item in image.PerFrameFunctionalGroupsSequence
-                ]
-            else:
-                # If Dimension Organization Type is TILED_FULL, plane
-                # positions are implicit and need to be computed.
-                plane_positions = compute_plane_position_slide_per_frame(image)
-        else:
-            plane_positions = [
-                PlanePositionSequence.from_sequence(item.PlanePositionSequence)
-                for item in image.PerFrameFunctionalGroupsSequence
-            ]
-
-        return plane_positions
+        return get_plane_positions_of_image(image)
 
     def get_plane_positions_of_series(
         self,
@@ -1462,53 +1405,15 @@ class DimensionIndexSequence(DataElementSequence):
         List[highdicom.PlanePositionSequence]
             Plane position of each frame in the image
 
+        Note
+        ----
+
+        This method now defers entirely to
+        :func:`highdicom.utils.get_plane_positions_of_series`, and the latter
+        should be preferred in user code.
+
         """
-        is_multiframe = any([is_multiframe_image(img) for img in images])
-        if is_multiframe:
-            raise ValueError(
-                'Argument "images" must be a series of single-frame images.'
-            )
-
-        if self._coordinate_system is None:
-            raise ValueError(
-                'Cannot calculate plane positions when images do not exist '
-                'within a frame of reference.'
-            )
-        elif self._coordinate_system == CoordinateSystemNames.SLIDE:
-            plane_positions = []
-            for img in images:
-                # Unfortunately, the image position is not specified relative to
-                # the top left corner but to the center of the image.
-                # Therefore, we need to compute the offset and subtract it.
-                center_item = img.ImageCenterPointCoordinatesSequence[0]
-                x_center = center_item.XOffsetInSlideCoordinateSystem
-                y_center = center_item.YOffsetInSlideCoordinateSystem
-                z_center = center_item.ZOffsetInSlideCoordinateSystem
-                offset_coordinate = map_pixel_into_coordinate_system(
-                    index=((img.Columns / 2, img.Rows / 2)),
-                    image_position=(x_center, y_center, z_center),
-                    image_orientation=img.ImageOrientationSlide,
-                    pixel_spacing=img.PixelSpacing
-                )
-                center_coordinate = np.array((0., 0., 0.), dtype=float)
-                origin_coordinate = center_coordinate - offset_coordinate
-                plane_positions.append(
-                    PlanePositionSequence(
-                        coordinate_system=CoordinateSystemNames.SLIDE,
-                        image_position=origin_coordinate,
-                        pixel_matrix_position=(1, 1)
-                    )
-                )
-        else:
-            plane_positions = [
-                PlanePositionSequence(
-                    coordinate_system=CoordinateSystemNames.PATIENT,
-                    image_position=img.ImagePositionPatient
-                )
-                for img in images
-            ]
-
-        return plane_positions
+        return get_plane_positions_of_series(images)
 
     def get_index_position(self, pointer: str) -> int:
         """Get relative position of a given dimension in the dimension index.
@@ -2019,7 +1924,9 @@ class _Image(SOPClass):
                 self.LossyImageCompressionMethod = \
                     src_img.LossyImageCompressionMethod
 
+        volume_geometry: VolumeGeometry | None = None
         if isinstance(pixel_array, Volume):
+            volume_geometry = pixel_array.get_geometry()
             (
                 pixel_array,
                 plane_positions,
@@ -2069,26 +1976,40 @@ class _Image(SOPClass):
             self.Rows = pixel_array.shape[1]
             self.Columns = pixel_array.shape[2]
 
-        # Multi-frame Dimension
         channel_is_indexed = channel_dimension_index is not None
-        self.DimensionIndexSequence = DimensionIndexSequence(
-            coordinate_system=self._coordinate_system,
-            functional_groups_module=functional_groups_module,
-            channel_dimensions=(
-                [channel_dimension_index] if channel_is_indexed else None
-            ),
-        )
-        dimension_organization = Dataset()
-        dimension_organization.DimensionOrganizationUID = (
-            self.DimensionIndexSequence[0].DimensionOrganizationUID
-        )
-        self.DimensionOrganizationSequence = [dimension_organization]
+        if dimension_organization_type is not None:
+            dimension_organization_type = DimensionOrganizationTypeValues(
+                dimension_organization_type
+            )
+
+        if (
+            dimension_organization_type is not None and
+            dimension_organization_type ==
+            DimensionOrganizationTypeValues.TILED_FULL
+        ):
+            # Do not include dimension index sequence for tiled full since
+            # there are no functional groups for the index to point to
+            dim_org_uid = UID()
+        else:
+            self.DimensionIndexSequence = DimensionIndexSequence(
+                coordinate_system=self._coordinate_system,
+                functional_groups_module=functional_groups_module,
+                channel_dimensions=(
+                    [channel_dimension_index] if channel_is_indexed else None
+                ),
+            )
+            dim_org_uid = (
+                self
+                .DimensionIndexSequence[0]
+                .DimensionOrganizationUID
+            )
 
         (
             plane_positions,
             plane_orientation,
             pixel_measures,
             plane_position_values,
+            plane_tile_positions,
             plane_sort_index,
             derivation_source_image_items,
         ) = self._prepare_spatial_metadata(
@@ -2102,9 +2023,10 @@ class _Image(SOPClass):
             frame_shape=pixel_array.shape[1:3],
             number_of_planes=pixel_array.shape[0],
             dimension_organization_type=dimension_organization_type,
+            volume_geometry=volume_geometry,
         )
 
-        # Shared functional groops
+        # Shared functional groups
         sffg_item = Dataset()
         if (
             self._coordinate_system is not None and
@@ -2120,7 +2042,7 @@ class _Image(SOPClass):
             if 'SpacingBetweenSlices' not in pixel_measures[0]:
                 ori = plane_orientation[0].ImageOrientationPatient
                 slice_spacing, _ = get_volume_positions(
-                    image_positions=plane_position_values[:, 0, :],
+                    image_positions=plane_position_values,
                     image_orientation=ori,
                 )
                 if slice_spacing is not None:
@@ -2180,7 +2102,7 @@ class _Image(SOPClass):
         else:
             included_plane_indices = range(len(plane_positions))
 
-        # Dimension Organization Type
+        # Multi-frame Dimension
         dimension_organization_type = self._check_tiled_dimension_organization(
             dimension_organization_type=dimension_organization_type,
             is_tiled=is_tiled,
@@ -2192,23 +2114,27 @@ class _Image(SOPClass):
             num_channels=1 if channel_values is None else len(channel_values),
         )
 
+        dimension_organization = Dataset()
+        dimension_organization.DimensionOrganizationUID = dim_org_uid
+        self.DimensionOrganizationSequence = [dimension_organization]
+
         if (
             self._coordinate_system is not None and
+            self._coordinate_system == CoordinateSystemNames.SLIDE and
             dimension_organization_type !=
             DimensionOrganizationTypeValues.TILED_FULL
         ):
-            # Get unique values of attributes in the Plane Position Sequence or
-            # Plane Position Slide Sequence, which define the position of the
-            # plane with respect to the three dimensional patient or slide
-            # coordinate system, respectively. These can subsequently be used
-            # to look up the relative position of a plane relative to the
-            # indexed dimension.
+            # Get unique values of attributes in the Plane Position Slide
+            # Sequence, which defines the position of the plane with respect to
+            # the three dimensional slide coordinate system. These can
+            # subsequently be used to look up the relative position of a plane
+            # relative to the indexed dimension.
             unique_dimension_values = [
                 np.unique(
-                    plane_position_values[included_plane_indices, index],
+                    plane_tile_positions[included_plane_indices, index],
                     axis=0
                 )
-                for index in range(plane_position_values.shape[1])
+                for index in [0, 1]
             ]
         else:
             unique_dimension_values = [None]
@@ -2233,7 +2159,7 @@ class _Image(SOPClass):
                 ori = plane_orientation[0].ImageOrientationPatient
                 spacing, _ = get_volume_positions(
                     image_positions=plane_position_values[
-                        included_plane_indices, 0, :
+                        included_plane_indices, :
                     ],
                     image_orientation=ori,
                     sort=False,
@@ -2256,20 +2182,6 @@ class _Image(SOPClass):
 
         if dimension_organization_type is not None:
             self.DimensionOrganizationType = dimension_organization_type.value
-
-        if (
-            self._coordinate_system is not None and
-            self._coordinate_system == CoordinateSystemNames.SLIDE
-        ):
-            plane_position_names = (
-                self.DimensionIndexSequence.get_index_keywords()
-            )
-            row_dim_index = plane_position_names.index(
-                'RowPositionInTotalImagePixelMatrix'
-            )
-            col_dim_index = plane_position_names.index(
-                'ColumnPositionInTotalImagePixelMatrix'
-            )
 
         is_encaps = self.file_meta.TransferSyntaxUID.is_encapsulated
         process_pool: Executor | None = None
@@ -2403,10 +2315,10 @@ class _Image(SOPClass):
                         DimensionOrganizationTypeValues.TILED_FULL
                     ):
                         row_offset = int(
-                            plane_position_values[plane_index, row_dim_index]
+                            plane_tile_positions[plane_index, 0]
                         )
                         column_offset = int(
-                            plane_position_values[plane_index, col_dim_index]
+                            plane_tile_positions[plane_index, 1]
                         )
                     else:
                         pos = plane_positions[plane_index][0]
@@ -2465,13 +2377,13 @@ class _Image(SOPClass):
                     # Get the item of the PerFrameFunctionalGroupsSequence for
                     # this segmentation frame
                     if self._coordinate_system is not None:
-                        plane_pos_val = plane_position_values[plane_index]
                         if (
                             self._coordinate_system ==
                             CoordinateSystemNames.SLIDE
                         ):
+                            plane_pos_val = plane_tile_positions[plane_index]
                             try:
-                                dimension_index_values = [
+                                spatial_dimension_index_values = [
                                     int(
                                         np.where(
                                             unique_dimension_values[idx] == pos
@@ -2487,19 +2399,26 @@ class _Image(SOPClass):
                                     f'index values: {error}'
                                 ) from error
                         else:
-                            dimension_index_values = [plane_dim_ind]
+                            spatial_dimension_index_values = [plane_dim_ind]
                     else:
-                        dimension_index_values = []
+                        spatial_dimension_index_values = []
 
                     plane_derivation_items = (
                         derivation_source_image_items[plane_index]
                         if derivation_source_image_items is not None else None
                     )
+
                     if channel_value is not None and channel_is_indexed:
-                        dimension_index_values = (
-                            [int(channel_index) + 1] +
-                            dimension_index_values
-                        )
+                        channel_dimension_index_values = [
+                            int(channel_index) + 1
+                        ]
+                    else:
+                        channel_dimension_index_values = []
+
+                    dimension_index_values = [
+                        *channel_dimension_index_values,
+                        *spatial_dimension_index_values,
+                    ]
 
                     pffg_item = self._get_pffg_item(
                         dimension_index_values=dimension_index_values,
@@ -2783,10 +2702,12 @@ class _Image(SOPClass):
         frame_shape: Sequence[int],
         number_of_planes: int,
         dimension_organization_type: DimensionOrganizationTypeValues,
+        volume_geometry: VolumeGeometry | None,
     ) -> tuple[
         Sequence[PlanePositionSequence | None],
         PlaneOrientationSequence | None,
         PixelMeasuresSequence | None,
+        np.ndarray,
         np.ndarray,
         np.ndarray,
         Sequence[Sequence[Dataset]] | None,
@@ -2827,6 +2748,9 @@ class _Image(SOPClass):
             Number of planes in the input pixel array.
         dimension_organization_type: highdicom.DimensionOrganizationTypeValues
             Requested dimension organization type for the constructed image.
+        volume_geometry: highdicom.VolumeGeometry | None
+            The volume geometry if the spatial metadata were originally derived
+            from a highdicom Volume object.
 
         Returns
         -------
@@ -2845,6 +2769,11 @@ class _Image(SOPClass):
             sorted the same way as the dimension index sequence (without
             segment number). Empty array if no spatial information is to be
             included.
+        np.ndarray:
+            Array giving, for each plane of the input array, the (row, column)
+            position of the tile within the total pixel matrix. Row is measured
+            from the top, column is measured right from the left. If the image
+            being created is not tiled, this will be an empty array.
         np.ndarray:
             List of zero-based integer indices into the input planes giving the
             order in which they should be arranged to correctly sort them for
@@ -2896,13 +2825,14 @@ class _Image(SOPClass):
                 plane_orientation,
                 pixel_measures,
                 np.empty((0, )),  # plane_position_values
+                np.empty((0, )),  # plane_tile_positions
                 np.array([0]),  # plane_sort_index
                 [[src_img_item]],
             )
 
         if self._coordinate_system == CoordinateSystemNames.SLIDE:
             source_plane_orientation = PlaneOrientationSequence(
-                coordinate_system=self._coordinate_system,
+                coordinate_system=CoordinateSystemNames.SLIDE,
                 image_orientation=src_img.ImageOrientationSlide
             )
         else:
@@ -2943,6 +2873,7 @@ class _Image(SOPClass):
             (
                 plane_positions,
                 plane_position_values,
+                plane_tile_positions,
                 plane_sort_index,
             ) = self._prepare_tiled_spatial_metadata(
                 plane_positions=plane_positions,
@@ -2963,6 +2894,7 @@ class _Image(SOPClass):
                 plane_orientation,
                 pixel_measures,
                 plane_position_values,
+                plane_tile_positions,
                 plane_sort_index,
                 None,  # derivation_source_image_items TODO
             )
@@ -3019,20 +2951,26 @@ class _Image(SOPClass):
             dimensions_preserved
         )
 
+        origin = None
+
         if plane_positions is None:
             # Calculating source positions can be slow, so avoid unless
             # necessary
-            dim_ind = self.DimensionIndexSequence
             if is_multiframe:
-                plane_positions = dim_ind.get_plane_positions_of_image(
-                    src_img
-                )
+                plane_positions = get_plane_positions_of_image(src_img)
             else:
-                plane_positions = dim_ind.get_plane_positions_of_series(
-                    source_images
-                )
+                plane_positions = get_plane_positions_of_series(source_images)
+
             positions_are_copied = True
             number_of_positions = len(plane_positions)
+
+            if self._coordinate_system == CoordinateSystemNames.SLIDE:
+                origin_seq = src_img.TotalPixelMatrixOriginSequence[0]
+                origin = (
+                    origin_seq.XOffsetInSlideCoordinateSystem,
+                    origin_seq.YOffsetInSlideCoordinateSystem,
+                    origin_seq.get('ZOffsetInSlideCoordinateSystem', 0.0),
+                )
 
             # Plane positions match the source images by definition
             if number_of_planes != number_of_positions:
@@ -3067,28 +3005,63 @@ class _Image(SOPClass):
         else:
             positions_are_copied = False
 
-        # plane_position_values is an array giving, for each plane of
-        # the input array, the raw values of all attributes that
-        # describe its position. The first dimension is sorted the same
-        # way as the input pixel array and the second is sorted the
-        # same way as the dimension index sequence (without segment
-        # number) plane_sort_index is a list of indices into the input
+        # plane_position_values is an array giving, for each plane of the input
+        # array, the raw x, y, z frame of reference coordinates for the frame.
+        # The first dimension is sorted the same way as the input pixel array
+        # and the second is sorted is in the order x, y, z.
+        # plane_sort_index is a list of indices into the input
         # planes giving the order in which they should be arranged to
-        # correctly sort them for inclusion into the segmentation
-        sort_orientation = (
-            plane_orientation[0].ImageOrientationPatient
-            if self._coordinate_system == CoordinateSystemNames.PATIENT
-            else None
-        )
+        # correctly sort them for inclusion into the new image
+        if self._coordinate_system == CoordinateSystemNames.PATIENT:
+            plane_position_values = np.array(
+                [p[0].ImagePositionPatient for p in plane_positions]
+            )
+            normal_vector = get_normal_vector(
+                plane_orientation[0].ImageOrientationPatient,
+                index_convention=VOLUME_INDEX_CONVENTION,
+            )
+            origin_distances = _get_slice_distances(
+                plane_position_values,
+                normal_vector,
+            )
+            _, plane_sort_index = np.unique(
+                origin_distances,
+                return_index=True,
+            )
+            plane_tile_positions = np.empty((0, ))
+        else:
+            plane_position_values = np.array(
+                [
+                    [
+                        p[0].XOffsetInSlideCoordinateSystem,
+                        p[0].YOffsetInSlideCoordinateSystem,
+                        p[0].ZOffsetInSlideCoordinateSystem,
+                    ] for p in plane_positions
+                ]
+            )
+            # plane_tile_positions is a an array giving, for each plane of the
+            # input array, the (row, column) position of the tile within the
+            # total pixel matrix. Row is measured from the top, column is
+            # measured right from the left
+            plane_tile_positions = np.array(
+                [
+                    [
+                        p[0].RowPositionInTotalImagePixelMatrix,
+                        p[0].ColumnPositionInTotalImagePixelMatrix,
+                    ]
+                    for p in plane_positions
+                ]
+            )
+            _, plane_sort_index = np.unique(
+                plane_tile_positions,
+                axis=0,
+                return_index=True
+            )
 
-        (
-            plane_position_values,
-            plane_sort_index,
-        ) = self.DimensionIndexSequence.get_index_values(
-            plane_positions,
-            image_orientation=sort_orientation,
-            index_convention=VOLUME_INDEX_CONVENTION,
-        )
+        if len(plane_sort_index) != len(plane_positions):
+            raise ValueError(
+                "Plane positions must not contain duplicates."
+            )
 
         if not positions_are_copied:
             # Plane positions may not match source images
@@ -3099,6 +3072,23 @@ class _Image(SOPClass):
                     'via "plane_positions" argument does not match '
                     'size of first dimension of "pixel_array" argument.'
                 )
+
+            if self._coordinate_system == CoordinateSystemNames.SLIDE:
+                # Check that the plane positions the user passed are
+                # self-consistent and not duplicated
+                if volume_geometry is None:
+                    origin = self._check_slide_plane_positions(
+                        plane_position_values=plane_position_values,
+                        plane_tile_positions=plane_tile_positions,
+                        image_orientation=(
+                            plane_orientation[0].ImageOrientationSlide
+                        ),
+                        pixel_spacing=pixel_measures[0].PixelSpacing,
+                    )
+                else:
+                    # We can skip this check since the positions are consistent
+                    # by construction
+                    origin = volume_geometry.position
 
             if orientation_coplanar and not is_tiled:
                 (
@@ -3122,12 +3112,9 @@ class _Image(SOPClass):
                     # in the source images instead to correct for small
                     # numerical errors introduced in processing in the
                     # spatial metadata
-                    dim_ind = self.DimensionIndexSequence
                     if is_multiframe:
                         source_plane_positions = (
-                            dim_ind.get_plane_positions_of_image(
-                                src_img
-                            )
+                            get_plane_positions_of_image(src_img)
                         )
 
                         plane_positions = [
@@ -3138,9 +3125,7 @@ class _Image(SOPClass):
                         ]
                     else:
                         source_plane_positions = (
-                            dim_ind.get_plane_positions_of_series(
-                                source_images
-                            )
+                            get_plane_positions_of_series(source_images)
                         )
 
                         plane_positions = []
@@ -3275,8 +3260,9 @@ class _Image(SOPClass):
         if self._coordinate_system == CoordinateSystemNames.SLIDE:
             self._add_slide_coordinate_metadata(
                 source_image=src_img,
+                origin=origin,
                 plane_orientation=plane_orientation,
-                plane_position_values=plane_position_values,
+                tile_positions=plane_tile_positions,
                 pixel_measures=pixel_measures,
                 are_spatial_locations_preserved=are_spatial_locations_preserved,
                 is_tiled=is_tiled,
@@ -3288,9 +3274,88 @@ class _Image(SOPClass):
             plane_orientation,
             pixel_measures,
             plane_position_values,
+            plane_tile_positions,
             plane_sort_index,
             derivation_source_image_items,
         )
+
+    def _check_slide_plane_positions(
+        self,
+        plane_position_values: np.ndarray,
+        plane_tile_positions: np.ndarray,
+        image_orientation: Sequence[float],
+        pixel_spacing: Sequence[float],
+    ) -> tuple[float, float, float]:
+        """Checks on user-provided plane positions for slides.
+
+        Checks that positions have an internally-consistent mapping from tile
+        position to frame-of-reference position.
+
+        Also returns the origin calculated according to this mapping.
+
+        Parameters
+        ----------
+        plane_position_values: numpy.ndarray
+            N x 3 array giving frame of reference coordinates (x, y, z) for
+            each plane.
+        plane_tile_positions: numpy.ndarray
+            N x 2 array giving total pixel matrix positions (r, c) for each
+            plane. These are 1-based indices in accordance with the definition
+            of the corresponding DICOM attributes.
+        image_orientation: Sequence[float]
+            Image orientation (direction cosine format) for the image.
+        pixel_spacing: Sequence[float]
+            Pixel spacing for the image.
+
+        Returns
+        -------
+        x:
+            X coordinate of the total pixel matrix origin
+        y:
+            Y coordinate of the total pixel matrix origin
+        z:
+            Z coordinate of the total pixel matrix origin
+
+        Raises
+        ------
+        ValueError:
+            If any plane position-tile position combinations are inconsistent
+            with the provided spacing and orientation.
+
+        """
+        # Create a reduced affine matrix (just the first two columns) that maps
+        # tile positions to frame of reference coordinates (without
+        # translation). The equation we are setting up is
+        #     plane_position_values.T =
+        #         affine @ plane_tile_positions.T + origins.T
+        # where origins is a 3 x n array of origin estimates for each tile
+        affine = create_rotation_matrix(
+            image_orientation=image_orientation,
+            pixel_spacing=pixel_spacing,
+            index_convention="DR",
+        )[:, :2]
+
+        # Solve the above equation for the estimated origins array The result
+        # is a 3 x n array, where each column is the estimate of the origin
+        # according to one provided tile's combination of tile position and
+        # frame of reference coordinate
+        origin_estimates = (
+            plane_position_values.T - affine @ (plane_tile_positions.T - 1)
+        )
+
+        origin = origin_estimates.mean(axis=1, keepdims=True)
+
+        # The coordinates are self-consistent if the columns of this array are
+        # equal (within a small numerical margin)
+        residuals = origin_estimates - origin
+
+        if not np.allclose(residuals, 0.0):
+            raise ValueError(
+                "Some plane positions are not consistent with the provided "
+                "plane orientation and pixel measures."
+            )
+
+        return tuple(origin.flatten().tolist())
 
     @staticmethod
     def _match_planes(
@@ -3308,7 +3373,7 @@ class _Image(SOPClass):
         source_plane_orientation: Sequence[float]
             The orientation cosines of the source image.
         plane_position_values: np.ndarray
-            Array of shape (n, 1, 3) giving for each input plane, the values of
+            Array of shape (n, 3) giving for each input plane, the values of
             the plane position.
         source_images: Sequence[Dataset]
             The source images from which this image is derived. May be either a
@@ -3392,10 +3457,12 @@ class _Image(SOPClass):
 
             return None
 
-        # plane_position_values has singleton as second dimension, so this
-        # gives offset of each position from each source position via
+        # add a singleton as second dimension to plane_position_values , so
+        # this gives offset of each position from each source position via
         # broadcasting
-        pairwise_offsets = plane_position_values - source_position_values
+        pairwise_offsets = (
+            plane_position_values[:, None, :] - source_position_values
+        )
 
         if all_but_positions_preserved:
             # Check for matching of positions between source and planes
@@ -3445,6 +3512,7 @@ class _Image(SOPClass):
         Sequence[PlanePositionSequence | None],
         np.ndarray,
         np.ndarray,
+        np.ndarray,
     ]:
         """
 
@@ -3488,6 +3556,11 @@ class _Image(SOPClass):
             sorted the same way as the dimension index sequence (without
             segment number). Empty array if no spatial information is to be
             included.
+        np.ndarray:
+            Array giving, for each plane of the input array, the (row, column)
+            position of the tile within the total pixel matrix. Row is measured
+            from the top, column is measured right from the left. If the image
+            being created is not tiled, this will be an empty array.
         np.ndarray:
             List of zero-based integer indices into the input planes giving the
             order in which they should be arranged to correctly sort them for
@@ -3562,8 +3635,7 @@ class _Image(SOPClass):
 
         if are_total_pixel_matrix_locations_preserved:
             if (
-                frame_shape !=
-                (
+                frame_shape != (
                     src_img.TotalPixelMatrixRows,
                     src_img.TotalPixelMatrixColumns
                 )
@@ -3614,26 +3686,20 @@ class _Image(SOPClass):
             # Unneeded
             plane_positions = [None]
 
-        # Match the format used elsewhere
-        plane_position_values = np.array(
-            [
-                [*offsets, *coords]
-                for offsets, coords in raw_plane_positions
-            ]
-        )
+        tile_positions_list, plane_positions_list = zip(*raw_plane_positions)
 
-        # compute_tile_positions_per_frame returns
-        # (c, r, x, y, z) but the dimension index sequence
-        # requires (r, c, x, y z). Swap here to correct for
-        # this
-        plane_position_values = plane_position_values[
-            :, [1, 0, 2, 3, 4]
-        ]
+        plane_position_values = np.array(plane_positions_list)
+        plane_tile_positions = np.array(tile_positions_list)
+
+        # compute_tile_positions_per_frame returns (c, r) but we want (r, c)
+        # for correct sorting. Swap here to correct for this
+        plane_tile_positions = plane_tile_positions[:, [1, 0]]
 
         self._add_slide_coordinate_metadata(
             source_image=src_img,
+            origin=(x_offset, y_offset, z_offset),
             plane_orientation=plane_orientation,
-            plane_position_values=plane_position_values,
+            tile_positions=plane_tile_positions,
             pixel_measures=pixel_measures,
             are_spatial_locations_preserved=are_spatial_locations_preserved,
             is_tiled=True,
@@ -3643,6 +3709,7 @@ class _Image(SOPClass):
         return (
             plane_positions,
             plane_position_values,
+            plane_tile_positions,
             plane_sort_index,
         )
 
@@ -4000,8 +4067,9 @@ class _Image(SOPClass):
     def _add_slide_coordinate_metadata(
         self,
         source_image: Dataset,
+        origin: tuple[float, float, float],
         plane_orientation: PlaneOrientationSequence,
-        plane_position_values: np.ndarray,
+        tile_positions: np.ndarray,
         pixel_measures: PixelMeasuresSequence,
         are_spatial_locations_preserved: bool,
         is_tiled: bool,
@@ -4015,10 +4083,14 @@ class _Image(SOPClass):
         ----------
         source_image: pydicom.Dataset
             The source image (assumed to be a single source image).
+        origin: tuple[float, float, float]
+            Position of the origin of the total pixel matrix as a tuple of
+            float (x, y, x).
         plane_orientation: highdicom.PlaneOrientationSequence
             Plane orientation sequence for the segmentation.
-        plane_position_values: numpy.ndarray
-            Plane positions of each plane.
+        tile_positions: numpy.ndarray
+            Tile positions (row, column) of each plane within the total pixel
+            matrix.
         pixel_measures: highdicom.PixelMeasuresSequence
             PixelMeasuresSequence for the segmentation.
         are_spatial_locations_preserved: bool
@@ -4034,8 +4106,6 @@ class _Image(SOPClass):
             provided tiles (i.e. the provided plane positions are padded).
 
         """
-        plane_position_names = self.DimensionIndexSequence.get_index_keywords()
-
         self.ImageOrientationSlide = deepcopy(
             plane_orientation[0].ImageOrientationSlide
         )
@@ -4051,47 +4121,26 @@ class _Image(SOPClass):
                 source_image.ImageCenterPointCoordinatesSequence
             )
         else:
-            row_index = plane_position_names.index(
-                'RowPositionInTotalImagePixelMatrix'
-            )
-            row_offsets = plane_position_values[:, row_index]
-            col_index = plane_position_names.index(
-                'ColumnPositionInTotalImagePixelMatrix'
-            )
-            col_offsets = plane_position_values[:, col_index]
-            frame_indices = np.lexsort([row_offsets, col_offsets])
-            first_frame_index = frame_indices[0]
+            frame_indices = np.lexsort(tile_positions.T)
             last_frame_index = frame_indices[-1]
-            x_index = plane_position_names.index(
-                'XOffsetInSlideCoordinateSystem'
-            )
-            x_origin = plane_position_values[first_frame_index, x_index]
-            y_index = plane_position_names.index(
-                'YOffsetInSlideCoordinateSystem'
-            )
-            y_origin = plane_position_values[first_frame_index, y_index]
-            z_index = plane_position_names.index(
-                'ZOffsetInSlideCoordinateSystem'
-            )
-            z_origin = plane_position_values[first_frame_index, z_index]
 
             if is_tiled:
                 origin_item = Dataset()
                 origin_item.XOffsetInSlideCoordinateSystem = \
-                    format_number_as_ds(x_origin)
+                    format_number_as_ds(origin[0])
                 origin_item.YOffsetInSlideCoordinateSystem = \
-                    format_number_as_ds(y_origin)
+                    format_number_as_ds(origin[1])
                 origin_item.ZOffsetInSlideCoordinateSystem = \
-                    format_number_as_ds(z_origin)
+                    format_number_as_ds(origin[2])
                 self.TotalPixelMatrixOriginSequence = [origin_item]
                 self.TotalPixelMatrixFocalPlanes = 1
                 if total_pixel_matrix_size is None:
                     self.TotalPixelMatrixRows = int(
-                        plane_position_values[last_frame_index, row_index] +
+                        tile_positions[last_frame_index, 0] +
                         self.Rows - 1
                     )
                     self.TotalPixelMatrixColumns = int(
-                        plane_position_values[last_frame_index, col_index] +
+                        tile_positions[last_frame_index, 1] +
                         self.Columns - 1
                     )
                 else:
@@ -4099,7 +4148,7 @@ class _Image(SOPClass):
                     self.TotalPixelMatrixColumns = total_pixel_matrix_size[1]
             else:
                 transform = ImageToReferenceTransformer(
-                    image_position=(x_origin, y_origin, z_origin),
+                    image_position=origin,
                     image_orientation=(
                         plane_orientation[0].ImageOrientationSlide
                     ),
@@ -8445,8 +8494,8 @@ class Image(_Image):
             ]
             if not self._do_columns_identify_unique_frames(columns):
                 raise RuntimeError(
-                    'Volume positions and do not '
-                    'uniquely identify frames of the image.'
+                    'Volume positions do not uniquely identify frames of the '
+                    'image.'
                 )
 
             (

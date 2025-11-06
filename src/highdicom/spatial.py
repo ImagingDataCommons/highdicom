@@ -3093,7 +3093,7 @@ class ImageToImageTransformer:
 
         Parameters
         ----------
-        indices: numpy.ndarray
+        coordinates: numpy.ndarray
             Array of (column, row) coordinates at sub-pixel resolution in the
             range [0, Columns] and [0, Rows], respectively.
             Array of floating-point values with shape ``(n, 2)``, where *n* is

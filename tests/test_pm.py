@@ -36,7 +36,10 @@ from highdicom.pm.enum import (
 )
 from highdicom.pm.sop import ParametricMap
 from highdicom.pm.pyramid import create_parametric_map_pyramid
-from highdicom.spatial import sort_datasets
+from highdicom.spatial import (
+    create_affine_matrix_from_attributes,
+    sort_datasets,
+)
 from highdicom.uid import UID
 
 from .utils import write_and_read_dataset
@@ -398,10 +401,11 @@ class TestParametricMap():
                 old_v = index_mapping[k][0]
         else:
             # Build up the mapping from index to value
-            for dim_kw, dim_ind in zip([
+            for dim_kw in [
                 'ColumnPositionInTotalImagePixelMatrix',
-                'RowPositionInTotalImagePixelMatrix'
-            ], [1, 2]):
+                'RowPositionInTotalImagePixelMatrix',
+            ]:
+                dim_ind = pm.DimensionIndexSequence.get_index_position(dim_kw)
                 index_mapping = defaultdict(list)
                 for f in pm.PerFrameFunctionalGroupsSequence:
                     content_item = f.FrameContentSequence[0]
@@ -1094,6 +1098,7 @@ class TestParametricMap():
             )
         ]
 
+        origin = (134.2, 12.4, -45.4)
         pixel_spacing = (0.5, 0.5)
         slice_thickness = 0.3
         pixel_measures = PixelMeasuresSequence(
@@ -1105,13 +1110,61 @@ class TestParametricMap():
             coordinate_system=CoordinateSystemNames.SLIDE,
             image_orientation=image_orientation
         )
+        affine = create_affine_matrix_from_attributes(
+            image_orientation=image_orientation,
+            pixel_spacing=pixel_spacing,
+            image_position=origin,
+            index_convention="RD",  # use column, row
+        )
+
+        # Arbitrary tile positions
+        # use (column, row ) format to match input to PlanePositionSequence
+        tile_positions = np.array(
+            [
+                [639, 109],
+                [467, 275],
+                [869, 64],
+                [221, 134],
+                [372, 943],
+                [590, 515],
+                [617, 823],
+                [761, 912],
+                [832, 955],
+                [29, 421],
+                [546, 1002],
+                [444, 47],
+                [633, 984],
+                [3, 14],
+                [867, 1022],
+                [911, 610],
+                [739, 612],
+                [991, 805],
+                [489, 462],
+                [52, 555],
+                [224, 486],
+                [168, 307],
+                [906, 582],
+                [584, 564],
+                [724, 384],
+            ]
+        )
+        n = tile_positions.shape[0]
+
+        # Subtract 1 (since top left pixel has position 1, 1) and add column of
+        # ones
+        tile_positions_aug = np.column_stack(
+            [tile_positions - 1, np.ones((n, 1))]
+        )
+
+        # Ignore the third column of the affine since there is no slice offset
+        plane_position_values = (affine[:3, [0, 1, 3]] @ tile_positions_aug.T).T
         plane_positions = [
             PlanePositionSequence(
                 coordinate_system=CoordinateSystemNames.SLIDE,
-                image_position=(i * 1.0, i * 1.0, 1.0),
-                pixel_matrix_position=(i * 1, i * 1)
+                pixel_matrix_position=tp.tolist(),
+                image_position=pp.tolist(),
             )
-            for i in range(self._sm_image.pixel_array.shape[0])
+            for tp, pp in zip(tile_positions, plane_position_values)
         ]
 
         real_world_value_mapping = RealWorldValueMapping(
@@ -1151,6 +1204,46 @@ class TestParametricMap():
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
         assert instance.ImageOrientationSlide == list(image_orientation)
         self.check_dimension_index_vals(instance)
+
+        # Check that the correct origin was inferred from the plane positions
+        origin_seq = instance.TotalPixelMatrixOriginSequence[0]
+        assert origin_seq.XOffsetInSlideCoordinateSystem == origin[0]
+        assert origin_seq.YOffsetInSlideCoordinateSystem == origin[1]
+        assert origin_seq.ZOffsetInSlideCoordinateSystem == origin[2]
+
+        # Repeat with plane positions that are inconsistent with the tile
+        # positions - should raise an error
+        bad_plane_positions = [
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.SLIDE,
+                pixel_matrix_position=tp.tolist(),
+                image_position=(1.0, 1.0, 1.0),  # same position for every tile
+            )
+            for tp in tile_positions
+        ]
+        msg = (
+            "Some plane positions are not consistent with the provided "
+            "plane orientation and pixel measures."
+        )
+        with pytest.raises(ValueError, match=msg):
+            instance = ParametricMap(
+                [self._sm_image],
+                pixel_array,
+                self._series_instance_uid,
+                self._series_number,
+                self._sop_instance_uid,
+                self._instance_number,
+                self._manufacturer,
+                self._manufacturer_model_name,
+                self._software_versions,
+                self._device_serial_number,
+                contains_recognizable_visual_features=False,
+                real_world_value_mappings=[real_world_value_mapping],
+                voi_lut_transformations=voi_transformations,
+                pixel_measures=pixel_measures,
+                plane_orientation=plane_orientation,
+                plane_positions=bad_plane_positions
+            )
 
     def test_from_volume(self):
         # Creating a parametric map from a volume aligned with the source

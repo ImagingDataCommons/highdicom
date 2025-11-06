@@ -74,17 +74,11 @@ class TestDimensionIndexSequence():
                 'segmentation-multi-frame-functional-groups'
             ),
         )
-        assert len(seq) == 5
+        assert len(seq) == 2
         assert seq[0].DimensionIndexPointer == 0x0048021F
         assert seq[0].FunctionalGroupPointer == 0x0048021A
         assert seq[1].DimensionIndexPointer == 0x0048021E
         assert seq[1].FunctionalGroupPointer == 0x0048021A
-        assert seq[2].DimensionIndexPointer == 0x0040072A
-        assert seq[2].FunctionalGroupPointer == 0x0048021A
-        assert seq[3].DimensionIndexPointer == 0x0040073A
-        assert seq[3].FunctionalGroupPointer == 0x0048021A
-        assert seq[4].DimensionIndexPointer == 0x0040074A
-        assert seq[4].FunctionalGroupPointer == 0x0048021A
 
     def test_construction_4(self):
         seq = DimensionIndexSequence(
@@ -94,19 +88,13 @@ class TestDimensionIndexSequence():
             ),
             channel_dimensions=[ChannelDescriptor("ReferencedSegmentNumber")],
         )
-        assert len(seq) == 6
+        assert len(seq) == 3
         assert seq[0].DimensionIndexPointer == 0x0062000B
         assert seq[0].FunctionalGroupPointer == 0x0062000A
         assert seq[1].DimensionIndexPointer == 0x0048021F
         assert seq[1].FunctionalGroupPointer == 0x0048021A
         assert seq[2].DimensionIndexPointer == 0x0048021E
         assert seq[2].FunctionalGroupPointer == 0x0048021A
-        assert seq[3].DimensionIndexPointer == 0x0040072A
-        assert seq[3].FunctionalGroupPointer == 0x0048021A
-        assert seq[4].DimensionIndexPointer == 0x0040073A
-        assert seq[4].FunctionalGroupPointer == 0x0048021A
-        assert seq[5].DimensionIndexPointer == 0x0040074A
-        assert seq[5].FunctionalGroupPointer == 0x0048021A
 
 
 def test_slice_spacing():
