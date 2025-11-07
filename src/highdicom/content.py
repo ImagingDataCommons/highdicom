@@ -2,18 +2,24 @@
 from collections import Counter
 import datetime
 from copy import deepcopy
+from io import BytesIO
 from typing import cast
 from collections.abc import Sequence
 from typing_extensions import Self
 
 import numpy as np
 from PIL import ImageColor
+from PIL.ImageCms import ImageCmsProfile
 from pydicom.dataset import Dataset
 from pydicom import DataElement
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
-from pydicom.valuerep import DS, format_number_as_ds
+from pydicom.valuerep import (
+    DS,
+    format_number_as_ds,
+    PersonName,
+)
 from pydicom.uid import SegmentationStorage
 
 from highdicom.enum import (
@@ -43,9 +49,11 @@ from highdicom.sr.value_types import (
 )
 from highdicom.uid import UID
 from highdicom.valuerep import (
+    _check_code_string,
     _check_long_string,
     _check_long_text,
     _check_short_text,
+    check_person_name,
 )
 from highdicom._module_utils import (
     check_required_attributes,
@@ -2320,6 +2328,11 @@ class VOILUTTransformation(Dataset):
                     raise TypeError(
                         'Argument "window_width" must not be an empty sequence.'
                     )
+                for x in window_width:
+                    if x <= 0:
+                        raise ValueError(
+                            'Window width must be greater than zero.'
+                        )
                 self.WindowWidth = [
                     format_number_as_ds(float(x)) for x in window_width
                 ]
@@ -2329,6 +2342,8 @@ class VOILUTTransformation(Dataset):
                         'Length of "window_width" must match length of '
                         '"window_center".'
                     )
+                if window_width <= 0:
+                    raise ValueError('Window width must be greater than zero.')
                 self.WindowWidth = format_number_as_ds(float(window_width))
         if window_explanation is not None:
             if window_center is None:
@@ -3663,3 +3678,103 @@ class PaletteColorLUTTransformation(Dataset):
             first_mapped_value=self.first_mapped_value,
             dtype=dtype,
         )
+
+
+def _add_content_information(
+    dataset,
+    content_label: str,
+    content_description: str | None,
+    content_creator_name: str | PersonName | None = None,
+    content_creator_identification: None | (
+        ContentCreatorIdentificationCodeSequence
+    ) = None,
+):
+    _check_code_string(content_label)
+    dataset.ContentLabel = content_label
+    if content_description is not None:
+        _check_long_string(content_description)
+    dataset.ContentDescription = content_description
+    if content_creator_name is not None:
+        check_person_name(content_creator_name)
+        dataset.ContentCreatorName = content_creator_name
+    if content_creator_identification is not None:
+        if not isinstance(
+            content_creator_identification,
+            ContentCreatorIdentificationCodeSequence
+        ):
+            raise TypeError(
+                'Argument "content_creator_identification" must be of type '
+                'ContentCreatorIdentificationCodeSequence.'
+            )
+        dataset.ContentCreatorIdentificationCodeSequence = \
+            content_creator_identification
+
+
+def _add_icc_profile_attributes(
+    dataset: Dataset,
+    icc_profile: bytes
+) -> None:
+    """Add attributes of module ICC Profile.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        Dataset to which attributes should be added
+    icc_profile: bytes
+        ICC color profile to include in the presentation state.
+        The profile must follow the constraints listed in :dcm:`C.11.15
+        <part03/sect_C.11.15.html>`.
+
+    """
+    if icc_profile is None:
+        raise TypeError('Argument "icc_profile" is required.')
+
+    cms_profile = ImageCmsProfile(BytesIO(icc_profile))
+    device_class = cms_profile.profile.device_class.strip()
+    if device_class not in ('scnr', 'spac'):
+        raise ValueError(
+            'The device class of the ICC Profile must be "scnr" or "spac", '
+            f'got "{device_class}".'
+        )
+    color_space = cms_profile.profile.xcolor_space.strip()
+    if color_space != 'RGB':
+        raise ValueError(
+            'The color space of the ICC Profile must be "RGB", '
+            f'got "{color_space}".'
+        )
+    pcs = cms_profile.profile.connection_space.strip()
+    if pcs not in ('Lab', 'XYZ'):
+        raise ValueError(
+            'The profile connection space of the ICC Profile must '
+            f'be "Lab" or "XYZ", got "{pcs}".'
+        )
+
+    dataset.ICCProfile = icc_profile
+
+
+def _add_palette_color_lookup_table_attributes(
+    dataset: Dataset,
+    palette_color_lut_transformation: PaletteColorLUTTransformation
+) -> None:
+    """Add attributes from the Palette Color Lookup Table module.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        Dataset to which attributes should be added
+    palette_color_lut_transformation: highdicom.PaletteColorLUTTransformation
+        Description of the Palette Color LUT Transformation for transforming
+        grayscale into RGB color pixel values
+
+    """  # noqa: E501
+    if not isinstance(
+        palette_color_lut_transformation,
+        PaletteColorLUTTransformation
+    ):
+        raise TypeError(
+            'Argument "palette_color_lut_transformation" must be of type '
+            'PaletteColorLUTTransformation.'
+        )
+
+    for element in palette_color_lut_transformation:
+        dataset[element.tag] = element
