@@ -1,4 +1,5 @@
 """Tools for constructing multi-resolution segmentation pyramids."""
+import datetime
 from typing import Any
 from collections.abc import Sequence
 
@@ -163,6 +164,20 @@ def create_segmentation_pyramid(
     if series_instance_uid is None:
         series_instance_uid = UID()
 
+    now = datetime.datetime.now()
+    series_date = kwargs.get('series_date')
+    if series_date is None:
+        # Series date should not be after content date
+        series_date = kwargs.get('content_date')
+        if series_date is None:
+            series_date = now.date()
+    series_time = kwargs.get('series_time')
+    if series_time is None:
+        # Series time should not be after content time
+        series_time = kwargs.get('content_time')
+        if series_time is None:
+            series_time = now.time()
+
     dtype = pixel_arrays[0].dtype
     if dtype in (np.bool_, np.uint8, np.uint16):
         interpolator = InterpolationMethods.NEAREST
@@ -211,6 +226,8 @@ def create_segmentation_pyramid(
             plane_orientation=None,
             plane_positions=None,
             pixel_measures=pixel_measures,
+            series_date=series_date,
+            series_time=series_time,
             **kwargs,
         )
 

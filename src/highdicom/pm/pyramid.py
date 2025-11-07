@@ -1,4 +1,5 @@
 """Tools for constructing multi-resolution parametric map pyramids."""
+import datetime
 from typing import Any
 from collections.abc import Sequence
 
@@ -180,6 +181,20 @@ def create_parametric_map_pyramid(
     if series_instance_uid is None:
         series_instance_uid = UID()
 
+    now = datetime.datetime.now()
+    series_date = kwargs.get('series_date')
+    if series_date is None:
+        # Series date should not be after content date
+        series_date = kwargs.get('content_date')
+        if series_date is None:
+            series_date = now.date()
+    series_time = kwargs.get('series_time')
+    if series_time is None:
+        # Series time should not be after content time
+        series_time = kwargs.get('content_time')
+        if series_time is None:
+            series_time = now.time()
+
     all_pmaps = []
 
     for (
@@ -218,6 +233,8 @@ def create_parametric_map_pyramid(
             plane_orientation=None,
             plane_positions=None,
             pixel_measures=pixel_measures,
+            series_date=series_date,
+            series_time=series_time,
             **kwargs,
         )
 

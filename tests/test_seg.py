@@ -6760,6 +6760,8 @@ class TestPyramid:
             )
             assert abs(segment_pixel_spacing[0] - sm_pixel_spacing[0] * f) < tol
             assert abs(segment_pixel_spacing[1] - sm_pixel_spacing[1] * f) < tol
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_single_source_multiple_pixel_arrays(self, pass_with_frame_dim):
         # Test construction when given a single source image and multiple
@@ -6809,6 +6811,8 @@ class TestPyramid:
             seg_width = seg_spacing[1] * seg.TotalPixelMatrixColumns
             assert abs(seg_height - sm_height) < tol
             assert abs(seg_width - sm_width) < tol
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array(self, pass_with_frame_dim):
         # Test construction when given multiple source images and a single
@@ -6856,6 +6860,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array_multisegment(self):
         # Test construction when given multiple source images and a single
@@ -6898,6 +6904,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array_float(
         self,
@@ -6948,6 +6956,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array_fractional(
         self,
@@ -7000,6 +7010,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays(self, pass_with_frame_dim):
         # Test construction when given multiple source images and multiple
@@ -7047,6 +7059,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays_multisegment(self):
         # Test construction when given multiple source images and multiple
@@ -7088,6 +7102,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays_multisegment_from_labelmap(
         self,
@@ -7138,6 +7154,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(
         self,
@@ -7188,3 +7206,5 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg

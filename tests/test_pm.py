@@ -13,7 +13,6 @@ from pydicom.uid import (
 )
 
 from highdicom import (
-
     PaletteColorLUT,
     PaletteColorLUTTransformation,
     PlanePositionSequence,
@@ -1543,6 +1542,8 @@ class TestParametricMapPyramid():
             assert pm.DeviceSerialNumber == self._device_serial_number
             assert pm.PyramidLabel == self._pyramid_label
             assert pm.PyramidUID == self._pyramid_uid
+            assert 'SeriesDate' in pm
+            assert 'SeriesTime' in pm
 
         assert pmaps[1].TotalPixelMatrixRows == 10
         assert pmaps[1].TotalPixelMatrixColumns == 10
