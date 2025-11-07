@@ -3064,8 +3064,6 @@ class _Image(SOPClass):
             )
 
         if not positions_are_copied:
-            # Plane positions may not match source images
-            # TODO in this else block
             if number_of_planes != len(plane_positions):
                 raise ValueError(
                     'Number of PlanePositionSequence items provided '

@@ -1139,6 +1139,7 @@ class TestSegmentation:
             self._sm_image.TotalPixelMatrixRows
         assert instance.TotalPixelMatrixColumns == \
             self._sm_image.TotalPixelMatrixColumns
+        assert instance.TotalPixelMatrixFocalPlanes == 1
         assert len(instance.SharedFunctionalGroupsSequence) == 1
         shared_item = instance.SharedFunctionalGroupsSequence[0]
         assert len(shared_item.PixelMeasuresSequence) == 1
@@ -1638,6 +1639,8 @@ class TestSegmentation:
             instance.TotalPixelMatrixRows  # noqa: B018
         with pytest.raises(AttributeError):
             instance.TotalPixelMatrixColumns  # noqa: B018
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixFocalPlanes  # noqa: B018
         assert len(instance.SegmentSequence) == 2
         assert instance.SegmentSequence[0].SegmentNumber == 1
         assert instance.SegmentSequence[1].SegmentNumber == 2
