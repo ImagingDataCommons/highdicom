@@ -3258,7 +3258,10 @@ class Volume(_VolumeBase):
     ) -> Self:
         """Normalize the intensities using the mean and variance.
 
-        The resulting volume has zero mean and unit variance.
+        The resulting volume has zero mean and unit variance. If the input
+        array (or a given channel if ``per_channel``) contains only a single
+        unique value, the returned array will be shifted to the output mean and
+        will not be scaled (since this would result in a division by zero).
 
         Parameters
         ----------
@@ -3279,17 +3282,31 @@ class Volume(_VolumeBase):
             be promoted to floating point.
 
         """
+        if output_std <= 0.0:
+            raise ValueError(
+                "The 'output_std' must be greater than or equal to zero."
+            )
+
         if (
             per_channel and
             self.number_of_channel_dimensions > 0
         ):
             mean = self.array.mean(axis=(0, 1, 2), keepdims=True)
             std = self.array.std(axis=(0, 1, 2), keepdims=True)
+
+            scale = std / output_std
+
+            # Avoid division by zero
+            scale[scale == 0.0] = 1.0
         else:
             mean = self.array.mean()
             std = self.array.std()
+
+            # Avoid division by zero
+            scale = 1.0 if std == 0.0 else (std / output_std)
+
         new_array = (
-            (self.array - mean) / (std / output_std) + output_mean
+            (self.array - mean) / scale + output_mean
         )
 
         return self.with_array(new_array)
@@ -3332,11 +3349,22 @@ class Volume(_VolumeBase):
         ):
             imin = self.array.min(axis=(0, 1, 2), keepdims=True)
             imax = self.array.max(axis=(0, 1, 2), keepdims=True)
+
+            peak_to_peak = imax - imin
+
+            # Avoid division by zerp
+            peak_to_peak[peak_to_peak == 0.0] = output_range
+            scale_factor = output_range / peak_to_peak
         else:
             imin = self.array.min()
             imax = self.array.max()
 
-        scale_factor = output_range / (imax - imin)
+            if imin == imax:
+                # Avoid division by zero
+                scale_factor = 1.0
+            else:
+                scale_factor = output_range / (imax - imin)
+
         new_array = (self.array - imin) * scale_factor + output_min
 
         return self.with_array(new_array)

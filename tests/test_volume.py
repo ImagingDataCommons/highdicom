@@ -1072,6 +1072,29 @@ def test_normalize():
     assert np.isclose(normed.array.max(), 1.0)
 
 
+def test_normalize_uniform():
+    # Normaliztion when std is zero
+    arr = np.ones((10, 10, 10))
+    vol = Volume(
+        arr,
+        np.eye(4),
+        coordinate_system="PATIENT",
+    )
+
+    normed = vol.normalize_mean_std()
+    assert np.array_equal(normed.array, np.zeros_like(arr))
+
+    arr = np.ones((10, 10, 10))
+    vol = Volume(
+        arr,
+        np.eye(4),
+        coordinate_system="PATIENT",
+    )
+
+    normed = vol.normalize_min_max()
+    assert np.array_equal(normed.array, np.zeros_like(arr))
+
+
 @pytest.mark.parametrize(
     'kw,pytype',
     [
