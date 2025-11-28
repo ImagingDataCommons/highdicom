@@ -1439,3 +1439,17 @@ def test_imread_from_dicom_bytes_io_lazy():
         # Two reads to ensure opening/closing is handled
         im.get_frame(1)
         im.get_frame(2)
+
+
+def test_imread_missing_referenced_instances():
+    # Test for the case where a ReferencedSeriesSequence is present but does
+    # not list instances. This is not valid by the standard but is observed and
+    # we should be tolerant to it
+    dcm = get_testdata_file('eCT_Supplemental.dcm', read=True)
+
+    # Add ReferencedSeriesSequence without any referenced instances
+    ref_series = pydicom.Dataset()
+    ref_series.SeriesInstanceUID = UID()
+    dcm.ReferencedSeriesSequence = [ref_series]
+
+    Image.from_dataset(dcm, copy=False)
