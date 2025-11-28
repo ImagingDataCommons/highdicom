@@ -29,7 +29,7 @@ _DEFAULT_PERPENDICULAR_TOLERANCE = 1e-3
 
 
 _DEFAULT_ORTHOGONAL_TOLERANCE = 1e-4
-"""Default tolerance on the matrix elements to determin orthogonality."""
+"""Default tolerance on the matrix elements to determine orthogonality."""
 
 
 PATIENT_ORIENTATION_OPPOSITES = {
