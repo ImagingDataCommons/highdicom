@@ -28,6 +28,10 @@ _DEFAULT_PERPENDICULAR_TOLERANCE = 1e-3
 """Default tolerance on the dot product to determine perpendicularity."""
 
 
+_DEFAULT_ORTHOGONAL_TOLERANCE = 1e-4
+"""Default tolerance on the matrix elements to determin orthogonality."""
+
+
 PATIENT_ORIENTATION_OPPOSITES = {
     PatientOrientationValuesBiped.L: PatientOrientationValuesBiped.R,
     PatientOrientationValuesBiped.R: PatientOrientationValuesBiped.L,
@@ -957,7 +961,7 @@ def get_closest_patient_orientation(affine: np.ndarray) -> tuple[
 def _is_matrix_orthogonal(
     m: np.ndarray,
     require_unit: bool = True,
-    tol: float = _DEFAULT_EQUALITY_TOLERANCE,
+    tol: float = _DEFAULT_ORTHOGONAL_TOLERANCE,
 ) -> bool:
     """Check whether a matrix is orthogonal.
 
