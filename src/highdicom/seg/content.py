@@ -104,8 +104,8 @@ class SegmentDescription(Dataset):
         display_color: Union[highdicom.color.CIELabColor, None], optional
             A recommended color to render this segment.
 
-        Notes
-        -----
+        Note
+        ----
         When segment descriptions are passed to a segmentation instance they
         must have consecutive segment numbers, starting at 1 for the first
         segment added.
