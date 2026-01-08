@@ -3707,6 +3707,56 @@ class Volume(_VolumeBase):
         )
 
 
+    def to_surfa(self) -> Any:
+        """
+        Convert the volume to `surfa.Volume` format.
+        """
+        func = self.to_surfa
+        sf = import_optional_dependency(
+            module_name="surfa",
+            feature=f"{func.__module__}.{func.__qualname__}"
+        )
+
+        lps_ras = np.diag([-1, -1, 1])
+
+        vox2world = np.eye(4)
+        vox2world[:3, :3] = (lps_ras @ self.affine[:3, :3])
+        vox2world[:3, 3] = lps_ras @ self.affine[:3, 3]
+
+        geom = sf.ImageGeometry(shape=self.shape, voxsize=self.spacing, vox2world=vox2world)
+
+        return sf.Volume(self.array, geom)
+
+
+    @classmethod
+    def from_surfa(
+        cls,
+        sf_vol: Any
+    ):
+        """Construct a Volume from an `surfa.Volume`.
+
+        Parameters
+        ----------
+        sf_vol: surfa.Volume
+            A `surfa.Volume` to convert to a volume.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the `surfa.Volume`.
+
+        """
+        lps_ras = np.diag([-1, -1, 1])
+
+        return cls.from_components(
+            array=sf_vol.data, #.astype(dtype),
+            spacing=sf_vol.geom.voxsize,
+            coordinate_system="PATIENT",
+            position=lps_ras @ sf_vol.geom.vox2world[:3, 3],
+            direction=lps_ras @ sf_vol.geom.rotation
+        )
+
+
 class VolumeToVolumeTransformer:
 
     """
