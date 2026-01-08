@@ -14,6 +14,9 @@ from highdicom.spatial import (
     is_tiled_image,
 )
 
+from importlib import import_module
+from types import ModuleType
+from typing import Optional
 
 # Several functions that were initially defined in this module were moved to
 # highdicom.spatial to consolidate similar functionality and prevent circular
@@ -243,3 +246,41 @@ def are_plane_positions_tiled_full(
             return False
 
     return True
+
+
+def import_optional_dependency(
+    module_name: str,
+    feature: Optional[str] = None
+) -> ModuleType:
+    """Import an optional dependency.
+
+    This function is designed to support interaction with other common
+    libraries that are not required for `highdicom`.
+
+    Parameters
+    ----------
+    module_name: str
+        Name of the module to be imported.
+    feature: Optional[str]
+        Optional description of the feature that requires this dependency.
+        This is used only for improving the error message when the module
+        is not installed.
+
+    Returns
+    -------
+    ModuleType:
+        Imported module.
+
+    Raises
+    ------
+    ImportError
+        When the specified module cannot be imported.
+    """
+    try:
+        return import_module(name=module_name)
+
+    except ImportError as error:
+        raise ImportError(
+            f"Optional dependency `{module_name}` could not be imported"
+            + (f" but is required for {feature}." if feature else ".")
+        ) from error
