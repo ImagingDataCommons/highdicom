@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import itertools
-from typing import cast, Union
+from typing import cast, Union, Any
 from collections.abc import Sequence
 from pydicom.tag import BaseTag
 from typing_extensions import Self
@@ -37,6 +37,7 @@ from highdicom.content import (
     PlanePositionSequence,
 )
 from highdicom.uid import UID
+from highdicom.utils import import_optional_dependency
 
 from pydicom.datadict import (
     get_entry,
@@ -3582,6 +3583,67 @@ class Volume(_VolumeBase):
             frame_of_reference_uid=self.frame_of_reference_uid,
             channels=self._channels,
         )
+
+    def to_sitk(self) -> Any: # Unsure how to type returns of unimported classes
+        """
+        Convert the volume to `SimpleITK.Image` format.
+        """
+        func = self.to_sitk
+        sitk = import_optional_dependency(
+            module_name="SimpleITK",
+            feature=f"{func.__module__}.{func.__qualname__}"
+        )
+
+        array = self.array.transpose(2, 1, 0)
+
+        if self.dtype == np.bool_:
+            array = array.astype(int)
+
+        sitk_im = sitk.GetImageFromArray(array)
+        sitk_im.SetSpacing(self.spacing)
+        sitk_im.SetDirection(self.direction.flatten())
+        sitk_im.SetOrigin(self.position)
+
+        return sitk_im
+
+
+    @classmethod
+    def from_sitk(
+        cls,
+        sitk_im: Any
+    ):
+        """Construct a Volume from a `SimpleITK.Image`.
+
+        Parameters
+        ----------
+        sitk_im: SimpleITK.Image
+            A `SimpleITK.Image` to convert to a volume.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the `SimpleITK.Image`.
+
+        """
+        func = cls.from_sitk
+        sitk = import_optional_dependency(
+            module_name="SimpleITK",
+            feature=f"{func.__module__}.{func.__qualname__}"
+        )
+
+        array = sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
+
+        if array.dtype == np.bool_:
+            array = array.astype(int)
+
+        return cls.from_components(
+            array=array,
+            spacing=sitk_im.GetSpacing(),
+            coordinate_system="PATIENT",
+            direction=np.reshape(sitk_im.GetDirection(), (3, 3)),
+            position=sitk_im.GetOrigin()
+        )
+
 
 
 class VolumeToVolumeTransformer:
