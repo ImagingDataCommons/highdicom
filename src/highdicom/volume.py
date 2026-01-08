@@ -3584,6 +3584,7 @@ class Volume(_VolumeBase):
             channels=self._channels,
         )
 
+
     def to_sitk(self) -> Any: # Unsure how to type returns of unimported classes
         """
         Convert the volume to `SimpleITK.Image` format.
@@ -3644,6 +3645,66 @@ class Volume(_VolumeBase):
             position=sitk_im.GetOrigin()
         )
 
+
+    def to_itk(self) -> Any:
+        """
+        Convert the volume to `SimpleITK.Image` format.
+        """
+        func = self.to_itk
+        itk = import_optional_dependency(
+            module_name="itk",
+            feature=f"{func.__module__}.{func.__qualname__}"
+        )
+
+        array = self.array
+
+        if self.dtype == np.bool_:
+            array = array.astype(int)
+
+        itk_im = itk.GetImageFromArray(array)
+        itk_im.SetSpacing(self.spacing)
+        itk_im.SetDirection(self.direction)
+        itk_im.SetOrigin(self.position)
+
+        return itk_im
+
+
+    @classmethod
+    def from_itk(
+        cls,
+        itk_im: Any
+    ):
+        """Construct a Volume from an `itk.Image`.
+
+        Parameters
+        ----------
+        itk_im: itk.Image
+            A `itk.Image` to convert to a volume.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the `itk.Image`.
+
+        """
+        func = cls.from_itk
+        itk = import_optional_dependency(
+            module_name="itk",
+            feature=f"{func.__module__}.{func.__qualname__}"
+        )
+
+        array = itk.GetArrayFromImage(itk_im)
+
+        if array.dtype == np.bool_:
+            array = array.astype(int)
+
+        return cls.from_components(
+            array=array,
+            spacing=np.array(itk_im.GetSpacing()),
+            coordinate_system="PATIENT",
+            direction=np.reshape(itk_im.GetDirection(), (3, 3)),
+            position=np.array(itk_im.GetOrigin())
+        )
 
 
 class VolumeToVolumeTransformer:
