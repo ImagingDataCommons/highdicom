@@ -1,4 +1,4 @@
-""" Module for SOP Classes of Legacy Converted Enhanced Image IODs.
+""" Module for SOjkP Classes of Legacy Converted Enhanced Image IODs.
 For the most part the single frame to multi-frame conversion logic is taken
 from `PixelMed <https://www.dclunie.com>`_ by David Clunie
 
@@ -925,7 +925,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
                     ignore_if_empty=ignore_if_empty
                 )
 
-    def _add_module_to_mf_image_pixel(self) -> None:
+    def _add_image_pixel_module(self) -> None:
         """Copies/adds an `image_pixel` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -943,7 +943,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             ignore_if_perframe=True
         )
 
-    def _add_module_to_mf_enhanced_common_image(self) -> None:
+    def _add_enhanced_common_image_module(self) -> None:
         """Copies/adds an `enhanced_common_image` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1014,14 +1014,14 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
                 self['PresentationLUTShape'] = lut_shape_a
         # Icon Image Sequence - always discard these
 
-    def _add_module_to_mf_contrast_bolus(self) -> None:
+    def _add_contrast_bolus_module(self) -> None:
         """Copies/adds a `contrast_bolus` multiframe module to
         the current SOPClass from its single frame source.
 
         """
         self._add_module('contrast-bolus')
 
-    def _add_module_to_mf_enhanced_ct_image(self) -> None:
+    def _add_enhanced_ct_image_module(self) -> None:
         """Copies/adds an `enhanced_ct_image` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1029,7 +1029,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         pass
         # David's code doesn't hold anything for this module ... should ask him
 
-    def _add_module_to_mf_enhanced_pet_image(self) -> None:
+    def _add_enhanced_pet_image_module(self) -> None:
         """Copies/adds an `enhanced_pet_image` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1041,7 +1041,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         )
         self[tg] = elem
 
-    def _add_module_to_mf_enhanced_mr_image(self) -> None:
+    def _add_enhanced_mr_image_module(self) -> None:
         """Copies/adds an `enhanced_mr_image` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1064,13 +1064,13 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
                 ignore_if_perframe=True,
                 ignore_if_empty=True,
             )
-        attr_to_bo_copied = [
+        attr_to_be_copied = [
             "KSpaceFiltering",
             "MagneticFieldStrength",
             "ApplicableSafetyStandardAgency",
             "ApplicableSafetyStandardDescription",
         ]
-        for attr in attr_to_bo_copied:
+        for attr in attr_to_be_copied:
             self._copy_attrib_if_present(
                 self._legacy_datasets[0],
                 self,
@@ -1079,7 +1079,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
                 ignore_if_empty=True,
             )
 
-    def _add_module_to_mf_acquisition_context(self) -> None:
+    def _add_acquisition_context_module(self) -> None:
         """Copies/adds an `acquisition_context` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1117,7 +1117,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             seq_kw = seq_kw.format(modality, 'Image')
         return tag_for_keyword(seq_kw)
 
-    def _add_module_to_dataset_common_ct_mr_pet_image_description(
+    def _add_common_ct_mr_pet_image_description_module_to_dataset(
         self,
         source: Dataset,
         destination: Dataset,
@@ -1155,7 +1155,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         destination.VolumetricProperties = 'VOLUME'
         destination.VolumeBasedCalculationTechnique = 'NONE'
 
-    def _add_module_to_mf_common_ct_mr_pet_image_description(
+    def _add_common_ct_mr_pet_image_description_module(
         self,
         modality: str,
     ) -> None:
@@ -1166,12 +1166,12 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         im_type_tag = tag_for_keyword('ImageType')
         seq_tg = self._get_frame_type_seq_tag(modality)
         if im_type_tag not in self._perframe_tags:
-            self._add_module_to_dataset_common_ct_mr_pet_image_description(
+            self._add_common_ct_mr_pet_image_description_module_to_dataset(
                 self._legacy_datasets[0], self, 0
             )
             item = self._shared_functional_groups[0]
             inner_item = Dataset()
-            self._add_module_to_dataset_common_ct_mr_pet_image_description(
+            self._add_common_ct_mr_pet_image_description_module_to_dataset(
                 self._legacy_datasets[0], inner_item, 1
             )
             item[seq_tg] = DataElement(
@@ -1181,14 +1181,14 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_groups[i]
                 inner_item = Dataset()
-                self._add_module_to_dataset_common_ct_mr_pet_image_description(
+                self._add_common_ct_mr_pet_image_description_module_to_dataset(
                     self._legacy_datasets[i], inner_item, 1
                 )
                 item[seq_tg] = DataElement(
                     seq_tg, 'SQ', DataElementSequence([inner_item])
                 )
 
-    def _add_module_to_mf_composite_instance_contex(self) -> None:
+    def _add_composite_instance_contex_module(self) -> None:
         """Copies/adds a `composite_instance_contex` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1201,7 +1201,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
                 ignore_if_perframe=True,
             )
 
-    def _add_module_to_dataset_frame_anatomy(
+    def _add_frame_anatomy_module_to_dataset(
         self,
         source: Dataset,
         destination: Dataset,
@@ -1284,7 +1284,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             anatomical_reg_tg
         )
 
-    def _add_module_to_mf_frame_anatomy(self) -> None:
+    def _add_frame_anatomy_module(self) -> None:
         """Copies/adds a `frame_anatomy` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1297,13 +1297,16 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             )
         ):
             item = self._shared_functional_groups[0]
-            self._add_module_to_dataset_frame_anatomy(
-                self._legacy_datasets[0], item)
+            self._add_frame_anatomy_module_to_dataset(
+                self._legacy_datasets[0],
+                item
+            )
         elif self._has_frame_anatomy(self._perframe_tags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_groups[i]
-                self._add_module_to_dataset_frame_anatomy(
-                    self._legacy_datasets[i], item
+                self._add_frame_anatomy_module_to_dataset(
+                    self._legacy_datasets[i],
+                    item
                 )
 
     def _has_pixel_measures(self, tags: Dict[BaseTag, bool]) -> bool:
@@ -1321,7 +1324,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             imager_pixel_spacing_tg in tags
         )
 
-    def _add_module_to_dataset_pixel_measures(
+    def _add_pixel_measures_module_to_dataset(
         self,
         source: Dataset,
         destination: Dataset,
@@ -1371,7 +1374,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         )
         destination[pixel_measures_tg] = seq
 
-    def _add_module_to_mf_pixel_measures(self) -> None:
+    def _add_pixel_measures_module(self) -> None:
         """Copies/adds a `pixel_measures` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1384,13 +1387,13 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             )
         ):
             item = self._shared_functional_groups[0]
-            self._add_module_to_dataset_pixel_measures(
+            self._add_pixel_measures_module_to_dataset(
                 self._legacy_datasets[0], item
             )
         elif self._has_pixel_measures(self._perframe_tags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_groups[i]
-                self._add_module_to_dataset_pixel_measures(
+                self._add_pixel_measures_module_to_dataset(
                     self._legacy_datasets[i], item
                 )
 
@@ -1403,7 +1406,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         image_position_patient_tg = tag_for_keyword('ImagePositionPatient')
         return image_position_patient_tg in tags
 
-    def _add_module_to_dataset_plane_position(
+    def _add_plane_position_module_to_dataset(
             self,
             source: Dataset,
             destination: Dataset,
@@ -1439,7 +1442,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         )
         destination[plane_position_sequence_tg] = seq
 
-    def _add_module_to_mf_plane_position(self) -> None:
+    def _add_plane_position_module(self) -> None:
         """Copies/adds a `plane_position` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1452,13 +1455,13 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             )
         ):
             item = self._shared_functional_groups[0]
-            self._add_module_to_dataset_plane_position(
+            self._add_plane_position_module_to_dataset(
                 self._legacy_datasets[0], item
             )
         elif self._has_plane_position(self._perframe_tags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_groups[i]
-                self._add_module_to_dataset_plane_position(
+                self._add_plane_position_module_to_dataset(
                     self._legacy_datasets[i], item
                 )
 
@@ -1473,7 +1476,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         )
         return image_orientation_patient_tg in tags
 
-    def _add_module_to_dataset_plane_orientation(
+    def _add_plane_orientation_module_to_dataset(
         self,
         source: Dataset,
         destination: Dataset,
@@ -1505,7 +1508,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
         destination[tg] = seq
 
-    def _add_module_to_mf_plane_orientation(self) -> None:
+    def _add_plane_orientation_module(self) -> None:
         """Copies/adds a `plane_orientation` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1518,13 +1521,13 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             )
         ):
             item = self._shared_functional_groups[0]
-            self._add_module_to_dataset_plane_orientation(
+            self._add_plane_orientation_module_to_dataset(
                 self._legacy_datasets[0], item
             )
         elif self._has_plane_orientation(self._perframe_tags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_groups[i]
-                self._add_module_to_dataset_plane_orientation(
+                self._add_plane_orientation_module_to_dataset(
                     self._legacy_datasets[i], item
                 )
 
@@ -1545,7 +1548,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             window_center_width_explanation_tg in tags
         )
 
-    def _add_module_to_dataset_frame_voi_lut(
+    def _add_frame_voi_lut_module_to_dataset(
             self,
             source: Dataset,
             destination: Dataset,
@@ -1591,7 +1594,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
         destination[tg] = seq
 
-    def _add_module_to_mf_frame_voi_lut(self) -> None:
+    def _add_frame_voi_lut_module(self) -> None:
         """Copies/adds a `frame_voi_lut` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1604,13 +1607,13 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             )
         ):
             item = self._shared_functional_groups[0]
-            self._add_module_to_dataset_frame_voi_lut(
+            self._add_frame_voi_lut_module_to_dataset(
                 self._legacy_datasets[0], item
             )
         elif self._has_frame_voi_lut(self._perframe_tags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_groups[i]
-                self._add_module_to_dataset_frame_voi_lut(
+                self._add_frame_voi_lut_module_to_dataset(
                     self._legacy_datasets[i], item
                 )
 
@@ -1632,7 +1635,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             rescale_type_tg in tags
         )
 
-    def _add_module_to_dataset_pixel_value_transformation(
+    def _add_pixel_value_transformation_module_to_dataset(
             self,
             source: Dataset,
             destination: Dataset,
@@ -1713,7 +1716,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
         destination[tg] = seq
 
-    def _add_module_to_mf_pixel_value_transformation(self) -> None:
+    def _add_pixel_value_transformation_module(self) -> None:
         """Copies/adds a `pixel_value_transformation` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1728,7 +1731,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             )
         ):
             item = self._shared_functional_groups[0]
-            self._add_module_to_dataset_pixel_value_transformation(
+            self._add_pixel_value_transformation_module_to_dataset(
                 self._legacy_datasets[0], item
             )
         elif self._has_pixel_value_transformation(self._perframe_tags):
@@ -1736,7 +1739,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
                 self._perframe_functional_groups,
                 self._legacy_datasets
             ):
-                self._add_module_to_dataset_referenced_image(legacy, item)
+                self._add_referenced_image_module_to_dataset(legacy, item)
 
     def _has_referenced_image(self, tags: Dict[BaseTag, bool]) -> bool:
         """returns true if attributes specific to
@@ -1746,7 +1749,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         """
         return tag_for_keyword('ReferencedImageSequence') in tags
 
-    def _add_module_to_dataset_referenced_image(
+    def _add_referenced_image_module_to_dataset(
             self,
             source: Dataset,
             destination: Dataset,
@@ -1773,7 +1776,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             ignore_if_empty=False,
         )
 
-    def _add_module_to_mf_referenced_image(self) -> None:
+    def _add_referenced_image_module(self) -> None:
         """Copies/adds a `referenced_image` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1786,13 +1789,13 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             )
         ):
             item = self._shared_functional_groups[0]
-            self._add_module_to_dataset_referenced_image(
+            self._add_referenced_image_module_to_dataset(
                 self._legacy_datasets[0], item
             )
         elif self._has_referenced_image(self._perframe_tags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_groups[i]
-                self._add_module_to_dataset_referenced_image(
+                self._add_referenced_image_module_to_dataset(
                     self._legacy_datasets[i], item
                 )
 
@@ -1804,7 +1807,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         """
         return tag_for_keyword('SourceImageSequence') in tags
 
-    def _add_module_to_dataset_derivation_image(
+    def _add_derivation_image_module_to_dataset(
         self,
         source: Dataset,
         destination: Dataset,
@@ -1850,7 +1853,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
         destination[tg] = seq
 
-    def _add_module_to_mf_derivation_image(self) -> None:
+    def _add_derivation_image_module(self) -> None:
         """Copies/adds a `derivation_image` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1863,13 +1866,13 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             )
         ):
             item = self._shared_functional_groups[0]
-            self._add_module_to_dataset_derivation_image(
+            self._add_derivation_image_module_to_dataset(
                 self._legacy_datasets[0], item
             )
         elif self._has_derivation_image(self._perframe_tags):
             for i in range(0, len(self._legacy_datasets)):
                 item = self._perframe_functional_groups[i]
-                self._add_module_to_dataset_derivation_image(
+                self._add_derivation_image_module_to_dataset(
                     self._legacy_datasets[i], item
                 )
 
@@ -1892,7 +1895,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         """
         return {item: False for item in input}
 
-    def _add_module_to_dataset_unassigned_perframe(
+    def _add_unassigned_perframe_module_to_dataset(
             self,
             source: Dataset,
             destination: Dataset,
@@ -1956,7 +1959,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
 
         stg = "SmallestImagePixelValue"
 
-    def _add_module_to_mf_unassigned_perframe(self) -> None:
+    def _add_unassigned_perframe_module(self) -> None:
         """Copies/adds an `unassigned_perframe` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -1970,11 +1973,11 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
                 self._eligible_tags.append(tg)
         for i in range(0, len(self._legacy_datasets)):
             item = self._perframe_functional_groups[i]
-            self._add_module_to_dataset_unassigned_perframe(
+            self._add_unassigned_perframe_module_to_dataset(
                 self._legacy_datasets[i], item
             )
 
-    def _add_module_to_dataset_unassigned_shared(
+    def _add_unassigned_shared_module_to_dataset(
             self, source: Dataset,
             destination: Dataset,
         ) -> None:
@@ -2011,13 +2014,13 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
         destination[tg] = seq
 
-    def _add_module_to_mf_unassigned_shared(self) -> None:
+    def _add_unassigned_shared_module(self) -> None:
         """Copies/adds an `unassigned_shared` multiframe module to
         the current SOPClass from its single frame source.
 
         """
         item = self._shared_functional_groups[0]
-        self._add_module_to_dataset_unassigned_shared(
+        self._add_unassigned_shared_module_to_dataset(
             self._legacy_datasets[0], item
         )
 
@@ -2037,7 +2040,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         """
         return DataElement(tg, dictionary_VR(tg), None)
 
-    def _add_module_to_mf_empty_type2_attributes(self) -> None:
+    def _add_empty_type_module2_attributes(self) -> None:
         """Adds empty type2 attributes to the current SOPClass to avoid
         type2 missing error.
 
@@ -2060,7 +2063,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
                         ):
                             self[tg] = self._create_empty_element(tg)
 
-    def _add_module_to_dataset_conversion_source(
+    def _add_conversion_source_module_to_dataset(
         self,
         source: Dataset,
         destination: Dataset,
@@ -2101,14 +2104,14 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         seq = DataElement(tg, dictionary_VR(tg), DataElementSequence([item]))
         destination[tg] = seq
 
-    def _add_module_to_mf_conversion_source(self) -> None:
+    def _add_conversion_source_module(self) -> None:
         """Copies/adds a `conversion_source` multiframe module to
         the current SOPClass from its single frame source.
 
         """
         for i in range(0, len(self._legacy_datasets)):
             item = self._perframe_functional_groups[i]
-            self._add_module_to_dataset_conversion_source(
+            self._add_conversion_source_module_to_dataset(
                 self._legacy_datasets[i], item
             )
 
@@ -2258,7 +2261,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             acquisition_date_tg in tags
         )
 
-    def _add_module_to_dataset_frame_content(
+    def _add_frame_content_module_to_dataset(
             self,
             source: Dataset,
             destination: Dataset,
@@ -2371,7 +2374,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         """
         for i in range(0, len(self._legacy_datasets)):
             item = self._perframe_functional_groups[i]
-            self._add_module_to_dataset_frame_content(
+            self._add_frame_content_module_to_dataset(
                 self._legacy_datasets[i], item
             )
         if (
@@ -2385,21 +2388,13 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
                 self._earliest_frame_acquisition_date_time
             )
 
-    def _add_module_to_mf_frame_content(self) -> None:
+    def _add_frame_content_module(self) -> None:
         """Copies/adds a 'frame_content` multiframe module to
         the current SOPClass from its single frame source.
 
         """
         self._add_acquisition_info_frame_content()
         self._add_stack_info_frame_content()
-
-    def _is_other_byte_vr_pixel_data(self, vr: str) -> bool:
-        """checks if `PixelData` dicom value representation is OB."""
-        return vr[0] == 'O' and vr[1] == 'B'
-
-    def _is_other_word_vr_pixel_data(self, vr: str) -> bool:
-        """checks if `PixelData` dicom value representation is OW."""
-        return vr[0] == 'O' and vr[1] == 'W'
 
     def _copy_data_pixel_data(
         self,
@@ -2430,7 +2425,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             src = tmp
         des.extend(src)
 
-    def _add_module_to_mf_pixel_data(self) -> None:
+    def _add_pixel_data_module(self) -> None:
         """Copies/adds a `pixel_data` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -2450,14 +2445,14 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             if kw not in legacy_ds:
                 continue
             pixel_data_a = legacy_ds[kw]
-            if self._is_other_byte_vr_pixel_data(pixel_data_a.VR):
+            if pixel_data_a.VR == 'OB':
                 if len(self._word_data) != 0:
                     raise TypeError(
                         'Cannot mix OB and OW Pixel Data '
                         'VR from different frames'
                     )
                 self._copy_data_pixel_data(pixel_data_a.value, False)
-            elif self._is_other_word_vr_pixel_data(pixel_data_a.VR):
+            elif pixel_data_a.VR == 'OW':
                 if len(self._byte_data) != 0:
                     raise TypeError(
                         'Cannot mix OB and OW Pixel Data '
@@ -2478,7 +2473,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
             )
         self[kw] = mf_pixel_data
 
-    def _add_module_to_mf_content_date_time(self) -> None:
+    def _add_content_date_time_module(self) -> None:
         """Copies/adds a `content_date_time` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -2553,7 +2548,7 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         tg = tag_for_keyword(kw)
         target[kw] = DataElement(tg, dictionary_VR(tg), value)
 
-    def _add_module_to_mf_contributing_equipment(self) -> None:
+    def _add_contributing_equipment_module(self) -> None:
         """Copies/adds a `contributing_equipment` multiframe module to
         the current SOPClass from its single frame source.
 
@@ -2615,23 +2610,6 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         tg = tag_for_keyword('ContributingEquipmentSequence')
         self[tg] = DataElement(tg, 'SQ', DataElementSequence([item]))
 
-    def _add_module_to_mf_instance_creation_date_time(self) -> None:
-        """Copies/adds an `instance_creation_date_time` multiframe module to
-        the current SOPClass from its single frame source.
-
-        """
-        nnooww = datetime.now()
-        n_d = DA(nnooww.date().strftime('%Y%m%d'))
-        n_t = TM(nnooww.time().strftime('%H%M%S'))
-        kw = 'InstanceCreationDate'
-        self[kw] = DataElement(
-            tag_for_keyword(kw), 'DA', n_d
-        )
-        kw = 'InstanceCreationTime'
-        self[kw] = DataElement(
-            tag_for_keyword(kw), 'TM', n_t
-        )
-
     @staticmethod
     def default_sort_key(
         x: Dataset) -> Tuple[Union[int, str, UID], ...]:
@@ -2667,25 +2645,24 @@ class _CommonLegacyConvertedEnhancedImage(SOPClass):
         """
         self._build_blocks.extend(
             [
-                [self._add_module_to_mf_image_pixel, None],
-                [self._add_module_to_mf_composite_instance_contex, None],
-                [self._add_module_to_mf_enhanced_common_image, None],
-                [self._add_module_to_mf_acquisition_context, None],
-                [self._add_module_to_mf_frame_anatomy, None],
-                [self._add_module_to_mf_pixel_measures, None],
-                [self._add_module_to_mf_plane_orientation, None],
-                [self._add_module_to_mf_plane_position, None],
-                [self._add_module_to_mf_frame_voi_lut, None],
-                [self._add_module_to_mf_pixel_value_transformation, None],
-                [self._add_module_to_mf_referenced_image, None],
-                [self._add_module_to_mf_conversion_source, None],
-                [self._add_module_to_mf_frame_content, None],
-                [self._add_module_to_mf_pixel_data, None],
-                [self._add_module_to_mf_content_date_time, None],
-                [self._add_module_to_mf_instance_creation_date_time, None],
-                [self._add_module_to_mf_contributing_equipment, None],
-                [self._add_module_to_mf_unassigned_perframe, None],
-                [self._add_module_to_mf_unassigned_shared, None],
+                [self._add_image_pixel_module, None],
+                [self._add_composite_instance_contex_module, None],
+                [self._add_enhanced_common_image_module, None],
+                [self._add_acquisition_context_module, None],
+                [self._add_frame_anatomy_module, None],
+                [self._add_pixel_measures_module, None],
+                [self._add_plane_orientation_module, None],
+                [self._add_plane_position_module, None],
+                [self._add_frame_voi_lut_module, None],
+                [self._add_pixel_value_transformation_module, None],
+                [self._add_referenced_image_module, None],
+                [self._add_conversion_source_module, None],
+                [self._add_frame_content_module, None],
+                [self._add_pixel_data_module, None],
+                [self._add_content_date_time_module, None],
+                [self._add_contributing_equipment_module, None],
+                [self._add_unassigned_perframe_module, None],
+                [self._add_unassigned_shared_module, None],
             ]
         )
 
@@ -2790,11 +2767,11 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
         self._build_blocks.extend(
             [
                 [
-                    self._add_module_to_mf_common_ct_mr_pet_image_description,
+                    self._add_common_ct_mr_pet_image_description_module,
                     ('CT', )
                 ],
-                [self._add_module_to_mf_enhanced_ct_image, None],
-                [self._add_module_to_mf_contrast_bolus, None],
+                [self._add_enhanced_ct_image_module, None],
+                [self._add_contrast_bolus_module, None],
             ]
         )
 
@@ -2886,10 +2863,10 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
         self._build_blocks.extend(
             [
                 [
-                    self._add_module_to_mf_common_ct_mr_pet_image_description,
+                    self._add_common_ct_mr_pet_image_description_module,
                     ('PET', )
                 ],
-                [self._add_module_to_mf_enhanced_pet_image, None],
+                [self._add_enhanced_pet_image_module, None],
             ]
         )
 
@@ -2978,10 +2955,10 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
         self._build_blocks.extend(
             [
                 [
-                    self._add_module_to_mf_common_ct_mr_pet_image_description,
+                    self._add_common_ct_mr_pet_image_description_module,
                     ('MR', )
                 ],
-                [self._add_module_to_mf_enhanced_mr_image, None],
-                [self._add_module_to_mf_contrast_bolus, None],
+                [self._add_enhanced_mr_image_module, None],
+                [self._add_contrast_bolus_module, None],
             ]
         )
