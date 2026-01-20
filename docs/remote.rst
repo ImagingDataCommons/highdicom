@@ -56,7 +56,7 @@ spatial patch from a large whole slide image from the IDC.
   )
 
   # Read directly from the blob object using lazy frame retrieval
-  with blob.open(mode="rb") as reader:
+  with blob.open(mode="rb", chunk_size=500_000) as reader:
       im = hd.imread(reader, lazy_frame_retrieval=True)
 
       # Grab an arbitrary region of tile full pixel matrix
@@ -79,6 +79,13 @@ spatial patch from a large whole slide image from the IDC.
 
    Figure produced by the above code snippet showing an arbitrary spatial
    region of a slide loaded directly from a Google Cloud bucket
+
+It is important to set the `chunk_size` parameter carefully. This value is the
+number of bytes that are retrieved in a single request (set to around 500kB in
+the above example). Ideally this should be just large enough to retrieve a
+single frame of the image in one request, but any larger leads to unnecessary
+data being retrieved. The default value is 40MiB, which is orders of magnitude
+larger than the size of most image frames and therefore will be very inefficient.
 
 As a further example, we use lazy frame retrieval to load only a specific set
 of segments from a large multi-organ segmentation of a CT image in the IDC

@@ -26,19 +26,19 @@ There is a wide variety of DICOM objects defined in the standard, covering many
 types of images (X-Ray, CT, MRI, Microscopy, Ophthalmic images) as well as
 various types of image-derived information, such as Structured Reports,
 Annotations, Presentation States, Segmentations, and Parametric Maps. Formally,
-these "types" are known as Information Object Definitions (IODs). The standard
-requires different combinations of attributes are required for different IODs
-(e.g. the "Echo Time" attribute exists with the *MRImage* IOD but not within
-the *CTImage* IOD) ``pydicom`` represents all of these objects using a general
-``Dataset`` class, which implements behavior that is common to all of these
-objects. However, it does not attempt to specialize its representation to
-implement specific behaviors of these various IODs, leaving it up to the user
-to interpret the individual attributes in the file in each case.
+these "types" are known as Information Object Definitions (IODs). Each IOD in
+the standard requires different combinations of attributes. For example, the
+"Echo Time" attribute exists with the *MRImage* IOD but not within the
+*CTImage* IOD. ``pydicom`` represents all of these objects using the same
+general ``Dataset`` class, which implements behavior that is common to all
+DICOM objects However, it does not attempt to specialize its representation to
+implement IOD-specific behavior, leaving this up to the user.
 
 The purpose of ``highdicom`` is to build upon ``pydicom`` to implement specific
-behaviors for various IODs, to make it easier to correctly create and work with
+behaviors for various IODs to make it easier to correctly create and work with
 **specific** types of DICOM object. ``highdicom`` defines sub-classes of
-``pydicom.Dataset`` that implement particular IODs, for example:
+``pydicom.Dataset`` that implement particular IODs, with a specific focus on
+IODs that store information derived from other images. For example:
 
 - :class:`highdicom.Image` (this actually covers many IODs)
 - :class:`highdicom.seg.Segmentation`
@@ -63,11 +63,11 @@ they also have:
   ensuring correctness. The constructors guide you through which attributes are
   required and enforce inter-relationships between them required by the
   standard.
-- Several of these IODs also have further methods that allow you to search,
-  filter, and access the information within them more easily.
+- Further methods that allow you to search, filter, and access the information
+  within them more easily.
 
-However, not all classes within ``highdicom`` are DICOM objects, and such
-objects are not sub-classes of ``pydicom.Dataset``. Notable examples include
+However, some classes within ``highdicom`` are not DICOM objects and as such
+are not sub-classes of ``pydicom.Dataset``. Notable examples include
 :class:`highdicom.Volume`,
 :class:`highdicom.spatial.ImageToReferenceTransformer` (and other similar
 objects), :class:`highdicom.io.ImageFileReader`.

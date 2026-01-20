@@ -17,6 +17,7 @@ from highdicom.ann.enum import (
 )
 from highdicom.ann.sop import MicroscopyBulkSimpleAnnotations, annread
 from highdicom.content import AlgorithmIdentificationSequence
+from highdicom.color import CIELabColor
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 
@@ -161,6 +162,8 @@ class TestAnnotationGroup(unittest.TestCase):
             ),
         ]
 
+        color = CIELabColor(40.0, 50.0, 6.0)
+
         group = AnnotationGroup(
             number=number,
             uid=uid,
@@ -174,7 +177,8 @@ class TestAnnotationGroup(unittest.TestCase):
             measurements=measurements,
             description='annotation',
             anatomic_regions=[self._anatomic_region],
-            primary_anatomic_structures=[self._anatomic_structure]
+            primary_anatomic_structures=[self._anatomic_structure],
+            display_color=color,
         )
 
         assert group.graphic_type == graphic_type
@@ -232,6 +236,7 @@ class TestAnnotationGroup(unittest.TestCase):
         assert values.size == 0
         assert values.dtype == np.float32
         assert values.shape == (2, 0)
+        assert group.RecommendedDisplayCIELabValue == list(color.value)
 
     def test_construction_2d(self):
         number = 1

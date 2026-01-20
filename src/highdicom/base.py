@@ -60,6 +60,10 @@ class SOPClass(Dataset):
         device_serial_number: str | None = None,
         institution_name: str | None = None,
         institutional_department_name: str | None = None,
+        content_date: str | datetime.date | None = None,
+        content_time: str | datetime.time | None = None,
+        series_date: str | datetime.date | None = None,
+        series_time: str | datetime.time | None = None,
     ):
         """
         Parameters
@@ -121,6 +125,18 @@ class SOPClass(Dataset):
         institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance.
+        content_date: str | datetime.date | None, optional
+            Date the content of this instance was created. If not specified,
+            the current date will be used.
+        content_time: str | datetime.time | None, optional
+            Time the content of this instance was created. If not specified,
+            the current time will be used.
+        series_date: str | datetime.date | None, optional
+            Date the series was started. This should be the same for all
+            instances in a series.
+        series_time: str | datetime.time | None, optional
+            Time the series was started. This should be the same for all
+            instances in a series.
 
         Note
         ----
@@ -207,7 +223,11 @@ class SOPClass(Dataset):
             _check_long_string(device_serial_number)
             self.DeviceSerialNumber = device_serial_number
         if software_versions is not None:
-            _check_long_string(software_versions)
+            if not isinstance(software_versions, str):
+                for v in software_versions:
+                    _check_long_string(v)
+            else:
+                _check_long_string(software_versions)
             self.SoftwareVersions = software_versions
         if institution_name is not None:
             _check_long_string(institution_name)
@@ -227,11 +247,59 @@ class SOPClass(Dataset):
             )
         self.InstanceNumber = instance_number
 
+        now = datetime.datetime.now()
+        self.InstanceCreationDate = DA(now.date())
+        self.InstanceCreationTime = TM(now.time())
+
         # Content Date and Content Time are not present in all IODs
         if is_attribute_in_iod('ContentDate', sop_class_uid):
-            self.ContentDate = DA(datetime.datetime.now().date())
+            if content_date is None:
+                if content_time is not None:
+                    raise TypeError(
+                        "'content_time' may not be specified without "
+                        "'content_date'."
+                    )
+                content_date = now.date()
+            content_date = DA(content_date)
+            self.ContentDate = content_date
+        elif content_date is not None:
+            raise TypeError(
+                f"'content_date' should not be specified for SOP Class UID: "
+                f"{sop_class_uid}"
+            )
         if is_attribute_in_iod('ContentTime', sop_class_uid):
-            self.ContentTime = TM(datetime.datetime.now().time())
+            if content_time is None:
+                content_time = now.time()
+            content_time = TM(content_time)
+            self.ContentTime = content_time
+        elif content_time is not None:
+            raise TypeError(
+                f"'content_time' should not be specified for SOP Class UID: "
+                f"{sop_class_uid}"
+            )
+
+        if series_date is not None:
+            series_date = DA(series_date)
+            if content_date is not None:
+                if series_date > content_date:
+                    raise ValueError(
+                        "'series_date' must not be later than 'content_date'."
+                    )
+            self.SeriesDate = series_date
+        if series_time is not None:
+            series_time = TM(series_time)
+            if series_date is None:
+                raise TypeError(
+                    "'series_time' may not be specified without "
+                    "'series_date'."
+                )
+            if content_time is not None:
+                if series_time > content_time:
+                    raise ValueError(
+                        "'series_time' must not be later than content time."
+                    )
+            self.SeriesTime = series_time
+
         if content_qualification is not None:
             content_qualification = ContentQualificationValues(
                 content_qualification
@@ -325,9 +393,19 @@ class SOPClass(Dataset):
                     self._copy_attribute(dataset, str(item['keyword']))
 
     def copy_patient_and_study_information(self, dataset: Dataset) -> None:
-        """Copies patient- and study-related metadata from `dataset` that
-        are defined in the following modules: Patient, General Study,
-        Patient Study, Clinical Trial Subject and Clinical Trial Study.
+        """Copies patient- and study-related metadata from `dataset`.
+
+        Information defined in the following modules is included: Patient,
+        General Study, Patient Study, Clinical Trial Subject and Clinical Trial
+        Study.
+
+        Note
+        ----
+        This method is intended to be used by those writing sub-classes of
+        :class:`highdicom.SOPClass`. It is *not* necessary for users of
+        sub-classes of :class:`highdicom.SOPClass` (including all DICOM IODs
+        implemented in highdicom), or indeed most users of the library, to call
+        this function directly.
 
         Parameters
         ----------
@@ -339,8 +417,17 @@ class SOPClass(Dataset):
         self._copy_root_attributes_of_module(dataset, 'Study')
 
     def copy_specimen_information(self, dataset: Dataset) -> None:
-        """Copies specimen-related metadata from `dataset` that
-        are defined in the Specimen module.
+        """Copies specimen-related metadata from `dataset`.
+
+        Information defined in the Specimen module is included.
+
+        Note
+        ----
+        This method is intended to be used by those writing sub-classes of
+        :class:`highdicom.SOPClass`. It is *not* necessary for users of
+        sub-classes of :class:`highdicom.SOPClass` (including all DICOM IODs
+        implemented in highdicom), or indeed most users of the library, to call
+        this function directly.
 
         Parameters
         ----------

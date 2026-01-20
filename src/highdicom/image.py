@@ -3980,10 +3980,14 @@ class _Image(SOPClass):
                             instance_sequence = (
                                 ref_series.ReferencedSOPSequence
                             )
-                        else:
+                        elif 'ReferencedInstanceSequence' in ref_series:
                             instance_sequence = (
                                 ref_series.ReferencedInstanceSequence
                             )
+                        else:
+                            # This is invalid according to the standard, but
+                            # has been observed in some data
+                            instance_sequence = []
 
                         for ref_ins in instance_sequence:
                             instance_data.append(

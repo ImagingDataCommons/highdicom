@@ -13,6 +13,7 @@ from highdicom.ann.enum import (
     AnnotationGroupGenerationTypeValues,
     GraphicTypeValues,
 )
+from highdicom.color import CIELabColor
 from highdicom.content import AlgorithmIdentificationSequence
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
@@ -194,7 +195,8 @@ class AnnotationGroup(Dataset):
         ) = None,
         primary_anatomic_structures: None | (
             Sequence[Code | CodedConcept]
-        ) = None
+        ) = None,
+        display_color: CIELabColor | None = None,
     ):
         """
         Parameters
@@ -238,6 +240,8 @@ class AnnotationGroup(Dataset):
         primary_anatomic_structures: Union[Sequence[Union[highdicom.sr.Code, highdicom.sr.CodedConcept]], None], optional
             Anatomic structure(s) the annotations represent
             (see CIDs for domain-specific primary anatomic structures)
+        display_color: Union[highdicom.color.CIELabColor, None], optional
+            A recommended color to render this annotation group.
 
         """  # noqa: E501
         super().__init__()
@@ -292,6 +296,16 @@ class AnnotationGroup(Dataset):
         self.NumberOfAnnotations = len(graphic_data)
         graphic_type = GraphicTypeValues(graphic_type)
         self.GraphicType = graphic_type.value
+
+        if display_color is not None:
+            if not isinstance(display_color, CIELabColor):
+                raise TypeError(
+                    '"display_color" must be of type '
+                    'highdicom.color.CIELabColor.'
+                )
+            self.RecommendedDisplayCIELabValue = list(
+                display_color.value
+            )
 
         for i in range(len(graphic_data)):
             num_coords = graphic_data[i].shape[0]

@@ -229,25 +229,26 @@ class Segmentation(_Image):
             be a 2D, 3D or 4D numpy array, or an instance of
             :class:`highdicom.Volume`.
 
-            **Arrangement:** If it is a 2D numpy array, it represents a single
-            segmentation frame of a single frame image, such as a planar x-ray
-            or single instance from a CT or MR series. Unless the
-            ``plane_positions`` parameter is specified, it must correspond
-            pixel-for-pixel with the single source image and it is the caller's
-            responsibility to ensure this is true.
+            **Arrangement:** If ``pixel_array`` is a 2D numpy array, it
+            represents a single segmentation frame of a single frame image,
+            such as a planar x-ray or single instance from a CT or MR series.
+            Unless the ``plane_positions`` parameter is specified, it must
+            correspond pixel-for-pixel with the single source image and it is
+            the caller's responsibility to ensure this is true.
 
-            If it is a 3D or 4D array, it consists of segmentation frames at
-            multiple spatial positions stacked down the first dimension (axis
-            0) of the array. If ``plane_positions`` is not specified, there
-            must be pixel-for-pixel correspondence between frame
-            ``pixel_array[i]`` and ``source_images[i]`` if ``source_images`` is
-            a series of single-frame images or between ``pixel_array[i]`` and
-            the frame at ``source_images[0].pixel_array[i]`` if
-            ``source_images`` consists of a single multi-frame image. It is the
-            caller's responsibility to ensure correct correspondences.
+            If ``pixel_array`` is a 3D or 4D array, it consists of segmentation
+            frames at multiple spatial positions stacked down the first
+            dimension (axis 0) of the array. If ``plane_positions`` is not
+            specified, there must be pixel-for-pixel correspondence between
+            frame ``pixel_array[i]`` and ``source_images[i]`` if
+            ``source_images`` is a series of single-frame images or between
+            ``pixel_array[i]`` and the frame at
+            ``source_images[0].pixel_array[i]`` if ``source_images`` consists
+            of a single multi-frame image. It is the caller's responsibility to
+            ensure correct correspondences.
 
-            If it is a :class:`highdicom.Volume`, each slice down the first
-            dimension (axis 0) of the volume's array (i.e.
+            If ``pixel_array`` is a :class:`highdicom.Volume`, each slice down
+            the first dimension (axis 0) of the volume's array (i.e.
             ``pixel_array.array[i]`` for each index ``i``) will be included
             into the segmentation as a separate frame (or set of frames if
             there are multiple segments) but no spatial correspondence between
@@ -288,7 +289,7 @@ class Segmentation(_Image):
             singleton first dimension in order to give a 4D array.
 
             For a ``"FRACTIONAL"`` segmentation, a *stacked segments* style
-           ``pixel_array`` may alternatively contain floating point
+            ``pixel_array`` may alternatively contain floating point
             values in the range 0.0 to 1.0 (an unsigned integer type
             with binary values is still allowed). These values either encode
             the probability of a given pixel belonging to the segment (if
@@ -3847,8 +3848,8 @@ class Segmentation(_Image):
 
             affine = volume_geometry[
                 :,
-                row_start - 1:,
-                column_start - 1:,
+                row_start:,
+                column_start:,
             ].affine
         else:
             # Check that the combination of frame numbers and segment numbers

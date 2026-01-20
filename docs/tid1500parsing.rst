@@ -304,7 +304,7 @@ property (returns a ``float``), and the unit with the ``unit`` property.
     assert measurement.value == 10.0
 
     # Access the measurement's unit
-    assert measurement.unit == codes.UCUM.mm
+    assert measurement.unit == codes.UCUM.Millimeter
 
 Additionally, the properties ``method``, ``finding_sites``, ``qualifier``,
 ``referenced_images``, and ``derivation`` allow you to access further optional

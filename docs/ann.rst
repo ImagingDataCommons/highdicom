@@ -35,7 +35,7 @@ contains. The required metadata elements include:
 * A ``uid`` (``str`` or :class:`highdicom.UID`) uniquely identifying the group.
   Usually, you will want to generate a UID for this.
 * An ``annotated_property_category`` and ``annotated_property_type``
-  (:class:`highdicom.sr.CodedConcept`) coded values (see :ref:`coding`)
+  (:class:`highdicom.sr.CodedConcept`), coded values (see :ref:`coding`)
   describing the category and specific structure that has been annotated.
 * A ``graphic_type`` (:class:`highdicom.ann.GraphicTypeValues`) indicating the
   "form" of the annotations. Permissible values are ``"ELLIPSE"``, ``"POINT"``,
@@ -45,8 +45,23 @@ contains. The required metadata elements include:
   algorithm used to generate the annotations (``"MANUAL"``,
   ``"SEMIAUTOMATIC"``, or ``"AUTOMATIC"``).
 
-Further optional metadata may optionally be provided, see the API documentation
-for more information.
+Further optional metadata may optionally be provided, including:
+
+* An ``algorithm_identification``
+  (:class:`highdicom.AlgorithmIdentificationSequence`), specifying information
+  about an algorithm that generated the annotations.
+* A list of ``anatomic_regions`` (a sequence of
+  :class:`highdicom.sr.CodedConcept` objects), giving coded values (see
+  :ref:`coding`) describing regions containing the annotations.
+* A list of ``primary_anatomic_structures`` (a sequence of
+  :class:`highdicom.sr.CodedConcept` objects) giving coded values (see
+  :ref:`coding`) describing anatomic structures of interest.
+* A free-text ``description`` (``str``) of the annotation group.
+* A ``display_color`` (:class:`highdicom.color.CIELabColor`) giving a
+  recommended value for viewers to use to render these annotations. This is in
+  CIE-Lab color space, but alternative constructors of the
+  :class:`highdicom.color.CIELabColor` class allow conversion from RGB values
+  or well-known color names.
 
 The actual annotation data is passed to the group as a list of
 ``numpy.ndarray`` objects, each of shape (*N* x *D*). *N* is the number of
@@ -88,6 +103,7 @@ Here is a simple example of constructing an annotation group:
         algorithm_type=hd.ann.AnnotationGroupGenerationTypeValues.MANUAL,
         graphic_type=hd.ann.GraphicTypeValues.POINT,
         graphic_data=graphic_data,
+        display_color=hd.color.CIELabColor.from_string('turquoise'),
     )
 
 Note that including two nuclei would be very unusual in practice: annotations
@@ -141,6 +157,7 @@ Here is the above example with an area measurement included:
         graphic_type=hd.ann.GraphicTypeValues.POINT,
         graphic_data=graphic_data,
         measurements=[area_measurement],
+        display_color=hd.color.CIELabColor.from_string('lawngreen'),
     )
 
 Constructing MicroscopyBulkSimpleAnnotation Objects
@@ -256,7 +273,7 @@ of matching groups, since the filters may match multiple groups.
 
     # If there are no matches, an empty list is returned
     groups = ann.get_annotation_groups(
-        annotated_property_type=Code('53982002', "SCT", "Cell membrane"),
+        annotated_property_type=Code('53982002', 'SCT', 'Cell membrane'),
     )
     assert len(groups) == 0
 
