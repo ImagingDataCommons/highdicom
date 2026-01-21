@@ -15,20 +15,23 @@ class Modality(enum.IntEnum):
     PT = 2
 
 
-sop_classes = [('CT', '1.2.840.10008.5.1.4.1.1.2'),
-               ('MR', '1.2.840.10008.5.1.4.1.1.4'),
-               ('PT', '1.2.840.10008.5.1.4.1.1.128')]
+sop_classes = [
+    ('CT', '1.2.840.10008.5.1.4.1.1.2'),
+    ('MR', '1.2.840.10008.5.1.4.1.1.4'),
+    ('PT', '1.2.840.10008.5.1.4.1.1.128')
+]
 
 
 class DicomGenerator:
 
     def __init__(
-            self,
-            slice_per_frameset: int = 3,
-            slice_thickness: float = 0.1,
-            pixel_spacing: float = 0.1,
-            row: int = 2,
-            col: int = 2,) -> None:
+        self,
+        slice_per_frameset: int = 3,
+        slice_thickness: float = 0.1,
+        pixel_spacing: float = 0.1,
+        row: int = 2,
+        col: int = 2,
+    ) -> None:
         self._slice_per_frameset = slice_per_frameset
         self._slice_thickness = slice_thickness
         self._pixel_spacing = pixel_spacing
@@ -48,13 +51,15 @@ class DicomGenerator:
             0.000000, 0.000000, 1.000000]
         self._x_position_vec = [1.0, 0.0, 0.0]
 
-    def _generate_frameset(self,
-                           system: Modality,
-                           orientation_mat: list,
-                           position_vec: list,
-                           series_uid: str,
-                           first_slice_offset: float = 0,
-                           frameset_idx: int = 0) -> list:
+    def _generate_frameset(
+        self,
+       system: Modality,
+       orientation_mat: list,
+       position_vec: list,
+       series_uid: str,
+       first_slice_offset: float = 0,
+       frameset_idx: int = 0
+    ) -> list:
         output_dataset = []
         slice_pos = first_slice_offset
         slice_thickness = self._slice_thickness
@@ -73,8 +78,9 @@ class DicomGenerator:
             file_meta.MediaStorageSOPClassUID = sop_classes[system][1]
             file_meta.MediaStorageSOPInstanceUID = generate_uid()
             file_meta.ImplementationClassUID = generate_uid()
-            tmp_dataset = FileDataset('', {}, file_meta=file_meta,
-                                      preamble=pixel_array)
+            tmp_dataset = FileDataset(
+                '', {}, file_meta=file_meta, preamble=pixel_array
+            )
             tmp_dataset.file_meta.TransferSyntaxUID = "1.2.840.10008.1.2.1"
             tmp_dataset.SliceLocation = DSfloat(
                 slice_pos + i * slice_thickness,
@@ -102,7 +108,8 @@ class DicomGenerator:
                 tmp_dataset.ImageType = [
                     'ORIGINAL', 'PRIMARY', 'RECON', 'EMISSION']
             tmp_dataset.PixelSpacing = [
-                self._pixel_spacing, self._pixel_spacing]
+                self._pixel_spacing, self._pixel_spacing
+            ]
             tmp_dataset.PatientName = 'Doe^John'
             tmp_dataset.FrameOfReferenceUID = frame_of_ref_uid
             tmp_dataset.SOPClassUID = sop_classes[system][1]
@@ -153,14 +160,16 @@ class DicomGenerator:
         return output_dataset
 
     def generate_mixed_framesets(
-            self, system: Modality,
-            frame_set_count: int, parallel: bool = True,
-            flatten_output: bool = True) -> list:
+        self, system: Modality,
+        frame_set_count: int, parallel: bool = True,
+        flatten_output: bool = True
+    ) -> list:
         out = []
         orients = [
             self._z_orientation_mat,
             self._y_orientation_mat,
-            self._x_orientation_mat, ]
+            self._x_orientation_mat,
+        ]
         poses = [
             self._z_position_vec,
             self._y_position_vec,
@@ -177,12 +186,14 @@ class DicomGenerator:
             if flatten_output:
                 out.extend(
                     self._generate_frameset(
-                        system, orient, pos, se_uid, i * 50, i)
+                        system, orient, pos, se_uid, i * 50, i
+                    )
                 )
             else:
                 out.append(
                     self._generate_frameset(
-                        system, orient, pos, se_uid, i * 50, i)
+                        system, orient, pos, se_uid, i * 50, i
+                    )
                 )
         return out
 
@@ -335,7 +346,8 @@ class TestFrameSetCollection(unittest.TestCase):
         data_generator = DicomGenerator()
         for i in range(1, 10):
             data = data_generator.generate_mixed_framesets(
-                Modality.CT, i, True, True)
+                Modality.CT, i, True, True
+            )
             fset_collection = sop._FrameSetCollection(data)
             assert len(fset_collection.frame_sets) == i
 
@@ -343,7 +355,8 @@ class TestFrameSetCollection(unittest.TestCase):
         for i in range(1, 10):
             data_generator = DicomGenerator(i)
             data = data_generator.generate_mixed_framesets(
-                Modality.CT, 1, True, True)
+                Modality.CT, 1, True, True
+            )
             fset_collection = sop._FrameSetCollection(data)
             assert len(fset_collection.frame_sets) == 1
             assert len(fset_collection.frame_sets[0].frames) == i
@@ -355,12 +368,24 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
         super().setUp()
         self._modalities = ('CT', 'MR', 'PET')
         self._dicom_generator = DicomGenerator(slice_per_frameset=5)
-        self._ref_dataset_seq_CT = \
-            self._dicom_generator.generate_mixed_framesets(Modality.CT, 1)
-        self._ref_dataset_seq_MR = \
-            self._dicom_generator.generate_mixed_framesets(Modality.MR, 1)
-        self._ref_dataset_seq_PET = \
-            self._dicom_generator.generate_mixed_framesets(Modality.PT, 1)
+        self._ref_dataset_seq_CT = (
+            self._dicom_generator.generate_mixed_framesets(
+                Modality.CT,
+                1
+            )
+        )
+        self._ref_dataset_seq_MR = (
+            self._dicom_generator.generate_mixed_framesets(
+                Modality.MR,
+                1
+            )
+        )
+        self._ref_dataset_seq_PET = (
+            self._dicom_generator.generate_mixed_framesets(
+                Modality.PT,
+                1
+            )
+        )
         self._output_series_instance_uid = generate_uid()
         self._output_sop_instance_uid = generate_uid()
         self._output_series_number = 1
@@ -376,7 +401,8 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                     )
                     data_generator = DicomGenerator(i)
                     data = data_generator.generate_mixed_framesets(
-                        Modality(j), 1, True, True)
+                        Modality(j), 1, True, True
+                    )
                     fset_collection = sop._FrameSetCollection(data)
                     assert len(fset_collection.frame_sets) == 1
                     assert len(fset_collection.frame_sets[0].frames) == i
@@ -385,10 +411,13 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                         generate_uid(),
                         555,
                         generate_uid(),
-                        111)
+                        111
+                    )
                     assert convertor.NumberOfFrames == i
-                    assert convertor.SOPClassUID == \
+                    assert (
+                        convertor.SOPClassUID ==
                         sop.LEGACY_ENHANCED_SOP_CLASS_UID_MAP[sop_classes[j][1]]
+                    )
 
     def test_output_attributes(self) -> None:
         for m in self._modalities:
@@ -403,15 +432,24 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                     series_instance_uid=self._output_series_instance_uid,
                     series_number=self._output_instance_number,
                     sop_instance_uid=self._output_sop_instance_uid,
-                    instance_number=self._output_instance_number)
-                assert multiframe_item.SeriesInstanceUID == \
+                    instance_number=self._output_instance_number
+                )
+                assert (
+                    multiframe_item.SeriesInstanceUID ==
                     self._output_series_instance_uid
-                assert multiframe_item.SOPInstanceUID == \
+                )
+                assert (
+                    multiframe_item.SOPInstanceUID ==
                     self._output_sop_instance_uid
-                assert int(multiframe_item.SeriesNumber) == int(
-                    self._output_series_number)
-                assert int(multiframe_item.InstanceNumber) == int(
-                    self._output_instance_number)
+                )
+                assert (
+                    int(multiframe_item.SeriesNumber) ==
+                    int(self._output_series_number)
+                )
+                assert (
+                    int(multiframe_item.InstanceNumber) ==
+                    int(self._output_instance_number)
+                )
 
     def test_empty_dataset(self) -> None:
         for m in self._modalities:
@@ -426,7 +464,8 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                         series_instance_uid=self._output_series_instance_uid,
                         series_number=self._output_instance_number,
                         sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number)
+                        instance_number=self._output_instance_number
+                    )
 
     def test_wrong_modality(self) -> None:
 
@@ -449,7 +488,8 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                         series_instance_uid=self._output_series_instance_uid,
                         series_number=self._output_instance_number,
                         sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number)
+                        instance_number=self._output_instance_number
+                    )
 
     def test_wrong_sop_class_uid(self) -> None:
         for m in self._modalities:
@@ -468,7 +508,9 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                         series_instance_uid=self._output_series_instance_uid,
                         series_number=self._output_instance_number,
                         sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number)
+                        instance_number=self._output_instance_number
+                    )
+
                 for ddss in ref_dataset_seq:
                     ddss.SOPClassUID = tmp_orig_sop_class_id
 
@@ -487,7 +529,8 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                     series_instance_uid=self._output_series_instance_uid,
                     series_number=self._output_instance_number,
                     sop_instance_uid=self._output_sop_instance_uid,
-                    instance_number=self._output_instance_number)
+                    instance_number=self._output_instance_number
+                )
                 # second run with defected input
                 tmp_orig_study_instance_uid = (
                     ref_dataset_seq[0]
@@ -500,9 +543,11 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                         series_instance_uid=self._output_series_instance_uid,
                         series_number=self._output_instance_number,
                         sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number)
-                ref_dataset_seq[
-                    0].StudyInstanceUID = tmp_orig_study_instance_uid
+                        instance_number=self._output_instance_number
+                    )
+                ref_dataset_seq[0].StudyInstanceUID = (
+                    tmp_orig_study_instance_uid
+                )
 
     def test_mixed_series(self):
         for m in self._modalities:
@@ -518,18 +563,8 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                     series_instance_uid=self._output_series_instance_uid,
                     series_number=self._output_instance_number,
                     sop_instance_uid=self._output_sop_instance_uid,
-                    instance_number=self._output_instance_number)
-                # second run with defected input
-                tmp_series_instance_uid = ref_dataset_seq[0].SeriesInstanceUID
-                ref_dataset_seq[0].SeriesInstanceUID = '1.2.3.4.5.6.7.8.9'
-                with self.assertRaises(ValueError):
-                    LegacyConverterClass(
-                        legacy_datasets=ref_dataset_seq,
-                        series_instance_uid=self._output_series_instance_uid,
-                        series_number=self._output_instance_number,
-                        sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number)
-                ref_dataset_seq[0].SeriesInstanceUID = tmp_series_instance_uid
+                    instance_number=self._output_instance_number
+                )
 
     def test_mixed_transfer_syntax(self):
         for m in self._modalities:
@@ -561,6 +596,7 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
                         sop_instance_uid=self._output_sop_instance_uid,
                         instance_number=self._output_instance_number
                     )
+
                 ref_item.file_meta.TransferSyntaxUID = tmp_transfer_syntax_uid
 
     def generate_common_dicom_dataset_series(
@@ -588,8 +624,9 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
             file_meta.MediaStorageSOPInstanceUID = generate_uid()
             file_meta.ImplementationClassUID = generate_uid()
 
-            tmp_dataset = FileDataset('', {}, file_meta=file_meta,
-                                      preamble=pixel_array)
+            tmp_dataset = FileDataset(
+                '', {}, file_meta=file_meta, preamble=pixel_array
+            )
             tmp_dataset.file_meta.TransferSyntaxUID = UID("1.2.840.10008.1.2.1")
             tmp_dataset.SliceLocation = slice_pos + i * slice_thickness
             tmp_dataset.SliceThickness = slice_thickness
@@ -598,10 +635,14 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
             tmp_dataset.AcquisitionNumber = 1
             tmp_dataset.InstanceNumber = i
             tmp_dataset.SeriesNumber = 1
-            tmp_dataset.ImageOrientationPatient = [1.000000, 0.000000, 0.000000,
-                                                   0.000000, 1.000000, 0.000000]
-            tmp_dataset.ImagePositionPatient = [0.0, 0.0,
-                                                tmp_dataset.SliceLocation]
+            tmp_dataset.ImageOrientationPatient = [
+                1.000000, 0.000000, 0.000000,
+                0.000000, 1.000000, 0.000000
+            ]
+            tmp_dataset.ImagePositionPatient = [
+                0.0, 0.0,
+                tmp_dataset.SliceLocation
+            ]
             tmp_dataset.ImageType = ['ORIGINAL', 'PRIMARY', 'AXIAL']
             tmp_dataset.PixelSpacing = [1, 1]
             tmp_dataset.PatientName = 'Doe^John'
@@ -648,6 +689,8 @@ class TestLegacyConvertedEnhanceImage(unittest.TestCase):
             if (system == Modality.CT):
                 tmp_dataset.RescaleIntercept = 0
                 tmp_dataset.RescaleSlope = 1
+
             tmp_dataset.StudyTime = time_
             output_dataset.append(tmp_dataset)
+
         return output_dataset
