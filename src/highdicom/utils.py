@@ -250,21 +250,20 @@ def are_plane_positions_tiled_full(
 
 def import_optional_dependency(
     module_name: str,
-    feature: Optional[str] = None
+    feature: str
 ) -> ModuleType:
     """Import an optional dependency.
 
     This function is designed to support interaction with other common
-    libraries that are not required for `highdicom`.
+    libraries that are not required for `highdicom` by default.
 
     Parameters
     ----------
     module_name: str
         Name of the module to be imported.
-    feature: Optional[str]
-        Optional description of the feature that requires this dependency.
-        This is used only for improving the error message when the module
-        is not installed.
+    feature: str
+        Name or description of the feature that requires this dependency.
+        This is used for improving the clarity of error messages.
 
     Returns
     -------
@@ -276,11 +275,19 @@ def import_optional_dependency(
     ImportError
         When the specified module cannot be imported.
     """
+
+    #Update as new optional dependencies are supported
+    versions = {}
+
     try:
         return import_module(name=module_name)
 
     except ImportError as error:
+        module_version = versions[module_name] if module_name in versions.keys() else "Unknown"
+
         raise ImportError(
             f"Optional dependency `{module_name}` could not be imported"
             + (f" but is required for {feature}." if feature else ".")
+            + f" The minimum required version for `{module_name}` is {module_version}."
+
         ) from error
