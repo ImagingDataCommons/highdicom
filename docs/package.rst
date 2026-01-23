@@ -11,6 +11,7 @@ highdicom package
 .. automodule:: highdicom
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -21,6 +22,7 @@ highdicom.color module
 .. automodule:: highdicom.color
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -31,6 +33,7 @@ highdicom.frame module
 .. automodule:: highdicom.frame
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -41,6 +44,7 @@ highdicom.io module
 .. automodule:: highdicom.io
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -51,6 +55,7 @@ highdicom.spatial module
 .. automodule:: highdicom.spatial
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -61,6 +66,7 @@ highdicom.valuerep module
 .. automodule:: highdicom.valuerep
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -71,6 +77,7 @@ highdicom.utils module
 .. automodule:: highdicom.utils
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -81,6 +88,7 @@ highdicom.pixels module
 .. automodule:: highdicom.pixels
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -93,6 +101,7 @@ highdicom.legacy package
 .. automodule:: highdicom.legacy
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -105,6 +114,7 @@ highdicom.ann package
 .. automodule:: highdicom.ann
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -117,6 +127,7 @@ highdicom.ko package
 .. automodule:: highdicom.ko
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -129,6 +140,7 @@ highdicom.pm package
 .. automodule:: highdicom.pm
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -141,6 +153,7 @@ highdicom.pr package
 .. automodule:: highdicom.pr
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -153,6 +166,7 @@ highdicom.seg package
 .. automodule:: highdicom.seg
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -163,6 +177,7 @@ highdicom.seg.utils module
 .. automodule:: highdicom.seg.utils
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -175,6 +190,7 @@ highdicom.sr package
 .. automodule:: highdicom.sr
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -185,6 +201,7 @@ highdicom.sr.utils module
 .. automodule:: highdicom.sr.utils
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:
@@ -197,6 +214,7 @@ highdicom.sc package
 .. automodule:: highdicom.sc
    :members:
    :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
    :special-members: __call__
    :undoc-members:
    :show-inheritance:

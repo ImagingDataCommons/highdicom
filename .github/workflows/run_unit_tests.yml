@@ -15,7 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        # NB no 3.12 because an issue with coverage makes it extremely slow
+        # and the likelihood of 3.12-specific bugs is considered low at this
+        # stage
+        python-version: ["3.10", "3.11", "3.13", "3.14"]
         dependencies: [".", "'.[libjpeg]'"]
 
     env:

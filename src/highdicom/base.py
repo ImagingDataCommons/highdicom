@@ -393,9 +393,19 @@ class SOPClass(Dataset):
                     self._copy_attribute(dataset, str(item['keyword']))
 
     def copy_patient_and_study_information(self, dataset: Dataset) -> None:
-        """Copies patient- and study-related metadata from `dataset` that
-        are defined in the following modules: Patient, General Study,
-        Patient Study, Clinical Trial Subject and Clinical Trial Study.
+        """Copies patient- and study-related metadata from `dataset`.
+
+        Information defined in the following modules is included: Patient,
+        General Study, Patient Study, Clinical Trial Subject and Clinical Trial
+        Study.
+
+        Note
+        ----
+        This method is intended to be used by those writing sub-classes of
+        :class:`highdicom.SOPClass`. It is *not* necessary for users of
+        sub-classes of :class:`highdicom.SOPClass` (including all DICOM IODs
+        implemented in highdicom), or indeed most users of the library, to call
+        this function directly.
 
         Parameters
         ----------
@@ -407,8 +417,17 @@ class SOPClass(Dataset):
         self._copy_root_attributes_of_module(dataset, 'Study')
 
     def copy_specimen_information(self, dataset: Dataset) -> None:
-        """Copies specimen-related metadata from `dataset` that
-        are defined in the Specimen module.
+        """Copies specimen-related metadata from `dataset`.
+
+        Information defined in the Specimen module is included.
+
+        Note
+        ----
+        This method is intended to be used by those writing sub-classes of
+        :class:`highdicom.SOPClass`. It is *not* necessary for users of
+        sub-classes of :class:`highdicom.SOPClass` (including all DICOM IODs
+        implemented in highdicom), or indeed most users of the library, to call
+        this function directly.
 
         Parameters
         ----------
