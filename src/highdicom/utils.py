@@ -283,11 +283,13 @@ def import_optional_dependency(
         return import_module(name=module_name)
 
     except ImportError as error:
-        module_version = versions[module_name] if module_name in versions.keys() else "Unknown"
+        module_version = (
+            versions[module_name] if module_name in versions.keys() else 'Unknown'
+        )
 
         raise ImportError(
-            f"Optional dependency `{module_name}` could not be imported"
-            + (f" but is required for {feature}." if feature else ".")
-            + f" The minimum required version for `{module_name}` is {module_version}."
+            f'Optional dependency `{module_name}` could not be imported'
+            + (f' but is required for {feature}.' if feature else '.')
+            + f' The minimum required version for `{module_name}` is {module_version}.'
 
         ) from error
