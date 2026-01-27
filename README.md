@@ -43,7 +43,7 @@ The developers gratefully acknowledge their support:
 * The MGH & BWH Center for Clinical Data Science, now [MGB AI](https://www.massgeneralbrigham.org/en/research-and-innovation/centers-and-programs/artificial-intelligence)
 * [Quantitative Image Informatics for Cancer Research (QIICR)](https://qiicr.org/)
 * [Radiomics](https://www.radiomics.io/)
-* The NCI [Imaging Data Commons](https://datacommons.cancer.gov/repository/imaging-data-commons)
+* The NCI [Imaging Data Commons](https://imaging.datacommons.cancer.gov)
 * The [APOLLO Network](https://www.cancer.gov/about-nci/organization/cbiit/projects/apollo)
 
 This software is maintained in part by the [NCI Imaging Data Commons](https://imaging.datacommons.cancer.gov/) project,
