@@ -290,18 +290,18 @@ def import_optional_dependency(
         module = import_module(name=module_name)
         installed_version = metadata.version(module_name)
 
-        if installed_version not in req.specifier:
-            raise ImportError(
-                f'Optional dependency `{module_name}` has an unsuitable'
-                f' version. Found {installed_version}, but highdicom requires'
-                f' {module_name}{req.specifier}.'
-            )
-
-        return module
-
     except ImportError as error:
         raise ImportError(
             f'Optional dependency `{module_name}` could not be imported'
             f' but is required for {feature}.'
             f' highdicom requires {module_name}{req.specifier}.'
         ) from error
+
+    if installed_version not in req.specifier:
+        raise ImportError(
+            f'Optional dependency `{module_name}` has an unsuitable'
+            f' version. Found {module_name}=={installed_version}, but'
+            f' highdicom requires {module_name}{req.specifier}.'
+        )
+
+    return module
