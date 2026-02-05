@@ -14,9 +14,9 @@ from highdicom.spatial import (
     is_tiled_image,
 )
 
-from importlib import import_module
+from importlib import import_module, metadata
+from packaging.requirements import Requirement
 from types import ModuleType
-from typing import Optional
 
 # Several functions that were initially defined in this module were moved to
 # highdicom.spatial to consolidate similar functionality and prevent circular
@@ -275,21 +275,33 @@ def import_optional_dependency(
     ImportError
         When the specified module cannot be imported.
     """
+    for req_str in metadata.requires('highdicom'):
+        req = Requirement(req_str)
+        if req.name == module_name:
+            break
 
-    #Update as new optional dependencies are supported
-    versions = {}
-
-    try:
-        return import_module(name=module_name)
-
-    except ImportError as error:
-        module_version = (
-            versions[module_name] if module_name in versions.keys() else 'Unknown'
+    else:
+        raise ValueError(
+            f'`{module_name}` is not a requirement of highdicom'
+            f' but is required for {feature}.'
         )
 
+    try:
+        module = import_module(name=module_name)
+        installed_version = metadata.version(module_name)
+
+        if installed_version not in req.specifier:
+            raise ImportError(
+                f'Optional dependency `{module_name}` has an unsuitable'
+                f' version. Found {installed_version}, but highdicom requires'
+                f' {module_name}{req.specifier}.'
+            )
+
+        return module
+
+    except ImportError as error:
         raise ImportError(
             f'Optional dependency `{module_name}` could not be imported'
-            + (f' but is required for {feature}.' if feature else '.')
-            + f' The minimum required version for `{module_name}` is {module_version}.'
-
+            f' but is required for {feature}.'
+            f' highdicom requires {module_name}{req.specifier}.'
         ) from error
