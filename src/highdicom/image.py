@@ -4119,9 +4119,6 @@ class _Image(SOPClass):
                 source_image.ImageCenterPointCoordinatesSequence
             )
         else:
-            frame_indices = np.lexsort(tile_positions.T)
-            last_frame_index = frame_indices[-1]
-
             if is_tiled:
                 origin_item = Dataset()
                 origin_item.XOffsetInSlideCoordinateSystem = \
@@ -4134,11 +4131,11 @@ class _Image(SOPClass):
                 self.TotalPixelMatrixFocalPlanes = 1
                 if total_pixel_matrix_size is None:
                     self.TotalPixelMatrixRows = int(
-                        tile_positions[last_frame_index, 0] +
+                        tile_positions[:, 0].max() +
                         self.Rows - 1
                     )
                     self.TotalPixelMatrixColumns = int(
-                        tile_positions[last_frame_index, 1] +
+                        tile_positions[:, 1].max() +
                         self.Columns - 1
                     )
                 else:
