@@ -4,7 +4,7 @@ The TID1500 Measurement Report Template
 =======================================
 
 The `TID1500 "Measurement Report" <tid1500def_>`_ template is a general-purpose
-template for communicating measurements and qualitative qualitative evaluations
+template for communicating measurements and qualitative evaluations
 derived from one or more images or regions of images. It is recommended to read
 the previous page on :ref:`generalsr` before this page.
 

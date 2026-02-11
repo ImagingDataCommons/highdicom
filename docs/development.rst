@@ -23,7 +23,7 @@ Pull requests
 
 We encourage contributions from the users of the library (provided that they fit within the scope of the project).
 
-If you are planning to make a contribution to the library, we encourage you to leave an issue first on the `issue tracker <https://github.com/ImagingDataCommons/higdicom/issues>`_ detailing your proposed contribution.
+If you are planning to make a contribution to the library, we encourage you to leave an issue first on the `issue tracker <https://github.com/ImagingDataCommons/highdicom/issues>`_ detailing your proposed contribution.
 This way, the maintainers can vet your proposal, make sure it is within the scope of the project, and guide you through the process of creating a successful pull request.
 Before creating a pull request on Github, read the coding style guideline, run the tests and check PEP8 compliance.
 
