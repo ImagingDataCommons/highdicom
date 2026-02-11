@@ -233,7 +233,7 @@ A volumetric group returns a :class:`highdicom.sr.VolumeSurface` or list of
 :class:`highdicom.sr.ImageRegion` objects, depending on the reference type. If
 instead, a planar/volumetric measurement group uses the ``ReferencedSegment``
 reference type, the referenced segment can be accessed by the
-``group.referenced_segmention_frame`` property (for planar groups) or
+``group.referenced_segmentation_frame`` property (for planar groups) or
 ``group.referenced_segment`` property (for volumetric groups), which return
 objects of type :class:`highdicom.sr.ReferencedSegmentationFrame` and
 :class:`highdicom.sr.ReferencedSegment` respectively.

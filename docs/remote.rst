@@ -59,7 +59,7 @@ spatial patch from a large whole slide image from the IDC.
   with blob.open(mode="rb", chunk_size=500_000) as reader:
       im = hd.imread(reader, lazy_frame_retrieval=True)
 
-      # Grab an arbitrary region of tile full pixel matrix
+      # Grab an arbitrary region of the full pixel matrix
       region = im.get_total_pixel_matrix(
           row_start=15000,
           row_end=15512,
@@ -163,11 +163,11 @@ the ``s3fs`` documentation for details).
   # URL to a whole slide image from the IDC "CCDS MCI" collection on AWS S3
   url = 's3://idc-open-data/763fe058-7d25-4ba7-9b29-fd3d6c41dc4b/210f0529-c767-4795-9acf-bad2f4877427.dcm'
 
-  # Read the imge directly from the blob
+  # Read the image directly from the blob
   with s3_client.open(url, mode="rb") as reader:
       im = hd.imread(reader, lazy_frame_retrieval=True)
 
-      # Grab an arbitrary region of tile full pixel matrix
+      # Grab an arbitrary region of the full pixel matrix
       region = im.get_total_pixel_matrix(
           row_start=15000,
           row_end=15512,
