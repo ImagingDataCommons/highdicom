@@ -24,6 +24,7 @@ from highdicom.enum import (
     PhotometricInterpretationValues,
     PixelRepresentationValues,
     PlanarConfigurationValues,
+    PixelDataKeywords,
 )
 
 logger = logging.getLogger(__name__)
@@ -345,6 +346,7 @@ def encode_frame(
                 planar_configuration=planar_configuration,
                 **kwargs,
             )
+
     return data
 
 
@@ -357,10 +359,10 @@ def decode_frame(
     bits_allocated: int,
     bits_stored: int,
     photometric_interpretation: PhotometricInterpretationValues | str,
-    pixel_representation: PixelRepresentationValues | int = 0,
+    pixel_representation: PixelRepresentationValues | int | None = 0,
     planar_configuration: PlanarConfigurationValues | int | None = None,
     index: int = 0,
-    pixel_keyword: str = 'PixelData',
+    pixel_keyword: PixelDataKeywords | str = PixelDataKeywords.PIXEL_DATA,
 ) -> np.ndarray:
     """Decode pixel data of an individual frame.
 
@@ -385,7 +387,7 @@ def decode_frame(
         Photometric interpretation
     pixel_representation: Union[highdicom.PixelRepresentationValues, int, None], optional
         Whether pixel samples are represented as unsigned integers or
-        2's complements
+        2's complements. May only be None for floating point pixel data.
     planar_configuration: Union[highdicom.PlanarConfigurationValues, int, None], optional
         Whether color samples are encoded by pixel (``R1G1B1R2G2B2...``) or
         by plane (``R1R2...G1G2...B1B2...``).
@@ -398,7 +400,7 @@ def decode_frame(
         the byte array. In all other situations, this parameter is not
         required and will have no effect (since decoding a frame does not
         depend on the index of the frame).
-    pixel_keyword: str, optional
+    pixel_keyword: highdicom.enum.PixelDataKeywords | str, optional
         Keyword of the attribute where the pixel data value was stored. Should be
         ``'PixelData'``, ``'FloatPixelData'``, or ``'DoubleFloatPixelData'``.
 
@@ -445,9 +447,11 @@ def decode_frame(
         pixel_array = unpacked_frame[pixel_offset:pixel_offset + n_pixels]
         return pixel_array.reshape(rows, columns)
 
-    pixel_representation = PixelRepresentationValues(
-        pixel_representation
-    ).value
+    pixel_keyword = PixelDataKeywords(pixel_keyword)
+    if pixel_keyword == PixelDataKeywords.PIXEL_DATA:
+        pixel_representation = PixelRepresentationValues(
+            pixel_representation
+        ).value
     photometric_interpretation = PhotometricInterpretationValues(
         photometric_interpretation
     ).value
@@ -480,7 +484,7 @@ def decode_frame(
         bits_stored=bits_stored,
         photometric_interpretation=photometric_interpretation,
         pixel_representation=pixel_representation,
-        pixel_keyword=pixel_keyword,
+        pixel_keyword=pixel_keyword.value,
         **kwargs,
     )
     return array
