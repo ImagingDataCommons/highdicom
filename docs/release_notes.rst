@@ -113,13 +113,13 @@ systems, which are shifted by 0.5 pixels.
 1. **Pixel indices**: (column, row) indices into the pixel matrix. The values
    are zero-based integers in the range [0, Columns - 1] and [0, Rows - 1].
    Pixel indices are defined relative to the centers of pixels and the (0, 0)
-   index is located at the center of the top left corner hand pixel of the
+   index is located at the center of the top left corner pixel of the
    total pixel matrix.
 2. **Image coordinates**: (column, row) coordinates in the pixel matrix at
    sub-pixel resolution. The values are floating-point numbers in the range
    [0, Columns] and [0, Rows]. Image coordinates are defined relative to the
    top left corner of the pixels and the (0.0, 0.0) point is located at the top
-   left corner of the top left corner hand pixel of the total pixel matrix.
+   left corner of the top left corner pixel of the total pixel matrix.
 
 To account for these differences, introduced two additional transformer classes
 in highdicom 0.14.1. and made changes to the existing ones.

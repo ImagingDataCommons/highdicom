@@ -79,7 +79,7 @@ value in `pydicom`:
 
    tumor_code = codes.SCT.Tumor
    print(tumor_code.value)
-   # '1083690006'
+   # '108369006'
    print(tumor_code.scheme_designator)
    # 'SCT'
    print(tumor_code.meaning)

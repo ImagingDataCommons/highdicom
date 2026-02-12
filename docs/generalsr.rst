@@ -9,10 +9,10 @@ supports structured reports through the :mod:`highdicom.sr` sub-package.
 
 SRs are highly complex, and this page attempts to give a basic introduction
 while also describing the implementation within `highdicom`. A more thorough
-explanation my be found in:
+explanation may be found in:
 
 * *DICOM Structured Reporting*. David Clunie. PixelMed Publishing, 2000.
-  Digital copy available 
+  Digital copy available
   `here <https://www.dclunie.com/pixelmed/DICOMSR.book.pdf>`_.
 
 Content Items
@@ -53,7 +53,7 @@ item. The classes representing these content items in `highdicom` are:
 - :class:`highdicom.sr.UIDRefContentItem`: The value is a UID (unique
   identifier).
 
-These classes are all subclasses pf ``pydicom.Dataset`` and you can view and
+These classes are all subclasses of ``pydicom.Dataset`` and you can view and
 interact with their attributes as you can with any pydicom dataset.
 
 You can look at the API for each class to see how to construct content items of
