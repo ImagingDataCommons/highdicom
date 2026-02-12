@@ -2934,7 +2934,7 @@ class _Image(SOPClass):
             measures_preserved = np.allclose(
                 pixel_measures[0].PixelSpacing,
                 source_pixel_measures[0].PixelSpacing,
-                atol=1e-4
+                rtol=1e-4
             )
             if measures_preserved:
                 # Override provided value with that from the source image to
