@@ -274,6 +274,7 @@ def import_optional_dependency(
     ------
     ImportError
         When the specified module cannot be imported.
+        
     """
     for req_str in metadata.requires('highdicom'):
         req = Requirement(req_str)
