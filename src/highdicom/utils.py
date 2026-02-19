@@ -283,8 +283,8 @@ def import_optional_dependency(
 
     else:
         raise ValueError(
-            f'`{module_name}` is not a requirement of highdicom'
-            f' but is required for {feature}.'
+            f'`{module_name}` is not a requirement of highdicom '
+            f'but is required for {feature}.'
         )
 
     try:
