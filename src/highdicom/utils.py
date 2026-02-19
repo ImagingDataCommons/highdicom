@@ -289,7 +289,6 @@ def import_optional_dependency(
 
     try:
         module = import_module(name=module_name)
-        installed_version = metadata.version(module_name)
 
     except ImportError as error:
         raise ImportError(
@@ -297,6 +296,8 @@ def import_optional_dependency(
             f' but is required for {feature}.'
             f' highdicom requires {module_name}{req.specifier}.'
         ) from error
+        
+    installed_version = metadata.version(module_name)  
 
     if installed_version not in req.specifier:
         raise ImportError(
