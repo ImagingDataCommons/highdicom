@@ -272,7 +272,7 @@ def import_optional_dependency(
 
     Raises
     ------
-    ImportError
+    ImportError:
         When the specified module cannot be imported.
         
     """
