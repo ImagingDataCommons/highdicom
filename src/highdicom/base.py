@@ -293,11 +293,15 @@ class SOPClass(Dataset):
                     "'series_time' may not be specified without "
                     "'series_date'."
                 )
-            if content_time is not None:
-                if series_time > content_time:
-                    raise ValueError(
-                        "'series_time' must not be later than content time."
-                    )
+            if (
+                content_time is not None and
+                content_date is not None and
+                series_date == content_date and
+                series_time > content_time
+            ):
+                raise ValueError(
+                    "'series_time' must not be later than content time."
+                )
             self.SeriesTime = series_time
 
         if content_qualification is not None:
