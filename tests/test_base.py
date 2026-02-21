@@ -99,11 +99,58 @@ class TestBase(unittest.TestCase):
             manufacturer_model_name='foo-bar',
             software_versions='v1.0.0',
             transfer_syntax_uid=ExplicitVRLittleEndian,
-            series_date=datetime.date(2000, 12, 1),
+            content_date=datetime.date(2024, 6, 15),
+            content_time=datetime.time(14, 0, 0),
+            series_date=datetime.date(2024, 6, 15),
             series_time=datetime.time(12, 34, 56),
         )
         assert hasattr(instance, 'SeriesDate')
         assert hasattr(instance, 'SeriesTime')
+
+    def test_series_datetime_earlier_date(self):
+        # series_time > content_time is fine when series_date < content_date
+        instance = SOPClass(
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+            instance_number=1,
+            modality='SR',
+            manufacturer='highdicom',
+            manufacturer_model_name='foo-bar',
+            software_versions='v1.0.0',
+            transfer_syntax_uid=ExplicitVRLittleEndian,
+            content_date=datetime.date(2024, 6, 15),
+            content_time=datetime.time(8, 0, 0),
+            series_date=datetime.date(2024, 6, 14),
+            series_time=datetime.time(23, 59, 59),
+        )
+        assert hasattr(instance, 'SeriesDate')
+        assert hasattr(instance, 'SeriesTime')
+
+    def test_series_time_after_content_same_date(self):
+        msg = (
+            "'series_time' must not be later than content time."
+        )
+        with pytest.raises(ValueError, match=msg):
+            SOPClass(
+                study_instance_uid=UID(),
+                series_instance_uid=UID(),
+                series_number=1,
+                sop_instance_uid=UID(),
+                sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+                instance_number=1,
+                modality='SR',
+                manufacturer='highdicom',
+                manufacturer_model_name='foo-bar',
+                software_versions='v1.0.0',
+                transfer_syntax_uid=ExplicitVRLittleEndian,
+                content_date=datetime.date(2024, 6, 15),
+                content_time=datetime.time(8, 0, 0),
+                series_date=datetime.date(2024, 6, 15),
+                series_time=datetime.time(12, 34, 56),
+            )
 
     def test_series_date_without_time(self):
         msg = (
