@@ -47,6 +47,8 @@ libjpeg = [
     "pylibjpeg-openjpeg>=2.0.0",
     "pylibjpeg>=2.0",
 ]
+
+[dependency-groups]
 test = [
     "mypy==1.15.0",
     "pytest==8.3.5",
