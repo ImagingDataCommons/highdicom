@@ -61,6 +61,10 @@ docs = [
     "sphinxcontrib-autoprogram==0.1.7",
     "sphinxcontrib-websupport==1.2.4",
 ]
+itk = [
+    "itk>=5.4.0",
+    "SimpleITK>=2.5.0"
+]
 
 [project.urls]
 homepage = "https://github.com/imagingdatacommons/highdicom"
