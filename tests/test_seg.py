@@ -31,6 +31,7 @@ from highdicom import (
     PaletteColorLUT,
     PaletteColorLUTTransformation,
 )
+from highdicom.image import DimensionIndexSequence
 from highdicom.base_content import ContributingEquipment
 from highdicom.color import CIELabColor
 from highdicom.content import (
@@ -48,7 +49,6 @@ from highdicom.image import get_volume_from_series
 from highdicom.seg import (
     create_segmentation_pyramid,
     segread,
-    DimensionIndexSequence,
     SegmentationTypeValues,
     SegmentAlgorithmTypeValues,
     Segmentation,
@@ -57,7 +57,11 @@ from highdicom.seg import (
     SegmentationFractionalTypeValues,
 )
 from highdicom.seg.utils import iter_segments
-from highdicom.spatial import VOLUME_INDEX_CONVENTION, sort_datasets
+from highdicom.spatial import (
+    VOLUME_INDEX_CONVENTION,
+    create_affine_matrix_from_attributes,
+    sort_datasets,
+)
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.volume import RGB_COLOR_CHANNEL_DESCRIPTOR, Volume
@@ -549,40 +553,6 @@ class TestPlaneOrientationSequence(unittest.TestCase):
             )
 
 
-class TestDimensionIndexSequence(unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-
-    def test_construction(self):
-        seq = DimensionIndexSequence(
-            coordinate_system='PATIENT'
-        )
-        assert len(seq) == 2
-        assert seq[0].DimensionIndexPointer == 0x0062000B
-        assert seq[0].FunctionalGroupPointer == 0x0062000A
-        assert seq[1].DimensionIndexPointer == 0x00200032
-        assert seq[1].FunctionalGroupPointer == 0x00209113
-
-    def test_construction_2(self):
-        seq = DimensionIndexSequence(
-            coordinate_system='SLIDE'
-        )
-        assert len(seq) == 6
-        assert seq[0].DimensionIndexPointer == 0x0062000B
-        assert seq[0].FunctionalGroupPointer == 0x0062000A
-        assert seq[1].DimensionIndexPointer == 0x0048021F
-        assert seq[1].FunctionalGroupPointer == 0x0048021A
-        assert seq[2].DimensionIndexPointer == 0x0048021E
-        assert seq[2].FunctionalGroupPointer == 0x0048021A
-        assert seq[3].DimensionIndexPointer == 0x0040072A
-        assert seq[3].FunctionalGroupPointer == 0x0048021A
-        assert seq[4].DimensionIndexPointer == 0x0040073A
-        assert seq[4].FunctionalGroupPointer == 0x0048021A
-        assert seq[5].DimensionIndexPointer == 0x0040074A
-        assert seq[5].FunctionalGroupPointer == 0x0048021A
-
-
 class TestSegmentation:
 
     @pytest.fixture(autouse=True)
@@ -868,7 +838,10 @@ class TestSegmentation:
             else:
                 orientation = src.ImageOrientationPatient
 
-        dim_index = DimensionIndexSequence(coordinate_system)
+        dim_index = DimensionIndexSequence(
+            coordinate_system,
+            'segmentation-multi-frame-functional-groups'
+        )
         if hasattr(src, 'NumberOfFrames'):
             plane_positions = dim_index.get_plane_positions_of_image(src)
         else:
@@ -897,6 +870,8 @@ class TestSegmentation:
     def check_dimension_index_vals(seg):
         # Function to apply some checks (necessary but not sufficient for
         # correctness) to ensure that the dimension indices are correct
+        sfgs = seg.SharedFunctionalGroupsSequence[0]
+
         if seg.SegmentationType != "LABELMAP":
             all_segment_numbers = []
             for f in seg.PerFrameFunctionalGroupsSequence:
@@ -908,9 +883,18 @@ class TestSegmentation:
                     # VM=1 so this is an int
                     posn_index = dim_ind_vals
 
-                seg_number = (
-                    f.SegmentIdentificationSequence[0].ReferencedSegmentNumber
-                )
+                if 'SegmentIdentificationSequence' in f:
+                    seg_number = (
+                        f
+                        .SegmentIdentificationSequence[0]
+                        .ReferencedSegmentNumber
+                    )
+                else:
+                    seg_number = (
+                        sfgs
+                        .SegmentIdentificationSequence[0]
+                        .ReferencedSegmentNumber
+                    )
 
                 assert seg_number == posn_index
                 all_segment_numbers.append(seg_number)
@@ -1045,7 +1029,7 @@ class TestSegmentation:
         assert instance.MaximumFractionalValue == 255
         assert instance.ContentLabel == self._content_label
         assert instance.ContentDescription is None
-        assert instance.ContentCreatorName is None
+        assert 'ContentCreatorName' not in instance
         with pytest.raises(AttributeError):
             instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
@@ -1077,12 +1061,15 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             self._ct_image.ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert instance.NumberOfFrames == 1
         assert len(instance.PerFrameFunctionalGroupsSequence) == 1
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
@@ -1152,6 +1139,7 @@ class TestSegmentation:
             self._sm_image.TotalPixelMatrixRows
         assert instance.TotalPixelMatrixColumns == \
             self._sm_image.TotalPixelMatrixColumns
+        assert instance.TotalPixelMatrixFocalPlanes == 1
         assert len(instance.SharedFunctionalGroupsSequence) == 1
         shared_item = instance.SharedFunctionalGroupsSequence[0]
         assert len(shared_item.PixelMeasuresSequence) == 1
@@ -1161,12 +1149,15 @@ class TestSegmentation:
         assert pm_item.PixelSpacing == src_pm_item.PixelSpacing
         assert pm_item.SliceThickness == src_pm_item.SliceThickness
         assert not hasattr(shared_item, "PlaneOrientationSequence")
+        assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert instance.ImageOrientationSlide == \
             self._sm_image.ImageOrientationSlide
         assert instance.TotalPixelMatrixOriginSequence == \
             self._sm_image.TotalPixelMatrixOriginSequence
         assert len(instance.DimensionOrganizationSequence) == 1
-        assert len(instance.DimensionIndexSequence) == 6
+        assert len(instance.DimensionIndexSequence) == 3
 
         # Number of frames should be number of frames in the segmentation mask
         # that are non-empty, due to sparsity
@@ -1174,12 +1165,12 @@ class TestSegmentation:
         assert instance.NumberOfFrames == num_frames
         assert len(instance.PerFrameFunctionalGroupsSequence) == num_frames
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.PlanePositionSlideSequence) == 1
         frame_content_item = frame_item.FrameContentSequence[0]
-        assert len(frame_content_item.DimensionIndexValues) == 6
+        assert len(frame_content_item.DimensionIndexValues) == 3
         for derivation_image_item in frame_item.DerivationImageSequence:
             assert len(derivation_image_item.SourceImageSequence) == 1
             source_image_item = derivation_image_item.SourceImageSequence[0]
@@ -1242,6 +1233,9 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             src_im.ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         n_frames = len(self._ct_series_nonempty)
@@ -1254,7 +1248,7 @@ class TestSegmentation:
             ),
             1
         ):
-            assert len(frame_item.SegmentIdentificationSequence) == 1
+            assert not hasattr(frame_item, 'SegmentIdentificationSequence')
             assert len(frame_item.FrameContentSequence) == 1
             assert len(frame_item.DerivationImageSequence) == 1
             assert len(frame_item.PlanePositionSequence) == 1
@@ -1342,12 +1336,15 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             src_shared_item.PlaneOrientationSequence[0].ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert len(instance.PerFrameFunctionalGroupsSequence) == \
             self._ct_multiframe.NumberOfFrames
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
@@ -1429,12 +1426,15 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             src_im.ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert instance.NumberOfFrames == 4
         assert len(instance.PerFrameFunctionalGroupsSequence) == 4
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
@@ -1527,7 +1527,7 @@ class TestSegmentation:
         assert instance.MaximumFractionalValue == 255
         assert instance.ContentLabel == self._content_label
         assert instance.ContentDescription is None
-        assert instance.ContentCreatorName is None
+        assert 'ContentCreatorName' not in instance
         with pytest.raises(AttributeError):
             instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
@@ -1551,14 +1551,17 @@ class TestSegmentation:
         assert instance.Columns == self._cr_image.pixel_array.shape[1]
         assert len(instance.SharedFunctionalGroupsSequence) == 1
         shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.SegmentIdentificationSequence) == 1
         assert not hasattr(shared_item, 'PixelMeasuresSequence')
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 1
         assert instance.NumberOfFrames == 1
         assert len(instance.PerFrameFunctionalGroupsSequence) == 1
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert not hasattr(frame_item, 'PlanePositionSequence')
@@ -1623,7 +1626,7 @@ class TestSegmentation:
         assert instance.MaximumFractionalValue == 255
         assert instance.ContentLabel == self._content_label
         assert instance.ContentDescription is None
-        assert instance.ContentCreatorName is None
+        assert 'ContentCreatorName' not in instance
         with pytest.raises(AttributeError):
             instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
@@ -1636,6 +1639,8 @@ class TestSegmentation:
             instance.TotalPixelMatrixRows  # noqa: B018
         with pytest.raises(AttributeError):
             instance.TotalPixelMatrixColumns  # noqa: B018
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixFocalPlanes  # noqa: B018
         assert len(instance.SegmentSequence) == 2
         assert instance.SegmentSequence[0].SegmentNumber == 1
         assert instance.SegmentSequence[1].SegmentNumber == 2
@@ -1650,6 +1655,8 @@ class TestSegmentation:
         shared_item = instance.SharedFunctionalGroupsSequence[0]
         assert not hasattr(shared_item, 'PixelMeasuresSequence')
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 1
         assert instance.NumberOfFrames == 2
@@ -1743,7 +1750,7 @@ class TestSegmentation:
         )
         assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
         assert instance.PhotometricInterpretation == 'PALETTE COLOR'
-        assert hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'ICCProfile')
         assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
         assert hasattr(instance, 'RedPaletteColorLookupTableData')
         assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
@@ -2805,6 +2812,8 @@ class TestSegmentation:
         )
         assert instance.DimensionOrganizationType == "TILED_FULL"
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
+        assert not hasattr(instance, 'DimensionIndexSequence')
+        assert hasattr(instance, 'DimensionOrganizationSequence')
 
     def test_construction_tiled_full_labelmap(self):
         instance = Segmentation(
@@ -2825,6 +2834,8 @@ class TestSegmentation:
         )
         assert instance.DimensionOrganizationType == "TILED_FULL"
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
+        assert not hasattr(instance, 'DimensionIndexSequence')
+        assert hasattr(instance, 'DimensionOrganizationSequence')
 
     def test_construction_further_source_images(self):
         # Further source images that are aligned
@@ -4463,7 +4474,8 @@ class TestSegmentation:
         self.check_dimension_index_vals(instance)
 
     def test_spatial_positions_not_preserved(self):
-        pixel_spacing = (0.5, 0.5)
+        origin = (1.2, 4.5, 0.0)
+        pixel_spacing = (0.005, 0.005)
         slice_thickness = 0.3
         pixel_measures = PixelMeasuresSequence(
             pixel_spacing=pixel_spacing,
@@ -4474,13 +4486,62 @@ class TestSegmentation:
             coordinate_system=CoordinateSystemNames.SLIDE,
             image_orientation=image_orientation
         )
+        affine = create_affine_matrix_from_attributes(
+            image_orientation=image_orientation,
+            pixel_spacing=pixel_spacing,
+            image_position=origin,
+            index_convention="RD",  # use column, row
+        )
+
+        # Arbitrary tile positions
+        # use (column, row ) format to match input to PlanePositionSequence
+        tile_positions = np.array(
+            [
+                [8361, 7917],
+                [9464, 6091],
+                [3188, 6036],
+                [8391, 9097],
+                [2063, 6274],
+                [6, 7616],
+                [9409, 447],
+                [305, 3222],
+                [5675, 3033],
+                [8130, 642],
+                [9921, 4617],
+                [633, 8264],
+                [3650, 4208],
+                [2078, 1986],
+                [507, 1362],
+                [4151, 3298],
+                [5998, 2695],
+                [6603, 7279],
+                [663, 522],
+                [7736, 9028],
+                [622, 8943],
+                [2147, 1407],
+                [2566, 9502],
+                [834, 9156],
+                [9859, 7794]
+            ]
+        )
+        n = tile_positions.shape[0]
+
+        # Subtract 1 (since top left pixel has position 1, 1) and add column of
+        # ones
+        tile_positions_aug = np.column_stack(
+            [tile_positions - 1, np.ones((n, 1))]
+        )
+
+        # Ignore the third column of the affine since there is no slice offset
+        plane_position_values = (affine[:3, [0, 1, 3]] @ tile_positions_aug.T).T
+
         plane_positions = [
             PlanePositionSequence(
                 coordinate_system=CoordinateSystemNames.SLIDE,
-                image_position=(i * 1.0, i * 1.0, 1.0),
-                pixel_matrix_position=(i * 1, i * 1)
+                pixel_matrix_position=tp.tolist(),
+                image_position=pp.tolist(),
             )
-            for i in range(self._sm_image.pixel_array.shape[0])
+            for tp, pp in zip(tile_positions, plane_position_values)
         ]
         instance = Segmentation(
             source_images=[self._sm_image],
@@ -4507,9 +4568,51 @@ class TestSegmentation:
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
         self.check_dimension_index_vals(instance)
 
+        # Check that the correct origin was inferred from the plane positions
+        origin_seq = instance.TotalPixelMatrixOriginSequence[0]
+        assert origin_seq.XOffsetInSlideCoordinateSystem == origin[0]
+        assert origin_seq.YOffsetInSlideCoordinateSystem == origin[1]
+        assert origin_seq.ZOffsetInSlideCoordinateSystem == origin[2]
+
+        # Repeat with plane positions that are inconsistent with the tile
+        # positions - should raise an error
+        bad_plane_positions = [
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.SLIDE,
+                pixel_matrix_position=tp.tolist(),
+                image_position=(1.0, 1.0, 1.0),  # same position for every tile
+            )
+            for tp in tile_positions
+        ]
+        msg = (
+            "Some plane positions are not consistent with the provided "
+            "plane orientation and pixel measures."
+        )
+        with pytest.raises(ValueError, match=msg):
+            Segmentation(
+                source_images=[self._sm_image],
+                pixel_array=self._sm_pixel_array,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=self._segment_descriptions,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number,
+                pixel_measures=pixel_measures,
+                plane_orientation=plane_orientation,
+                plane_positions=bad_plane_positions
+            )
+
     def test_get_plane_positions_of_image_patient(self):
         seq = DimensionIndexSequence(
-            coordinate_system='PATIENT'
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
         )
         plane_positions = seq.get_plane_positions_of_image(self._ct_multiframe)
         for position in plane_positions:
@@ -4517,7 +4620,10 @@ class TestSegmentation:
 
     def test_get_plane_positions_of_image_slide(self):
         seq = DimensionIndexSequence(
-            coordinate_system='SLIDE'
+            coordinate_system='SLIDE',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
         )
         plane_positions = seq.get_plane_positions_of_image(self._sm_image)
         for position in plane_positions:
@@ -4525,7 +4631,10 @@ class TestSegmentation:
 
     def test_get_plane_positions_of_series(self):
         seq = DimensionIndexSequence(
-            coordinate_system='PATIENT'
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
         )
         plane_positions = seq.get_plane_positions_of_series(self._ct_series)
         for position in plane_positions:
@@ -6651,6 +6760,8 @@ class TestPyramid:
             )
             assert abs(segment_pixel_spacing[0] - sm_pixel_spacing[0] * f) < tol
             assert abs(segment_pixel_spacing[1] - sm_pixel_spacing[1] * f) < tol
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_single_source_multiple_pixel_arrays(self, pass_with_frame_dim):
         # Test construction when given a single source image and multiple
@@ -6700,6 +6811,8 @@ class TestPyramid:
             seg_width = seg_spacing[1] * seg.TotalPixelMatrixColumns
             assert abs(seg_height - sm_height) < tol
             assert abs(seg_width - sm_width) < tol
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array(self, pass_with_frame_dim):
         # Test construction when given multiple source images and a single
@@ -6747,6 +6860,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array_multisegment(self):
         # Test construction when given multiple source images and a single
@@ -6789,6 +6904,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array_float(
         self,
@@ -6839,6 +6956,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array_fractional(
         self,
@@ -6891,6 +7010,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays(self, pass_with_frame_dim):
         # Test construction when given multiple source images and multiple
@@ -6938,6 +7059,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays_multisegment(self):
         # Test construction when given multiple source images and multiple
@@ -6979,6 +7102,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays_multisegment_from_labelmap(
         self,
@@ -7029,6 +7154,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(
         self,
@@ -7079,3 +7206,5 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg

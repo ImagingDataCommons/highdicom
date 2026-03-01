@@ -39,6 +39,7 @@ from highdicom.content import (
 from highdicom.uid import UID
 
 from pydicom.datadict import (
+    dictionary_description,
     get_entry,
     tag_for_keyword,
     keyword_for_tag,
@@ -187,6 +188,19 @@ class ChannelDescriptor:
     def keyword(self) -> str:
         """str: The DICOM keyword or custom string for the descriptor."""
         return self._keyword
+
+    @property
+    def description(self) -> str | None:
+        """str: The DICOM description for the descriptor.
+
+        The description is a short textual description of the attribute taken
+        from the standard.
+
+        ``None`` for custom descriptors.
+
+        """
+        if not self.is_custom:
+            return dictionary_description(self._tag)
 
     @property
     def tag(self) -> BaseTag | None:
@@ -2236,6 +2250,16 @@ class VolumeGeometry(_VolumeBase):
         """
         return self.spatial_shape
 
+    @property
+    def ndim(self) -> int:
+        """int: Number of dimensions.
+
+        For objects of type :class:`highdicom.VolumeGeometry`, this is
+        always 3.
+
+        """
+        return 3
+
     def __getitem__(
         self,
         index: int | slice | tuple[int | slice],
@@ -2790,9 +2814,9 @@ class Volume(_VolumeBase):
         )
 
     @property
-    def dtype(self) -> type:
+    def dtype(self) -> np.dtype:
         """type: Datatype of the array."""
-        return self._array.dtype.type
+        return self._array.dtype
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -2811,6 +2835,15 @@ class Volume(_VolumeBase):
 
         """
         return tuple(self._array.shape[:3])
+
+    @property
+    def ndim(self) -> int:
+        """int: Number of dimensions.
+
+        This includes spatial and channel dimensions.
+
+        """
+        return self._array.ndim
 
     @property
     def number_of_channel_dimensions(self) -> int:

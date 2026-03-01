@@ -42,11 +42,13 @@ from highdicom.enum import (
     CoordinateSystemNames,
     ContentQualificationValues,
     DimensionOrganizationTypeValues,
+    InterpolationMethods,
     LateralityValues,
     PadModes,
     PatientSexValues,
     PhotometricInterpretationValues,
     PixelIndexDirections,
+    PixelDataKeywords,
     PixelRepresentationValues,
     PlanarConfigurationValues,
     PatientOrientationValuesBiped,
@@ -59,6 +61,7 @@ from highdicom.enum import (
 )
 from highdicom import frame
 from highdicom.image import (
+    DimensionIndexSequence,
     Image,
     imread,
     get_volume_from_series,
@@ -79,7 +82,6 @@ from highdicom.volume import (
 
 
 __all__ = [
-    'RGB_COLOR_CHANNEL_DESCRIPTOR',
     'AlgorithmIdentificationSequence',
     'AnatomicalOrientationTypeValues',
     'AxisHandedness',
@@ -88,8 +90,10 @@ __all__ = [
     'ContentQualificationValues',
     'ContributingEquipment',
     'CoordinateSystemNames',
+    'DimensionIndexSequence',
     'DimensionOrganizationTypeValues',
     'Image',
+    'InterpolationMethods',
     'IssuerOfIdentifier',
     'LUT',
     'LateralityValues',
@@ -102,8 +106,9 @@ __all__ = [
     'PatientOrientationValuesQuadruped',
     'PatientSexValues',
     'PhotometricInterpretationValues',
-    'PixelMeasuresSequence',
+    'PixelDataKeywords',
     'PixelIndexDirections',
+    'PixelMeasuresSequence',
     'PixelRepresentationValues',
     'PlanarConfigurationValues',
     'PlaneOrientationSequence',
@@ -111,9 +116,10 @@ __all__ = [
     'PresentationLUT',
     'PresentationLUTShapeValues',
     'PresentationLUTTransformation',
+    'RGBColorChannels',
+    'RGB_COLOR_CHANNEL_DESCRIPTOR',
     'ReferencedImageSequence',
     'RescaleTypeValues',
-    'RGBColorChannels',
     'SOPClass',
     'SegmentedPaletteColorLUT',
     'SpecimenCollection',
@@ -134,6 +140,7 @@ __all__ = [
     'ann',
     'color',
     'frame',
+    'get_volume_from_series',
     'imread',
     'io',
     'ko',
@@ -146,5 +153,4 @@ __all__ = [
     'spatial',
     'sr',
     'utils',
-    'get_volume_from_series',
 ]

@@ -350,7 +350,7 @@ class AxisHandedness(Enum):
 
     """
 
-    LEFT_HANDED = "LEFT_HANDED"
+    LEFT_HANDED = 'LEFT_HANDED'
     """
 
     The unit vectors of the first, second and third axes form a left hand when
@@ -360,7 +360,7 @@ class AxisHandedness(Enum):
 
     """
 
-    RIGHT_HANDED = "RIGHT_HANDED"
+    RIGHT_HANDED = 'RIGHT_HANDED'
     """
 
     The unit vectors of the first, second and third axes form a right hand when
@@ -369,3 +369,28 @@ class AxisHandedness(Enum):
     vector, and the middle finger representing the third vector.
 
     """
+
+
+class InterpolationMethods(Enum):
+
+    """Interpolation methods that may be used for resampling arrays."""
+
+    NEAREST = 'NEAREST'
+    """Nearest-neighbor interpolator."""
+
+    LINEAR = 'LINEAR'
+    """Linear (or bi-linear or tri-linear) interpolator."""
+
+
+class PixelDataKeywords(Enum):
+
+    """Keywords used to store pixel data."""
+
+    PIXEL_DATA = 'PixelData'
+    """Integer-valued pixel data of any size (Image Pixel Module)."""
+
+    FLOAT_PIXEL_DATA = 'FloatPixelData'
+    """32-bit-float-valued pixel data (Floating Point Image Pixel Module)."""
+
+    DOUBLE_FLOAT_PIXEL_DATA = 'DoubleFloatPixelData'
+    """64-bit-float-valued pixel data (Double Floating Point Image Pixel Module)."""  # noqa: E501
