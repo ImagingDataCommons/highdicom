@@ -61,7 +61,7 @@ Install requirements:
 
 .. code-block:: none
 
-    pip install .[test]
+    pip install . --group test
 
 Run tests (including checks for PEP8 compliance):
 
@@ -79,7 +79,7 @@ Install requirements:
 
 .. code-block:: none
 
-    pip install .[docs]
+    pip install . --group docs
 
 Build documentation in *HTML* format:
 
