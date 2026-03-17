@@ -4,7 +4,7 @@ The TID1500 Measurement Report Template
 =======================================
 
 The `TID1500 "Measurement Report" <tid1500def_>`_ template is a general-purpose
-template for communicating measurements and qualitative qualitative evaluations
+template for communicating measurements and qualitative evaluations
 derived from one or more images or regions of images. It is recommended to read
 the previous page on :ref:`generalsr` before this page.
 
@@ -460,7 +460,7 @@ type (some have been omitted for brevity):
 - ``measurements``: (Sequence of :class:`highdicom.sr.Measurement`, optional)
     Numeric measurements
 - ``qualitative_evaluations``: (Sequence of :class:`highdicom.sr.CodedConcept`, optional)
-    Coded name-value pairs that describe qualitative qualitative_evaluations
+    Coded name-value pairs that describe qualitative evaluations
 - ``finding_category``: (:class:`highdicom.sr.CodedConcept`, optional)
     Category of observed finding, e.g., anatomic structure or
     morphologically abnormal structure
@@ -482,7 +482,7 @@ Qualitative Evaluations
 A Qualitative Evaluation is essentially a categorical value inferred from an
 image. For example, this could represent a diagnosis derived from the
 referenced region or a severity grading. These are represented in *highdicom*
-using the class :class:`highdicom.sr.QualitativeEvalution`, which is
+using the class :class:`highdicom.sr.QualitativeEvaluation`, which is
 essentially a single :class:`highdicom.sr.CodeContentItem` within a special
 template.
 
@@ -495,15 +495,15 @@ parameters as coded values:
     from pydicom.sr.codedict import codes
 
     # An evaluation of disease severity as "mild"
-    severity_item = hd.sr.QualitativeEvalution(
+    severity_item = hd.sr.QualitativeEvaluation(
        name=codes.SCT.Severity,
        value=codes.SCT.Mild,
     )
 
     # An evaluation of tumor morphology as adenocarcinoma
-    morphology_item = hd.sr.QualitativeEvalution(
+    morphology_item = hd.sr.QualitativeEvaluation(
        name=codes.SCT.AssociatedMorphology,
-       value=codes.SCT.Anenocarcinoma,
+       value=codes.SCT.Adenocarcinoma,
     )
 
 Measurements (`TID300 <tid300def_>`_)

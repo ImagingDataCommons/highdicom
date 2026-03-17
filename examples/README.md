@@ -11,4 +11,4 @@ docker build . -t highdicom/examples:latest
 docker run --rm --name highdicom_examples -p 8888:8888 highdicom/examples:latest
 ```
 
-After running the above commands, following the instructions printed into the standard output stream to access the notebooks in your browser.
+After running the above commands, follow the instructions printed into the standard output stream to access the notebooks in your browser.

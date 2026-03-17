@@ -72,7 +72,7 @@ frames of the image:
   (see :doc:`pixel_transforms` for more details on pixel transforms), but by
   default any pixel transform found in the dataset except the value-of-interest
   (VOI) transform is applied. This should be your default way of accessing
-  image frames in most cases, since it will typtically return the pixels as the
+  image frames in most cases, since it will typically return the pixels as the
   creator of the object intended them to be understood. By default, the
   returned frames have datatype ``numpy.float64``, but this can be controlled
   using the ``dtype`` parameter.

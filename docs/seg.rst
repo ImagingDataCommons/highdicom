@@ -53,7 +53,7 @@ are numbered with consecutive segment numbers starting at 1 (i.e., 1, 2, 3,
 ...).  Additionally, each segment present is accompanied by information
 describing what the segment represents. This information is placed in the
 "SegmentsSequence" (0062, 0002) attribute of the segmentation file. In
-*highdcom*, we use the :class:`highdicom.seg.SegmentDescription` class to hold
+*highdicom*, we use the :class:`highdicom.seg.SegmentDescription` class to hold
 this information. This is not to be confused with the DICOM "Segment
 Description" attribute, which is a plain text string. When you construct a
 DICOM SEG image using *highdicom*, you must construct a single
