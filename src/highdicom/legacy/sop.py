@@ -3,13 +3,14 @@ For the most part the single frame to multi-frame conversion logic is taken
 from `PixelMed <https://www.dclunie.com>`_ by David Clunie
 
 """
+from collections import Counter
 from concurrent.futures import Executor, ProcessPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 import logging
 from sys import float_info
-from typing import cast, Any, List, Union, Callable, Sequence, Tuple
+from typing import cast, Any, Union, Callable, Sequence, Tuple
 
 from pydicom.datadict import tag_for_keyword, dictionary_VR
 from pydicom.dataelem import DataElement
@@ -61,6 +62,40 @@ _SOP_CLASS_UID_IOD_KEY_MAP = {
 
 
 _FARTHEST_FUTURE_DATE_TIME = DT('99991231235959')
+
+
+# List of attributes required to be consistent between each frame for the
+# conversion to be valid
+_CONSISTENT_KEYWORDS = [
+    'PatientID',
+    'PatientName',
+    'StudyInstanceUID',
+    'FrameOfReferenceUID',
+    'Manufacturer',
+    'InstitutionName',
+    'InstitutionAddress',
+    'StationName',
+    'InstitutionalDepartmentName',
+    'ManufacturerModelName',
+    'DeviceSerialNumber',
+    'SoftwareVersions',
+    'GantryID',
+    'PixelPaddingValue',
+    'Modality',
+    'ImageType',
+    'BurnedInAnnotation',
+    'SOPClassUID',
+    'Rows',
+    'Columns',
+    'BitsStored',
+    'BitsAllocated',
+    'HighBit',
+    'PixelRepresentation',
+    'PhotometricInterpretation',
+    'PlanarConfiguration',
+    'SamplesPerPixel',
+    'ProtocolName',
+]
 
 
 def _istag_file_meta_information_group(t: BaseTag) -> bool:
@@ -208,6 +243,7 @@ class _LegacyConversionRunner:
         self._legacy_datasets = list(legacy_datasets)
         self._destination = destination
         self._tag_shared_dict = {}
+        self._unused_tags = set()
 
     def _get_tags_present(self) -> dict[BaseTag, bool]:
         """Find tags present in any dataset and whether they are shared.
@@ -291,36 +327,7 @@ class _LegacyConversionRunner:
         """
         # List of attributes that must be consistent across instances for the
         # conversion to be valid
-        consistent_attributes = [
-            'PatientID',
-            'PatientName',
-            'StudyInstanceUID',
-            'FrameOfReferenceUID',
-            'Manufacturer',
-            'InstitutionName',
-            'InstitutionAddress',
-            'StationName',
-            'InstitutionalDepartmentName',
-            'ManufacturerModelName',
-            'DeviceSerialNumber',
-            'SoftwareVersions',
-            'GantryID',
-            'PixelPaddingValue',
-            'Modality',
-            'ImageType',
-            'BurnedInAnnotation',
-            'SOPClassUID',
-            'Rows',
-            'Columns',
-            'BitsStored',
-            'BitsAllocated',
-            'HighBit',
-            'PixelRepresentation',
-            'PhotometricInterpretation',
-            'PlanarConfiguration',
-            'SamplesPerPixel',
-            'ProtocolName',
-        ]
+        consistent_attributes = _CONSISTENT_KEYWORDS.copy()
 
         if check_geometry:
             consistent_attributes.extend(
@@ -345,7 +352,7 @@ class _LegacyConversionRunner:
             inconsistencies_str = ", ".join(inconsistencies)
             raise ValueError(
                 "The legacy instances provided are not a valid source for a "
-                "legacy conversion because the value or presence of the "
+                "legacy conversion because the presence and/or values the "
                 "following attribute(s) is not consistent between instances: "
                 f"{inconsistencies_str}."
             )
@@ -354,10 +361,9 @@ class _LegacyConversionRunner:
         self,
         src_ds: Dataset,
         dest_ds: Dataset,
-        src_kw_or_tg: str | int,
-        dest_kw_or_tg: str | int | None = None,
+        src_kw: str,
+        dest_kw: str | None = None,
         ignore_if_perframe: bool = True,
-        ignore_if_empty: bool = False,
     ) -> None:
         """Copies a dicom attribute value from a keyword in the source Dataset
         to the same keyword or a different keyword in the destination Dataset
@@ -368,38 +374,28 @@ class _LegacyConversionRunner:
             Source dataset to copy the attribute from.
         dest_ds: pydicom.Dataset
             Destination dataset to copy the attribute to.
-        src_kw_or_tg: str
+        src_kw: str
             The keyword from the source dataset to copy.
-        dest_kw_or_tg: str | int | None, optional
+        dest_kw: str | None, optional
             The keyword of the destination dataset, to copy the value to. If
             None, then the source keyword is used.
         ignore_if_perframe: bool
             If true, then copy is aborted if the source attribute is per-frame.
-        ignore_if_empty: bool
-            If true, copy is aborted if the source attribute is empty.
 
         """
-        if isinstance(src_kw_or_tg, str):
-            src_tg = BaseTag(cast(int, tag_for_keyword(src_kw_or_tg)))
-        else:
-            src_tg = BaseTag(src_kw_or_tg)
+        src_tg = BaseTag(cast(int, tag_for_keyword(src_kw)))
 
-        if dest_kw_or_tg is None:
+        if dest_kw is None:
             dest_tg = src_tg
-        elif isinstance(dest_kw_or_tg, str):
-            dest_tg = BaseTag(cast(int, tag_for_keyword(dest_kw_or_tg)))
         else:
-            dest_tg = dest_kw_or_tg
+            dest_tg = BaseTag(cast(int, tag_for_keyword(dest_kw)))
 
         if ignore_if_perframe:
             if not self._tag_shared_dict.get(src_tg, True):
                 return
 
-        if src_kw_or_tg in src_ds:
+        if src_tg in src_ds:
             elem = src_ds[src_tg]
-            if ignore_if_empty:
-                if elem.VM == 0:
-                    return
 
             new_elem = deepcopy(elem)
             if dest_tg == src_tg:
@@ -420,7 +416,23 @@ class _LegacyConversionRunner:
         """Run conversion."""
         self._tag_shared_dict = self._get_tags_present()
         self._check_attribute_consistency()
-        self._unused_tags = set(self._tag_shared_dict.keys())
+
+        # List of attributes that should never be placed into the
+        # UnassignedPerFrameConvertedAttributesSequence or
+        # UnassignedSharedConvertedAttributesSequence
+        excluded_keywords = [
+            *_CONSISTENT_KEYWORDS,
+            'PixelData',
+            'SeriesInstanceUID',
+            'AcquisitionDate',
+            'AcquisitionTime',
+            'AcquisitionDateTime',
+        ]
+        excluded_tags = [tag_for_keyword(kw) for kw in excluded_keywords]
+        self._unused_tags = {
+            t for t in self._tag_shared_dict.keys()
+            if t not in excluded_tags
+        }
 
         module_configs = [
             _ModuleConfig('patient'),
@@ -508,7 +520,15 @@ class _LegacyConversionRunner:
                     'PixelData',
                 ],
             ),
-            _ModuleConfig('acquisition-context'),
+            _ModuleConfig(
+                'acquisition-context',
+                attribute_configs=[
+                    _AttributeConfig(
+                        'AcquisitionContextSequence',
+                        default_val=[]
+                    )
+                ],
+            ),
         ]
 
         if (
@@ -524,6 +544,7 @@ class _LegacyConversionRunner:
                             src_kws=['ResonantNucleus', 'ImagedNucleus'],
                         ),
                     ],
+                    skip_attributes=['ImageType'],
                     custom_logic_callback=(
                         self._common_enhanced_image_custom_logic
                     ),
@@ -537,6 +558,7 @@ class _LegacyConversionRunner:
             module_configs.append(
                 _ModuleConfig(
                     'enhanced-ct-image',
+                    skip_attributes=['ImageType'],
                     custom_logic_callback=(
                         self._common_enhanced_image_custom_logic
                     )
@@ -550,6 +572,7 @@ class _LegacyConversionRunner:
             module_configs.append(
                 _ModuleConfig(
                     'enhanced-pet-image',
+                    skip_attributes=['ImageType'],
                     custom_logic_callback=(
                         self._common_enhanced_image_custom_logic
                     )
@@ -564,7 +587,7 @@ class _LegacyConversionRunner:
             Dataset() for _ in range(len(self._legacy_datasets))
         ]
 
-        frame_type_seq_kw = {
+        self._frame_type_seq_kw = {
             LegacyConvertedEnhancedMRImageStorage: 'MRImageFrameTypeSequence',
             LegacyConvertedEnhancedCTImageStorage: 'CTImageFrameTypeSequence',
             LegacyConvertedEnhancedPETImageStorage: 'PETFrameTypeSequence',
@@ -664,7 +687,7 @@ class _LegacyConversionRunner:
                 ],
             ),
             _FunctionalGroupConfig(
-                frame_type_seq_kw,
+                self._frame_type_seq_kw,
                 [
                     _AttributeConfig(
                         'PixelPresentation',
@@ -686,13 +709,29 @@ class _LegacyConversionRunner:
             ),
         ]
 
+        if (
+            self._destination.SOPClassUID in
+            (
+                LegacyConvertedEnhancedCTImageStorage,
+                LegacyConvertedEnhancedPETImageStorage,
+            )
+        ):
+            functional_group_configs.append(
+                _FunctionalGroupConfig(
+                    'IrradiationEventIdentificationSequence',
+                    [_AttributeConfig('IrradiationEventUID')],
+                )
+            )
+
         for config in functional_group_configs:
             self._add_functional_group(config)
 
         # Miscellaneous other tasks
         self._add_stack_info_frame_content()
+        self._add_image_type()
+        self._add_unassigned_attributes()
 
-    def _add_module(self, config: _ModuleConfig):
+    def _add_module(self, config: _ModuleConfig) -> None:
         """Add module to the destination dataset.
 
         Parameters
@@ -733,16 +772,22 @@ class _LegacyConversionRunner:
                 self._destination,
                 a.dest_kw,
             )
+            if (
+                a.default_val is not None and
+                a.dest_kw not in self._destination
+            ):
+                setattr(self._destination, a.dest_kw, a.default_val)
+
+        if config.custom_logic_callback is not None:
+            config.custom_logic_callback()
 
     def _common_enhanced_image_custom_logic(self):
         """Custom logic applicable to Enhanced CT/MR/PET Image modules."""
-        if (
-            self._tag_shared_dict[tag_for_keyword('LossyImageCompression')] and
-            self._tag_shared_dict[
-                tag_for_keyword('LossyImageCompressionMethod')
-            ] and
-            tag_for_keyword('LossyImageCompressionRatio')
-            in self._tag_shared_dict
+        self._destination.PresentationLUTShape = 'IDENTITY'
+
+        if any(
+            hasattr(src, 'LossyImageCompressionRatio')
+            for src in self._legacy_datasets
         ):
             sum_compression_ratio = 0.0
             for fr_ds in self._legacy_datasets:
@@ -759,24 +804,6 @@ class _LegacyConversionRunner:
             )
             avg_ratio_str = '{:.6f}'.format(avg_compression_ratio)
             self._destination.LossyImageCompressionRatio = avg_ratio_str
-
-        if tag_for_keyword('PresentationLUTShape') not in self._perframe_tags:
-            phmi = self._legacy_datasets[0].get(
-                'PhotometricInterpretation',
-                'MONOCHROME2'
-            )
-            lut_shape_default = (
-                "INVERTED" if phmi == 'MONOCHROME1'
-                else "IDENTITY"
-            )
-            lut_shape = self._legacy_datasets[0].get(
-                'PresentationLUTShape',
-                lut_shape_default,
-            )
-            if lut_shape is None:
-                lut_shape = lut_shape_default
-
-            self._destination.PresentationLUTShape = lut_shape
 
     def _copy_to_functional_group(
         self,
@@ -841,6 +868,9 @@ class _LegacyConversionRunner:
         any_attr_is_per_frame = False
         any_attr_exists = False
         for a_cfg in config.attribute_configs:
+            if a_cfg.default_val is not None:
+                any_attr_exists = True
+
             for kw in a_cfg.get_source_keywords():
                 tag = BaseTag(cast(int, tag_for_keyword(kw)))
 
@@ -884,7 +914,7 @@ class _LegacyConversionRunner:
         self,
         source: Dataset,
         destination: Dataset,
-    ):
+    ) -> None:
         """Custom logic for the PixelValueTransformationSequence.
 
         This is needed to handle setting the RescaleType and LUTExplanation.
@@ -925,7 +955,7 @@ class _LegacyConversionRunner:
         self,
         source: Dataset,
         destination: Dataset,
-    ):
+    ) -> None:
         """Custom logic for the {CTImage/MRImage/PET} FrameTypeSequence.
 
         This is needed to handle the frame type attibute.
@@ -953,7 +983,7 @@ class _LegacyConversionRunner:
         self,
         source: Dataset,
         destination: Dataset,
-    ):
+    ) -> None:
         """Custom logic for the FrameContentSequence.
 
         This is needed to handle setting acquisition timing related parameters.
@@ -1027,7 +1057,7 @@ class _LegacyConversionRunner:
                     sfgs.PixelMeasuresSequence[0].SpacingBetweenSlices
                 ) = format_number_as_ds(spacing)
 
-    def _add_referenced_image_functional_group(self):
+    def _add_referenced_image_functional_group(self) -> None:
         """Add ReferencedImageSequence to the functional groups.
 
         This doesn't fit the pattern of the other functional groups because the
@@ -1054,6 +1084,108 @@ class _LegacyConversionRunner:
                     pffg.ReferencedImageSequence = deepcopy(
                         src.ReferencedImageSequence
                     )
+
+    def _add_unassigned_attributes(self) -> None:
+        """Add all unassigned attributes.
+
+        Unassiged attributes are those in the legacy datasets that have not yet
+        been used for any value in the converted instance. These are placed
+        into the relevant sequence in either the shared or per-frame functional
+        groups.
+
+        This may include private attributes.
+
+        """
+        if len(self._unused_tags) == 0:
+            # Nothing to do
+            return
+
+        # Shared
+        if any(self._tag_shared_dict[t] for t in self._unused_tags):
+            (
+                self
+                ._destination
+                .SharedFunctionalGroupsSequence[0]
+                .UnassignedSharedConvertedAttributesSequence
+            ) = [Dataset()]
+
+        # Per-frame
+        if any(not self._tag_shared_dict[t] for t in self._unused_tags):
+            for pffg in self._destination.PerFrameFunctionalGroupsSequence:
+                pffg.UnassignedPerFrameConvertedAttributesSequence = [
+                    Dataset()
+                ]
+
+        for t in self._unused_tags:
+            if self._tag_shared_dict[t]:
+                (
+                    self
+                    ._destination
+                    .SharedFunctionalGroupsSequence[0]
+                    .UnassignedSharedConvertedAttributesSequence
+                )[0][t] = self._legacy_datasets[0][t]
+
+            else:
+                for src, pffg in zip(
+                    self._legacy_datasets,
+                    self._destination.PerFrameFunctionalGroupsSequence,
+                ):
+                    (
+                        pffg
+                        .UnassignedPerFrameConvertedAttributesSequence
+                    )[0][t] = src[t]
+
+    def _add_image_type(self) -> None:
+        """Set the (top-level) ImageType of the new dataset.
+
+        The ImageType summarizes individual frame types, see
+        :dcm:`Sect C.8.16.1 {part03/sect_C.8.16.html#sect_C.8.16.1>`
+
+        """
+        # If the frame type is shared, no need to aggregate
+        if hasattr(
+            self._destination.SharedFunctionalGroupsSequence[0],
+            self._frame_type_seq_kw
+        ):
+            self._destination.ImageType = getattr(
+                self._destination.SharedFunctionalGroupsSequence[0],
+                self._frame_type_seq_kw
+            )[0].FrameType
+            return
+
+        frame_v1 = {
+            getattr(pffg, self._frame_type_seq_kw)[0].FrameType[0]
+            for pffg in self._destination.PerFrameFunctionalGroupsSequence
+        }
+        if len(frame_v1) > 1:
+            v1 = 'MIXED'
+        else:
+            v1 = list(frame_v1)[0]
+
+        # V2 cannot be MIXED - take the most common
+        v2_counter = Counter(
+            getattr(pffg, self._frame_type_seq_kw)[0].FrameType[1]
+            for pffg in self._destination.PerFrameFunctionalGroupsSequence
+        )
+        v2 = v2_counter.most_common(1)[0][0]
+
+        # V3 cannot be MIXED - take the most common
+        v3_counter = Counter(
+            getattr(pffg, self._frame_type_seq_kw)[0].FrameType[2]
+            for pffg in self._destination.PerFrameFunctionalGroupsSequence
+        )
+        v3 = v3_counter.most_common(1)[0][0]
+
+        frame_v4 = {
+            getattr(pffg, self._frame_type_seq_kw)[0].FrameType[3]
+            for pffg in self._destination.PerFrameFunctionalGroupsSequence
+        }
+        if len(frame_v4) > 1:
+            v4 = 'MIXED'
+        else:
+            v4 = list(frame_v1)[0]
+
+        self._destination.ImageType = [v1, v2, v3, v4]
 
 
 class _CommonLegacyConvertedEnhancedImage(Image):
@@ -1283,48 +1415,6 @@ class _CommonLegacyConvertedEnhancedImage(Image):
 
         return content_date, content_time, acquisition_datetime
 
-    def _mark_tag_as_used(self, tg: BaseTag) -> None:
-        """Checks what group the input tag belongs to and marks it as used to
-        keep track of all used and unused tags
-
-        """
-        if tg in self._shared_tags:
-            self._shared_tags[tg] = True
-        elif tg in self._excluded_from_perframe_tags:
-            self._excluded_from_perframe_tags[tg] = True
-        elif tg in self._perframe_tags:
-            self._perframe_tags[tg] = True
-
-    def _add_unassigned_perframe_module_to_dataset(
-        self,
-        source: Dataset,
-        destination: Dataset,
-    ) -> None:
-        """Copies/adds attributes related to `unassigned_perframe`
-        to destination dicom Dataset
-
-        Parameters
-        ----------
-        source: pydicom.Dataset
-            Source dataset from which the module's attribute values
-            are copied
-        destination: pydicom.Dataset
-            Destination dataset to which the module's attribute
-            values are copied. The destination Dataset usually is an item
-            from a perframe/shared functional group sequence.
-
-        """
-        item = Dataset()
-        for tg in self._eligible_tags:
-            self._copy_attrib_if_present(
-                source,
-                item,
-                tg,
-                ignore_if_perframe=False,
-                ignore_if_empty=False,
-            )
-        destination.UnassignedPerFrameConvertedAttributesSequence = [item]
-
     def _add_largest_smallest_pixel_value(self) -> None:
         """Adds the attributes for largest and smallest pixel value to
         current SOPClass object
@@ -1353,51 +1443,6 @@ class _CommonLegacyConvertedEnhancedImage(Image):
                 sval = nval if sval < nval else sval
             if sval < float_info.max:
                 self.SmallestImagePixelValue = int(sval)
-
-    def _add_unassigned_perframe_module(self) -> None:
-        """Copies/adds an `unassigned_perframe` multiframe module to
-        the current SOPClass from its single frame source.
-
-        """
-        # first collect all not used tags
-        # note that this is module is order dependent
-        self._add_largest_smallest_pixel_value()
-        self._eligible_tags: List[BaseTag] = []
-        for tg, used in self._perframe_tags.items():
-            if not used and tg not in self.excluded_from_functional_groups_tags:
-                self._eligible_tags.append(tg)
-
-        for leg_ds, pffg in zip(
-            self._legacy_datasets,
-            self.PerFrameFunctionalGroupsSequence
-        ):
-            self._add_unassigned_perframe_module_to_dataset(leg_ds, pffg)
-
-    def _add_unassigned_shared_module(self) -> None:
-        """Copies/adds an `unassigned_shared` multiframe module to
-        the current SOPClass from its single frame source.
-
-        """
-        item = Dataset()
-        for tg, used in self._shared_tags.items():
-            if (
-                not used and
-                tg not in self and
-                tg not in self.excluded_from_functional_groups_tags
-            ):
-                self._copy_attrib_if_present(
-                    self._legacy_datasets[0],
-                    item,
-                    tg,
-                    ignore_if_perframe=False,
-                    ignore_if_empty=False,
-                )
-
-        setattr(
-            self.SharedFunctionalGroupsSequence[0],
-            'UnassignedSharedConvertedAttributesSequence',
-            [item]
-        )
 
     def _copy_pixel_data(
         self,

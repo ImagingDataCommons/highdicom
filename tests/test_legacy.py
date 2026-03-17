@@ -444,7 +444,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
     def generate_common_dicom_dataset_series(
         self,
         slice_count: int,
-        system: Modality
+        modality: Modality
     ) -> list:
         output_dataset = []
         slice_pos = 0
@@ -462,7 +462,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
         for i in range(0, slice_count):
             file_meta = FileMetaDataset()
             pixel_array = b"\0" * cols * rows * bytes_per_voxel
-            file_meta.MediaStorageSOPClassUID = UID(sop_classes[system][1])
+            file_meta.MediaStorageSOPClassUID = UID(sop_classes[modality][1])
             file_meta.MediaStorageSOPInstanceUID = generate_uid()
             file_meta.ImplementationClassUID = generate_uid()
 
@@ -489,7 +489,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             tmp_dataset.PixelSpacing = [1, 1]
             tmp_dataset.PatientName = 'Doe^John'
             tmp_dataset.FrameOfReferenceUID = frame_of_ref_uid
-            tmp_dataset.SOPClassUID = sop_classes[system][1]
+            tmp_dataset.SOPClassUID = sop_classes[modality][1]
             tmp_dataset.SOPInstanceUID = generate_uid()
             tmp_dataset.SeriesInstanceUID = series_uid
             tmp_dataset.StudyInstanceUID = study_uid
@@ -508,7 +508,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             tmp_dataset.ContentTime = datetime.now().time()
             tmp_dataset.Manufacturer = 'Manufacturer'
             tmp_dataset.ManufacturerModelName = 'Model'
-            tmp_dataset.Modality = sop_classes[system][0]
+            tmp_dataset.Modality = sop_classes[modality][0]
             tmp_dataset.PatientAge = '064Y'
             tmp_dataset.PatientBirthDate = date_ - age
             tmp_dataset.PatientID = 'ID0001'
@@ -528,7 +528,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             tmp_dataset.StudyDate = date_
             tmp_dataset.StudyDescription = 'test study'
             tmp_dataset.StudyID = ''
-            if (system == Modality.CT):
+            if (modality == Modality.CT):
                 tmp_dataset.RescaleIntercept = 0
                 tmp_dataset.RescaleSlope = 1
 
