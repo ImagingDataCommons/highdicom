@@ -86,7 +86,6 @@ _CONSISTENT_KEYWORDS = [
     'GantryID',
     'PixelPaddingValue',
     'Modality',
-    'ImageType',
     'BurnedInAnnotation',
     'SOPClassUID',
     'Rows',
@@ -474,6 +473,27 @@ class _LegacyConversionRunner:
             if t not in excluded_tags
         }
 
+        # The name of the "Enhanced X Image" module within the IOD being
+        # created
+        enhanced_image_module_name = {
+            LegacyConvertedEnhancedPETImageStorage: 'enhanced-pet-image',
+            LegacyConvertedEnhancedCTImageStorage: 'enhanced-ct-image',
+            LegacyConvertedEnhancedMRImageStorage: 'enhanced-mr-image',
+        }[self._destination.SOPClassUID]
+
+        # Attribute configs specific to the above module
+        # created
+        enhanced_image_module_attribute_configs = {
+            LegacyConvertedEnhancedPETImageStorage: [],
+            LegacyConvertedEnhancedCTImageStorage: [],
+            LegacyConvertedEnhancedMRImageStorage: [
+                _AttributeConfig(
+                    'ResonantNucleus',
+                    src_kws=['ResonantNucleus', 'ImagedNucleus'],
+                ),
+            ],
+        }[self._destination.SOPClassUID]
+
         module_configs = [
             _ModuleConfig('patient'),
             _ModuleConfig('clinical-trial-subject'),
@@ -524,31 +544,49 @@ class _LegacyConversionRunner:
                 ],
             ),
             _ModuleConfig(
-                'general-image',
+                enhanced_image_module_name,
+                attribute_configs=[
+                    _AttributeConfig(
+                        'VolumeBasedCalculationTechnique',
+                        default_val='NONE',
+                    ),
+                    _AttributeConfig(
+                        'VolumetricProperties',
+                        default_val='VOLUME'
+                    ),
+                    _AttributeConfig(
+                        'PixelPresentation',
+                        default_val=(
+                            'COLOR'
+                            if self._legacy_datasets[0].SamplesPerPixel == 3
+                            else 'MONOCHROME'
+                        )
+                    ),
+                    _AttributeConfig(
+                        'PresentationLUTShape',
+                        src_kws=[],
+                        default_val='IDENTITY',
+                    ),
+                    # Modality-spcific configs
+                    *enhanced_image_module_attribute_configs,
+                ],
                 skip_attributes=[
                     'ImageType',
-                    'AcquisitionDate',
                     'AcquisitionDateTime',
-                    'AcquisitionTime',
-                    'AnatomicRegionSequence',
-                    'PrimaryAnatomicStructureSequence',
-                    'IrradiationEventUID',
+                    'ReferencedWaveformSequence',
+                    'ReferencedImageEvidenceSequence',
                     'AcquisitionNumber',
                     'InstanceNumber',
-                    'PatientOrientation',
-                    'ImageLaterality',
-                    'ImagesInAcquisition',
                     'ImageComments',
-                    'QualityControlImage',
                     'BurnedInAnnotation',
                     'RecognizableVisualFeatures',
                     'LossyImageCompression',
                     'LossyImageCompressionRatio',
-                    'LossyImageCompressionMethod',
-                    'RealWorldValueMappingSequence',
                     'IconImageSequence',
-                    'PresentationLUTShape'
                 ],
+                custom_logic_callback=(
+                    self._common_enhanced_image_custom_logic
+                ),
             ),
             _ModuleConfig(
                 'image-pixel',
@@ -557,6 +595,8 @@ class _LegacyConversionRunner:
                     'PixelDataProviderURL',
                     'ExtendedOffsetTable',
                     'ExtendedOffsetTableLengths',
+                    'SmallestImagePixelValue',
+                    'LargestImagePixelValue',
                     'PixelData',
                 ],
             ),
@@ -572,52 +612,10 @@ class _LegacyConversionRunner:
         ]
 
         if (
-            self._destination.SOPClassUID ==
-            LegacyConvertedEnhancedMRImageStorage
-        ):
-            module_configs.append(
-                _ModuleConfig(
-                    'enhanced-mr-image',
-                    attribute_configs=[
-                        _AttributeConfig(
-                            'ResonantNucleus',
-                            src_kws=['ResonantNucleus', 'ImagedNucleus'],
-                        ),
-                    ],
-                    skip_attributes=['ImageType'],
-                    custom_logic_callback=(
-                        self._common_enhanced_image_custom_logic
-                    ),
-                )
-            )
-            module_configs.append(_ModuleConfig('contrast-bolus'))
-        elif (
-            self._destination.SOPClassUID ==
-            LegacyConvertedEnhancedCTImageStorage
-        ):
-            module_configs.append(
-                _ModuleConfig(
-                    'enhanced-ct-image',
-                    skip_attributes=['ImageType'],
-                    custom_logic_callback=(
-                        self._common_enhanced_image_custom_logic
-                    )
-                )
-            )
-            module_configs.append(_ModuleConfig('contrast-bolus'))
-        elif (
-            self._destination.SOPClassUID ==
+            self._destination.SOPClassUID !=
             LegacyConvertedEnhancedPETImageStorage
         ):
-            module_configs.append(
-                _ModuleConfig(
-                    'enhanced-pet-image',
-                    skip_attributes=['ImageType'],
-                    custom_logic_callback=(
-                        self._common_enhanced_image_custom_logic
-                    )
-                )
-            )
+            module_configs.append(_ModuleConfig('contrast-bolus'))
 
         for config in module_configs:
             self._add_module(config)
@@ -699,7 +697,7 @@ class _LegacyConversionRunner:
                     ),
                     _AttributeConfig('TemporalPositionIndex'),
                     # TODO improve?
-                    _AttributeConfig('AcquisitionNumber', default_val=0),
+                    _AttributeConfig('AcquisitionNumber', default_val=1),
                     _AttributeConfig(
                         'FrameComments',
                         src_kws=['ImageComments']
@@ -817,7 +815,25 @@ class _LegacyConversionRunner:
 
     def _common_enhanced_image_custom_logic(self):
         """Custom logic applicable to Enhanced CT/MR/PET Image modules."""
-        self._destination.PresentationLUTShape = 'IDENTITY'
+        # These attributes should be YES if any source has YES, NO if all
+        # sources have NO, and skipped otherwise
+        for kw in [
+            'BurnedInAnnotation',
+            'RecognizableVisualFeatures',
+            'LossyImageCompression'
+        ]:
+            if any(
+                hasattr(src, kw) and
+                getattr(src, kw) == 'YES'
+                for src in self._legacy_datasets
+            ):
+                setattr(self._destination, kw, 'YES')
+            elif all(
+                hasattr(src, kw) and
+                getattr(src, kw) == 'NO'
+                for src in self._legacy_datasets
+            ):
+                setattr(self._destination, kw, 'NO')
 
         if any(
             hasattr(src, 'LossyImageCompressionRatio')
