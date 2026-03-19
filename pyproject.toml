@@ -73,7 +73,7 @@ repository = "https://github.com/ImagingDataCommons/highdicom.git"
 where = [ "src" ]
 
 [tool.setuptools.package-data]
-highdicom = [ "**/*.icc" ]
+highdicom = [ "**/*.icc" , "src/highdicom/_standard/*.json" ]
 
 [tool.pytest.ini_options]
 minversion = "7"

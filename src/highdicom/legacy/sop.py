@@ -8,7 +8,10 @@ from concurrent.futures import Executor, ProcessPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timedelta
 from dataclasses import dataclass
+from functools import lru_cache
+import json
 import logging
+import pkgutil
 from sys import float_info
 from typing import cast, Any, Union, Callable, Sequence, Tuple
 
@@ -39,6 +42,7 @@ from highdicom.spatial import get_series_volume_positions
 
 # TODO defer these imports
 from highdicom._modules import MODULE_ATTRIBUTE_MAP
+from highdicom.sr.coding import CodedConcept
 
 
 logger = logging.getLogger(__name__)
@@ -108,6 +112,34 @@ def _istag_repeating_group(t: BaseTag) -> bool:
         (g >= 0x5000 and g <= 0x501e) or
         (g >= 0x6000 and g <= 0x601e)
     )
+
+
+@lru_cache(maxsize=1)
+def _get_anatomic_region_mapping() -> dict[str, CodedConcept]:
+    """Get a mapping from body part examined to SCT codes.
+
+    This mapping is defined in the standard at :dcm:`Annex L
+    <part16/chapter_L.html>` and intended to modernize body parts expressed in
+    the old "BodyPartExamined" attribute to the more standardized
+    "AnatomicRegionSequence", using SNOMED controlled terminology.
+
+    Returns
+    -------
+    dict[str, highdicom.sr.CodedConcept]
+        Mapping from old-style BodyPartExamined values to SNOMED codes used for
+        AnatomicRegionSequence.
+
+    """
+    data_file = pkgutil.get_data(
+        'highdicom',
+        '_standard/anatomic_regions.json'
+    )
+    anatomic_regions = json.loads(data_file.decode('utf-8'))
+
+    return {
+        k: CodedConcept(value=v[1], scheme_designator=v[0], meaning=v[2])
+        for k, v in anatomic_regions.items()
+    }
 
 
 def _istag_group_length(t: BaseTag) -> bool:
@@ -186,6 +218,13 @@ class _FunctionalGroupConfig:
         Name of the sequence where the functional group will be placed.
     attribute_configs: list[highdicom.legacy.sop._AttributeConfig]
         Configurations for each attribute to place into the sequence.
+    further_source_attributes: list[str]
+        Keywords for further attributes that are not copied to the destination
+        but should be checked for presence and consistency in the source to
+        determine whether this functional group should be included and whether
+        it should be per-frame or shared. Typically, these will be attributes
+        that are processed in the custom_logic_callback rather than simply
+        copied over to the destination.
     custom_logic_callback: Callable[[pydicom.Dataset, pydicom.Dataset], None] | None
         Callback implementing custom logic to call after the other parameters
         have been copied. Takes the source and desitnation datasets as input
@@ -194,6 +233,7 @@ class _FunctionalGroupConfig:
     """  # noqa: E501
     sequence_name: str
     attribute_configs: list[_AttributeConfig]
+    further_source_attributes: list[str] | None = None
     custom_logic_callback: Callable[[Dataset, Dataset], None] | None = None
 
 
@@ -599,16 +639,10 @@ class _LegacyConversionRunner:
                 'FrameAnatomySequence',
                 [
                     _AttributeConfig('AnatomicRegionSequence'),
-                    _AttributeConfig(
-                        'FrameLaterality',
-                        src_kws=[
-                            'FrameLaterality',
-                            'ImageLaterality',
-                            'Laterality',
-                        ],
-                        default_val='U',
-                    ),
+                    _AttributeConfig('PrimaryAnatomicStructureSequence'),
                 ],
+                further_source_attributes=['BodyPartExamined'],
+                custom_logic_callback=self._frame_anatomy_custom_logic,
             ),
             _FunctionalGroupConfig(
                 'PixelMeasuresSequence',
@@ -884,6 +918,21 @@ class _LegacyConversionRunner:
                 # We already have all the information we need
                 break
 
+        if config.further_source_attributes is not None:
+            for kw in config.further_source_attributes:
+                tag = tag_for_keyword(kw)
+
+                if tag in self._tag_shared_dict:
+                    any_attr_exists = True
+
+                    if not self._tag_shared_dict[tag]:
+                        any_attr_is_per_frame = True
+                        break
+
+                if any_attr_is_per_frame:
+                    # We already have all the information we need
+                    break
+
         if any_attr_is_per_frame:
             # At least one attribute is per-frame, so need to place everything
             # in per-frame functional groups
@@ -940,7 +989,7 @@ class _LegacyConversionRunner:
                 if not any(
                     i == 'LOCALIZER' for i in image_type_v
                 ):
-                    value = "HU"
+                    value = 'HU'
             else:
                 value = 'US'
 
@@ -978,6 +1027,90 @@ class _LegacyConversionRunner:
             'NONE',
         ]
         setattr(destination, dest_kw, new_val)
+
+    def _frame_anatomy_custom_logic(
+        self,
+        source: Dataset,
+        destination: Dataset,
+    ) -> None:
+        """Custom logic for the Frame Anatomy Sequence.
+
+        This is needed to handle mapping "BodyPartExamined" to
+        "AnatomicRegionSequence".
+
+        Parameters
+        ----------
+        source: pydicom.Dataset
+            Dataset to copy from.
+        destination: pydicom.Dataset
+            Dataset to copy to.
+
+        """
+        if not hasattr(destination, 'AnatomicRegionSequence'):
+            if hasattr(source, 'BodyPartExamined'):
+                # Attempt to map to AnatomicRegionSequence. This mapping is
+                # required by the standard but the AnatomicRegionSequence may be
+                # omitted in the body part examined is not present or has a
+                # non-standard value.
+                mapping = _get_anatomic_region_mapping()
+                if source.BodyPartExamined in mapping:
+                    code = mapping[source.BodyPartExamined]
+
+                    destination.AnatomicRegionSequence = [code]
+            else:
+                pass
+                # TODO should remove the entire sequence here :(
+
+        # Determine the required frame laterality. First check the modifier of
+        # the primary anatomic structure and map following Part 3 Section 10.5
+        # https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_10.5.html
+        modifier_mapping = {
+            '7771000': 'L',
+            '24028007': 'R',
+            '66459002': 'U',
+            '51440002': 'B',
+        }
+
+        if hasattr(destination, 'PrimaryAnatomicStructureSequence'):
+            pri_struct_seq = (
+                destination.PrimaryAnatomicStructureSequence[0]
+            )
+            if 'PrimaryAnatomicStructureModifierSequence' in pri_struct_seq:
+                modifier_seq = (
+                    pri_struct_seq.PrimaryAnatomicStructureModifierSequence[0]
+                )
+                modifier_val = modifier_seq.CodeValue
+
+                if modifier_val in modifier_mapping:
+                    destination.FrameLaterality = modifier_mapping[
+                        modifier_val
+                    ]
+
+        # Now check the anatomic region modifier
+        if 'FrameLaterality' not in destination:
+            anatomic_region = (
+                destination.AnatomicRegionSequence[0]
+            )
+            if 'AnatomicRegionModifierSequence' in anatomic_region:
+                modifier_seq = (
+                    anatomic_region.AnatomicRegionModifierSequence[0]
+                )
+                modifier_val = modifier_seq.CodeValue
+
+                if modifier_val in modifier_mapping:
+                    destination.FrameLaterality = modifier_mapping[
+                        modifier_val
+                    ]
+
+        # Check laterality information in the original source
+        if 'FrameLaterality' not in destination:
+            for kw in ['FrameLaterality', 'ImageLaterality', 'Laterality']:
+                if kw in source:
+                    destination.FrameLaterality = getattr(source, kw)
+                    break
+            else:
+                # No laterality information, just assume unilateral
+                destination.FrameLaterality = 'U'
 
     def _frame_content_custom_logic(
         self,
@@ -1686,7 +1819,7 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
-            raise ValueError('No DICOM data sets of provided.')
+            raise ValueError('At least one legacy dataset must be provided.')
         if ref_ds.Modality != 'CT':
             raise ValueError(
                 'Wrong modality for conversion of legacy CT images.'
