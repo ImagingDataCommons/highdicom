@@ -1,4 +1,5 @@
 """Representations of multidimensional arrays with spatial metadata."""
+from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import Enum
 import itertools
@@ -44,6 +45,7 @@ from pydicom.datadict import (
     keyword_for_tag,
 )
 
+from highdicom._dependency_utils import import_optional_dependency
 
 _DCM_PYTHON_TYPE_MAP = {
     'CS': str,
@@ -3581,6 +3583,137 @@ class Volume(_VolumeBase):
             coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
             channels=self._channels,
+        )
+
+    def to_sitk(self) -> SimpleITK.Image:
+        """Convert the Volume to `SimpleITK.Image` format.
+
+        Returns
+        -------
+        SimpleITK.Image:
+            Image constructed from the Volume.
+
+        """
+        func = self.to_sitk
+        sitk = import_optional_dependency(
+            module_name="SimpleITK",
+            feature=f"{func.__module__}.{func.__qualname__}"
+        )
+
+        array = self.array.transpose(2, 1, 0)
+
+        if self.dtype == np.bool_:
+            array = array.astype(int)
+
+        sitk_im = sitk.GetImageFromArray(array)
+        sitk_im.SetSpacing(self.spacing)
+        sitk_im.SetDirection(self.direction.flatten())
+        sitk_im.SetOrigin(self.position)
+
+        return sitk_im
+
+
+    @classmethod
+    def from_sitk(
+        cls,
+        sitk_im: SimpleITK.Image
+    ):
+        """Construct a Volume from a `SimpleITK.Image`.
+
+        Parameters
+        ----------
+        sitk_im: SimpleITK.Image
+            A `SimpleITK.Image` to convert to a volume.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the `SimpleITK.Image`.
+
+        """
+        func = cls.from_sitk
+        sitk = import_optional_dependency(
+            module_name="SimpleITK",
+            feature=f"{func.__module__}.{func.__qualname__}"
+        )
+
+        array = sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
+
+        if array.dtype == np.bool_:
+            array = array.astype(int)
+
+        return cls.from_components(
+            array=array,
+            spacing=sitk_im.GetSpacing(),
+            coordinate_system="PATIENT",
+            direction=np.reshape(sitk_im.GetDirection(), (3, 3)),
+            position=sitk_im.GetOrigin()
+        )
+
+
+    def to_itk(self) -> itk.Image:
+        """Convert the volume to `itk.Image` format.
+
+        Returns
+        -------
+        itk.Image:
+            Image constructed from the volume.
+
+        """
+        func = self.to_itk
+        itk = import_optional_dependency(
+            module_name="itk",
+            feature=f"{func.__module__}.{func.__qualname__}"
+        )
+
+        array = self.array
+
+        if self.dtype == np.bool_:
+            array = array.astype(int)
+
+        itk_im = itk.GetImageFromArray(array)
+        itk_im.SetSpacing(self.spacing)
+        itk_im.SetDirection(self.direction)
+        itk_im.SetOrigin(self.position)
+
+        return itk_im
+
+
+    @classmethod
+    def from_itk(
+        cls,
+        itk_im: itk.Image
+    ):
+        """Construct a Volume from an `itk.Image`.
+
+        Parameters
+        ----------
+        itk_im: itk.Image
+            A `itk.Image` to convert to a volume.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the `itk.Image`.
+
+        """
+        func = cls.from_itk
+        itk = import_optional_dependency(
+            module_name="itk",
+            feature=f"{func.__module__}.{func.__qualname__}"
+        )
+
+        array = itk.GetArrayFromImage(itk_im)
+
+        if array.dtype == np.bool_:
+            array = array.astype(int)
+
+        return cls.from_components(
+            array=array,
+            spacing=np.array(itk_im.GetSpacing()),
+            coordinate_system="PATIENT",
+            direction=np.reshape(itk_im.GetDirection(), (3, 3)),
+            position=np.array(itk_im.GetOrigin())
         )
 
 
