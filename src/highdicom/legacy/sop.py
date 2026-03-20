@@ -212,60 +212,6 @@ class _AttributeConfig:
         return [self.dest_kw]
 
 
-@dataclass
-class _FunctionalGroupConfig:
-    """Configuration for creating a functional group.
-
-    Parameters
-    ----------
-    sequence_name: str
-        Name of the sequence where the functional group will be placed.
-    attribute_configs: list[highdicom.legacy.sop._AttributeConfig]
-        Configurations for each attribute to place into the sequence.
-    further_source_attributes: list[str]
-        Keywords for further attributes that are not copied to the destination
-        but should be checked for presence and consistency in the source to
-        determine whether this functional group should be included and whether
-        it should be per-frame or shared. Typically, these will be attributes
-        that are processed in the custom_logic_callback rather than simply
-        copied over to the destination.
-    custom_logic_callback: Callable[[pydicom.Dataset, pydicom.Dataset], None] | None
-        Callback implementing custom logic to call after the other parameters
-        have been copied. Takes the source and destination datasets as input
-        parameters and has no return value.
-
-    """  # noqa: E501
-    sequence_name: str
-    attribute_configs: list[_AttributeConfig]
-    further_source_attributes: list[str] | None = None
-    custom_logic_callback: Callable[[Dataset, Dataset], None] | None = None
-
-
-@dataclass
-class _ModuleConfig:
-    """Configuration for creating a module in the destination dataset.
-
-    Parameters
-    ----------
-    module_name: str
-        Name of the module (in highdicom's module list). This format uses lower
-        case and hyphens to separate words.
-    attribute_configs: list[highdicom.legacy.sop._AttributeConfig] | None
-        Attribute-level configurations. Configurations are only required for
-        attributes that deviate from the default behavior.
-    skip_attributes: list[str] | None
-        List of attributes to skip.
-    custom_logic_callback: Callable[[], None] | None
-        Callback implementing custom logic to call after the other parameters
-        have been copied. Takes no parameters and has no return value.
-
-    """
-    module_name: str
-    attribute_configs: list[_AttributeConfig] | None = None
-    skip_attributes: list[str] | None = None
-    custom_logic_callback: Callable[[], None] | None = None
-
-
 class _LegacyConversionRunner:
     """Utility class for running a conversion process and associated state.
 
@@ -518,135 +464,128 @@ class _LegacyConversionRunner:
             ],
         }[self._destination.SOPClassUID]
 
-        module_configs = [
-            _ModuleConfig('patient'),
-            _ModuleConfig('clinical-trial-subject'),
-            _ModuleConfig(
-                'general-study',
-                skip_attributes=[
-                    'StudyInstanceUID',
-                    'RequestingService',
-                ]
-            ),
-            _ModuleConfig(
-                'patient-study',
-                skip_attributes=[
-                    'ReasonForVisit',
-                    'ReasonForVisitCodeSequence'
-                ],
-            ),
-            _ModuleConfig('clinical-trial-study'),
-            _ModuleConfig(
-                'general-series',
-                skip_attributes=[
-                    'SeriesInstanceUID',
-                    'SeriesNumber',
-                    'SmallestPixelValueInSeries',
-                    'LargestPixelValueInSeries',
-                    'PerformedProcedureStepEndDate',
-                    'PerformedProcedureStepEndTime'
-                ],
-            ),
-            _ModuleConfig('clinical-trial-series'),
-            _ModuleConfig(
-                'general-equipment',
-                skip_attributes=[
-                    'InstitutionalDepartmentTypeCodeSequence'
-                ],
-            ),
-            _ModuleConfig('frame-of-reference'),
-            _ModuleConfig(
-                'sop-common',
-                skip_attributes=[
-                    'SOPClassUID',
-                    'SOPInstanceUID',
-                    'InstanceNumber',
-                    'SpecificCharacterSet',
-                    'EncryptedAttributesSequence',
-                    'MACParametersSequence',
-                    'DigitalSignaturesSequence'
-                ],
-            ),
-            _ModuleConfig(
-                enhanced_image_module_name,
-                attribute_configs=[
-                    _AttributeConfig(
-                        'VolumetricProperties',
-                        default_val='VOLUME'
-                    ),
-                    _AttributeConfig(
-                        'VolumeBasedCalculationTechnique',
-                        default_val='NONE',
-                    ),
-                    _AttributeConfig(
-                        'PixelPresentation',
-                        default_val=(
-                            'COLOR'
-                            if self._legacy_datasets[0].SamplesPerPixel == 3
-                            else 'MONOCHROME'
-                        )
-                    ),
-                    _AttributeConfig(
-                        'PresentationLUTShape',
-                        src_kws=[],
-                        default_val='IDENTITY',
-                    ),
-                    _AttributeConfig(
-                        'ContentQualification',
-                        default_val='RESEARCH',
-                    ),
-                    # Modality-spcific configs
-                    *enhanced_image_module_attribute_configs,
-                ],
-                skip_attributes=[
-                    'ImageType',
-                    'AcquisitionDateTime',
-                    'ReferencedWaveformSequence',
-                    'ReferencedImageEvidenceSequence',
-                    'AcquisitionNumber',
-                    'InstanceNumber',
-                    'ImageComments',
-                    'BurnedInAnnotation',
-                    'RecognizableVisualFeatures',
-                    'LossyImageCompression',
-                    'LossyImageCompressionRatio',
-                    'IconImageSequence',
-                ],
-                custom_logic_callback=(
-                    self._common_enhanced_image_custom_logic
+        self._add_module('patient')
+        self._add_module('clinical-trial-subject')
+        self._add_module(
+            'general-study',
+            skip_attributes=[
+                'StudyInstanceUID',
+                'RequestingService',
+            ]
+        )
+        self._add_module(
+            'patient-study',
+            skip_attributes=[
+                'ReasonForVisit',
+                'ReasonForVisitCodeSequence'
+            ],
+        )
+        self._add_module('clinical-trial-study')
+        self._add_module(
+            'general-series',
+            skip_attributes=[
+                'SeriesInstanceUID',
+                'SeriesNumber',
+                'SmallestPixelValueInSeries',
+                'LargestPixelValueInSeries',
+                'PerformedProcedureStepEndDate',
+                'PerformedProcedureStepEndTime'
+            ],
+        )
+        self._add_module('clinical-trial-series')
+        self._add_module(
+            'general-equipment',
+            skip_attributes=[
+                'InstitutionalDepartmentTypeCodeSequence'
+            ],
+        )
+        self._add_module('frame-of-reference')
+        self._add_module(
+            'sop-common',
+            skip_attributes=[
+                'SOPClassUID',
+                'SOPInstanceUID',
+                'InstanceNumber',
+                'SpecificCharacterSet',
+                'EncryptedAttributesSequence',
+                'MACParametersSequence',
+                'DigitalSignaturesSequence'
+            ],
+        )
+        self._add_module(
+            enhanced_image_module_name,
+            attribute_configs=[
+                _AttributeConfig(
+                    'VolumetricProperties',
+                    default_val='VOLUME'
                 ),
-            ),
-            _ModuleConfig(
-                'image-pixel',
-                skip_attributes=[
-                    'ColorSpace',
-                    'PixelDataProviderURL',
-                    'ExtendedOffsetTable',
-                    'ExtendedOffsetTableLengths',
-                    'SmallestImagePixelValue',
-                    'LargestImagePixelValue',
-                    'PixelData',
-                ],
-            ),
-            _ModuleConfig(
-                'acquisition-context',
-                attribute_configs=[
-                    _AttributeConfig(
-                        'AcquisitionContextSequence',
-                        default_val=[]
+                _AttributeConfig(
+                    'VolumeBasedCalculationTechnique',
+                    default_val='NONE',
+                ),
+                _AttributeConfig(
+                    'PixelPresentation',
+                    default_val=(
+                        'COLOR'
+                        if self._legacy_datasets[0].SamplesPerPixel == 3
+                        else 'MONOCHROME'
                     )
-                ],
-            ),
-        ]
+                ),
+                _AttributeConfig(
+                    'PresentationLUTShape',
+                    src_kws=[],
+                    default_val='IDENTITY',
+                ),
+                _AttributeConfig(
+                    'ContentQualification',
+                    default_val='RESEARCH',
+                ),
+                # Modality-spcific configs
+                *enhanced_image_module_attribute_configs,
+            ],
+            skip_attributes=[
+                'ImageType',
+                'AcquisitionDateTime',
+                'ReferencedWaveformSequence',
+                'ReferencedImageEvidenceSequence',
+                'AcquisitionNumber',
+                'InstanceNumber',
+                'ImageComments',
+                'BurnedInAnnotation',
+                'RecognizableVisualFeatures',
+                'LossyImageCompression',
+                'LossyImageCompressionRatio',
+                'IconImageSequence',
+            ],
+            custom_logic_callback=self._common_enhanced_image_custom_logic,
+        )
+        self._add_module(
+            'image-pixel',
+            skip_attributes=[
+                'ColorSpace',
+                'PixelDataProviderURL',
+                'ExtendedOffsetTable',
+                'ExtendedOffsetTableLengths',
+                'SmallestImagePixelValue',
+                'LargestImagePixelValue',
+                'PixelData',
+            ],
+        )
+        self._add_module(
+            'acquisition-context',
+            attribute_configs=[
+                _AttributeConfig(
+                    'AcquisitionContextSequence',
+                    default_val=[]
+                )
+            ],
+        )
 
         if (
             self._destination.SOPClassUID !=
             LegacyConvertedEnhancedPETImageStorage
         ):
-            module_configs.append(_ModuleConfig('contrast-bolus'))
-
-        for config in module_configs:
-            self._add_module(config)
+            self._add_module('contrast-bolus')
 
         self._destination.SharedFunctionalGroupsSequence = [Dataset()]
         self._destination.PerFrameFunctionalGroupsSequence = [
@@ -659,115 +598,113 @@ class _LegacyConversionRunner:
             LegacyConvertedEnhancedPETImageStorage: 'PETFrameTypeSequence',
         }[self._destination.SOPClassUID]
 
-        functional_group_configs = [
-            # TODO require if BodyPartExamined present in any source image
-            _FunctionalGroupConfig(
-                'FrameAnatomySequence',
-                [
-                    _AttributeConfig('AnatomicRegionSequence'),
-                    _AttributeConfig('PrimaryAnatomicStructureSequence'),
-                ],
-                further_source_attributes=['BodyPartExamined'],
-                custom_logic_callback=self._frame_anatomy_custom_logic,
-            ),
-            _FunctionalGroupConfig(
-                'PixelMeasuresSequence',
-                [
-                    _AttributeConfig(
-                        'PixelSpacing',
-                        src_kws=['PixelSpacing', 'ImagerPixelSpacing'],
-                    ),
-                    _AttributeConfig('SliceThickness'),
-                ],
-            ),
-            _FunctionalGroupConfig(
-                'PlanePositionSequence',
-                [_AttributeConfig('ImagePositionPatient')],
-            ),
-            _FunctionalGroupConfig(
-                'PlaneOrientationSequence',
-                [_AttributeConfig('ImageOrientationPatient')],
-            ),
-            _FunctionalGroupConfig(
-                'FrameVOILUTSequence',
-                [
-                    _AttributeConfig('WindowWidth'),
-                    _AttributeConfig('WindowCenter'),
-                    _AttributeConfig('WindowCenterWidthExplanation'),
-                ],
-            ),
-            _FunctionalGroupConfig(
-                'DerivationImageSequence',
-                [
-                    _AttributeConfig('DerivationDescription'),
-                    _AttributeConfig('DerivationCodeSequence'),
-                    _AttributeConfig('SourceImageSequence'),
-                ],
-            ),
-            # TODO Referenced Image Sequence - source attributes in sequence
-            _FunctionalGroupConfig(
-                'PixelValueTransformationSequence',
-                [
-                    _AttributeConfig('RescaleSlope'),
-                    _AttributeConfig('RescaleIntercept'),
-                    _AttributeConfig('RescaleType'),
-                ],
-                custom_logic_callback=(
-                    self._pixel_value_transformation_custom_logic
-                )
-            ),
-            _FunctionalGroupConfig(
-                'FrameContentSequence',
-                [
-                    _AttributeConfig(
-                        'FrameAcquisitionDuration',
-                        src_kws=['AcquisitionDuration']
-                    ),
-                    _AttributeConfig('TemporalPositionIndex'),
-                    # TODO improve?
-                    _AttributeConfig('AcquisitionNumber', default_val=1),
-                    _AttributeConfig(
-                        'FrameComments',
-                        src_kws=['ImageComments']
-                    ),
-                ],
-                custom_logic_callback=self._frame_content_custom_logic,
-            ),
-            _FunctionalGroupConfig(
-                'ConversionSourceAttributesSequence',
-                [
-                    _AttributeConfig(
-                        'ReferencedSOPClassUID',
-                        src_kws=['SOPClassUID']
-                    ),
-                    _AttributeConfig(
-                        'ReferencedSOPInstanceUID',
-                        src_kws=['SOPInstanceUID']
-                    ),
-                ],
-            ),
-            _FunctionalGroupConfig(
-                self._frame_type_seq_kw,
-                [
-                    _AttributeConfig(
-                        'PixelPresentation',
-                        src_kws=[],
-                        default_val='MONOCHROME',
-                    ),
-                    _AttributeConfig(
-                        'VolumetricProperties',
-                        src_kws=[],
-                        default_val='VOLUME',  # TODO check
-                    ),
-                    _AttributeConfig(
-                        'VolumeBasedCalculationTechnique',
-                        src_kws=[],
-                        default_val='NONE',
-                    ),
-                ],
-                custom_logic_callback=self._frame_type_custom_logic,
-            ),
-        ]
+        # TODO require if BodyPartExamined present in any source image
+        self._add_functional_group(
+            'FrameAnatomySequence',
+            [
+                _AttributeConfig('AnatomicRegionSequence'),
+                _AttributeConfig('PrimaryAnatomicStructureSequence'),
+            ],
+            further_source_attributes=['BodyPartExamined'],
+            custom_logic_callback=self._frame_anatomy_custom_logic,
+        )
+        self._add_functional_group(
+            'PixelMeasuresSequence',
+            [
+                _AttributeConfig(
+                    'PixelSpacing',
+                    src_kws=['PixelSpacing', 'ImagerPixelSpacing'],
+                ),
+                _AttributeConfig('SliceThickness'),
+            ],
+        )
+        self._add_functional_group(
+            'PlanePositionSequence',
+            [_AttributeConfig('ImagePositionPatient')],
+        )
+        self._add_functional_group(
+            'PlaneOrientationSequence',
+            [_AttributeConfig('ImageOrientationPatient')],
+        )
+        self._add_functional_group(
+            'FrameVOILUTSequence',
+            [
+                _AttributeConfig('WindowWidth'),
+                _AttributeConfig('WindowCenter'),
+                _AttributeConfig('WindowCenterWidthExplanation'),
+            ],
+        )
+        self._add_functional_group(
+            'DerivationImageSequence',
+            [
+                _AttributeConfig('DerivationDescription'),
+                _AttributeConfig('DerivationCodeSequence'),
+                _AttributeConfig('SourceImageSequence'),
+            ],
+        )
+        # TODO Referenced Image Sequence - source attributes in sequence
+        self._add_functional_group(
+            'PixelValueTransformationSequence',
+            [
+                _AttributeConfig('RescaleSlope'),
+                _AttributeConfig('RescaleIntercept'),
+                _AttributeConfig('RescaleType'),
+            ],
+            custom_logic_callback=(
+                self._pixel_value_transformation_custom_logic
+            )
+        )
+        self._add_functional_group(
+            'FrameContentSequence',
+            [
+                _AttributeConfig(
+                    'FrameAcquisitionDuration',
+                    src_kws=['AcquisitionDuration']
+                ),
+                _AttributeConfig('TemporalPositionIndex'),
+                # TODO improve?
+                _AttributeConfig('AcquisitionNumber', default_val=1),
+                _AttributeConfig(
+                    'FrameComments',
+                    src_kws=['ImageComments']
+                ),
+            ],
+            custom_logic_callback=self._frame_content_custom_logic,
+        )
+        self._add_functional_group(
+            'ConversionSourceAttributesSequence',
+            [
+                _AttributeConfig(
+                    'ReferencedSOPClassUID',
+                    src_kws=['SOPClassUID']
+                ),
+                _AttributeConfig(
+                    'ReferencedSOPInstanceUID',
+                    src_kws=['SOPInstanceUID']
+                ),
+            ],
+        )
+        self._add_functional_group(
+            self._frame_type_seq_kw,
+            [
+                _AttributeConfig(
+                    'PixelPresentation',
+                    src_kws=[],
+                    default_val='MONOCHROME',
+                ),
+                _AttributeConfig(
+                    'VolumetricProperties',
+                    src_kws=[],
+                    default_val='VOLUME',  # TODO check
+                ),
+                _AttributeConfig(
+                    'VolumeBasedCalculationTechnique',
+                    src_kws=[],
+                    default_val='NONE',
+                ),
+            ],
+            custom_logic_callback=self._frame_type_custom_logic,
+        )
 
         if (
             self._destination.SOPClassUID in
@@ -776,46 +713,51 @@ class _LegacyConversionRunner:
                 LegacyConvertedEnhancedPETImageStorage,
             )
         ):
-            functional_group_configs.append(
-                _FunctionalGroupConfig(
-                    'IrradiationEventIdentificationSequence',
-                    [_AttributeConfig('IrradiationEventUID')],
-                )
+            self._add_functional_group(
+                'IrradiationEventIdentificationSequence',
+                [_AttributeConfig('IrradiationEventUID')],
             )
-
-        for config in functional_group_configs:
-            self._add_functional_group(config)
 
         # Miscellaneous other tasks
         self._add_stack_info_frame_content()
         self._add_image_type()
         self._add_unassigned_attributes()
 
-    def _add_module(self, config: _ModuleConfig) -> None:
+    def _add_module(
+        self,
+        module_name: str,
+        attribute_configs: list[_AttributeConfig] | None = None,
+        skip_attributes: list[str] | None = None,
+        custom_logic_callback: Callable[[], None] | None = None,
+    ) -> None:
         """Add module to the destination dataset.
 
         Parameters
         ----------
-        config: highdicom.legacy.sop._ModuleConfig
-            Configuration defining behavior for this module.
+        module_name: str
+            Name of the module (in highdicom's module list). This format uses lower
+            case and hyphens to separate words.
+        attribute_configs: list[highdicom.legacy.sop._AttributeConfig] | None
+            Attribute-level configurations. Configurations are only required for
+            attributes that deviate from the default behavior.
+        skip_attributes: list[str] | None
+            List of attributes to skip.
+        custom_logic_callback: Callable[[], None] | None
+            Callback implementing custom logic to call after the other parameters
+            have been copied. Takes no parameters and has no return value.
 
         """
         module_usage = get_module_usage(
-            config.module_name,
+            module_name,
             self._destination.SOPClassUID
         )
-        if config.skip_attributes is not None:
-            skip_attributes = config.skip_attributes
-        else:
+        if skip_attributes is None:
             skip_attributes = []
-
-        attribute_configs = (
-            config.attribute_configs
-            if config.attribute_configs is not None else []
-        )
+        if attribute_configs is None:
+            attribute_configs = []
 
         ref_dataset = self._legacy_datasets[0]
-        module_tree = construct_module_tree(config.module_name)
+        module_tree = construct_module_tree(module_name)
 
         def iter_attribute_configs(only_required: bool = False) -> Generator[
             tuple[
@@ -859,8 +801,8 @@ class _LegacyConversionRunner:
                     continue
 
                 if (
-                    only_required
-                    and info['type'] != AttributeTypeValues.REQUIRED
+                    only_required and
+                    info['type'] != AttributeTypeValues.REQUIRED
                 ):
                     continue
 
@@ -914,7 +856,7 @@ class _LegacyConversionRunner:
                     # We have no value for one of hhe required attributes, so
                     # we should skip the entire module entirely
                     logger.debug(
-                        f"Skipping optional module {config.module_name} "
+                        f"Skipping optional module {module_name} "
                         f"because no value for required attribute {dest_kw} "
                         "can be found."
                     )
@@ -946,7 +888,8 @@ class _LegacyConversionRunner:
                                 'legacy files.'
                             )
                         case AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN:
-                            # Leave blank rather than selecting from inconsistent
+                            # Leave blank rather than selecting from
+                            # inconsistent
                             setattr(self._destination, dest_kw, None)
             else:
                 # No value found
@@ -960,8 +903,8 @@ class _LegacyConversionRunner:
                     case AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN:
                         setattr(self._destination, dest_kw, None)
 
-        if config.custom_logic_callback is not None:
-            config.custom_logic_callback()
+        if custom_logic_callback is not None:
+            custom_logic_callback()
 
     def _common_enhanced_image_custom_logic(self):
         """Custom logic applicable to Enhanced CT/MR/PET Image modules."""
@@ -1054,20 +997,39 @@ class _LegacyConversionRunner:
 
         setattr(destination, sequence_name, [item])
 
-    def _add_functional_group(self, config: _FunctionalGroupConfig) -> None:
+    def _add_functional_group(
+        self,
+        sequence_name: str,
+        attribute_configs: list[_AttributeConfig],
+        further_source_attributes: list[str] | None = None,
+        custom_logic_callback: Callable[[Dataset, Dataset], None] | None = None,
+    ) -> None:
         """Add a functional group to the destination dataset.
 
         Parameters
         ----------
-        config: highdicom.legacy._FunctionalGroupConfig
-            Configuration object for the functional group to be added.
+        sequence_name: str
+            Name of the sequence where the functional group will be placed.
+        attribute_configs: list[highdicom.legacy.sop._AttributeConfig]
+            Configurations for each attribute to place into the sequence.
+        further_source_attributes: list[str]
+            Keywords for further attributes that are not copied to the destination
+            but should be checked for presence and consistency in the source to
+            determine whether this functional group should be included and whether
+            it should be per-frame or shared. Typically, these will be attributes
+            that are processed in the custom_logic_callback rather than simply
+            copied over to the destination.
+        custom_logic_callback: Callable[[pydicom.Dataset, pydicom.Dataset], None] | None
+            Callback implementing custom logic to call after the other parameters
+            have been copied. Takes the source and destination datasets as input
+            parameters and has no return value.
 
-        """
+        """  # noqa: E501
         # If any attribute is per-frame, the whole functional group is
         # per-frame
         any_attr_is_per_frame = False
         any_attr_exists = False
-        for a_cfg in config.attribute_configs:
+        for a_cfg in attribute_configs:
             if a_cfg.default_val is not None:
                 any_attr_exists = True
 
@@ -1084,8 +1046,8 @@ class _LegacyConversionRunner:
                 # We already have all the information we need
                 break
 
-        if config.further_source_attributes is not None:
-            for kw in config.further_source_attributes:
+        if further_source_attributes is not None:
+            for kw in further_source_attributes:
                 tag = tag_for_keyword(kw)
 
                 if tag in self._tag_shared_dict:
@@ -1109,18 +1071,18 @@ class _LegacyConversionRunner:
                 self._copy_to_functional_group(
                     source=src,
                     destination=pffg,
-                    sequence_name=config.sequence_name,
-                    attribute_configs=config.attribute_configs,
-                    custom_logic_callback=config.custom_logic_callback,
+                    sequence_name=sequence_name,
+                    attribute_configs=attribute_configs,
+                    custom_logic_callback=custom_logic_callback,
                 )
         elif any_attr_exists:
             # Use the shared functional groups
             self._copy_to_functional_group(
                 source=self._legacy_datasets[0],
                 destination=self._destination.SharedFunctionalGroupsSequence[0],
-                sequence_name=config.sequence_name,
-                attribute_configs=config.attribute_configs,
-                custom_logic_callback=config.custom_logic_callback,
+                sequence_name=sequence_name,
+                attribute_configs=attribute_configs,
+                custom_logic_callback=custom_logic_callback,
             )
 
         # Else nothing to copy
