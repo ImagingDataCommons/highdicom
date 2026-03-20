@@ -1,4 +1,4 @@
-""" Module for SOP Classes of Legacy Converted Enhanced Image IODs.
+"""Module for SOP Classes of Legacy Converted Enhanced Image IODs.
 
 """
 from collections import Counter
@@ -37,7 +37,6 @@ from highdicom.base_content import ContributingEquipment
 from highdicom.frame import encode_frame
 from highdicom.spatial import get_series_volume_positions
 
-# TODO defer these imports
 from highdicom._module_utils import (
     AttributeTypeValues,
     ModuleUsageValues,
@@ -229,6 +228,16 @@ class _LegacyConversionRunner:
         legacy_datasets: Sequence[Dataset],
         destination: Dataset,
     ) -> None:
+        """
+
+        Parameters
+        ----------
+        legacy_datasets: Sequence[pydicom.Dataset]
+            Legacy (single-frame) datasets to be converted.
+        destination: pydicom.Dataset
+            Existing Legacy Converted Enhanced dataset to copy attributes to.
+
+        """
         self._legacy_datasets = list(legacy_datasets)
         self._destination = destination
         self._keyword_shared_dict: dict[str, bool] = {}
@@ -897,7 +906,7 @@ class _LegacyConversionRunner:
         destination: Dataset,
         sequence_name: str,
         attribute_configs: list[_AttributeConfig],
-        custom_logic_callback: Callable | None = None,
+        custom_logic_callback: Callable[[Dataset, Dataset], None] | None = None,
     ) -> None:
         """
         Parameters
