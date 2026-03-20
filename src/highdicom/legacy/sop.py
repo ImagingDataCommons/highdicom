@@ -13,7 +13,7 @@ import json
 import logging
 import pkgutil
 from sys import float_info
-from typing import cast, Any, Union, Callable, Sequence, Tuple
+from typing import cast, Any, Union, Callable, Generator, Sequence, Tuple
 
 from pydicom.datadict import tag_for_keyword, dictionary_VR
 from pydicom.dataelem import DataElement
@@ -41,7 +41,12 @@ from highdicom.frame import encode_frame
 from highdicom.spatial import get_series_volume_positions
 
 # TODO defer these imports
-from highdicom._modules import MODULE_ATTRIBUTE_MAP
+from highdicom._module_utils import (
+    AttributeTypeValues,
+    ModuleUsageValues,
+    construct_module_tree,
+    get_module_usage,
+)
 from highdicom.sr.coding import CodedConcept
 
 
@@ -226,7 +231,7 @@ class _FunctionalGroupConfig:
         copied over to the destination.
     custom_logic_callback: Callable[[pydicom.Dataset, pydicom.Dataset], None] | None
         Callback implementing custom logic to call after the other parameters
-        have been copied. Takes the source and desitnation datasets as input
+        have been copied. Takes the source and destination datasets as input
         parameters and has no return value.
 
     """  # noqa: E501
@@ -246,14 +251,10 @@ class _ModuleConfig:
         Name of the module (in highdicom's module list). This format uses lower
         case and hyphens to separate words.
     attribute_configs: list[highdicom.legacy.sop._AttributeConfig] | None
-        Attribute-level configurations. If ``auto_discover_attributes`` is
-        True, configurations are only required for attributes that deviate from
-        the default behavior.
+        Attribute-level configurations. Configurations are only required for
+        attributes that deviate from the default behavior.
     skip_attributes: list[str] | None
         List of attributes to skip.
-    auto_discover_attributes: bool
-        Whether to use built-in standard information to list attributes
-        automatically.
     custom_logic_callback: Callable[[], None] | None
         Callback implementing custom logic to call after the other parameters
         have been copied. Takes no parameters and has no return value.
@@ -262,7 +263,6 @@ class _ModuleConfig:
     module_name: str
     attribute_configs: list[_AttributeConfig] | None = None
     skip_attributes: list[str] | None = None
-    auto_discover_attributes: bool = True
     custom_logic_callback: Callable[[], None] | None = None
 
 
@@ -451,6 +451,29 @@ class _LegacyConversionRunner:
             if src_tg in self._unused_tags:
                 self._unused_tags.remove(src_tg)
 
+    def _mark_tag_used(self, tag: BaseTag) -> None:
+        """Record that a tag in the source files has been used.
+
+        Parameters
+        ----------
+        tag: pydicom.tag.BaseTag
+            The tag to mark as used.
+
+        """
+        if tag in self._unused_tags:
+            self._unused_tags.remove(tag)
+
+    def _mark_keyword_used(self, kw: str) -> None:
+        """Record that a keyword in the source files has been used.
+
+        Parameters
+        ----------
+        kw: str
+            Attribute keyword to mark as used.
+
+        """
+        self._mark_tag_used(BaseTag(cast(int, tag_for_keyword(kw))))
+
     def run(self) -> None:
         """Run conversion."""
         self._tag_shared_dict = self._get_tags_present()
@@ -466,6 +489,7 @@ class _LegacyConversionRunner:
             'AcquisitionDate',
             'AcquisitionTime',
             'AcquisitionDateTime',
+            'ImageType',
         ]
         excluded_tags = [tag_for_keyword(kw) for kw in excluded_keywords]
         self._unused_tags = {
@@ -547,12 +571,12 @@ class _LegacyConversionRunner:
                 enhanced_image_module_name,
                 attribute_configs=[
                     _AttributeConfig(
-                        'VolumeBasedCalculationTechnique',
-                        default_val='NONE',
-                    ),
-                    _AttributeConfig(
                         'VolumetricProperties',
                         default_val='VOLUME'
+                    ),
+                    _AttributeConfig(
+                        'VolumeBasedCalculationTechnique',
+                        default_val='NONE',
                     ),
                     _AttributeConfig(
                         'PixelPresentation',
@@ -566,6 +590,10 @@ class _LegacyConversionRunner:
                         'PresentationLUTShape',
                         src_kws=[],
                         default_val='IDENTITY',
+                    ),
+                    _AttributeConfig(
+                        'ContentQualification',
+                        default_val='RESEARCH',
                     ),
                     # Modality-spcific configs
                     *enhanced_image_module_attribute_configs,
@@ -772,43 +800,165 @@ class _LegacyConversionRunner:
             Configuration defining behavior for this module.
 
         """
+        module_usage = get_module_usage(
+            config.module_name,
+            self._destination.SOPClassUID
+        )
         if config.skip_attributes is not None:
             skip_attributes = config.skip_attributes
         else:
             skip_attributes = []
 
-        attribute_configs: dict[str, _AttributeConfig] = {}
-
-        if config.attribute_configs is not None:
-            for attr_config in config.attribute_configs:
-                attribute_configs[attr_config.dest_kw] = attr_config
-
-        if config.auto_discover_attributes:
-            for a in MODULE_ATTRIBUTE_MAP[config.module_name]:
-                if len(a['path']) > 0:
-                    continue
-
-                if a['keyword'] in skip_attributes:
-                    continue
-
-                if a['keyword'] not in attribute_configs:
-                    attribute_configs[a['keyword']] = _AttributeConfig(
-                        a['keyword']
-                    )
+        attribute_configs = (
+            config.attribute_configs
+            if config.attribute_configs is not None else []
+        )
 
         ref_dataset = self._legacy_datasets[0]
+        module_tree = construct_module_tree(config.module_name)
 
-        for a in attribute_configs.values():
-            self._copy_attrib_if_present(
-                ref_dataset,
-                self._destination,
-                a.dest_kw,
-            )
-            if (
-                a.default_val is not None and
-                a.dest_kw not in self._destination
-            ):
-                setattr(self._destination, a.dest_kw, a.default_val)
+        def iter_attribute_configs(only_required: bool = False) -> Generator[
+            tuple[
+                str,
+                AttributeTypeValues,
+                str | None,
+                bool,
+                Any,
+            ],
+            None,
+            None,
+        ]:
+            """Loop over attributes in this module.
+
+            Parameters
+            ----------
+            only_required: bool
+                Only yield required (type 1, excluding type 1C) attributes. If
+                False, return all attributes regardless of usage type.
+
+            Yields
+            ------
+            dest_kw: str
+                Destination keyword.
+            usage_type: AttributeTypeValues
+                Usage type (required, conditional, optional etc).
+            src_kw: str | None
+                Keyword in the source legacy files in which data is found, if
+                ``None``, no relevant attribute was found in the legacy
+                datasets (but there may still be a default value). str | None
+            is_shared: bool
+                Whether the attribute is shared by all legacy datasets (True)
+                or differs between legacy datasets (False).
+            value: Any
+                The value to place into the destination. May come from a source
+                dataset or from a configured default value.
+
+            """
+            for dest_kw, info in module_tree['attributes'].items():
+                if dest_kw in skip_attributes:
+                    continue
+
+                if (
+                    only_required
+                    and info['type'] != AttributeTypeValues.REQUIRED
+                ):
+                    continue
+
+                # Check for a provided configuration
+                for a_cfg in attribute_configs:
+                    if a_cfg.dest_kw == dest_kw:
+                        default_val = a_cfg.default_val
+                        src_kws = a_cfg.get_source_keywords()
+                        break
+                else:
+                    # Default behavior if no configuration is found
+                    default_val = None
+                    src_kws = [dest_kw]
+
+                for src_kw in src_kws:
+                    tag = BaseTag(cast(int, tag_for_keyword(src_kw)))
+
+                    if tag in self._tag_shared_dict:
+                        if self._tag_shared_dict[tag]:
+                            yield (
+                                dest_kw,
+                                info['type'],
+                                src_kw,
+                                True,
+                                getattr(ref_dataset, src_kw)
+                            )
+                        else:
+                            yield (
+                                dest_kw,
+                                info['type'],
+                                src_kw,
+                                False,
+                                None,
+                            )
+
+                        break
+                else:
+                    # No value found, use default
+                    yield (
+                        dest_kw,
+                        info['type'],
+                        None,
+                        True,
+                        default_val,
+                    )
+
+        # First determine whether the module should be included
+        if module_usage != ModuleUsageValues.MANDATORY:
+            for (dest_kw, _, _, _, val) in iter_attribute_configs(True):
+                if val is None:
+                    # We have no value for one of hhe required attributes, so
+                    # we should skip the entire module entirely
+                    logger.debug(
+                        f"Skipping optional module {config.module_name} "
+                        f"because no value for required attribute {dest_kw} "
+                        "can be found."
+                    )
+                    return
+
+        for (
+            dest_kw,
+            usage_type,
+            src_kw,
+            is_shared,
+            val,
+        ) in iter_attribute_configs():
+            if val is not None:
+                if is_shared:
+                    setattr(
+                        self._destination,
+                        dest_kw,
+                        deepcopy(val)
+                    )
+                    if src_kw is not None:
+                        self._mark_keyword_used(src_kw)
+                else:
+                    match usage_type:
+                        case AttributeTypeValues.REQUIRED:
+                            raise ValueError(
+                                'Unable to determine value for '
+                                f'required attribute "{dest_kw}" because '
+                                'the value is inconsistent between the '
+                                'legacy files.'
+                            )
+                        case AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN:
+                            # Leave blank rather than selecting from inconsistent
+                            setattr(self._destination, dest_kw, None)
+            else:
+                # No value found
+                match usage_type:
+                    case AttributeTypeValues.REQUIRED:
+                        raise ValueError(
+                            'Unable to determine value for required '
+                            f'attribute "{dest_kw}" because the required '
+                            'information is not present in the legacy files.'
+                        )
+                    case AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN:
+                        setattr(self._destination, dest_kw, None)
 
         if config.custom_logic_callback is not None:
             config.custom_logic_callback()
@@ -876,7 +1026,7 @@ class _LegacyConversionRunner:
             Configurations for each attribute to place into the sequence.
         custom_logic_callback: Callable[[pydicom.Dataset, pydicom.Dataset], None] | None
             Callback implementing custom logic to call after the other parameters
-            have been copied. Takes the source and desitnation datasets as input
+            have been copied. Takes the source and destination datasets as input
             parameters and has no return value.
 
         """  # noqa: E501
