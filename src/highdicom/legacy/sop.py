@@ -1943,6 +1943,66 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         return out
 
 
+_SHARED_DOCSTRING = """
+
+Parameters
+----------
+legacy_datasets: Sequence[pydicom.Dataset]
+    DICOM data sets of legacy single-frame image instances that should
+    be converted
+series_instance_uid: str
+    UID of the series
+series_number: int
+    Number of the series within the study
+sop_instance_uid: str
+    UID that should be assigned to the instance
+instance_number: int
+    Number that should be assigned to the instance
+transfer_syntax_uid: str | None, optional
+    UID of transfer syntax that should be used for encoding of data
+    elements. If ``None``(the default), the transfer syntax of the
+    legacy datasets will be used and the frames will not be re-encoded.
+    The following compressed transfer syntaxes are supported: JPEG 2000
+    Lossless (``"1.2.840.10008.1.2.4.90"``) and JPEG-LS Lossless
+    (``"1.2.840.10008.1.2.4.80"``).
+use_extended_offset_table: bool, optional
+    Include an extended offset table instead of a basic offset table
+    for encapsulated transfer syntaxes. Extended offset tables avoid
+    size limitations on basic offset tables, and separate the offset
+    table from the pixel data by placing it into metadata. However,
+    they may be less widely supported than basic offset tables. This
+    parameter is ignored if using a native (uncompressed) transfer
+    syntax. The default value may change in a future release.
+sort_key: Callable | None, optional
+    A function by which the single-frame instances will be sorted
+contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
+    Additional equipment that has contributed to the acquisition,
+    creation or modification of this instance.
+workers: int | concurrent.futures.Executor, optional
+    Number of worker processes to use for frame compression, if
+    compression or transcoding is needed. If 0, no workers are used and
+    compression is performed in the main process (this is the default
+    behavior). If negative, as many processes are created as the
+    machine has processors.
+
+    Alternatively, you may directly pass an instance of a class derived
+    from ``concurrent.futures.Executor`` (most likely an instance of
+    ``concurrent.futures.ProcessPoolExecutor``) for highdicom to use.
+    You may wish to do this either to have greater control over the
+    setup of the executor, or to avoid the setup cost of spawning new
+    processes each time this ``__init__`` method is called if your
+    application creates a large number of objects.
+
+    Note that if you use worker processes, you must ensure that your
+    main process uses the ``if __name__ == "__main__"`` idiom to guard
+    against spawned child processes creating further workers.
+**kwargs: Any, optional
+    Additional keyword arguments that will be passed to the constructor
+    of `highdicom.base.SOPClass`
+
+"""  # noqa: E501
+
+
 class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
 
     """SOP class for Legacy Converted Enhanced CT Image instances."""
@@ -1963,64 +2023,7 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
         workers: int | Executor = 0,
         **kwargs: Any,
     ) -> None:
-        """
-
-        Parameters
-        ----------
-        legacy_datasets: Sequence[pydicom.Dataset]
-            DICOM data sets of legacy single-frame image instances that should
-            be converted
-        series_instance_uid: str
-            UID of the series
-        series_number: int
-            Number of the series within the study
-        sop_instance_uid: str
-            UID that should be assigned to the instance
-        instance_number: int
-            Number that should be assigned to the instance
-        transfer_syntax_uid: str | None, optional
-            UID of transfer syntax that should be used for encoding of data
-            elements. If ``None``(the default), the transfer syntax of the
-            legacy datasets will be used and the frames will not be re-encoded.
-            The following compressed transfer syntaxes are supported: JPEG 2000
-            Lossless (``"1.2.840.10008.1.2.4.90"``) and JPEG-LS Lossless
-            (``"1.2.840.10008.1.2.4.80"``).
-        use_extended_offset_table: bool, optional
-            Include an extended offset table instead of a basic offset table
-            for encapsulated transfer syntaxes. Extended offset tables avoid
-            size limitations on basic offset tables, and separate the offset
-            table from the pixel data by placing it into metadata. However,
-            they may be less widely supported than basic offset tables. This
-            parameter is ignored if using a native (uncompressed) transfer
-            syntax. The default value may change in a future release.
-        sort_key: Callable | None, optional
-            A function by which the single-frame instances will be sorted
-        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
-            Additional equipment that has contributed to the acquisition,
-            creation or modification of this instance.
-        workers: int | concurrent.futures.Executor, optional
-            Number of worker processes to use for frame compression, if
-            compression or transcoding is needed. If 0, no workers are used and
-            compression is performed in the main process (this is the default
-            behavior). If negative, as many processes are created as the
-            machine has processors.
-
-            Alternatively, you may directly pass an instance of a class derived
-            from ``concurrent.futures.Executor`` (most likely an instance of
-            ``concurrent.futures.ProcessPoolExecutor``) for highdicom to use.
-            You may wish to do this either to have greater control over the
-            setup of the executor, or to avoid the setup cost of spawning new
-            processes each time this ``__init__`` method is called if your
-            application creates a large number of objects.
-
-            Note that if you use worker processes, you must ensure that your
-            main process uses the ``if __name__ == "__main__"`` idiom to guard
-            against spawned child processes creating further workers.
-        **kwargs: Any, optional
-            Additional keyword arguments that will be passed to the constructor
-            of `highdicom.base.SOPClass`
-
-        """  # noqa: E501
+        f"""{_SHARED_DOCSTRING}"""
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
@@ -2068,64 +2071,7 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
         workers: int | Executor = 0,
         **kwargs: Any,
     ) -> None:
-        """
-
-        Parameters
-        ----------
-        legacy_datasets: Sequence[pydicom.Dataset]
-            DICOM data sets of legacy single-frame image instances that should
-            be converted
-        series_instance_uid: str
-            UID of the series
-        series_number: int
-            Number of the series within the study
-        sop_instance_uid: str
-            UID that should be assigned to the instance
-        instance_number: int
-            Number that should be assigned to the instance
-        transfer_syntax_uid: str | None, optional
-            UID of transfer syntax that should be used for encoding of data
-            elements. If ``None``(the default), the transfer syntax of the
-            legacy datasets will be used and the frames will not be re-encoded.
-            The following compressed transfer syntaxes are supported: JPEG 2000
-            Lossless (``"1.2.840.10008.1.2.4.90"``) and JPEG-LS Lossless
-            (``"1.2.840.10008.1.2.4.80"``).
-        use_extended_offset_table: bool, optional
-            Include an extended offset table instead of a basic offset table
-            for encapsulated transfer syntaxes. Extended offset tables avoid
-            size limitations on basic offset tables, and separate the offset
-            table from the pixel data by placing it into metadata. However,
-            they may be less widely supported than basic offset tables. This
-            parameter is ignored if using a native (uncompressed) transfer
-            syntax. The default value may change in a future release.
-        sort_key: Callable | None, optional
-            A function by which the single-frame instances will be sorted
-        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
-            Additional equipment that has contributed to the acquisition,
-            creation or modification of this instance.
-        workers: int | concurrent.futures.Executor, optional
-            Number of worker processes to use for frame compression, if
-            compression or transcoding is needed. If 0, no workers are used and
-            compression is performed in the main process (this is the default
-            behavior). If negative, as many processes are created as the
-            machine has processors.
-
-            Alternatively, you may directly pass an instance of a class derived
-            from ``concurrent.futures.Executor`` (most likely an instance of
-            ``concurrent.futures.ProcessPoolExecutor``) for highdicom to use.
-            You may wish to do this either to have greater control over the
-            setup of the executor, or to avoid the setup cost of spawning new
-            processes each time this ``__init__`` method is called if your
-            application creates a large number of objects.
-
-            Note that if you use worker processes, you must ensure that your
-            main process uses the ``if __name__ == "__main__"`` idiom to guard
-            against spawned child processes creating further workers.
-        **kwargs: Any, optional
-            Additional keyword arguments that will be passed to the constructor
-            of `highdicom.base.SOPClass`
-
-        """  # noqa: E501
+        f"""{_SHARED_DOCSTRING}"""
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
@@ -2173,61 +2119,7 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
         workers: int | Executor = 0,
         **kwargs: Any,
     ) -> None:
-        """
-
-        Parameters
-        ----------
-        legacy_datasets: Sequence[pydicom.Dataset]
-            DICOM data sets of legacy single-frame image instances that should
-            be converted
-        series_instance_uid: str
-            UID of the series
-        series_number: Union[int, None]
-            Number of the series within the study
-        sop_instance_uid: str
-            UID that should be assigned to the instance
-        instance_number: int
-            Number that should be assigned to the instance
-        transfer_syntax_uid: str | None, optional
-            UID of transfer syntax that should be used for encoding of data
-            elements. If ``None``(the default), the transfer syntax of the
-            legacy datasets will be used and the frames will not be re-encoded.
-            The following compressed transfer syntaxes are supported: JPEG 2000
-            Lossless (``"1.2.840.10008.1.2.4.90"``) and JPEG-LS Lossless
-            (``"1.2.840.10008.1.2.4.80"``).
-        use_extended_offset_table: bool, optional
-            Include an extended offset table instead of a basic offset table
-            for encapsulated transfer syntaxes. Extended offset tables avoid
-            size limitations on basic offset tables, and separate the offset
-            table from the pixel data by placing it into metadata. However,
-            they may be less widely supported than basic offset tables. This
-            parameter is ignored if using a native (uncompressed) transfer
-            syntax. The default value may change in a future release.
-        contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
-            Additional equipment that has contributed to the acquisition,
-            creation or modification of this instance.
-        workers: int | concurrent.futures.Executor, optional
-            Number of worker processes to use for frame compression, if
-            compression or transcoding is needed. If 0, no workers are used and
-            compression is performed in the main process (this is the default
-            behavior). If negative, as many processes are created as the
-            machine has processors.
-
-            Alternatively, you may directly pass an instance of a class derived
-            from ``concurrent.futures.Executor`` (most likely an instance of
-            ``concurrent.futures.ProcessPoolExecutor``) for highdicom to use.
-            You may wish to do this either to have greater control over the
-            setup of the executor, or to avoid the setup cost of spawning new
-            processes each time this ``__init__`` method is called if your
-            application creates a large number of objects.
-
-            Note that if you use worker processes, you must ensure that your
-            main process uses the ``if __name__ == "__main__"`` idiom to guard
-            against spawned child processes creating further workers.
-        sort_key: Callable | None, optional
-            A function by which the single-frame instances will be sorted
-
-        """  # noqa: E501
+        f"""{_SHARED_DOCSTRING}"""
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
