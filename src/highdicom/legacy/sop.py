@@ -184,8 +184,8 @@ class _AttributeConfig:
 
     Parameters
     ----------
-    dest_kw: str
-        Keyword where the attribute will be placed.
+    dest_kw: str | None
+        Keyword where the attribute will be placed. If explicitly set to None,
     src_kws: list[str] | None, optional
         List of source keywords to search for the value to place into the
         destination keyword. If None, the dest_kw is used as the (only) source
@@ -194,10 +194,17 @@ class _AttributeConfig:
         dest_kw is not used unless explicitly specified.
     default_val: Any | None
         Default value to use if attribute is not found in the source dataset.
+    defer_copy: bool
+        If true, the attribute will not directly be placed into the
+        destination, but will still be considered for determining whether all
+        required information is present. This is generally used for attributes
+        that will be processed by custom logic.
+
     """
     dest_kw: str
     src_kws: list[str] | None = None
     default_val: Any = None
+    defer_copy: bool = False
 
     def get_source_keywords(self) -> list[str]:
         """Get a list of all potential source keywords."""
@@ -410,91 +417,14 @@ class _LegacyConversionRunner:
             LegacyConvertedEnhancedPETImageStorage: 'PETFrameTypeSequence',
         }[self._destination.SOPClassUID]
 
-        # TODO require if BodyPartExamined present in any source image
-        self._add_functional_group(
-            'FrameAnatomySequence',
-            [
-                _AttributeConfig('AnatomicRegionSequence'),
-                _AttributeConfig('PrimaryAnatomicStructureSequence'),
-            ],
-            further_source_attributes=['BodyPartExamined'],
-            custom_logic_callback=self._frame_anatomy_custom_logic,
-        )
-        self._add_functional_group(
-            'PixelMeasuresSequence',
-            [
-                _AttributeConfig(
-                    'PixelSpacing',
-                    src_kws=['PixelSpacing', 'ImagerPixelSpacing'],
-                ),
-                _AttributeConfig('SliceThickness'),
-            ],
-        )
-        self._add_functional_group(
-            'PlanePositionSequence',
-            [_AttributeConfig('ImagePositionPatient')],
-        )
-        self._add_functional_group(
-            'PlaneOrientationSequence',
-            [_AttributeConfig('ImageOrientationPatient')],
-        )
-        self._add_functional_group(
-            'FrameVOILUTSequence',
-            [
-                _AttributeConfig('WindowWidth'),
-                _AttributeConfig('WindowCenter'),
-                _AttributeConfig('WindowCenterWidthExplanation'),
-            ],
-        )
         self._add_functional_group(
             'DerivationImageSequence',
-            [
+            [_AttributeConfig('SourceImageSequence')],
+            optional_attributes=[
                 _AttributeConfig('DerivationDescription'),
                 _AttributeConfig('DerivationCodeSequence'),
-                _AttributeConfig('SourceImageSequence'),
             ],
-        )
-        # TODO Referenced Image Sequence - source attributes in sequence
-        self._add_functional_group(
-            'PixelValueTransformationSequence',
-            [
-                _AttributeConfig('RescaleSlope'),
-                _AttributeConfig('RescaleIntercept'),
-                _AttributeConfig('RescaleType'),
-            ],
-            custom_logic_callback=(
-                self._pixel_value_transformation_custom_logic
-            )
-        )
-        self._add_functional_group(
-            'FrameContentSequence',
-            [
-                _AttributeConfig(
-                    'FrameAcquisitionDuration',
-                    src_kws=['AcquisitionDuration']
-                ),
-                _AttributeConfig('TemporalPositionIndex'),
-                # TODO improve?
-                _AttributeConfig('AcquisitionNumber', default_val=1),
-                _AttributeConfig(
-                    'FrameComments',
-                    src_kws=['ImageComments']
-                ),
-            ],
-            custom_logic_callback=self._frame_content_custom_logic,
-        )
-        self._add_functional_group(
-            'ConversionSourceAttributesSequence',
-            [
-                _AttributeConfig(
-                    'ReferencedSOPClassUID',
-                    src_kws=['SOPClassUID']
-                ),
-                _AttributeConfig(
-                    'ReferencedSOPInstanceUID',
-                    src_kws=['SOPInstanceUID']
-                ),
-            ],
+            required=False,
         )
         self._add_functional_group(
             self._frame_type_seq_kw,
@@ -517,6 +447,99 @@ class _LegacyConversionRunner:
             ],
             custom_logic_callback=self._frame_type_custom_logic,
         )
+        self._add_functional_group(
+            'FrameAnatomySequence',
+            [
+                _AttributeConfig(
+                    'AnatomicRegionSequence',
+                    ['AnatomicRegionSequence', 'BodyPartExamined'],
+                    defer_copy=True,  # handle this in callback
+                ),
+            ],
+            optional_attributes=[
+                _AttributeConfig('PrimaryAnatomicStructureSequence'),
+            ],
+            custom_logic_callback=self._frame_anatomy_custom_logic,
+            required=False,
+        )
+        self._add_functional_group(
+            'FrameContentSequence',
+            [
+                # TODO improve?
+                _AttributeConfig(
+                    'FrameAcquisitionNumber',
+                    ['AcquisitionNumber'],
+                    default_val=1
+                ),
+            ],
+            optional_attributes=[
+                _AttributeConfig(
+                    'FrameAcquisitionDuration',
+                    src_kws=['AcquisitionDuration']
+                ),
+                _AttributeConfig('TemporalPositionIndex'),
+                _AttributeConfig(
+                    'FrameComments',
+                    src_kws=['ImageComments']
+                ),
+            ],
+            custom_logic_callback=self._frame_content_custom_logic,
+            can_be_shared=False,
+        )
+        self._add_functional_group(
+            'PlanePositionSequence',
+            [_AttributeConfig('ImagePositionPatient')],
+        )
+        self._add_functional_group(
+            'PlaneOrientationSequence',
+            [_AttributeConfig('ImageOrientationPatient')],
+        )
+        self._add_functional_group(
+            'ConversionSourceAttributesSequence',
+            [
+                _AttributeConfig(
+                    'ReferencedSOPClassUID',
+                    src_kws=['SOPClassUID']
+                ),
+                _AttributeConfig(
+                    'ReferencedSOPInstanceUID',
+                    src_kws=['SOPInstanceUID']
+                ),
+            ],
+        )
+        self._add_functional_group(
+            'PixelMeasuresSequence',
+            [
+                _AttributeConfig(
+                    'PixelSpacing',
+                    src_kws=['PixelSpacing', 'ImagerPixelSpacing'],
+                ),
+                _AttributeConfig('SliceThickness'),
+            ],
+        )
+        self._add_functional_group(
+            'FrameVOILUTSequence',
+            [
+                _AttributeConfig('WindowWidth'),
+                _AttributeConfig('WindowCenter'),
+            ],
+            optional_attributes=[
+                _AttributeConfig('WindowCenterWidthExplanation'),
+            ],
+        )
+        self._add_functional_group(
+            'PixelValueTransformationSequence',
+            [
+                _AttributeConfig('RescaleSlope', default_val=1),
+                _AttributeConfig('RescaleIntercept', default_val=0),
+            ],
+            optional_attributes=[
+                _AttributeConfig('RescaleType'),
+            ],
+            custom_logic_callback=(
+                self._pixel_value_transformation_custom_logic
+            )
+        )
 
         if (
             self._destination.SOPClassUID in
@@ -528,6 +551,7 @@ class _LegacyConversionRunner:
             self._add_functional_group(
                 'IrradiationEventIdentificationSequence',
                 [_AttributeConfig('IrradiationEventUID')],
+                required=False,
             )
 
         # Miscellaneous other tasks
@@ -719,6 +743,7 @@ class _LegacyConversionRunner:
                 str | None,
                 bool,
                 Any,
+                bool,
             ],
             None,
             None,
@@ -747,6 +772,8 @@ class _LegacyConversionRunner:
             value: Any
                 The value to place into the destination. May come from a source
                 dataset or from a configured default value.
+            defer_copy: bool
+                Whether to defer the copying of this attribute to a callback.
 
             """
             for dest_kw, info in module_tree['attributes'].items():
@@ -764,11 +791,13 @@ class _LegacyConversionRunner:
                     if a_cfg.dest_kw == dest_kw:
                         default_val = a_cfg.default_val
                         src_kws = a_cfg.get_source_keywords()
+                        defer_copy = a_cfg.defer_copy
                         break
                 else:
                     # Default behavior if no configuration is found
                     default_val = None
                     src_kws = [dest_kw]
+                    defer_copy = False
 
                 for src_kw in src_kws:
                     if src_kw in self._keyword_shared_dict:
@@ -778,7 +807,8 @@ class _LegacyConversionRunner:
                                 info['type'],
                                 src_kw,
                                 True,
-                                getattr(ref_dataset, src_kw)
+                                getattr(ref_dataset, src_kw),
+                                defer_copy,
                             )
                         else:
                             yield (
@@ -787,6 +817,7 @@ class _LegacyConversionRunner:
                                 src_kw,
                                 False,
                                 None,
+                                defer_copy,
                             )
 
                         break
@@ -798,11 +829,12 @@ class _LegacyConversionRunner:
                         None,
                         True,
                         default_val,
+                        defer_copy,
                     )
 
         # First determine whether the module should be included
         if module_usage != ModuleUsageValues.MANDATORY:
-            for (dest_kw, _, _, _, val) in iter_attribute_configs(True):
+            for (dest_kw, _, _, _, val, _) in iter_attribute_configs(True):
                 if val is None:
                     # We have no value for one of hhe required attributes, so
                     # we should skip the entire module entirely
@@ -819,16 +851,18 @@ class _LegacyConversionRunner:
             src_kw,
             is_shared,
             val,
+            defer_copy,
         ) in iter_attribute_configs():
             if val is not None:
                 if is_shared:
-                    setattr(
-                        self._destination,
-                        dest_kw,
-                        deepcopy(val)
-                    )
-                    if src_kw is not None:
-                        self._mark_keyword_used(src_kw)
+                    if not defer_copy:
+                        setattr(
+                            self._destination,
+                            dest_kw,
+                            deepcopy(val)
+                        )
+                        if src_kw is not None:
+                            self._mark_keyword_used(src_kw)
                 else:
                     match usage_type:
                         case AttributeTypeValues.REQUIRED:
@@ -885,6 +919,9 @@ class _LegacyConversionRunner:
         item = Dataset()
 
         for a_cfg in attribute_configs:
+            if a_cfg.defer_copy:
+                continue
+
             for src_kw in a_cfg.get_source_keywords():
                 if src_kw in source:
                     setattr(
@@ -908,9 +945,11 @@ class _LegacyConversionRunner:
     def _add_functional_group(
         self,
         sequence_name: str,
-        attribute_configs: list[_AttributeConfig],
-        further_source_attributes: list[str] | None = None,
+        required_attributes: list[_AttributeConfig],
+        optional_attributes: list[_AttributeConfig] | None = None,
         custom_logic_callback: Callable[[Dataset, Dataset], None] | None = None,
+        required: bool = True,
+        can_be_shared: bool = True,
     ) -> None:
         """Add a functional group to the destination dataset.
 
@@ -918,8 +957,11 @@ class _LegacyConversionRunner:
         ----------
         sequence_name: str
             Name of the sequence where the functional group will be placed.
-        attribute_configs: list[highdicom.legacy.sop._AttributeConfig]
-            Configurations for each attribute to place into the sequence.
+        required_attributes: list[highdicom.legacy.sop._AttributeConfig]
+            Configurations for each attribute required in the output sequence.
+        optional_attributes: list[highdicom.legacy.sop._AttributeConfig]
+            Configurations for optional attributes that will be placed into the
+            output sequence if possible.
         further_source_attributes: list[str]
             Keywords for further attributes that are not copied to the destination
             but should be checked for presence and consistency in the source to
@@ -931,41 +973,50 @@ class _LegacyConversionRunner:
             Callback implementing custom logic to call after the other parameters
             have been copied. Takes the source and destination datasets as input
             parameters and has no return value.
+        required: bool
+            Whether this functional group is required. If so, an error will be
+            raised if it cannot be populated.
+        can_be_shared: bool
+            Whether it is permissible to place this in the shared functional
+            groups.
 
         """  # noqa: E501
+        if optional_attributes is None:
+            optional_attributes = []
+
         # If any attribute is per-frame, the whole functional group is
         # per-frame
         any_attr_is_per_frame = False
         any_attr_exists = False
-        for a_cfg in attribute_configs:
-            if a_cfg.default_val is not None:
-                any_attr_exists = True
-
-            for kw in a_cfg.get_source_keywords():
-                if kw in self._keyword_shared_dict:
-                    any_attr_exists = True
-                    if not self._keyword_shared_dict[kw]:
-                        any_attr_is_per_frame = True
+        all_required_attrs_exist = True
+        for configs, required_attr in zip(
+            [required_attributes, optional_attributes], [True, False]
+        ):
+            for a_cfg in configs:
+                for kw in a_cfg.get_source_keywords():
+                    if kw in self._keyword_shared_dict:
+                        any_attr_exists = True
+                        if not self._keyword_shared_dict[kw]:
+                            any_attr_is_per_frame = True
                         break
+                else:
+                    if a_cfg.default_val is not None:
+                        any_attr_exists = True
+                    elif required_attr:
+                        all_required_attrs_exist = False
+                        if required:
+                            raise ValueError(
+                                'Cannot determine value for required attribute '
+                                f"'{a_cfg.dest_kw}' in the '{sequence_name}'."
+                            )
 
-            if any_attr_is_per_frame:
-                # We already have all the information we need
-                break
+        if not required and not all_required_attrs_exist:
+            # Do not include this functional group. Nothing more to do
+            return
 
-        if further_source_attributes is not None:
-            for kw in further_source_attributes:
-                if kw in self._keyword_shared_dict:
-                    any_attr_exists = True
+        attribute_configs = required_attributes + optional_attributes
 
-                    if not self._keyword_shared_dict[kw]:
-                        any_attr_is_per_frame = True
-                        break
-
-                if any_attr_is_per_frame:
-                    # We already have all the information we need
-                    break
-
-        if any_attr_is_per_frame:
+        if any_attr_is_per_frame or not can_be_shared:
             # At least one attribute is per-frame, so need to place everything
             # in per-frame functional groups
             for src, pffg in zip(
@@ -1050,29 +1101,25 @@ class _LegacyConversionRunner:
             Dataset to copy to.
 
         """
-        if (
-            'RescaleSlope' in destination or
-            'RescaleIntercept' in destination
-        ):
-            value = 'US'  # unspecified
-            if source.get('Modality', '') == 'CT':
-                image_type_v = (
-                    [] if 'ImageType' not in source
-                    else source['ImageType'].value
-                )
-                if not any(
-                    i == 'LOCALIZER' for i in image_type_v
-                ):
-                    value = 'HU'
-            else:
-                value = 'US'
+        value = 'US'  # unspecified
+        if source.get('Modality', '') == 'CT':
+            image_type_v = (
+                [] if 'ImageType' not in source
+                else source['ImageType'].value
+            )
+            if not any(
+                i == 'LOCALIZER' for i in image_type_v
+            ):
+                value = 'HU'
+        else:
+            value = 'US'
 
-            if 'RescaleType' not in destination:
-                destination.RescaleType = value
-            elif destination.RescaleType != value:
-                # keep the copied value as LUT explanation
-                destination.LUTExplanation = destination.RescaleType
-                destination.RescaleType = value
+        if 'RescaleType' not in destination:
+            destination.RescaleType = value
+        elif destination.RescaleType != value:
+            # keep the copied value as LUT explanation
+            destination.LUTExplanation = destination.RescaleType
+            destination.RescaleType = value
 
     def _frame_type_custom_logic(
         self,
@@ -1120,20 +1167,22 @@ class _LegacyConversionRunner:
             Dataset to copy to.
 
         """
-        if not hasattr(destination, 'AnatomicRegionSequence'):
-            if hasattr(source, 'BodyPartExamined'):
-                # Attempt to map to AnatomicRegionSequence. This mapping is
-                # required by the standard but the AnatomicRegionSequence may be
-                # omitted in the body part examined is not present or has a
-                # non-standard value.
-                mapping = _get_anatomic_region_mapping()
-                if source.BodyPartExamined in mapping:
-                    code = mapping[source.BodyPartExamined]
+        if hasattr(source, 'AnatomicRegionSequence'):
+            destination.AnatomicRegionSequence = deepcopy(
+                source.AnatomicRegionSequence
+            )
+        else:
+            # Due to earlier checks, should have BodyPartExamined if we get
+            # here
+            # Attempt to map to AnatomicRegionSequence. This mapping is
+            # required by the standard but the AnatomicRegionSequence may be
+            # omitted in the body part examined is not present or has a
+            # non-standard value.
+            mapping = _get_anatomic_region_mapping()
+            if source.BodyPartExamined in mapping:
+                code = mapping[source.BodyPartExamined]
 
-                    destination.AnatomicRegionSequence = [code]
-            else:
-                pass
-                # TODO should remove the entire sequence here :(
+                destination.AnatomicRegionSequence = [code]
 
         # Determine the required frame laterality. First check the modifier of
         # the primary anatomic structure and map following Part 3 Section 10.5
