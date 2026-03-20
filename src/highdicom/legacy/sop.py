@@ -1,6 +1,4 @@
 """ Module for SOP Classes of Legacy Converted Enhanced Image IODs.
-For the most part the single frame to multi-frame conversion logic is taken
-from `PixelMed <https://www.dclunie.com>`_ by David Clunie
 
 """
 from collections import Counter
@@ -13,10 +11,9 @@ import json
 import logging
 import pkgutil
 from sys import float_info
-from typing import cast, Any, Union, Callable, Generator, Sequence, Tuple
+from typing import Any, Union, Callable, Generator, Sequence, Tuple
 
-from pydicom.datadict import tag_for_keyword, dictionary_VR
-from pydicom.dataelem import DataElement
+from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.encaps import encapsulate, encapsulate_extended
 from pydicom.tag import BaseTag
@@ -227,202 +224,16 @@ class _LegacyConversionRunner:
     ) -> None:
         self._legacy_datasets = list(legacy_datasets)
         self._destination = destination
-        self._tag_shared_dict = {}
-        self._unused_tags = set()
-
-    def _get_tags_present(self) -> dict[BaseTag, bool]:
-        """Find tags present in any dataset and whether they are shared.
-
-        Returns
-        -------
-        tag_shared_dict: dict[pydicom.tag.BaseTag, bool]
-            Dictionary whose keys include all tags present in any dataset. The
-            corresponding value is a boolean that indicates whether that tag
-            is consistent (in presence and value) across all datasets.
-
-        """
-        # Tags that should not be included in the list because they require
-        # some special treatment
-        exclusions = {
-            # Acquisition times require merging across the instances
-            tag_for_keyword('AcquisitionDateTime'),
-            tag_for_keyword('AcquisitionDate'),
-            tag_for_keyword('AcquisitionTime'),
-
-            # TODO why is this here?
-            tag_for_keyword('SpecificCharacterSet'),
-        }
-
-        all_tags_present = set()
-        for ds in self._legacy_datasets:
-            for t in ds.keys():
-                if (
-                    not _istag_file_meta_information_group(t) and
-                    not _istag_repeating_group(t) and
-                    not _istag_group_length(t) and
-                    t not in exclusions
-                ):
-                    all_tags_present.add(t)
-
-        tag_shared_dict: dict[BaseTag, bool] = {}
-
-        for t in all_tags_present:
-            present_in_all = all(t in ds for ds in self._legacy_datasets)
-
-            same_value_in_all = False
-            if present_in_all:
-                ref_val = self._legacy_datasets[0][t].value
-                same_value_in_all = all(
-                    ds[t].value == ref_val for ds in self._legacy_datasets
-                )
-
-            tag_shared_dict[t] = present_in_all and same_value_in_all
-
-        return tag_shared_dict
-
-    def _check_attribute_consistency(
-        self,
-        check_geometry: bool = True,
-        check_series_instance_uid: bool = True,
-    ) -> None:
-        """Check whether a list of instances is valid for legacy conversion.
-
-        Checks that a specified list of attributes is consistent for all
-        provided datasets.
-
-        Parameters
-        ----------
-        tag_shared_dict: dict[pydicom.uid.BaseTag, bool]
-            Dictionary whose keys include all tags present in any dataset. The
-            corresponding value is a boolean that indicates whether that tag
-            is consistent (in presence and value) across all datasets.
-        check_geometry: bool, optional
-            If True, require that the orientations, slice thickness, and pixel
-            spacings of all instances are the same.
-        check_series_instance_uid: bool, optional
-            If True, require that all instances belong to the same series. This
-            is not a strict requirement of the standard.
-
-        Raises
-        ------
-        ValueError:
-            If the legacy datasets have inconsistencies in attributes that are
-            required to be consistent.
-
-        """
-        # List of attributes that must be consistent across instances for the
-        # conversion to be valid
-        consistent_attributes = _CONSISTENT_KEYWORDS.copy()
-
-        if check_geometry:
-            consistent_attributes.extend(
-                [
-                    'ImageOrientationPatient',
-                    'PixelSpacing',
-                    'SliceThickness',
-                ]
-            )
-        if check_series_instance_uid:
-            consistent_attributes.append('SeriesInstanceUID')
-
-        inconsistencies = []
-
-        for attr in consistent_attributes:
-            t = BaseTag(tag_for_keyword(attr))
-
-            if not self._tag_shared_dict.get(t, True):
-                inconsistencies.append(attr)
-
-        if len(inconsistencies) > 0:
-            inconsistencies_str = ", ".join(inconsistencies)
-            raise ValueError(
-                "The legacy instances provided are not a valid source for a "
-                "legacy conversion because the presence and/or values the "
-                "following attribute(s) is not consistent between instances: "
-                f"{inconsistencies_str}."
-            )
-
-    def _copy_attrib_if_present(
-        self,
-        src_ds: Dataset,
-        dest_ds: Dataset,
-        src_kw: str,
-        dest_kw: str | None = None,
-        ignore_if_perframe: bool = True,
-    ) -> None:
-        """Copies a dicom attribute value from a keyword in the source Dataset
-        to the same keyword or a different keyword in the destination Dataset
-
-        Parameters
-        ----------
-        src_ds: pydicom.Dataset
-            Source dataset to copy the attribute from.
-        dest_ds: pydicom.Dataset
-            Destination dataset to copy the attribute to.
-        src_kw: str
-            The keyword from the source dataset to copy.
-        dest_kw: str | None, optional
-            The keyword of the destination dataset, to copy the value to. If
-            None, then the source keyword is used.
-        ignore_if_perframe: bool
-            If true, then copy is aborted if the source attribute is per-frame.
-
-        """
-        src_tg = BaseTag(cast(int, tag_for_keyword(src_kw)))
-
-        if dest_kw is None:
-            dest_tg = src_tg
-        else:
-            dest_tg = BaseTag(cast(int, tag_for_keyword(dest_kw)))
-
-        if ignore_if_perframe:
-            if not self._tag_shared_dict.get(src_tg, True):
-                return
-
-        if src_tg in src_ds:
-            elem = src_ds[src_tg]
-
-            new_elem = deepcopy(elem)
-            if dest_tg == src_tg:
-                dest_ds[dest_tg] = new_elem
-            else:
-                new_elem1 = DataElement(
-                    dest_tg,
-                    dictionary_VR(dest_tg),
-                    new_elem.value
-                )
-                dest_ds[dest_tg] = new_elem1
-
-            # Mark this tag as used
-            if src_tg in self._unused_tags:
-                self._unused_tags.remove(src_tg)
-
-    def _mark_tag_used(self, tag: BaseTag) -> None:
-        """Record that a tag in the source files has been used.
-
-        Parameters
-        ----------
-        tag: pydicom.tag.BaseTag
-            The tag to mark as used.
-
-        """
-        if tag in self._unused_tags:
-            self._unused_tags.remove(tag)
-
-    def _mark_keyword_used(self, kw: str) -> None:
-        """Record that a keyword in the source files has been used.
-
-        Parameters
-        ----------
-        kw: str
-            Attribute keyword to mark as used.
-
-        """
-        self._mark_tag_used(BaseTag(cast(int, tag_for_keyword(kw))))
+        self._keyword_shared_dict: dict[str, bool] = {}
+        self._unused_keywords: set[str] = set()
+        self._private_tag_shared_dict: dict[BaseTag, bool]
 
     def run(self) -> None:
         """Run conversion."""
-        self._tag_shared_dict = self._get_tags_present()
+        (
+            self._keyword_shared_dict,
+            self._private_tag_shared_dict
+        ) = self._find_shared_and_perframe_attributes()
         self._check_attribute_consistency()
 
         # List of attributes that should never be placed into the
@@ -436,11 +247,12 @@ class _LegacyConversionRunner:
             'AcquisitionTime',
             'AcquisitionDateTime',
             'ImageType',
+            # TODO why is this here?
+            'SpecificCharacterSet',
         ]
-        excluded_tags = [tag_for_keyword(kw) for kw in excluded_keywords]
-        self._unused_tags = {
-            t for t in self._tag_shared_dict.keys()
-            if t not in excluded_tags
+        self._unused_keywords = {
+            kw for kw in self._keyword_shared_dict.keys()
+            if kw not in excluded_keywords
         }
 
         # The name of the "Enhanced X Image" module within the IOD being
@@ -719,9 +531,149 @@ class _LegacyConversionRunner:
             )
 
         # Miscellaneous other tasks
-        self._add_stack_info_frame_content()
         self._add_image_type()
+        self._add_stack_info_frame_content()
+        self._add_referenced_image_functional_group()
         self._add_unassigned_attributes()
+
+    def _find_shared_and_perframe_attributes(self) -> tuple[
+        dict[str, bool], dict[BaseTag, bool]
+    ]:
+        """Find attributes present in any dataset and whether they are shared.
+
+        The conversion logic is draws on from `PixelMed
+        <https://www.dclunie.com>`_ by David Clunie.
+
+        Returns
+        -------
+        keyword_shared_dict: dict[str, bool]
+            Dictionary whose keys include all (standard) keywords present in
+            any dataset. The corresponding value is a boolean that indicates
+            whether that tag is consistent (in presence and value) across all
+            datasets.
+        private_tag_shared_dict: dict[pydicom.tag.BaseTag, bool]
+            Dictionary whose keys include all (standard) keywords present in
+            any dataset. The corresponding value is a boolean that indicates
+            whether that tag is consistent (in presence and value) across all
+            datasets.
+
+        """
+        all_keywords_present = set()
+        all_private_tags_present = set()
+        for ds in self._legacy_datasets:
+            for t in ds.keys():
+                if (
+                    not _istag_file_meta_information_group(t) and
+                    not _istag_repeating_group(t) and
+                    not _istag_group_length(t)
+                ):
+                    if t.is_private:
+                        if not t.is_private_creator:
+                            all_private_tags_present.add(t)
+                    else:
+                        all_keywords_present.add(keyword_for_tag(t))
+
+        keyword_shared_dict: dict[str, bool] = {}
+
+        for kw in all_keywords_present:
+            present_in_all = all(kw in ds for ds in self._legacy_datasets)
+
+            same_value_in_all = False
+            if present_in_all:
+                ref_val = getattr(self._legacy_datasets[0], kw)
+                same_value_in_all = all(
+                    getattr(ds, kw) == ref_val for ds in self._legacy_datasets
+                )
+
+            keyword_shared_dict[kw] = present_in_all and same_value_in_all
+
+        private_tag_shared_dict: dict[BaseTag, bool] = {}
+
+        for t in all_private_tags_present:
+            present_in_all = all(t in ds for ds in self._legacy_datasets)
+
+            same_value_in_all = False
+            if present_in_all:
+                ref_val = self._legacy_datasets[0][t].value
+                same_value_in_all = all(
+                    ds[t].value == ref_val for ds in self._legacy_datasets
+                )
+
+            private_tag_shared_dict[t] = present_in_all and same_value_in_all
+
+        return keyword_shared_dict, private_tag_shared_dict
+
+    def _check_attribute_consistency(
+        self,
+        check_geometry: bool = True,
+        check_series_instance_uid: bool = True,
+    ) -> None:
+        """Check whether a list of instances is valid for legacy conversion.
+
+        Checks that a specified list of attributes is consistent for all
+        provided datasets.
+
+        Parameters
+        ----------
+        tag_shared_dict: dict[pydicom.uid.BaseTag, bool]
+            Dictionary whose keys include all tags present in any dataset. The
+            corresponding value is a boolean that indicates whether that tag
+            is consistent (in presence and value) across all datasets.
+        check_geometry: bool, optional
+            If True, require that the orientations, slice thickness, and pixel
+            spacings of all instances are the same.
+        check_series_instance_uid: bool, optional
+            If True, require that all instances belong to the same series. This
+            is not a strict requirement of the standard.
+
+        Raises
+        ------
+        ValueError:
+            If the legacy datasets have inconsistencies in attributes that are
+            required to be consistent.
+
+        """
+        # List of attributes that must be consistent across instances for the
+        # conversion to be valid
+        consistent_attributes = _CONSISTENT_KEYWORDS.copy()
+
+        if check_geometry:
+            consistent_attributes.extend(
+                [
+                    'ImageOrientationPatient',
+                    'PixelSpacing',
+                    'SliceThickness',
+                ]
+            )
+        if check_series_instance_uid:
+            consistent_attributes.append('SeriesInstanceUID')
+
+        inconsistencies = []
+
+        for attr in consistent_attributes:
+            if not self._keyword_shared_dict.get(attr, True):
+                inconsistencies.append(attr)
+
+        if len(inconsistencies) > 0:
+            inconsistencies_str = ", ".join(inconsistencies)
+            raise ValueError(
+                "The legacy instances provided are not a valid source for a "
+                "legacy conversion because the presence and/or values the "
+                "following attribute(s) is not consistent between instances: "
+                f"{inconsistencies_str}."
+            )
+
+    def _mark_keyword_used(self, kw: str) -> None:
+        """Record that a keyword in the source files has been used.
+
+        Parameters
+        ----------
+        kw: str
+            Attribute keyword to mark as used.
+
+        """
+        if kw in self._unused_keywords:
+            self._unused_keywords.remove(kw)
 
     def _add_module(
         self,
@@ -735,16 +687,17 @@ class _LegacyConversionRunner:
         Parameters
         ----------
         module_name: str
-            Name of the module (in highdicom's module list). This format uses lower
-            case and hyphens to separate words.
+            Name of the module (in highdicom's module list). This format uses
+            lower case and hyphens to separate words, e.g. "general-series".
         attribute_configs: list[highdicom.legacy.sop._AttributeConfig] | None
             Attribute-level configurations. Configurations are only required for
             attributes that deviate from the default behavior.
         skip_attributes: list[str] | None
             List of attributes to skip.
         custom_logic_callback: Callable[[], None] | None
-            Callback implementing custom logic to call after the other parameters
-            have been copied. Takes no parameters and has no return value.
+            Callback implementing custom logic to call after the other
+            parameters have been copied. Takes no parameters and has no return
+            value.
 
         """
         module_usage = get_module_usage(
@@ -818,10 +771,8 @@ class _LegacyConversionRunner:
                     src_kws = [dest_kw]
 
                 for src_kw in src_kws:
-                    tag = BaseTag(cast(int, tag_for_keyword(src_kw)))
-
-                    if tag in self._tag_shared_dict:
-                        if self._tag_shared_dict[tag]:
+                    if src_kw in self._keyword_shared_dict:
+                        if self._keyword_shared_dict[src_kw]:
                             yield (
                                 dest_kw,
                                 info['type'],
@@ -906,48 +857,6 @@ class _LegacyConversionRunner:
         if custom_logic_callback is not None:
             custom_logic_callback()
 
-    def _common_enhanced_image_custom_logic(self):
-        """Custom logic applicable to Enhanced CT/MR/PET Image modules."""
-        # These attributes should be YES if any source has YES, NO if all
-        # sources have NO, and skipped otherwise
-        for kw in [
-            'BurnedInAnnotation',
-            'RecognizableVisualFeatures',
-            'LossyImageCompression'
-        ]:
-            if any(
-                hasattr(src, kw) and
-                getattr(src, kw) == 'YES'
-                for src in self._legacy_datasets
-            ):
-                setattr(self._destination, kw, 'YES')
-            elif all(
-                hasattr(src, kw) and
-                getattr(src, kw) == 'NO'
-                for src in self._legacy_datasets
-            ):
-                setattr(self._destination, kw, 'NO')
-
-        if any(
-            hasattr(src, 'LossyImageCompressionRatio')
-            for src in self._legacy_datasets
-        ):
-            sum_compression_ratio = 0.0
-            for fr_ds in self._legacy_datasets:
-                if 'LossyImageCompressionRatio' in fr_ds:
-                    ratio = fr_ds.LossyImageCompressionRatio
-                    try:
-                        sum_compression_ratio += float(ratio)
-                    except BaseException:
-                        sum_compression_ratio += 1  # supposing uncompressed
-                else:
-                    sum_compression_ratio += 1
-            avg_compression_ratio = (
-                sum_compression_ratio / len(self._legacy_datasets)
-            )
-            avg_ratio_str = '{:.6f}'.format(avg_compression_ratio)
-            self._destination.LossyImageCompressionRatio = avg_ratio_str
-
     def _copy_to_functional_group(
         self,
         source: Dataset,
@@ -978,13 +887,12 @@ class _LegacyConversionRunner:
         for a_cfg in attribute_configs:
             for src_kw in a_cfg.get_source_keywords():
                 if src_kw in source:
-                    self._copy_attrib_if_present(
-                        source,
+                    setattr(
                         item,
-                        src_kw,
                         a_cfg.dest_kw,
-                        ignore_if_perframe=False,
+                        getattr(source, src_kw),
                     )
+                    self._mark_keyword_used(src_kw)
                     break
             else:
                 # Information was not found in the source dataset. Use the
@@ -1034,11 +942,9 @@ class _LegacyConversionRunner:
                 any_attr_exists = True
 
             for kw in a_cfg.get_source_keywords():
-                tag = BaseTag(cast(int, tag_for_keyword(kw)))
-
-                if tag in self._tag_shared_dict:
+                if kw in self._keyword_shared_dict:
                     any_attr_exists = True
-                    if not self._tag_shared_dict[tag]:
+                    if not self._keyword_shared_dict[kw]:
                         any_attr_is_per_frame = True
                         break
 
@@ -1048,12 +954,10 @@ class _LegacyConversionRunner:
 
         if further_source_attributes is not None:
             for kw in further_source_attributes:
-                tag = tag_for_keyword(kw)
-
-                if tag in self._tag_shared_dict:
+                if kw in self._keyword_shared_dict:
                     any_attr_exists = True
 
-                    if not self._tag_shared_dict[tag]:
+                    if not self._keyword_shared_dict[kw]:
                         any_attr_is_per_frame = True
                         break
 
@@ -1086,6 +990,48 @@ class _LegacyConversionRunner:
             )
 
         # Else nothing to copy
+
+    def _common_enhanced_image_custom_logic(self):
+        """Custom logic applicable to Enhanced CT/MR/PET Image modules."""
+        # These attributes should be YES if any source has YES, NO if all
+        # sources have NO, and skipped otherwise
+        for kw in [
+            'BurnedInAnnotation',
+            'RecognizableVisualFeatures',
+            'LossyImageCompression'
+        ]:
+            if any(
+                hasattr(src, kw) and
+                getattr(src, kw) == 'YES'
+                for src in self._legacy_datasets
+            ):
+                setattr(self._destination, kw, 'YES')
+            elif all(
+                hasattr(src, kw) and
+                getattr(src, kw) == 'NO'
+                for src in self._legacy_datasets
+            ):
+                setattr(self._destination, kw, 'NO')
+
+        if any(
+            hasattr(src, 'LossyImageCompressionRatio')
+            for src in self._legacy_datasets
+        ):
+            sum_compression_ratio = 0.0
+            for fr_ds in self._legacy_datasets:
+                if 'LossyImageCompressionRatio' in fr_ds:
+                    ratio = fr_ds.LossyImageCompressionRatio
+                    try:
+                        sum_compression_ratio += float(ratio)
+                    except BaseException:
+                        sum_compression_ratio += 1  # supposing uncompressed
+                else:
+                    sum_compression_ratio += 1
+            avg_compression_ratio = (
+                sum_compression_ratio / len(self._legacy_datasets)
+            )
+            avg_ratio_str = '{:.6f}'.format(avg_compression_ratio)
+            self._destination.LossyImageCompressionRatio = avg_ratio_str
 
     def _pixel_value_transformation_custom_logic(
         self,
@@ -1275,8 +1221,8 @@ class _LegacyConversionRunner:
                 'AcquisitionTime'
             ]
             if all(
-                self._tag_shared_dict.get(tag_for_keyword(t), True)
-                for t in acq_time_kws
+                self._keyword_shared_dict.get(kw, True)
+                for kw in acq_time_kws
             ):
                 if (
                     'TriggerTime' in source and
@@ -1326,9 +1272,9 @@ class _LegacyConversionRunner:
         separately here.
 
         """
-        t = BaseTag(cast(int, tag_for_keyword('ReferencedImageSequence')))
-        if t in self._tag_shared_dict:
-            if self._tag_shared_dict[t]:
+        kw = 'ReferencedImageSequence'
+        if kw in self._keyword_shared_dict:
+            if self._keyword_shared_dict[kw]:
                 # Reference are shared
                 (
                     self
@@ -1346,6 +1292,8 @@ class _LegacyConversionRunner:
                         src.ReferencedImageSequence
                     )
 
+            self._mark_keyword_used(kw)
+
     def _add_unassigned_attributes(self) -> None:
         """Add all unassigned attributes.
 
@@ -1354,15 +1302,23 @@ class _LegacyConversionRunner:
         into the relevant sequence in either the shared or per-frame functional
         groups.
 
-        This may include private attributes.
+        This includes private attributes.
 
         """
-        if len(self._unused_tags) == 0:
+        if (
+            len(self._unused_keywords) == 0 and
+            len(self._private_tag_shared_dict) == 0
+        ):
             # Nothing to do
             return
 
         # Shared
-        if any(self._tag_shared_dict[t] for t in self._unused_tags):
+        if (
+            any(
+                self._keyword_shared_dict[kw] for kw in self._unused_keywords
+            ) or
+            any(self._private_tag_shared_dict.values())
+        ):
             (
                 self
                 ._destination
@@ -1371,30 +1327,102 @@ class _LegacyConversionRunner:
             ) = [Dataset()]
 
         # Per-frame
-        if any(not self._tag_shared_dict[t] for t in self._unused_tags):
+        if (
+            any(
+                not self._keyword_shared_dict[kw]
+                for kw in self._unused_keywords
+            ) or
+            any(not shared for shared in self._private_tag_shared_dict.values())
+        ):
             for pffg in self._destination.PerFrameFunctionalGroupsSequence:
                 pffg.UnassignedPerFrameConvertedAttributesSequence = [
                     Dataset()
                 ]
 
-        for t in self._unused_tags:
-            if self._tag_shared_dict[t]:
-                (
+        for kw in self._unused_keywords:
+            if self._keyword_shared_dict[kw]:
+                setattr(
                     self
                     ._destination
                     .SharedFunctionalGroupsSequence[0]
-                    .UnassignedSharedConvertedAttributesSequence
-                )[0][t] = self._legacy_datasets[0][t]
+                    .UnassignedSharedConvertedAttributesSequence[0],
+                    kw,
+                    deepcopy(getattr(self._legacy_datasets[0], kw)),
+                )
 
             else:
                 for src, pffg in zip(
                     self._legacy_datasets,
                     self._destination.PerFrameFunctionalGroupsSequence,
                 ):
+                    seq = pffg.UnassignedPerFrameConvertedAttributesSequence[0]
+                    if kw in src:
+                        setattr(
+                            seq,
+                            kw,
+                            deepcopy(getattr(src, kw)),
+                        )
+
+        # Private tags (these will all be unused at this stage)
+        for t, shared in self._private_tag_shared_dict.items():
+            if shared:
+                self._copy_private_attribute(
+                    t,
+                    self._legacy_datasets[0],
                     (
-                        pffg
-                        .UnassignedPerFrameConvertedAttributesSequence
-                    )[0][t] = src[t]
+                        self
+                        ._destination
+                        .SharedFunctionalGroupsSequence[0]
+                        .UnassignedSharedConvertedAttributesSequence[0]
+                    ),
+                )
+
+            else:
+                for src, pffg in zip(
+                    self._legacy_datasets,
+                    self._destination.PerFrameFunctionalGroupsSequence,
+                ):
+                    seq = pffg.UnassignedPerFrameConvertedAttributesSequence[0]
+                    if t in src:
+                        self._copy_private_attribute(
+                            t,
+                            src,
+                            seq,
+                        )
+
+    @staticmethod
+    def _copy_private_attribute(
+        tag: BaseTag,
+        source: Dataset,
+        destination: Dataset
+    ) -> None:
+        """Copy a private attribute from source to destination.
+
+        In addition to copying the tag and value, ensures that the private
+        creator information is also copied.
+
+        Parameters
+        ----------
+        tag: pydicom.tag.BaseTag
+            Tag for the attribute to be copied.
+        source: pydicom.Dataset
+            Dataset to copy from.
+        destination: pydicom.Dataset
+            Dataset to copy to.
+
+        """
+        # Ensure the private creator information is also copied
+        creator_tag = tag.private_creator
+
+        if creator_tag not in source:
+            # Skip private tags without creator information
+            return
+
+        if creator_tag not in destination:
+            destination[creator_tag] = deepcopy(source[creator_tag])
+
+        # Copy the attribute itself
+        destination[tag] = deepcopy(source[tag])
 
     def _add_image_type(self) -> None:
         """Set the (top-level) ImageType of the new dataset.
