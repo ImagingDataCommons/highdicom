@@ -2075,7 +2075,7 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
-            raise ValueError('No DICOM data sets of provided.')
+            raise ValueError('At least one legacy dataset must be provided.')
         if ref_ds.Modality != 'PT':
             raise ValueError(
                 'Wrong modality for conversion of legacy PET images.'
@@ -2092,9 +2092,9 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
             instance_number=instance_number,
             transfer_syntax_uid=transfer_syntax_uid,
             use_extended_offset_table=use_extended_offset_table,
-            sort_key=sort_key,
             workers=workers,
             contributing_equipment=contributing_equipment,
+            sort_key=sort_key,
             **kwargs
         )
 
@@ -2123,7 +2123,7 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
-            raise ValueError('No DICOM data sets of provided.')
+            raise ValueError('At least one legacy dataset must be provided.')
         if ref_ds.Modality != 'MR':
             raise ValueError(
                 'Wrong modality for conversion of legacy MR images.'
