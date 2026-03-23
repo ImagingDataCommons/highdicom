@@ -19,7 +19,7 @@ The LAD framework categorizes integration strategies as INTEGRATE / ENHANCE / NE
 | LAD Criterion | Highdicom Status | Score |
 |---|---|---|
 | **PEP 8 / Linting** | flake8 enforced in CI (line length 80) | Pass |
-| **Type Hints (PEP 484)** | Full coverage, mypy 1.15.0 checked in CI | Pass |
+| **Type Hints (PEP 484)** | Full coverage, mypy 1.15.0 in test deps (not run in CI workflow) | Pass |
 | **Docstrings (NumPy style)** | Comprehensive numpydoc on all public API | Pass |
 | **Complexity** | No explicit radon/max-complexity configured, but modules are well-factored into focused subpackages | Adequate |
 | **Python Version** | 3.10-3.14 tested | Pass |
@@ -33,14 +33,14 @@ The LAD framework categorizes integration strategies as INTEGRATE / ENHANCE / NE
 | LAD Criterion | Highdicom Status |
 |---|---|
 | **Coverage Threshold** | >=80% enforced in CI via `--cov-fail-under=80` (LAD targets 90%) |
-| **Test Suite Size** | 26,428 lines across 17 modules -- substantial |
+| **Test Suite Size** | ~26,300 lines across 20 test modules -- substantial |
 | **Test Design** | Component-appropriate: unit tests for content/spatial, integration tests for I/O and SOP classes |
-| **Test Data** | 1.3GB of real DICOM test files covering modalities and transfer syntaxes |
+| **Test Data** | ~9 MB of real DICOM test files (30 files) covering multiple modalities and transfer syntaxes |
 | **CI Matrix** | Python 3.10, 3.11, 3.13, 3.14 x with/without libjpeg |
 
 **LAD Root Cause Taxonomy risks:**
 - **INFRASTRUCTURE**: Clean -- pydicom >=3.0.1 is the only heavy dependency
-- **API_COMPATIBILITY**: Stable API within 0.x series; ~28 releases show incremental evolution, not breaking changes
+- **API_COMPATIBILITY**: Stable API within 0.x series; 46 releases show incremental evolution, not breaking changes
 - **TEST_DESIGN**: Tests are comprehensive, especially for seg (7k lines) and sr (6k lines)
 
 **LAD verdict:** Solid testing foundation. The 80% floor is below LAD's 90% target but realistic for a domain-specific library with large generated modules (`_modules.py` at 28MB). Test data is real-world DICOM, not synthetic -- a significant quality signal.
@@ -52,8 +52,8 @@ The LAD framework categorizes integration strategies as INTEGRATE / ENHANCE / NE
 | LAD Level | Highdicom Coverage |
 |---|---|
 | **Level 1 (Plain English)** | Good README, overview docs, peer-reviewed paper (JDI 2022) |
-| **Level 2 (API Reference)** | Full Sphinx autodoc hosted at readthedocs.io, 29 .rst files |
-| **Level 3 (Code Examples)** | Jupyter notebooks in `examples/`, Dockerized environment, per-module usage guides |
+| **Level 2 (API Reference)** | Full Sphinx autodoc hosted at readthedocs.io, 31 .rst files |
+| **Level 3 (Code Examples)** | Jupyter notebook in `examples/notebooks/`, Dockerized environment, per-module usage guides in docs |
 
 **LAD verdict:** Exceeds typical research software documentation. The peer-reviewed publication is a strong signal -- design decisions are academically documented and defensible.
 
@@ -65,17 +65,17 @@ The LAD framework categorizes integration strategies as INTEGRATE / ENHANCE / NE
 
 | Risk Factor | Assessment |
 |---|---|
-| **Maintainer concentration** | CPBridge: 685/1686 commits (65%). hackermd (20%) appears less active recently |
+| **Maintainer concentration** | Chris Bridge: ~779/1132 commits (69%). hackermd: 159 (14%), less active recently |
 | **Institutional backing** | NCI Imaging Data Commons, MGH/BWH, QIICR -- federally funded |
 | **Response time** | 0-1 days on issues -- excellent |
 | **Release cadence** | 6 releases in 2025, active feature branches for v0.28.0 |
-| **Community size** | 220 stars, 48 forks, 19 contributors, ~41K monthly PyPI downloads |
+| **Community size** | 220 stars, 48 forks, 28 contributors, ~41K monthly PyPI downloads |
 | **Deprecation risk** | Low -- backed by NCI IDC which is a major NIH initiative |
 
 **CI Status (as of review date):** The latest master commit (22b0b79) has a failing CI run. The failure is a time-of-day-dependent bug in `test_series_datetime` -- the test passes `series_time=12:34:56` without explicit `content_time`, which defaults to `now.time()`. When CI runs before 12:34:56 UTC, the validation `series_time > content_time` fires incorrectly. The root cause is a logic bug in `base.py:296-300`: the time comparison is performed even when `series_date != content_date`, which is semantically wrong (if a series is from a past date, its time-of-day is irrelevant relative to today's content time). A fix has been prepared -- see the Appendix below.
 
 **LAD Regression Risk Matrix:**
-- **Low risk**: API stability (28 releases in 0.x with incremental evolution)
+- **Low risk**: API stability (46 releases in 0.x with incremental evolution)
 - **Medium risk**: Single-maintainer dependency
 - **Low risk**: Institutional defunding (federal/NIH multi-source funding)
 
@@ -136,7 +136,7 @@ Adopting highdicom would let heudiconv address:
 | Community Health | **Moderate** | Active but bus-factor-1; strong institutional backing mitigates |
 | Integration Fit | **Partial** | Excellent for standard DICOM metadata; does not cover vendor-private tags |
 | Risk | **Low-Medium** | Main risk is maintainer concentration; offset by NIH/NCI backing |
-| API Stability | **Strong** | 28 releases in 0.x with incremental evolution |
+| API Stability | **Strong** | 46 releases in 0.x with incremental evolution |
 
 ---
 
