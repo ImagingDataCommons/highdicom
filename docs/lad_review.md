@@ -65,11 +65,11 @@ The LAD framework categorizes integration strategies as INTEGRATE / ENHANCE / NE
 
 | Risk Factor | Assessment |
 |---|---|
-| **Maintainer concentration** | Chris Bridge: ~779/1132 commits (69%). hackermd: 159 (14%), less active recently |
+| **Maintainer concentration** | Christopher P. Bridge: 791/1134 commits (70%). Markus D. Herrmann: 233 (21%), less active recently |
 | **Institutional backing** | NCI Imaging Data Commons, MGH/BWH, QIICR -- federally funded |
 | **Response time** | 0-1 days on issues -- excellent |
 | **Release cadence** | 6 releases in 2025, active feature branches for v0.28.0 |
-| **Community size** | 220 stars, 48 forks, 28 contributors, ~41K monthly PyPI downloads |
+| **Community size** | 220 stars, 48 forks, 20 contributors, ~41K monthly PyPI downloads |
 | **Deprecation risk** | Low -- backed by NCI IDC which is a major NIH initiative |
 
 **CI Status (as of review date):** The latest master commit (22b0b79) has a failing CI run. The failure is a time-of-day-dependent bug in `test_series_datetime` -- the test passes `series_time=12:34:56` without explicit `content_time`, which defaults to `now.time()`. When CI runs before 12:34:56 UTC, the validation `series_time > content_time` fires incorrectly. The root cause is a logic bug in `base.py:296-300`: the time comparison is performed even when `series_date != content_date`, which is semantically wrong (if a series is from a past date, its time-of-day is irrelevant relative to today's content time). A fix has been prepared -- see the Appendix below.
