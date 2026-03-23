@@ -13,10 +13,13 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.14"
+<<<<<<< HEAD
   jobs:
     install:
       - pip install --upgrade pip
       - pip install . --group 'docs'
+=======
+>>>>>>> ec92b0750055472edb2bfb1e3c4a11ad2d506df8
 
 # Build documentation with MkDocs
 #mkdocs:
@@ -24,3 +27,14 @@ build:
 
 # Optionally build your docs in additional formats such as PDF and ePub
 formats: all
+<<<<<<< HEAD
+=======
+
+# Optionally set the version of Python and requirements required to build your docs
+python:
+  install:
+    - method: pip
+      path: .
+      dependency_groups:
+      - docs
+>>>>>>> ec92b0750055472edb2bfb1e3c4a11ad2d506df8
