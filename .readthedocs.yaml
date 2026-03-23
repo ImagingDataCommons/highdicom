@@ -10,9 +10,9 @@ sphinx:
   configuration: docs/conf.py
 
 build:
-  os: ubuntu-22.04
+  os: ubuntu-24.04
   tools:
-    python: "3.11"
+    python: "3.14"
 
 # Build documentation with MkDocs
 #mkdocs:
@@ -26,5 +26,5 @@ python:
   install:
     - method: pip
       path: .
-      extra_requirements:
+      dependency_groups:
       - docs
