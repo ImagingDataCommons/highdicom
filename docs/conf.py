@@ -28,7 +28,7 @@ author = 'Markus D. Herrmann, Christopher P. Bridge'
 # The full version, including alpha/beta/rc tags
 try:
     release = importlib.metadata.version("highdicom")
-except PackageNotFoundError:
+except importlib.metadata.PackageNotFoundError:
     print('Package "highdicom" must be installed to build docs.')
     sys.exit(1)
 
@@ -49,7 +49,7 @@ extensions = [
     'sphinxcontrib.autoprogram',
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
-    #'sphinx_autodoc_typehints',
+    # 'sphinx_autodoc_typehints',
     'sphinx.ext.extlinks',
 ]
 
