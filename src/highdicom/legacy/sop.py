@@ -463,7 +463,7 @@ class _LegacyConversionRunner:
             custom_logic_callback=self._frame_type_custom_logic,
         )
 
-        if self._include_frame_anatomy():
+        if self._check_frame_anatomy_condition():
             self._add_functional_group(
                 'FrameAnatomySequence',
                 [
@@ -576,6 +576,7 @@ class _LegacyConversionRunner:
         self._add_image_type()
         self._add_stack_info_frame_content()
         self._add_referenced_image_functional_group()
+        self._add_largest_smallest_pixel_value()
         self._add_unassigned_attributes()
 
     def _find_shared_and_perframe_attributes(self) -> tuple[
@@ -1167,7 +1168,7 @@ class _LegacyConversionRunner:
         ]
         setattr(destination, dest_kw, new_val)
 
-    def _include_frame_anatomy(self) -> bool:
+    def _check_frame_anatomy_condition(self) -> bool:
         """Determine whether to include a frame anatomy sequence.
 
         The frame anatomy functional group is conditionally required, but the
@@ -1572,6 +1573,34 @@ class _LegacyConversionRunner:
 
         self._destination.ImageType = [v1, v2, v3, v4]
 
+    def _add_largest_smallest_pixel_value(self) -> None:
+        """Adds the attributes for largest and smallest pixel value.
+
+        These must be aggregated using min/max across the series.
+
+        """
+        kw = 'LargestImagePixelValue'
+        if kw in self._keyword_shared_dict:
+            lval = float_info.min
+            for frame in self._legacy_datasets:
+                if kw in frame:
+                    lval = max(lval, getattr(frame, kw))
+
+            if lval > float_info.min:
+                setattr(self._destination, kw, int(lval))
+                self._mark_keyword_used(kw)
+
+        kw = 'SmallestImagePixelValue'
+        if kw in self._keyword_shared_dict:
+            lval = float_info.max
+            for frame in self._legacy_datasets:
+                if kw in frame:
+                    lval = min(lval, getattr(frame, kw))
+
+            if lval < float_info.max:
+                setattr(self._destination, kw, int(lval))
+                self._mark_keyword_used(kw)
+
 
 class _CommonLegacyConvertedEnhancedImage(Image):
 
@@ -1799,35 +1828,6 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             acquisition_datetime = DT(earliest_acquisition_date_time)
 
         return content_date, content_time, acquisition_datetime
-
-    def _add_largest_smallest_pixel_value(self) -> None:
-        """Adds the attributes for largest and smallest pixel value to
-        current SOPClass object
-
-        """
-        ltg = tag_for_keyword("LargestImagePixelValue")
-        lval = float_info.min
-        if ltg in self._perframe_tags:
-            for frame in self._legacy_datasets:
-                if ltg in frame:
-                    nval = frame[ltg].value
-                else:
-                    continue
-                lval = nval if lval < nval else lval
-            if lval > float_info.min:
-                self.LargestImagePixelValue = int(lval)
-
-        stg = tag_for_keyword("SmallestImagePixelValue")
-        sval = float_info.max
-        if stg in self._perframe_tags:
-            for frame in self._legacy_datasets:
-                if stg in frame:
-                    nval = frame[stg].value
-                else:
-                    continue
-                sval = nval if sval < nval else sval
-            if sval < float_info.max:
-                self.SmallestImagePixelValue = int(sval)
 
     def _copy_pixel_data(
         self,
