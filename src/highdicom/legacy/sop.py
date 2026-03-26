@@ -13,7 +13,7 @@ import pkgutil
 from sys import float_info
 from typing import Any, Union, Callable, Generator, Sequence, Tuple
 
-from pydicom.datadict import keyword_for_tag, tag_for_keyword
+from pydicom.datadict import keyword_for_tag
 from pydicom.dataset import Dataset
 from pydicom.encaps import encapsulate, encapsulate_extended
 from pydicom.tag import BaseTag
