@@ -233,6 +233,9 @@ class _LegacyConversionRunner:
         self,
         legacy_datasets: Sequence[Dataset],
         destination: Dataset,
+        workers: int | Executor = 0,
+        transfer_syntax_uid: str | None = None,
+        use_extended_offset_table: bool = False,
     ) -> None:
         """
 
@@ -246,6 +249,9 @@ class _LegacyConversionRunner:
         """
         self._legacy_datasets = list(legacy_datasets)
         self._destination = destination
+        self._transfer_syntax_uid = transfer_syntax_uid
+        self._workers = workers
+        self._use_extended_offset_table = use_extended_offset_table
         self._keyword_shared_dict: dict[str, bool] = {}
         self._unused_keywords: set[str] = set()
         self._private_tag_shared_dict: dict[BaseTag, bool]
@@ -578,6 +584,7 @@ class _LegacyConversionRunner:
         self._add_referenced_image_functional_group()
         self._add_largest_smallest_pixel_value()
         self._add_unassigned_attributes()
+        self._copy_pixel_data()
 
     def _find_shared_and_perframe_attributes(self) -> tuple[
         dict[str, bool], dict[BaseTag, bool]
@@ -1601,6 +1608,131 @@ class _LegacyConversionRunner:
                 setattr(self._destination, kw, int(lval))
                 self._mark_keyword_used(kw)
 
+    def _copy_pixel_data(self) -> None:
+        """Set pixel data by optionally transcoding and combining legacy frames.
+
+        Parameters
+        ----------
+        legacy_datasets: list[pydicom.Dataset]
+            Legacy datasets (in order) whose pixel data is to combined.
+        transfer_syntax_uid: str | None
+            Transfer syntax UID to use to encode the frames in the new object.
+            If None, the transfer syntax of the original objects is used.
+        workers: int | concurrent.futures.Executor, optional
+            Number of worker processes to use for frame compression, if
+            compression or transcoding is needed. If 0, no workers are used and
+            compression is performed in the main process (this is the default
+            behavior). If negative, as many processes are created as the
+            machine has processors.
+
+            Alternatively, you may directly pass an instance of a class derived
+            from ``concurrent.futures.Executor`` (most likely an instance of
+            ``concurrent.futures.ProcessPoolExecutor``) for highdicom to use.
+            You may wish to do this either to have greater control over the
+            setup of the executor, or to avoid the setup cost of spawning new
+            processes each time this ``__init__`` method is called if your
+            application creates a large number of objects.
+
+            Note that if you use worker processes, you must ensure that your
+            main process uses the ``if __name__ == "__main__"`` idiom to guard
+            against spawned child processes creating further workers.
+        use_extended_offset_table: bool, optional
+            Include an extended offset table instead of a basic offset table
+            for encapsulated transfer syntaxes. Extended offset tables avoid
+            size limitations on basic offset tables, and separate the offset
+            table from the pixel data by placing it into metadata. However,
+            they may be less widely supported than basic offset tables. This
+            parameter is ignored if using a native (uncompressed) transfer
+            syntax. The default value may change in a future release.
+
+        """
+        allowed_transfer_syntaxes = (
+            ImplicitVRLittleEndian,
+            ExplicitVRLittleEndian,
+            JPEG2000Lossless,
+            JPEG2000,
+            JPEGLSLossless,
+            JPEGBaseline8Bit,
+            RLELossless,
+        )
+        if (
+            self._transfer_syntax_uid is not None and
+            (self._transfer_syntax_uid not in allowed_transfer_syntaxes)
+        ):
+            raise ValueError(
+                f"Transfer syntax '{self._transfer_syntax_uid}' not recognized "
+                'or not supported.'
+            )
+
+        self._destination.NumberOfFrames = len(self._legacy_datasets)
+
+        src_tx_uid = self._legacy_datasets[0].file_meta.TransferSyntaxUID
+        if self._transfer_syntax_uid is None:
+            dst_tx_uid = src_tx_uid
+        else:
+            dst_tx_uid = UID(self._transfer_syntax_uid)
+
+        if not isinstance(self._workers, (int, Executor)):
+            raise TypeError(
+                'Argument "workers" must be of type int or '
+                'concurrent.futures.Executor (or a derived class).'
+            )
+        using_multiprocessing = (
+            isinstance(self._workers, Executor) or self._workers != 0
+        )
+
+        frames: list[bytes]
+
+        if (
+            (dst_tx_uid != src_tx_uid) and
+            (src_tx_uid.is_encapsulated or dst_tx_uid.is_encapsulated)
+        ):
+            if using_multiprocessing:
+                # Use the existing executor or create one
+                if isinstance(self._workers, Executor):
+                    process_pool = self._workers
+                else:
+                    # If workers is negative, pass None to use all processors
+                    process_pool = ProcessPoolExecutor(
+                        self._workers if self._workers > 0 else None
+                    )
+
+                futures = [
+                    process_pool.submit(
+                        _transcode_frame,
+                        dataset=ds,
+                        transfer_syntax_uid=dst_tx_uid,
+                    )
+                    for ds in self._legacy_datasets
+                ]
+
+                frames = [fut.result() for fut in futures]
+
+                if process_pool is not self._workers:
+                    process_pool.shutdown()
+
+            else:
+                frames = [
+                    _transcode_frame(ds, dst_tx_uid)
+                    for ds in self._legacy_datasets
+                ]
+
+        else:
+            # No transcoding is required, just concatenate frames
+            frames = [ds.PixelData for ds in self._legacy_datasets]
+
+        if dst_tx_uid.is_encapsulated:
+            if self._use_extended_offset_table:
+                (
+                    self._destination.PixelData,
+                    self._destination.ExtendedOffsetTable,
+                    self._destination.ExtendedOffsetTableLengths,
+                ) = encapsulate_extended(frames)
+            else:
+                self._destination.PixelData = encapsulate(frames)
+        else:
+            self._destination.PixelData = b''.join(frames)
+
 
 class _CommonLegacyConvertedEnhancedImage(Image):
 
@@ -1735,17 +1867,16 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             legacy_datasets[0],
         )
 
-        self._copy_pixel_data(
-            legacy_datasets,
-            transfer_syntax_uid=transfer_syntax_uid,
-            workers=workers,
-            use_extended_offset_table=use_extended_offset_table,
-        )
-
         if acquisition_datetime is not None:
             self.AcquisitionDateTime = acquisition_datetime
 
-        runner = _LegacyConversionRunner(legacy_datasets, self)
+        runner = _LegacyConversionRunner(
+            legacy_datasets,
+            destination=self,
+            workers=workers,
+            transfer_syntax_uid=transfer_syntax_uid,
+            use_extended_offset_table=use_extended_offset_table,
+        )
         runner.run()
 
         self._build_luts()
@@ -1828,137 +1959,6 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             acquisition_datetime = DT(earliest_acquisition_date_time)
 
         return content_date, content_time, acquisition_datetime
-
-    def _copy_pixel_data(
-        self,
-        legacy_datasets: list[Dataset],
-        transfer_syntax_uid: str | None,
-        workers: int | Executor = 0,
-        use_extended_offset_table: bool = False,
-    ) -> None:
-        """Set pixel data by optionally transcoding and combining legacy frames.
-
-        Parameters
-        ----------
-        legacy_datasets: list[pydicom.Dataset]
-            Legacy datasets (in order) whose pixel data is to combined.
-        transfer_syntax_uid: str | None
-            Transfer syntax UID to use to encode the frames in the new object.
-            If None, the transfer syntax of the original objects is used.
-        workers: int | concurrent.futures.Executor, optional
-            Number of worker processes to use for frame compression, if
-            compression or transcoding is needed. If 0, no workers are used and
-            compression is performed in the main process (this is the default
-            behavior). If negative, as many processes are created as the
-            machine has processors.
-
-            Alternatively, you may directly pass an instance of a class derived
-            from ``concurrent.futures.Executor`` (most likely an instance of
-            ``concurrent.futures.ProcessPoolExecutor``) for highdicom to use.
-            You may wish to do this either to have greater control over the
-            setup of the executor, or to avoid the setup cost of spawning new
-            processes each time this ``__init__`` method is called if your
-            application creates a large number of objects.
-
-            Note that if you use worker processes, you must ensure that your
-            main process uses the ``if __name__ == "__main__"`` idiom to guard
-            against spawned child processes creating further workers.
-        use_extended_offset_table: bool, optional
-            Include an extended offset table instead of a basic offset table
-            for encapsulated transfer syntaxes. Extended offset tables avoid
-            size limitations on basic offset tables, and separate the offset
-            table from the pixel data by placing it into metadata. However,
-            they may be less widely supported than basic offset tables. This
-            parameter is ignored if using a native (uncompressed) transfer
-            syntax. The default value may change in a future release.
-
-        """
-        allowed_transfer_syntaxes = (
-            ImplicitVRLittleEndian,
-            ExplicitVRLittleEndian,
-            JPEG2000Lossless,
-            JPEG2000,
-            JPEGLSLossless,
-            JPEGBaseline8Bit,
-            RLELossless,
-        )
-        if (
-            transfer_syntax_uid is not None and
-            (transfer_syntax_uid not in allowed_transfer_syntaxes)
-        ):
-            raise ValueError(
-                f"Transfer syntax '{transfer_syntax_uid}' not recognized or "
-                'not supported.'
-            )
-
-        self.NumberOfFrames = len(legacy_datasets)
-
-        src_tx_uid = legacy_datasets[0].file_meta.TransferSyntaxUID
-        if transfer_syntax_uid is None:
-            dst_tx_uid = src_tx_uid
-        else:
-            dst_tx_uid = UID(transfer_syntax_uid)
-
-        if not isinstance(workers, (int, Executor)):
-            raise TypeError(
-                'Argument "workers" must be of type int or '
-                'concurrent.futures.Executor (or a derived class).'
-            )
-        using_multiprocessing = (
-            isinstance(workers, Executor) or workers != 0
-        )
-
-        frames: list[bytes]
-
-        if (
-            (dst_tx_uid != src_tx_uid) and
-            (src_tx_uid.is_encapsulated or dst_tx_uid.is_encapsulated)
-        ):
-            if using_multiprocessing:
-                # Use the existing executor or create one
-                if isinstance(workers, Executor):
-                    process_pool = workers
-                else:
-                    # If workers is negative, pass None to use all processors
-                    process_pool = ProcessPoolExecutor(
-                        workers if workers > 0 else None
-                    )
-
-                futures = [
-                    process_pool.submit(
-                        _transcode_frame,
-                        dataset=ds,
-                        transfer_syntax_uid=dst_tx_uid,
-                    )
-                    for ds in legacy_datasets
-                ]
-
-                frames = [fut.result() for fut in futures]
-
-                if process_pool is not workers:
-                    process_pool.shutdown()
-
-            else:
-                frames = [
-                    _transcode_frame(ds, dst_tx_uid)
-                    for ds in legacy_datasets
-                ]
-
-        else:
-            # No transcoding is required, just concatenate frames
-            frames = [ds.PixelData for ds in legacy_datasets]
-
-        if dst_tx_uid.is_encapsulated:
-            if use_extended_offset_table:
-                (
-                    self.PixelData,
-                    self.ExtendedOffsetTable,
-                    self.ExtendedOffsetTableLengths,
-                ) = encapsulate_extended(frames)
-            else:
-                self.PixelData = encapsulate(frames)
-        else:
-            self.PixelData = b''.join(frames)
 
     @staticmethod
     def default_sort_key(
