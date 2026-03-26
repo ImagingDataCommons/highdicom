@@ -134,6 +134,12 @@ def _get_anatomic_region_mapping() -> dict[str, CodedConcept]:
         'highdicom',
         '_standard/anatomic_regions.json'
     )
+
+    if data_file is None:
+        raise FileNotFoundError(
+            "Error loading anatomic regions JSON data file."
+        )
+
     anatomic_regions = json.loads(data_file.decode('utf-8'))
 
     return {
@@ -456,21 +462,24 @@ class _LegacyConversionRunner:
             ],
             custom_logic_callback=self._frame_type_custom_logic,
         )
-        self._add_functional_group(
-            'FrameAnatomySequence',
-            [
-                _AttributeConfig(
-                    'AnatomicRegionSequence',
-                    ['AnatomicRegionSequence', 'BodyPartExamined'],
-                    defer_copy=True,  # handle this in callback
-                ),
-            ],
-            optional_attributes=[
-                _AttributeConfig('PrimaryAnatomicStructureSequence'),
-            ],
-            custom_logic_callback=self._frame_anatomy_custom_logic,
-            required=False,
-        )
+
+        if self._include_frame_anatomy():
+            self._add_functional_group(
+                'FrameAnatomySequence',
+                [
+                    _AttributeConfig(
+                        'AnatomicRegionSequence',
+                        ['AnatomicRegionSequence', 'BodyPartExamined'],
+                        defer_copy=True,  # handle this in callback
+                    ),
+                ],
+                optional_attributes=[
+                    _AttributeConfig('PrimaryAnatomicStructureSequence'),
+                ],
+                custom_logic_callback=self._frame_anatomy_custom_logic,
+                required=False,
+            )
+
         self._add_functional_group(
             'FrameContentSequence',
             [
@@ -1157,6 +1166,35 @@ class _LegacyConversionRunner:
             'NONE',
         ]
         setattr(destination, dest_kw, new_val)
+
+    def _include_frame_anatomy(self) -> bool:
+        """Determine whether to include a frame anatomy sequence.
+
+        The frame anatomy functional group is conditionally required, but the
+        condition requires custom logic to express. The condition is given as:
+
+        "Required if Body Part Examined (0018,0015) is present and contains a
+        Value defined in Annex L “Correspondence of Anatomic Region Codes and
+        Body Part Examined Defined Terms” in PS3.16, or Anatomic Region
+        Sequence (0008,2218) was present in any of the Classic Images that were
+        converted."
+
+        See :dcm:`Section A.70.4.html <part03/sect_A.70.4.html>` for Legacy
+        Converted CT and similarly for other IODs.
+
+        """
+        mapping = _get_anatomic_region_mapping()
+
+        for ds in self._legacy_datasets:
+            if 'AnatomicRegionSequence' in ds:
+                continue
+
+            if 'BodyPartExamined' in ds and ds.BodyPartExamined in mapping:
+                continue
+
+            return False
+
+        return True
 
     def _frame_anatomy_custom_logic(
         self,
