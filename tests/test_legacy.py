@@ -112,7 +112,7 @@ class DicomGenerator:
             )
             tmp_dataset.WindowCenter = 1
             tmp_dataset.WindowWidth = 2
-            tmp_dataset.AcquisitionNumber = 1
+            tmp_dataset.AcquisitionNumber = i
             tmp_dataset.InstanceNumber = i
             tmp_dataset.SeriesNumber = 1
             tmp_dataset.ImageOrientationPatient = orientation_mat
@@ -175,7 +175,7 @@ class DicomGenerator:
             tmp_dataset.StudyDescription = 'test study'
             tmp_dataset.StudyID = ''
             if (modality == Modality.CT):
-                tmp_dataset.RescaleIntercept = 0
+                tmp_dataset.RescaleIntercept = -1024
                 tmp_dataset.RescaleSlope = 1
 
             tmp_dataset.StudyTime = time_
@@ -256,22 +256,132 @@ class TestLegacyConvertedEnhancedImage:
     ) -> None:
         LegacyConverterClass = MODALITY_CLASS_MAP[modality]
         data_generator = DicomGenerator(number_of_frames)
-        data = data_generator.generate_mixed_framesets(
+        legacy_datasets = data_generator.generate_mixed_framesets(
             modality, 1, True, True
         )
         converted = LegacyConverterClass(
-            data,
+            legacy_datasets,
             generate_uid(),
             555,
             generate_uid(),
             111
         )
+
+        frame_type_seq_kw = {
+            Modality.MR: 'MRImageFrameTypeSequence',
+            Modality.CT: 'CTImageFrameTypeSequence',
+            Modality.PT: 'PETFrameTypeSequence',
+        }[modality]
+
         assert converted.NumberOfFrames == number_of_frames
         assert (
             converted.SOPClassUID == MODALITY_ENHANCED_SOP_CLASS_MAP[modality]
         )
+        assert not hasattr(converted, 'LargestImagePixelValue')
+        assert not hasattr(converted, 'SmalestImagePixelValue')
         sfgs = converted.SharedFunctionalGroupsSequence[0]
+
+        # Frame Anatomy
         assert not hasattr(sfgs, 'FrameAnatomySequence')
+
+        # Pixel measures
+        pix_meas_seq = sfgs.PixelMeasuresSequence[0]
+        assert pix_meas_seq.PixelSpacing == [
+            self._dicom_generator._pixel_spacing,
+            self._dicom_generator._pixel_spacing
+        ]
+        assert (
+            pix_meas_seq.SliceThickness ==
+            self._dicom_generator._slice_thickness
+        )
+
+        # Plane Orientation
+        pl_ori_seq = sfgs.PlaneOrientationSequence[0]
+        assert (
+            pl_ori_seq.ImageOrientationPatient ==
+            self._dicom_generator._z_orientation_mat
+        )
+
+        # Frame VOI LUT
+        fr_voi_lut_seq = sfgs.FrameVOILUTSequence[0]
+        assert (fr_voi_lut_seq.WindowWidth == 2)
+        assert (fr_voi_lut_seq.WindowCenter == 1)
+
+        # Frame Type
+        fr_type_seq = getattr(sfgs, frame_type_seq_kw)[0]
+        expected_frame_type = list(legacy_datasets[0].ImageType)[:3]
+        expected_frame_type.append('NONE')
+        assert fr_type_seq.FrameType == expected_frame_type
+        assert fr_type_seq.VolumetricProperties == 'VOLUME'
+        assert fr_type_seq.PixelPresentation == 'MONOCHROME'
+        assert fr_type_seq.VolumeBasedCalculationTechnique == 'NONE'
+
+        # Pixel Value Transformation
+        pix_val_tf_seq = sfgs.PixelValueTransformationSequence[0]
+        assert (
+            pix_val_tf_seq.RescaleSlope ==
+            legacy_datasets[0].get('RescaleSlope', 1)
+        )
+        assert (
+            pix_val_tf_seq.RescaleIntercept ==
+            legacy_datasets[0].get('RescaleIntercept', 0)
+        )
+        expected_rescale_type = 'HU' if modality == Modality.CT else 'US'
+        assert pix_val_tf_seq.RescaleType == expected_rescale_type
+
+        if number_of_frames == 1:
+            # Plane Position
+            pl_pos_seq = sfgs.PlanePositionSequence[0]
+            assert (
+                pl_pos_seq.ImagePositionPatient ==
+                legacy_datasets[0].ImagePositionPatient
+            )
+
+        for i, (src, pffg) in enumerate(
+            zip(
+                legacy_datasets,
+                converted.PerFrameFunctionalGroupsSequence,
+            )
+        ):
+            # Frame Content (always per-frame)
+            frm_content_seq = pffg.FrameContentSequence[0]
+            assert (
+                frm_content_seq.FrameAcquisitionNumber ==
+                src.AcquisitionNumber
+            )
+            expected_datetime = datetime.combine(
+                src.AcquisitionDate,
+                src.AcquisitionTime,
+            )
+            assert (
+                frm_content_seq.FrameAcquisitionDateTime ==
+                expected_datetime
+            )
+            assert frm_content_seq.StackID == '1'
+
+            # Due to choice of orientation, these are reversed
+            assert (
+                frm_content_seq.InStackPositionNumber ==
+                number_of_frames - i
+            )
+
+            conv_src_seq = pffg.ConversionSourceAttributesSequence[0]
+            assert (
+                conv_src_seq.ReferencedSOPClassUID ==
+                src.SOPClassUID
+            )
+            assert (
+                conv_src_seq.ReferencedSOPInstanceUID ==
+                src.SOPInstanceUID
+            )
+
+            if number_of_frames > 1:
+                # Plane Position
+                pl_pos_seq = pffg.PlanePositionSequence[0]
+                assert (
+                    pl_pos_seq.ImagePositionPatient ==
+                    src.ImagePositionPatient
+                )
 
     def test_output_attributes(self, modality: Modality) -> None:
         LegacyConverterClass = MODALITY_CLASS_MAP[modality]
@@ -556,101 +666,3 @@ class TestLegacyConvertedEnhancedImage:
             'SCT'
         )
         assert fr_an_seq.FrameLaterality == 'B'  # inferred from modifier
-
-    def generate_common_dicom_dataset_series(
-        self,
-        slice_count: int,
-        modality: Modality
-    ) -> list:
-        output_dataset = []
-        slice_pos = 0
-        slice_thickness = 0
-        study_uid = generate_uid()
-        series_uid = generate_uid()
-        frame_of_ref_uid = generate_uid()
-        date_ = datetime.now().date()
-        age = timedelta(days=45 * 365)
-        time_ = datetime.now().time()
-        cols = 2
-        rows = 2
-        bytes_per_voxel = 2
-
-        for i in range(slice_count):
-            file_meta = FileMetaDataset()
-            pixel_array = b"\0" * cols * rows * bytes_per_voxel
-            file_meta.MediaStorageSOPClassUID = UID(
-                MODALITY_LEGACY_SOP_CLASS_MAP[modality][1]
-            )
-            file_meta.MediaStorageSOPInstanceUID = generate_uid()
-            file_meta.ImplementationClassUID = generate_uid()
-
-            tmp_dataset = FileDataset(
-                '', {}, file_meta=file_meta, preamble=pixel_array
-            )
-            tmp_dataset.file_meta.TransferSyntaxUID = UID("1.2.840.10008.1.2.1")
-            tmp_dataset.SliceLocation = slice_pos + i * slice_thickness
-            tmp_dataset.SliceThickness = slice_thickness
-            tmp_dataset.WindowCenter = 1
-            tmp_dataset.WindowWidth = 2
-            tmp_dataset.AcquisitionNumber = 1
-            tmp_dataset.InstanceNumber = i
-            tmp_dataset.SeriesNumber = 1
-            tmp_dataset.ImageOrientationPatient = [
-                1.000000, 0.000000, 0.000000,
-                0.000000, 1.000000, 0.000000
-            ]
-            tmp_dataset.ImagePositionPatient = [
-                0.0, 0.0,
-                tmp_dataset.SliceLocation
-            ]
-            tmp_dataset.ImageType = ['ORIGINAL', 'PRIMARY', 'AXIAL']
-            tmp_dataset.PixelSpacing = [1, 1]
-            tmp_dataset.PatientName = 'Doe^John'
-            tmp_dataset.FrameOfReferenceUID = frame_of_ref_uid
-            tmp_dataset.SOPClassUID = MODALITY_LEGACY_SOP_CLASS_MAP[modality][1]
-            tmp_dataset.SOPInstanceUID = generate_uid()
-            tmp_dataset.SeriesInstanceUID = series_uid
-            tmp_dataset.StudyInstanceUID = study_uid
-            tmp_dataset.BitsAllocated = bytes_per_voxel * 8
-            tmp_dataset.BitsStored = bytes_per_voxel * 8
-            tmp_dataset.HighBit = (bytes_per_voxel * 8 - 1)
-            tmp_dataset.PixelRepresentation = 1
-            tmp_dataset.Columns = cols
-            tmp_dataset.Rows = rows
-            tmp_dataset.SamplesPerPixel = 1
-            tmp_dataset.AccessionNumber = '2'
-            tmp_dataset.AcquisitionDate = date_
-            tmp_dataset.AcquisitionTime = datetime.now().time()
-            tmp_dataset.AdditionalPatientHistory = 'UTERINE CA PRE-OP EVAL'
-            tmp_dataset.ContentDate = date_
-            tmp_dataset.ContentTime = datetime.now().time()
-            tmp_dataset.Manufacturer = 'Manufacturer'
-            tmp_dataset.ManufacturerModelName = 'Model'
-            tmp_dataset.Modality = MODALITY_LEGACY_SOP_CLASS_MAP[modality][0]
-            tmp_dataset.PatientAge = '064Y'
-            tmp_dataset.PatientBirthDate = date_ - age
-            tmp_dataset.PatientID = 'ID0001'
-            tmp_dataset.PatientIdentityRemoved = 'YES'
-            tmp_dataset.PatientPosition = 'FFS'
-            tmp_dataset.PatientSex = 'F'
-            tmp_dataset.PhotometricInterpretation = 'MONOCHROME2'
-            tmp_dataset.PixelData = pixel_array
-            tmp_dataset.PositionReferenceIndicator = 'XY'
-            tmp_dataset.ProtocolName = 'some protocole'
-            tmp_dataset.ReferringPhysicianName = ''
-            tmp_dataset.SeriesDate = date_
-            tmp_dataset.SeriesDescription = 'test series '
-            tmp_dataset.SeriesTime = time_
-            tmp_dataset.SoftwareVersions = '01'
-            tmp_dataset.SpecificCharacterSet = 'ISO_IR 100'
-            tmp_dataset.StudyDate = date_
-            tmp_dataset.StudyDescription = 'test study'
-            tmp_dataset.StudyID = ''
-            if (modality == Modality.CT):
-                tmp_dataset.RescaleIntercept = 0
-                tmp_dataset.RescaleSlope = 1
-
-            tmp_dataset.StudyTime = time_
-            output_dataset.append(tmp_dataset)
-
-        return output_dataset

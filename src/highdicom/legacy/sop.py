@@ -488,15 +488,11 @@ class _LegacyConversionRunner:
 
         self._add_functional_group(
             'FrameContentSequence',
-            [
-                # TODO improve?
-                _AttributeConfig(
-                    'FrameAcquisitionNumber',
-                    ['AcquisitionNumber'],
-                    default_val=1
-                ),
-            ],
+            [],
             optional_attributes=[
+                _AttributeConfig(
+                    'FrameAcquisitionNumber', ['AcquisitionNumber'],
+                ),
                 _AttributeConfig(
                     'FrameAcquisitionDuration',
                     src_kws=['AcquisitionDuration']
@@ -509,6 +505,7 @@ class _LegacyConversionRunner:
             ],
             custom_logic_callback=self._frame_content_custom_logic,
             can_be_shared=False,
+            required=True,
         )
         self._add_functional_group(
             'PlanePositionSequence',
@@ -530,6 +527,7 @@ class _LegacyConversionRunner:
                     src_kws=['SOPInstanceUID']
                 ),
             ],
+            can_be_shared=False,
         )
         self._add_functional_group(
             'PixelMeasuresSequence',
@@ -551,6 +549,8 @@ class _LegacyConversionRunner:
                 _AttributeConfig('WindowCenterWidthExplanation'),
             ],
         )
+        # Pixel Value Transformation is technically optional for MR, but we
+        # will populate with 0/1 rescale anyway for consistency
         self._add_functional_group(
             'PixelValueTransformationSequence',
             [
@@ -562,7 +562,13 @@ class _LegacyConversionRunner:
             ],
             custom_logic_callback=(
                 self._pixel_value_transformation_custom_logic
-            )
+            ),
+        )
+        self._copy_existing_sequence_to_functional_groups(
+            'ReferencedImageSequence'
+        )
+        self._copy_existing_sequence_to_functional_groups(
+            'RealWorldValueMappingSequence'
         )
 
         if (
@@ -581,7 +587,6 @@ class _LegacyConversionRunner:
         # Miscellaneous other tasks
         self._add_image_type()
         self._add_stack_info_frame_content()
-        self._add_referenced_image_functional_group()
         self._add_largest_smallest_pixel_value()
         self._add_unassigned_attributes()
         self._copy_pixel_data()
@@ -1056,7 +1061,7 @@ class _LegacyConversionRunner:
                     attribute_configs=attribute_configs,
                     custom_logic_callback=custom_logic_callback,
                 )
-        elif any_attr_exists:
+        elif any_attr_exists or required:
             # Use the shared functional groups
             self._copy_to_functional_group(
                 source=self._legacy_datasets[0],
@@ -1357,7 +1362,7 @@ class _LegacyConversionRunner:
                 if 'FrameContentSequence' not in pffg:
                     pffg.FrameContentSequence = [Dataset()]
 
-                pffg.FrameContentSequence[0].StackID = stack_id
+                pffg.FrameContentSequence[0].StackID = str(stack_id)
                 pffg.FrameContentSequence[0].InStackPositionNumber = (
                     int(pos) + 1
                 )
@@ -1368,35 +1373,36 @@ class _LegacyConversionRunner:
                     sfgs.PixelMeasuresSequence[0].SpacingBetweenSlices
                 ) = format_number_as_ds(spacing)
 
-    def _add_referenced_image_functional_group(self) -> None:
-        """Add ReferencedImageSequence to the functional groups.
+    def _copy_existing_sequence_to_functional_groups(self, keyword: str) -> None:
+        """Add an existing sequence to the functional groups.
 
-        This doesn't fit the pattern of the other functional groups because the
-        attributes exist in a sequence within the source images, so handle
-        separately here.
+        These sequences don't fit the pattern of the other functional groups
+        because the attributes already exist in a sequence within the source
+        images and the whole sequence should be copied to the functioal groups.
+
+        Parameters
+        ----------
+        keyword: str
+            Keyword of the sequence to copy.
 
         """
-        kw = 'ReferencedImageSequence'
-        if kw in self._keyword_shared_dict:
-            if self._keyword_shared_dict[kw]:
+        if keyword in self._keyword_shared_dict:
+            if self._keyword_shared_dict[keyword]:
                 # Reference are shared
-                (
-                    self
-                    ._destination
-                    .SharedFunctionalGroupsSequence[0]
-                    .ReferencedImageSequence
-                ) = deepcopy(self._legacy_datasets[0].ReferencedImageSequence)
+                setattr(
+                    self._destination.SharedFunctionalGroupsSequence[0],
+                    keyword,
+                    deepcopy(getattr(self._legacy_datasets[0], keyword))
+                )
             else:
                 # Refernces are per-frame
                 for src, pffg in zip(
                     self._legacy_datasets,
                     self._destination.PerFrameFunctionalGroupsSequence,
                 ):
-                    pffg.ReferencedImageSequence = deepcopy(
-                        src.ReferencedImageSequence
-                    )
+                    setattr(pffg, keyword, deepcopy(getattr(src, keyword)))
 
-            self._mark_keyword_used(kw)
+            self._mark_keyword_used(keyword)
 
     def _add_unassigned_attributes(self) -> None:
         """Add all unassigned attributes.
