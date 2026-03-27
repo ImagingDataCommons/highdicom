@@ -1387,12 +1387,16 @@ class _LegacyConversionRunner:
                     sfgs.PixelMeasuresSequence[0].SpacingBetweenSlices
                 ) = format_number_as_ds(spacing)
 
-    def _copy_existing_sequence_to_functional_groups(self, keyword: str) -> None:
+    def _copy_existing_sequence_to_functional_groups(
+        self,
+        keyword: str,
+    ) -> None:
         """Add an existing sequence to the functional groups.
 
         These sequences don't fit the pattern of the other functional groups
         because the attributes already exist in a sequence within the source
-        images and the whole sequence should be copied to the functioal groups.
+        images and the whole sequence should be copied to the functional
+        groups.
 
         Parameters
         ----------
@@ -1508,11 +1512,7 @@ class _LegacyConversionRunner:
                 ):
                     seq = pffg.UnassignedPerFrameConvertedAttributesSequence[0]
                     if t in src:
-                        self._copy_private_attribute(
-                            t,
-                            src,
-                            seq,
-                        )
+                        self._copy_private_attribute(t, src, seq)
 
     @staticmethod
     def _copy_private_attribute(
