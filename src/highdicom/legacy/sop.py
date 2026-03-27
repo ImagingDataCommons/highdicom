@@ -564,12 +564,6 @@ class _LegacyConversionRunner:
                 self._pixel_value_transformation_custom_logic
             ),
         )
-        self._copy_existing_sequence_to_functional_groups(
-            'ReferencedImageSequence'
-        )
-        self._copy_existing_sequence_to_functional_groups(
-            'RealWorldValueMappingSequence'
-        )
 
         if (
             self._destination.SOPClassUID in
@@ -583,6 +577,15 @@ class _LegacyConversionRunner:
                 [_AttributeConfig('IrradiationEventUID')],
                 required=False,
             )
+
+        # Functional grops where entire existing sequences are copied from the
+        # source image
+        self._copy_existing_sequence_to_functional_groups(
+            'ReferencedImageSequence'
+        )
+        self._copy_existing_sequence_to_functional_groups(
+            'RealWorldValueMappingSequence'
+        )
 
         # Miscellaneous other tasks
         self._add_image_type()
@@ -713,10 +716,21 @@ class _LegacyConversionRunner:
             inconsistencies_str = ", ".join(inconsistencies)
             raise ValueError(
                 "The legacy instances provided are not a valid source for a "
-                "legacy conversion because the presence and/or values the "
-                "following attribute(s) is not consistent between instances: "
+                "legacy conversion because the presence and/or values of the "
+                "following attribute(s) is not consistent across instances: "
                 f"{inconsistencies_str}."
             )
+
+        # Additionally check transfer syntex UID
+        for ds in self._legacy_datasets:
+            if (
+                ds.file_meta.TransferSyntaxUID !=
+                self._legacy_datasets[0].file_meta.TransferSyntaxUID
+            ):
+                raise ValueError(
+                    'Legacy instances have inconsistent transfer syntaxes.'
+
+                )
 
     def _mark_keyword_used(self, kw: str) -> None:
         """Record that a keyword in the source files has been used.
@@ -897,7 +911,7 @@ class _LegacyConversionRunner:
                 else:
                     match usage_type:
                         case AttributeTypeValues.REQUIRED:
-                            raise ValueError(
+                            raise AttributeError(
                                 'Unable to determine value for '
                                 f'required attribute "{dest_kw}" because '
                                 'the value is inconsistent between the '
@@ -911,7 +925,7 @@ class _LegacyConversionRunner:
                 # No value found
                 match usage_type:
                     case AttributeTypeValues.REQUIRED:
-                        raise ValueError(
+                        raise AttributeError(
                             'Unable to determine value for required '
                             f'attribute "{dest_kw}" because the required '
                             'information is not present in the legacy files.'
@@ -1036,7 +1050,7 @@ class _LegacyConversionRunner:
                     elif required_attr:
                         all_required_attrs_exist = False
                         if required:
-                            raise ValueError(
+                            raise AttributeError(
                                 'Cannot determine value for required attribute '
                                 f"'{a_cfg.dest_kw}' in the '{sequence_name}'."
                             )
