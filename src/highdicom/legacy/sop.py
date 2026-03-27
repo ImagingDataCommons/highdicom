@@ -87,7 +87,6 @@ _CONSISTENT_KEYWORDS = [
     'GantryID',
     'PixelPaddingValue',
     'Modality',
-    'BurnedInAnnotation',
     'SOPClassUID',
     'Rows',
     'Columns',
@@ -275,6 +274,7 @@ class _LegacyConversionRunner:
             'AcquisitionTime',
             'AcquisitionDateTime',
             'ImageType',
+            'SeriesDescription',
             # TODO why is this here?
             'SpecificCharacterSet',
         ]
@@ -326,6 +326,7 @@ class _LegacyConversionRunner:
             skip_attributes=[
                 'SeriesInstanceUID',
                 'SeriesNumber',
+                'SeriesDescription',
                 'SmallestPixelValueInSeries',
                 'LargestPixelValueInSeries',
                 'PerformedProcedureStepEndDate',

@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from pydicom import FileDataset, Dataset
+from pydicom.data import get_testdata_file
 from pydicom.uid import JPEG2000Lossless
 from pydicom.valuerep import DSfloat
 from highdicom.legacy import (
@@ -250,18 +251,22 @@ def test_conversion(
     output_sop_uid = UID()
     output_series_number = 23
     output_instance_number = 2
+    series_description = 'Converted Series'
+
     converted = LegacyConverterClass(
         legacy_datasets,
         series_instance_uid=output_series_uid,
         sop_instance_uid=output_sop_uid,
         series_number=output_series_number,
         instance_number=output_instance_number,
+        series_description=series_description,
     )
 
     assert converted.SOPInstanceUID == output_sop_uid
     assert converted.SeriesInstanceUID == output_series_uid
     assert converted.SeriesNumber == output_series_number
     assert converted.InstanceNumber == output_instance_number
+    assert converted.SeriesDescription == series_description
 
     frame_type_seq_kw = {
         Modality.MR: 'MRImageFrameTypeSequence',
@@ -381,6 +386,181 @@ def test_conversion(
 
 
 @pytest.mark.parametrize(
+    'keyword',
+    ['PatientID', 'PatientSex', 'AccessionNumber'],
+)
+def test_missing_type_2_attribute(modality: Modality, keyword: str):
+    """Type 2 attributes missing from source images should be set to None."""
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    for ds in legacy_datasets:
+        delattr(ds, keyword)
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert keyword in converted
+    assert getattr(converted, keyword) is None
+
+
+@pytest.mark.parametrize(
+    'keyword',
+    ['PatientID', 'PatientSex', 'AccessionNumber'],
+)
+def test_empty_type_2_attribute(modality: Modality, keyword: str):
+    """Type 2 attributes emtpy in source images should be set to None."""
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    for ds in legacy_datasets:
+        setattr(ds, keyword, None)
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert keyword in converted
+    assert getattr(converted, keyword) is None
+
+
+def test_optional_module(modality: Modality) -> None:
+    """Check that presence of the required attributes triggers inclusion of
+    optional module.
+
+    """
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    # Including just one of the two required attributes should cause the entire
+    # module to be omitted
+    for ds in legacy_datasets:
+        ds.ClinicalTrialSponsorName = 'Sponsor'  # type 1
+        ds.ClinicalTrialProtocolName = 'Protocol Name'  # type 2
+        ds.ClinicalTrialSiteName = 'Site Name'  # type 2
+        ds.IssuerOfClinicalTrialSubjectID = "Issuer"  # type 3
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert 'ClinicalTrialSponsorName' not in converted
+    assert 'ClinicalTrialProtocolID' not in converted
+    assert 'ClinicalTrialProtocolName' not in converted
+    assert 'IssuerOfClinicalTrialSubjectID' not in converted
+
+    # Now additionally including the missing required attribute should trigger
+    # the whole module to be included
+    for ds in legacy_datasets:
+        ds.ClinicalTrialProtocolID = 'Protocol ID'  # type 1
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert converted.ClinicalTrialSponsorName == 'Sponsor'
+    assert converted.ClinicalTrialProtocolName == 'Protocol Name'
+    assert converted.ClinicalTrialSiteName == 'Site Name'
+    assert converted.ClinicalTrialSiteID is None  # type 2, missing
+    assert converted.IssuerOfClinicalTrialSubjectID == "Issuer"
+
+
+@pytest.mark.parametrize(
+    'keyword',
+    [
+        'BurnedInAnnotation',
+        'RecognizableVisualFeatures',
+        'LossyImageCompression'
+    ],
+)
+def test_aggregated_attributes(modality: Modality, keyword: str) -> None:
+    """Check values of attributes that are aggregated across the source
+    instances.
+
+    """
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    # If all are NO, output will be NO
+    for ds in legacy_datasets:
+        setattr(ds, keyword, 'NO')
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert converted.get(keyword) == 'NO'
+
+    # If one is YES, output is YES
+    setattr(legacy_datasets[0], keyword, 'YES')
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+    assert converted.get(keyword) == 'YES'
+
+
+def test_average_compression_ratio(modality: Modality):
+    """If present, compression ratio should be averaged over frames."""
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(2)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    legacy_datasets[0].LossyImageCompressionRatio = 2.0
+    legacy_datasets[1].LossyImageCompressionRatio = 4.0
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    # Should be average of source values
+    assert converted.LossyImageCompressionRatio == 3.0
+
+
+@pytest.mark.parametrize(
     ['missing_keyword', 'sequence_name'],
     [
         ('ImageOrientationPatient', 'PlaneOrientationSequence'),
@@ -421,7 +601,88 @@ def test_missing_required_attribute_for_mandatory_group(
         )
 
 
-def test_empty_dataset(modality: Modality) -> None:
+def test_private_attributes():
+    """Test private attributes are correctly copied."""
+    # Some test files that have a lot of private attributes
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166', read=True),
+    ]
+
+    converted = LegacyConvertedEnhancedCTImage(
+        ct_files,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    unassigned_shared_seq = (
+        converted
+        .SharedFunctionalGroupsSequence[0]
+        .UnassignedSharedConvertedAttributesSequence[0]
+    )
+    unassigned_perframe_seq = (
+        converted
+        .PerFrameFunctionalGroupsSequence[0]
+        .UnassignedPerFrameConvertedAttributesSequence[0]
+    )
+
+    # Check some arbitrary tags and their private creators
+    assert unassigned_shared_seq[0x0045_1006].value == 'OUT OF GANTRY'
+    assert unassigned_shared_seq[0x0045_0010].value == 'GEMS_HELIOS_01'
+
+    assert unassigned_perframe_seq[0x0019_1024].value == 131.0
+    assert unassigned_perframe_seq[0x0019_0010].value == 'GEMS_ACQU_01'
+
+
+def test_optional_functional_group():
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.PT, 1, True, True
+    )
+
+    irradiation_uid = UID()
+
+    for ds in legacy_datasets:
+        ds.IrradiationEventUID = irradiation_uid
+
+    converted = LegacyConvertedEnhancedPETImage(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    sfgs = converted.SharedFunctionalGroupsSequence[0]
+    irradiation_seq = sfgs.IrradiationEventIdentificationSequence[0]
+
+    assert irradiation_seq.IrradiationEventUID == irradiation_uid
+
+
+def test_extended_offset_table(modality):
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        use_extended_offset_table=True,
+    )
+
+    pixel_array = converted.pixel_array
+    assert pixel_array.shape == (5, 2, 2)
+
+
+def test_empty_dataset_list(modality: Modality) -> None:
     LegacyConverterClass = MODALITY_CLASS_MAP[modality]
 
     msg = 'At least one legacy dataset must be provided.'
