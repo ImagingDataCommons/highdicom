@@ -1,9 +1,21 @@
-import unittest
-from pydicom.dataset import FileDataset, FileMetaDataset
-from pydicom.uid import generate_uid, UID
-from highdicom.legacy import sop
+from copy import deepcopy
 from datetime import datetime, timedelta
 import enum
+import re
+from typing import Any
+
+from pydicom import FileDataset, Dataset
+from pydicom.data import get_testdata_file
+from pydicom.uid import JPEG2000Lossless
+from pydicom.valuerep import DSfloat
+from highdicom.legacy import (
+    LegacyConvertedEnhancedCTImage,
+    LegacyConvertedEnhancedMRImage,
+    LegacyConvertedEnhancedPETImage,
+)
+from highdicom import UID
+
+import pytest
 
 
 class Modality(enum.IntEnum):
@@ -12,239 +24,121 @@ class Modality(enum.IntEnum):
     PT = 2
 
 
-sop_classes = [('CT', '1.2.840.10008.5.1.4.1.1.2'),
-               ('MR', '1.2.840.10008.5.1.4.1.1.4'),
-               ('PT', '1.2.840.10008.5.1.4.1.1.128')]
+MODALITY_LEGACY_SOP_CLASS_MAP = {
+    Modality.CT: '1.2.840.10008.5.1.4.1.1.2',
+    Modality.MR: '1.2.840.10008.5.1.4.1.1.4',
+    Modality.PT: '1.2.840.10008.5.1.4.1.1.128',
+}
+MODALITY_ENHANCED_SOP_CLASS_MAP = {
+    Modality.CT: '1.2.840.10008.5.1.4.1.1.2.2',
+    Modality.MR: '1.2.840.10008.5.1.4.1.1.4.4',
+    Modality.PT: '1.2.840.10008.5.1.4.1.1.128.1',
+}
+MODALITY_CLASS_MAP = {
+    Modality.CT: LegacyConvertedEnhancedCTImage,
+    Modality.MR: LegacyConvertedEnhancedMRImage,
+    Modality.PT: LegacyConvertedEnhancedPETImage,
+}
 
 
-class TestLegacyConvertedEnhancedImage(unittest.TestCase):
+class DicomGenerator:
 
-    def setUp(self):
-        super().setUp()
-        self._modalities = ('CT', 'MR', 'PET')
-        self._ref_dataset_seq_CT = \
-            self.generate_common_dicom_dataset_series(3, Modality.CT)
-        self._ref_dataset_seq_MR = \
-            self.generate_common_dicom_dataset_series(3, Modality.MR)
-        self._ref_dataset_seq_PET = \
-            self.generate_common_dicom_dataset_series(3, Modality.PT)
-        self._output_series_instance_uid = generate_uid()
-        self._output_sop_instance_uid = generate_uid()
-        self._output_series_number = 1
-        self._output_instance_number = 1
-
-    def test_output_attributes(self):
-        for m in self._modalities:
-            with self.subTest(m=m):
-                LegacyConverterClass = getattr(
-                    sop,
-                    f"LegacyConvertedEnhanced{m}Image"
-                )
-                ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
-
-                multiframe_item = LegacyConverterClass(
-                    legacy_datasets=ref_dataset_seq,
-                    series_instance_uid=self._output_series_instance_uid,
-                    series_number=self._output_instance_number,
-                    sop_instance_uid=self._output_sop_instance_uid,
-                    instance_number=self._output_instance_number)
-                assert multiframe_item.SeriesInstanceUID == \
-                    self._output_series_instance_uid
-                assert multiframe_item.SOPInstanceUID == \
-                    self._output_sop_instance_uid
-                assert int(multiframe_item.SeriesNumber) == int(
-                    self._output_series_number)
-                assert int(multiframe_item.InstanceNumber) == int(
-                    self._output_instance_number)
-
-    def test_empty_dataset(self):
-        for m in self._modalities:
-            with self.subTest(m=m):
-                LegacyConverterClass = getattr(
-                    sop,
-                    f"LegacyConvertedEnhanced{m}Image"
-                )
-                with self.assertRaises(ValueError):
-                    LegacyConverterClass(
-                        [],
-                        series_instance_uid=self._output_series_instance_uid,
-                        series_number=self._output_instance_number,
-                        sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number)
-
-    def test_wrong_modality(self):
-
-        for m in self._modalities:
-            with self.subTest(m=m):
-                LegacyConverterClass = getattr(
-                    sop,
-                    f"LegacyConvertedEnhanced{m}Image"
-                )
-                ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
-                tmp_orig_modality = ref_dataset_seq[0].Modality
-                ref_dataset_seq[0].Modality = ''
-                with self.assertRaises(ValueError):
-                    LegacyConverterClass(
-                        legacy_datasets=ref_dataset_seq,
-                        series_instance_uid=self._output_series_instance_uid,
-                        series_number=self._output_instance_number,
-                        sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number)
-                ref_dataset_seq[0].Modality = tmp_orig_modality
-
-    def test_wrong_sop_class_uid(self):
-        for m in self._modalities:
-            with self.subTest(m=m):
-                LegacyConverterClass = getattr(
-                    sop,
-                    f"LegacyConvertedEnhanced{m}Image"
-                )
-                ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
-                tmp_orig_sop_class_id = ref_dataset_seq[0].SOPClassUID
-                ref_dataset_seq[0].SOPClassUID = '1.2.3.4.5.6.7.8.9'
-                with self.assertRaises(ValueError):
-                    LegacyConverterClass(
-                        legacy_datasets=ref_dataset_seq,
-                        series_instance_uid=self._output_series_instance_uid,
-                        series_number=self._output_instance_number,
-                        sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number)
-                ref_dataset_seq[0].SOPClassUID = tmp_orig_sop_class_id
-
-    def test_mixed_studies(self):
-        for m in self._modalities:
-            with self.subTest(m=m):
-                LegacyConverterClass = getattr(
-                    sop,
-                    f"LegacyConvertedEnhanced{m}Image"
-                )
-                ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
-                # first run with intact input
-
-                LegacyConverterClass(
-                    legacy_datasets=ref_dataset_seq,
-                    series_instance_uid=self._output_series_instance_uid,
-                    series_number=self._output_instance_number,
-                    sop_instance_uid=self._output_sop_instance_uid,
-                    instance_number=self._output_instance_number)
-                # second run with defected input
-                tmp_orig_study_instance_uid = ref_dataset_seq[
-                    0].StudyInstanceUID
-                ref_dataset_seq[0].StudyInstanceUID = '1.2.3.4.5.6.7.8.9'
-                with self.assertRaises(ValueError):
-                    LegacyConverterClass(
-                        legacy_datasets=ref_dataset_seq,
-                        series_instance_uid=self._output_series_instance_uid,
-                        series_number=self._output_instance_number,
-                        sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number)
-                ref_dataset_seq[
-                    0].StudyInstanceUID = tmp_orig_study_instance_uid
-
-    def test_mixed_series(self):
-        for m in self._modalities:
-            with self.subTest(m=m):
-                LegacyConverterClass = getattr(
-                    sop,
-                    f"LegacyConvertedEnhanced{m}Image"
-                )
-                ref_dataset_seq = getattr(self, f"_ref_dataset_seq_{m}")
-                # first run with intact input
-                LegacyConverterClass(
-                    legacy_datasets=ref_dataset_seq,
-                    series_instance_uid=self._output_series_instance_uid,
-                    series_number=self._output_instance_number,
-                    sop_instance_uid=self._output_sop_instance_uid,
-                    instance_number=self._output_instance_number)
-                # second run with defected input
-                tmp_series_instance_uid = ref_dataset_seq[0].SeriesInstanceUID
-                ref_dataset_seq[0].SeriesInstanceUID = '1.2.3.4.5.6.7.8.9'
-                with self.assertRaises(ValueError):
-                    LegacyConverterClass(
-                        legacy_datasets=ref_dataset_seq,
-                        series_instance_uid=self._output_series_instance_uid,
-                        series_number=self._output_instance_number,
-                        sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number)
-                ref_dataset_seq[0].SeriesInstanceUID = tmp_series_instance_uid
-
-    def test_mixed_transfer_syntax(self):
-        for m in self._modalities:
-            with self.subTest(m=m):
-                LegacyConverterClass = getattr(
-                    sop,
-                    f'LegacyConvertedEnhanced{m}Image'
-                )
-                ref_dataset_seq = getattr(self, f'_ref_dataset_seq_{m}')
-                # first run with intact input
-                LegacyConverterClass(
-                    legacy_datasets=ref_dataset_seq,
-                    series_instance_uid=self._output_series_instance_uid,
-                    series_number=self._output_instance_number,
-                    sop_instance_uid=self._output_sop_instance_uid,
-                    instance_number=self._output_instance_number
-                )
-                # second run with defected input
-                ref_item = ref_dataset_seq[0]
-                tmp_transfer_syntax_uid = str(
-                    ref_item.file_meta.TransferSyntaxUID
-                )
-                ref_item.file_meta.TransferSyntaxUID = '1.2.3.4.5.6.7.8.9'
-                with self.assertRaises(ValueError):
-                    LegacyConverterClass(
-                        legacy_datasets=ref_dataset_seq,
-                        series_instance_uid=self._output_series_instance_uid,
-                        series_number=self._output_instance_number,
-                        sop_instance_uid=self._output_sop_instance_uid,
-                        instance_number=self._output_instance_number
-                    )
-                ref_item.file_meta.TransferSyntaxUID = tmp_transfer_syntax_uid
-
-    def generate_common_dicom_dataset_series(
+    def __init__(
         self,
-        slice_count: int,
-        system: Modality
+        slice_per_frameset: int = 3,
+        slice_thickness: float = 0.1,
+        pixel_spacing: float = 0.1,
+        row: int = 2,
+        col: int = 2,
+    ) -> None:
+        self._slice_per_frameset = slice_per_frameset
+        self._slice_thickness = slice_thickness
+        self._pixel_spacing = pixel_spacing
+        self._row = row
+        self._col = col
+        self._study_uid = UID()
+        self._z_orientation_mat = [
+            1.000000, 0.000000, 0.000000,
+            0.000000, 1.000000, 0.000000
+        ]
+        self._z_position_vec = [0.0, 0.0, 1.0]
+        self._y_orientation_mat = [
+            0.000000, 0.000000, 1.000000,
+            1.000000, 0.000000, 0.000000
+        ]
+        self._y_position_vec = [0.0, 1.0, 0.0]
+        self._x_orientation_mat = [
+            0.000000, 1.000000, 0.000000,
+            0.000000, 0.000000, 1.000000
+        ]
+        self._x_position_vec = [1.0, 0.0, 0.0]
+
+    def _generate_frameset(
+        self,
+        modality: Modality,
+        orientation_mat: list,
+        position_vec: list,
+        series_uid: str,
+        first_slice_offset: float = 0,
+        frameset_idx: int = 0
     ) -> list:
         output_dataset = []
-        slice_pos = 0
-        slice_thickness = 0
-        study_uid = generate_uid()
-        series_uid = generate_uid()
-        frame_of_ref_uid = generate_uid()
+        slice_pos = first_slice_offset
+        slice_thickness = self._slice_thickness
+        study_uid = self._study_uid
+        frame_of_ref_uid = UID()
         date_ = datetime.now().date()
         age = timedelta(days=45 * 365)
         time_ = datetime.now().time()
-        cols = 2
-        rows = 2
+        cols = self._col
+        rows = self._row
         bytes_per_voxel = 2
 
-        for i in range(0, slice_count):
-            file_meta = FileMetaDataset()
+        for i in range(self._slice_per_frameset):
+            file_meta = Dataset()
             pixel_array = b"\0" * cols * rows * bytes_per_voxel
-            file_meta.MediaStorageSOPClassUID = UID(sop_classes[system][1])
-            file_meta.MediaStorageSOPInstanceUID = generate_uid()
-            file_meta.ImplementationClassUID = generate_uid()
-
-            tmp_dataset = FileDataset('', {}, file_meta=file_meta,
-                                      preamble=pixel_array)
-            tmp_dataset.file_meta.TransferSyntaxUID = UID("1.2.840.10008.1.2.1")
-            tmp_dataset.SliceLocation = slice_pos + i * slice_thickness
-            tmp_dataset.SliceThickness = slice_thickness
+            file_meta.MediaStorageSOPClassUID = MODALITY_LEGACY_SOP_CLASS_MAP[
+                modality
+            ]
+            file_meta.MediaStorageSOPInstanceUID = UID()
+            file_meta.ImplementationClassUID = UID()
+            tmp_dataset = FileDataset(
+                '', {}, file_meta=file_meta, preamble=pixel_array
+            )
+            tmp_dataset.file_meta.TransferSyntaxUID = "1.2.840.10008.1.2.1"
+            tmp_dataset.SliceLocation = DSfloat(
+                slice_pos + i * slice_thickness,
+                auto_format=True
+            )
+            tmp_dataset.SliceThickness = DSfloat(
+                slice_thickness,
+                auto_format=True
+            )
             tmp_dataset.WindowCenter = 1
             tmp_dataset.WindowWidth = 2
-            tmp_dataset.AcquisitionNumber = 1
+            tmp_dataset.AcquisitionNumber = i
             tmp_dataset.InstanceNumber = i
             tmp_dataset.SeriesNumber = 1
-            tmp_dataset.ImageOrientationPatient = [1.000000, 0.000000, 0.000000,
-                                                   0.000000, 1.000000, 0.000000]
-            tmp_dataset.ImagePositionPatient = [0.0, 0.0,
-                                                tmp_dataset.SliceLocation]
-            tmp_dataset.ImageType = ['ORIGINAL', 'PRIMARY', 'AXIAL']
-            tmp_dataset.PixelSpacing = [1, 1]
+            tmp_dataset.ImageOrientationPatient = orientation_mat
+            tmp_dataset.ImagePositionPatient = [
+                DSfloat(tmp_dataset.SliceLocation * i, auto_format=True)
+                for i in position_vec
+            ]
+            if modality == Modality.CT:
+                tmp_dataset.ImageType = ['ORIGINAL', 'PRIMARY', 'AXIAL']
+            elif modality == Modality.MR:
+                tmp_dataset.ImageType = ['ORIGINAL', 'PRIMARY', 'OTHER']
+            elif modality == Modality.PT:
+                tmp_dataset.ImageType = [
+                    'ORIGINAL', 'PRIMARY', 'RECON', 'EMISSION']
+
+            tmp_dataset.PixelSpacing = [
+                self._pixel_spacing, self._pixel_spacing
+            ]
             tmp_dataset.PatientName = 'Doe^John'
             tmp_dataset.FrameOfReferenceUID = frame_of_ref_uid
-            tmp_dataset.SOPClassUID = sop_classes[system][1]
-            tmp_dataset.SOPInstanceUID = generate_uid()
+            tmp_dataset.SOPClassUID = MODALITY_LEGACY_SOP_CLASS_MAP[modality]
+            tmp_dataset.SOPInstanceUID = UID()
             tmp_dataset.SeriesInstanceUID = series_uid
             tmp_dataset.StudyInstanceUID = study_uid
             tmp_dataset.BitsAllocated = bytes_per_voxel * 8
@@ -254,7 +148,7 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             tmp_dataset.Columns = cols
             tmp_dataset.Rows = rows
             tmp_dataset.SamplesPerPixel = 1
-            tmp_dataset.AccessionNumber = '2'
+            tmp_dataset.AccessionNumber = '1{:05d}'.format(frameset_idx)
             tmp_dataset.AcquisitionDate = date_
             tmp_dataset.AcquisitionTime = datetime.now().time()
             tmp_dataset.AdditionalPatientHistory = 'UTERINE CA PRE-OP EVAL'
@@ -262,29 +156,807 @@ class TestLegacyConvertedEnhancedImage(unittest.TestCase):
             tmp_dataset.ContentTime = datetime.now().time()
             tmp_dataset.Manufacturer = 'Manufacturer'
             tmp_dataset.ManufacturerModelName = 'Model'
-            tmp_dataset.Modality = sop_classes[system][0]
+            tmp_dataset.Modality = modality.name
             tmp_dataset.PatientAge = '064Y'
             tmp_dataset.PatientBirthDate = date_ - age
-            tmp_dataset.PatientID = 'ID0001'
+            tmp_dataset.PatientID = 'ID{:05d}'.format(frameset_idx)
             tmp_dataset.PatientIdentityRemoved = 'YES'
             tmp_dataset.PatientPosition = 'FFS'
             tmp_dataset.PatientSex = 'F'
             tmp_dataset.PhotometricInterpretation = 'MONOCHROME2'
             tmp_dataset.PixelData = pixel_array
             tmp_dataset.PositionReferenceIndicator = 'XY'
-            tmp_dataset.ProtocolName = 'some protocole'
+            tmp_dataset.ProtocolName = 'some protocol'
             tmp_dataset.ReferringPhysicianName = ''
             tmp_dataset.SeriesDate = date_
-            tmp_dataset.SeriesDescription = 'test series '
+            tmp_dataset.SeriesDescription = (
+                f'test series_frameset{frameset_idx:05d}'
+            )
             tmp_dataset.SeriesTime = time_
             tmp_dataset.SoftwareVersions = '01'
             tmp_dataset.SpecificCharacterSet = 'ISO_IR 100'
             tmp_dataset.StudyDate = date_
             tmp_dataset.StudyDescription = 'test study'
             tmp_dataset.StudyID = ''
-            if (system == Modality.CT):
-                tmp_dataset.RescaleIntercept = 0
+            if (modality == Modality.CT):
+                tmp_dataset.RescaleIntercept = -1024
                 tmp_dataset.RescaleSlope = 1
+
             tmp_dataset.StudyTime = time_
             output_dataset.append(tmp_dataset)
+
         return output_dataset
+
+    def generate_mixed_framesets(
+        self,
+        modality: Modality,
+        frame_set_count: int,
+        parallel: bool = True,
+        flatten_output: bool = True,
+    ) -> list:
+        out = []
+        orients = [
+            self._z_orientation_mat,
+            self._y_orientation_mat,
+            self._x_orientation_mat,
+        ]
+        poses = [
+            self._z_position_vec,
+            self._y_position_vec,
+            self._x_position_vec,
+        ]
+        se_uid = UID()
+        for i in range(frame_set_count):
+            if parallel:
+                pos = poses[0]
+                orient = orients[0]
+            else:
+                pos = poses[i % len(poses)]
+                orient = orients[i % len(orients)]
+            if flatten_output:
+                out.extend(
+                    self._generate_frameset(
+                        modality, orient, pos, se_uid, i * 50, i
+                    )
+                )
+            else:
+                out.append(
+                    self._generate_frameset(
+                        modality, orient, pos, se_uid, i * 50, i
+                    )
+                )
+
+        return out
+
+
+@pytest.fixture(params=[Modality.CT, Modality.MR, Modality.PT])
+def modality(request):
+    return request.param
+
+
+@pytest.mark.parametrize(
+    'number_of_frames', [1, 2, 5, 10],
+)
+def test_conversion(
+    modality: Modality,
+    number_of_frames: int
+) -> None:
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(number_of_frames)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    output_series_uid = UID()
+    output_sop_uid = UID()
+    output_series_number = 23
+    output_instance_number = 2
+    series_description = 'Converted Series'
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=output_series_uid,
+        sop_instance_uid=output_sop_uid,
+        series_number=output_series_number,
+        instance_number=output_instance_number,
+        series_description=series_description,
+    )
+
+    assert converted.SOPInstanceUID == output_sop_uid
+    assert converted.SeriesInstanceUID == output_series_uid
+    assert converted.SeriesNumber == output_series_number
+    assert converted.InstanceNumber == output_instance_number
+    assert converted.SeriesDescription == series_description
+
+    frame_type_seq_kw = {
+        Modality.MR: 'MRImageFrameTypeSequence',
+        Modality.CT: 'CTImageFrameTypeSequence',
+        Modality.PT: 'PETFrameTypeSequence',
+    }[modality]
+
+    assert converted.NumberOfFrames == number_of_frames
+    assert (
+        converted.SOPClassUID == MODALITY_ENHANCED_SOP_CLASS_MAP[modality]
+    )
+    assert not hasattr(converted, 'LargestImagePixelValue')
+    assert not hasattr(converted, 'SmalestImagePixelValue')
+    sfgs = converted.SharedFunctionalGroupsSequence[0]
+
+    # Frame Anatomy
+    assert not hasattr(sfgs, 'FrameAnatomySequence')
+
+    # Pixel measures
+    pix_meas_seq = sfgs.PixelMeasuresSequence[0]
+    assert (
+        pix_meas_seq.PixelSpacing ==
+        legacy_datasets[0].PixelSpacing
+    )
+    assert (
+        pix_meas_seq.SliceThickness ==
+        legacy_datasets[0].SliceThickness
+    )
+
+    # Plane Orientation
+    pl_ori_seq = sfgs.PlaneOrientationSequence[0]
+    assert (
+        pl_ori_seq.ImageOrientationPatient ==
+        legacy_datasets[0].ImageOrientationPatient
+    )
+
+    # Frame VOI LUT
+    fr_voi_lut_seq = sfgs.FrameVOILUTSequence[0]
+    assert (fr_voi_lut_seq.WindowWidth == 2)
+    assert (fr_voi_lut_seq.WindowCenter == 1)
+
+    # Frame Type
+    fr_type_seq = getattr(sfgs, frame_type_seq_kw)[0]
+    expected_frame_type = list(legacy_datasets[0].ImageType)[:3]
+    expected_frame_type.append('NONE')
+    assert fr_type_seq.FrameType == expected_frame_type
+    assert fr_type_seq.VolumetricProperties == 'VOLUME'
+    assert fr_type_seq.PixelPresentation == 'MONOCHROME'
+    assert fr_type_seq.VolumeBasedCalculationTechnique == 'NONE'
+
+    # Pixel Value Transformation
+    pix_val_tf_seq = sfgs.PixelValueTransformationSequence[0]
+    assert (
+        pix_val_tf_seq.RescaleSlope ==
+        legacy_datasets[0].get('RescaleSlope', 1)
+    )
+    assert (
+        pix_val_tf_seq.RescaleIntercept ==
+        legacy_datasets[0].get('RescaleIntercept', 0)
+    )
+    expected_rescale_type = 'HU' if modality == Modality.CT else 'US'
+    assert pix_val_tf_seq.RescaleType == expected_rescale_type
+
+    if number_of_frames == 1:
+        # Plane Position
+        pl_pos_seq = sfgs.PlanePositionSequence[0]
+        assert (
+            pl_pos_seq.ImagePositionPatient ==
+            legacy_datasets[0].ImagePositionPatient
+        )
+
+    for i, (src, pffg) in enumerate(
+        zip(
+            legacy_datasets,
+            converted.PerFrameFunctionalGroupsSequence,
+        )
+    ):
+        # Frame Content (always per-frame)
+        frm_content_seq = pffg.FrameContentSequence[0]
+        assert (
+            frm_content_seq.FrameAcquisitionNumber ==
+            src.AcquisitionNumber
+        )
+        expected_datetime = datetime.combine(
+            src.AcquisitionDate,
+            src.AcquisitionTime,
+        )
+        assert (
+            frm_content_seq.FrameAcquisitionDateTime ==
+            expected_datetime
+        )
+        assert frm_content_seq.StackID == '1'
+
+        # Due to choice of orientation, these are reversed
+        assert (
+            frm_content_seq.InStackPositionNumber ==
+            number_of_frames - i
+        )
+
+        conv_src_seq = pffg.ConversionSourceAttributesSequence[0]
+        assert (
+            conv_src_seq.ReferencedSOPClassUID ==
+            src.SOPClassUID
+        )
+        assert (
+            conv_src_seq.ReferencedSOPInstanceUID ==
+            src.SOPInstanceUID
+        )
+
+        if number_of_frames > 1:
+            # Plane Position
+            pl_pos_seq = pffg.PlanePositionSequence[0]
+            assert (
+                pl_pos_seq.ImagePositionPatient ==
+                src.ImagePositionPatient
+            )
+
+
+@pytest.mark.parametrize(
+    'keyword',
+    ['PatientID', 'PatientSex', 'AccessionNumber'],
+)
+def test_missing_type_2_attribute(modality: Modality, keyword: str):
+    """Type 2 attributes missing from source images should be set to None."""
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    for ds in legacy_datasets:
+        delattr(ds, keyword)
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert keyword in converted
+    assert getattr(converted, keyword) is None
+
+
+@pytest.mark.parametrize(
+    'keyword',
+    ['PatientID', 'PatientSex', 'AccessionNumber'],
+)
+def test_empty_type_2_attribute(modality: Modality, keyword: str):
+    """Type 2 attributes emtpy in source images should be set to None."""
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    for ds in legacy_datasets:
+        setattr(ds, keyword, None)
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert keyword in converted
+    assert getattr(converted, keyword) is None
+
+
+def test_optional_module(modality: Modality) -> None:
+    """Check that presence of the required attributes triggers inclusion of
+    optional module.
+
+    """
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    # Including just one of the two required attributes should cause the entire
+    # module to be omitted
+    for ds in legacy_datasets:
+        ds.ClinicalTrialSponsorName = 'Sponsor'  # type 1
+        ds.ClinicalTrialProtocolName = 'Protocol Name'  # type 2
+        ds.ClinicalTrialSiteName = 'Site Name'  # type 2
+        ds.IssuerOfClinicalTrialSubjectID = "Issuer"  # type 3
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert 'ClinicalTrialSponsorName' not in converted
+    assert 'ClinicalTrialProtocolID' not in converted
+    assert 'ClinicalTrialProtocolName' not in converted
+    assert 'IssuerOfClinicalTrialSubjectID' not in converted
+
+    # Now additionally including the missing required attribute should trigger
+    # the whole module to be included
+    for ds in legacy_datasets:
+        ds.ClinicalTrialProtocolID = 'Protocol ID'  # type 1
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert converted.ClinicalTrialSponsorName == 'Sponsor'
+    assert converted.ClinicalTrialProtocolName == 'Protocol Name'
+    assert converted.ClinicalTrialSiteName == 'Site Name'
+    assert converted.ClinicalTrialSiteID is None  # type 2, missing
+    assert converted.IssuerOfClinicalTrialSubjectID == "Issuer"
+
+
+@pytest.mark.parametrize(
+    'keyword',
+    [
+        'BurnedInAnnotation',
+        'RecognizableVisualFeatures',
+        'LossyImageCompression'
+    ],
+)
+def test_aggregated_attributes(modality: Modality, keyword: str) -> None:
+    """Check values of attributes that are aggregated across the source
+    instances.
+
+    """
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    # If all are NO, output will be NO
+    for ds in legacy_datasets:
+        setattr(ds, keyword, 'NO')
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert converted.get(keyword) == 'NO'
+
+    # If one is YES, output is YES
+    setattr(legacy_datasets[0], keyword, 'YES')
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+    assert converted.get(keyword) == 'YES'
+
+
+def test_average_compression_ratio(modality: Modality):
+    """If present, compression ratio should be averaged over frames."""
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(2)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    legacy_datasets[0].LossyImageCompressionRatio = 2.0
+    legacy_datasets[1].LossyImageCompressionRatio = 4.0
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    # Should be average of source values
+    assert converted.LossyImageCompressionRatio == 3.0
+
+
+@pytest.mark.parametrize(
+    ['missing_keyword', 'sequence_name'],
+    [
+        ('ImageOrientationPatient', 'PlaneOrientationSequence'),
+        ('ImagePositionPatient', 'PlanePositionSequence'),
+        ('PixelSpacing', 'PixelMeasuresSequence'),
+        ('WindowWidth', 'FrameVOILUTSequence'),
+    ],
+)
+def test_missing_required_attribute_for_mandatory_group(
+    modality: Modality,
+    missing_keyword: str,
+    sequence_name: str,
+):
+    """Missing required attribute for mandatory functional group should raise
+    an error.
+
+    """
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    for ds in legacy_datasets:
+        delattr(ds, missing_keyword)
+
+    msg = (
+        "Cannot determine value for required attribute "
+        f"'{missing_keyword}' in the '{sequence_name}'."
+    )
+    with pytest.raises(AttributeError, match=msg):
+        LegacyConverterClass(
+            legacy_datasets,
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+        )
+
+
+def test_private_attributes():
+    """Test private attributes are correctly copied."""
+    # Some test files that have a lot of private attributes
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166', read=True),
+    ]
+
+    converted = LegacyConvertedEnhancedCTImage(
+        ct_files,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    unassigned_shared_seq = (
+        converted
+        .SharedFunctionalGroupsSequence[0]
+        .UnassignedSharedConvertedAttributesSequence[0]
+    )
+    unassigned_perframe_seq = (
+        converted
+        .PerFrameFunctionalGroupsSequence[0]
+        .UnassignedPerFrameConvertedAttributesSequence[0]
+    )
+
+    # Check some arbitrary tags and their private creators
+    assert unassigned_shared_seq[0x0045_1006].value == 'OUT OF GANTRY'
+    assert unassigned_shared_seq[0x0045_0010].value == 'GEMS_HELIOS_01'
+
+    assert unassigned_perframe_seq[0x0019_1024].value == 131.0
+    assert unassigned_perframe_seq[0x0019_0010].value == 'GEMS_ACQU_01'
+
+
+def test_optional_functional_group():
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.PT, 1, True, True
+    )
+
+    irradiation_uid = UID()
+
+    for ds in legacy_datasets:
+        ds.IrradiationEventUID = irradiation_uid
+
+    converted = LegacyConvertedEnhancedPETImage(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    sfgs = converted.SharedFunctionalGroupsSequence[0]
+    irradiation_seq = sfgs.IrradiationEventIdentificationSequence[0]
+
+    assert irradiation_seq.IrradiationEventUID == irradiation_uid
+
+
+def test_extended_offset_table(modality):
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        use_extended_offset_table=True,
+    )
+
+    pixel_array = converted.pixel_array
+    assert pixel_array.shape == (5, 2, 2)
+
+
+def test_empty_dataset_list(modality: Modality) -> None:
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+
+    msg = 'At least one legacy dataset must be provided.'
+    with pytest.raises(ValueError, match=msg):
+        LegacyConverterClass(
+            [],
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+        )
+
+
+@pytest.mark.parametrize(
+    ['converter_class', 'dataset_modality'],
+    [
+        (LegacyConvertedEnhancedCTImage, Modality.PT),
+        (LegacyConvertedEnhancedMRImage, Modality.CT),
+        (LegacyConvertedEnhancedPETImage, Modality.MR),
+
+    ],
+)
+def test_wrong_modality(
+    converter_class: type,
+    dataset_modality: Modality,
+) -> None:
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        dataset_modality, 1, True, True
+    )
+    msg = 'Wrong modality for conversion of legacy [A-Z]+ images.'
+    with pytest.raises(ValueError, match=msg):
+        converter_class(
+            legacy_datasets,
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+        )
+
+
+def test_wrong_sop_class_uid(modality: Modality) -> None:
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    for ddss in legacy_datasets:
+        ddss.SOPClassUID = '1.2.3.4.5.6.7.8.9'
+
+    msg = 'Wrong SOP class for conversion of legacy [A-Z]+ images.'
+    with pytest.raises(ValueError, match=msg):
+        LegacyConverterClass(
+            legacy_datasets,
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+        )
+
+
+@pytest.mark.parametrize(
+    ['inconsistent_keyword', 'replacement_value'],
+    [
+        ('StudyInstanceUID', '1.2.3.4.5.6.7.8.9'),
+        ('FrameOfReferenceUID', '1.2.3.4.5.6.7.8.9'),
+        ('PatientID', 'M12345'),
+        ('Manufacturer', 'Foo Corp.'),
+        ('Rows', 1024),
+        ('BitsStored', 12),
+        ('SamplesPerPixel', 3),
+        ('PlanarConfiguration', 1),
+    ],
+)
+def test_mixed_studies(
+    modality: Modality,
+    inconsistent_keyword: str,
+    replacement_value: Any,
+) -> None:
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    setattr(legacy_datasets[0], inconsistent_keyword, replacement_value)
+
+    msg = (
+        "The legacy instances provided are not a valid source for a "
+        "legacy conversion because the presence and/or values of the "
+        "following attribute(s) is not consistent across instances: "
+        f"{inconsistent_keyword}."
+    )
+    with pytest.raises(ValueError, match=re.escape(msg)):
+        LegacyConverterClass(
+            legacy_datasets=legacy_datasets,
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+        )
+
+
+def test_mixed_transfer_syntax(modality: Modality):
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    legacy_datasets[0].file_meta.TransferSyntaxUID = JPEG2000Lossless
+    msg = (
+        'Legacy instances have inconsistent transfer syntaxes.'
+    )
+    with pytest.raises(ValueError, match=msg):
+        LegacyConverterClass(
+            legacy_datasets=legacy_datasets,
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+        )
+
+
+def test_body_part_mapping(modality: Modality):
+    """Test that BodyPartExamined is correctly mapped to a coded
+    AnatomicRegionSequence.
+
+    """
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    body_part_examined = 'ANTECUBITALV'
+    expected_scheme_designator = 'SCT'
+    expected_code_value = '128553008'
+    expected_code_meaning = 'Antecubital vein'
+
+    for dcm in legacy_datasets:
+        dcm.BodyPartExamined = body_part_examined
+
+    converted = LegacyConverterClass(
+        legacy_datasets=legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    sfgs = converted.SharedFunctionalGroupsSequence[0]
+    assert hasattr(sfgs, 'FrameAnatomySequence')
+    fr_an_seq = sfgs.FrameAnatomySequence[0]
+    assert (
+        fr_an_seq.AnatomicRegionSequence[0].CodeValue ==
+        expected_code_value
+    )
+    assert (
+        fr_an_seq.AnatomicRegionSequence[0].CodeMeaning ==
+        expected_code_meaning
+    )
+    assert (
+        fr_an_seq.AnatomicRegionSequence[0].CodingSchemeDesignator ==
+        expected_scheme_designator
+    )
+    assert fr_an_seq.FrameLaterality == 'U'  # unimodal (default)
+
+
+def test_laterality_from_region_modifier(modality: Modality):
+    """Test that the laterality is correctly inferred from the
+    AnatomicRegionSequence if present in the source file.
+
+    """
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    region_item = Dataset()
+    region_item.CodeMeaning = 'Kidney'
+    region_item.CodeValue = '64033007'
+    region_item.CodingSchemeDesignator = 'SCT'
+    modifier_item = Dataset()
+    modifier_item.CodeMeaning = 'Left'
+    modifier_item.CodeValue = '7771000'
+    modifier_item.CodingSchemeDesignator = 'SCT'
+    region_item.AnatomicRegionModifierSequence = [modifier_item]
+
+    for dcm in legacy_datasets:
+        dcm.AnatomicRegionSequence = [deepcopy(region_item)]
+
+    converted = LegacyConverterClass(
+        legacy_datasets=legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    sfgs = converted.SharedFunctionalGroupsSequence[0]
+    assert hasattr(sfgs, 'FrameAnatomySequence')
+    fr_an_seq = sfgs.FrameAnatomySequence[0]
+    assert (
+        fr_an_seq.AnatomicRegionSequence[0].CodeValue ==
+        '64033007'
+    )
+    assert (
+        fr_an_seq.AnatomicRegionSequence[0].CodeMeaning ==
+        'Kidney'
+    )
+    assert (
+        fr_an_seq.AnatomicRegionSequence[0].CodingSchemeDesignator ==
+        'SCT'
+    )
+    assert fr_an_seq.FrameLaterality == 'L'  # inferred from modifier
+
+
+def test_laterality_from_structure_modifier(modality: Modality):
+    """Test that the laterality is correctly inferred from the
+    PrimaryAnatomicStructureSequence if present in the source file.
+
+    """
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    region_item = Dataset()
+    region_item.CodeMeaning = 'Thorax'
+    region_item.CodeValue = '816094009'
+    region_item.CodingSchemeDesignator = 'SCT'
+    structure_item = Dataset()
+    structure_item.CodeMeaning = 'Lung'
+    structure_item.CodeValue = '39607008'
+    structure_item.CodingSchemeDesignator = 'SCT'
+    modifier_item = Dataset()
+    modifier_item.CodeMeaning = 'Bilateral'
+    modifier_item.CodeValue = '51440002'
+    modifier_item.CodingSchemeDesignator = 'SCT'
+    structure_item.PrimaryAnatomicStructureModifierSequence = [
+        modifier_item
+    ]
+
+    for dcm in legacy_datasets:
+        dcm.AnatomicRegionSequence = [deepcopy(region_item)]
+        dcm.PrimaryAnatomicStructureSequence = [deepcopy(structure_item)]
+
+    converted = LegacyConverterClass(
+        legacy_datasets=legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    sfgs = converted.SharedFunctionalGroupsSequence[0]
+    assert hasattr(sfgs, 'FrameAnatomySequence')
+    fr_an_seq = sfgs.FrameAnatomySequence[0]
+    assert (
+        fr_an_seq.PrimaryAnatomicStructureSequence[0].CodeValue ==
+        '39607008'
+    )
+    assert (
+        fr_an_seq.PrimaryAnatomicStructureSequence[0].CodeMeaning ==
+        'Lung'
+    )
+    assert (
+        fr_an_seq
+        .PrimaryAnatomicStructureSequence[0]
+        .CodingSchemeDesignator ==
+        'SCT'
+    )
+    assert fr_an_seq.FrameLaterality == 'B'  # inferred from modifier
