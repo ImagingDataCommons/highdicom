@@ -452,6 +452,11 @@ class _LegacyConversionRunner:
             self._frame_type_seq_kw,
             [
                 _AttributeConfig(
+                    'FrameType',
+                    src_kws=['ImageType'],
+                    defer_copy=True,  # handled in callback
+                ),
+                _AttributeConfig(
                     'PixelPresentation',
                     src_kws=[],
                     default_val='MONOCHROME',
@@ -1597,9 +1602,10 @@ class _LegacyConversionRunner:
         if len(frame_v4) > 1:
             v4 = 'MIXED'
         else:
-            v4 = list(frame_v1)[0]
+            v4 = list(frame_v4)[0]
 
         self._destination.ImageType = [v1, v2, v3, v4]
+        print([v1, v2, v3, v4])
 
     def _add_largest_smallest_pixel_value(self) -> None:
         """Adds the attributes for largest and smallest pixel value.

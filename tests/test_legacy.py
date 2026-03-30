@@ -560,6 +560,38 @@ def test_average_compression_ratio(modality: Modality):
     assert converted.LossyImageCompressionRatio == 3.0
 
 
+def test_aggregated_image_type():
+    """Test that the top-level ImageType is correctly aggregated over
+    frames.
+
+    """
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.CT, 1, True, True
+    )
+
+    # First image has different image type
+    legacy_datasets[0].ImageType = ['DERIVED', 'PRIMARY', 'LOCALIZER']
+
+    converted = LegacyConvertedEnhancedCTImage(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    # Top-level ImageType should be aggregated version of source values
+    assert converted.ImageType == ['MIXED', 'PRIMARY', 'AXIAL', 'NONE']
+
+    # Frame type should have moved to the per-frame functional groups
+    sfgs = converted.SharedFunctionalGroupsSequence[0]
+    frame_type_seq_kw = 'CTImageFrameTypeSequence'
+    assert not hasattr(sfgs, frame_type_seq_kw)
+    for pffg in converted.PerFrameFunctionalGroupsSequence:
+        assert hasattr(pffg, frame_type_seq_kw)
+
+
 @pytest.mark.parametrize(
     ['missing_keyword', 'sequence_name'],
     [
