@@ -844,7 +844,7 @@ class _LegacyConversionRunner:
         if module_usage != ModuleUsageValues.MANDATORY:
             for dest_kw, _, _, _, val, _ in iter_attribute_configs(True):
                 if val is None:
-                    # We have no value for one of hhe required attributes, so
+                    # We have no value for one of the required attributes, so
                     # we should skip the entire module entirely
                     logger.debug(
                         f"Skipping optional module {module_name} "
@@ -862,31 +862,38 @@ class _LegacyConversionRunner:
             defer_copy,
         ) in iter_attribute_configs():
             if val is not None:
-                if is_shared:
-                    if not defer_copy:
-                        setattr(self._destination, dest_kw, deepcopy(val))
-                        if src_kw is not None:
-                            self._mark_keyword_used(src_kw)
-                else:
-                    match usage_type:
-                        case AttributeTypeValues.REQUIRED:
-                            raise AttributeError(
-                                "Unable to determine value for "
-                                f'required attribute "{dest_kw}" because '
-                                "the value is inconsistent between the "
-                                "legacy files."
-                            )
-                        case AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN:
-                            # Leave blank rather than selecting from
-                            # inconsistent
-                            setattr(self._destination, dest_kw, None)
+                if not defer_copy:
+                    setattr(self._destination, dest_kw, deepcopy(val))
+                    if src_kw is not None:
+                        self._mark_keyword_used(src_kw)
+            elif not is_shared:
+                match usage_type:
+                    case AttributeTypeValues.REQUIRED:
+                        # Most of these cases will have been caught earlier
+                        # by the initial consistency checks
+                        raise AttributeError(
+                            "Unable to determine value for "
+                            f'required attribute "{dest_kw}" because '
+                            "the value is inconsistent between the "
+                            "legacy files."
+                        )
+                    case AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN:
+                        # This shouldn't really happen, but probably
+                        # failing if it did would be overly strict. Issue
+                        # a warning and leave the attribute empty
+                        logger.warning(
+                            f"Setting type 2 attribute '{dest_kw}' to "
+                            "empty because value is inconsistent "
+                            "between source images."
+                        )
+                        setattr(self._destination, dest_kw, None)
             else:
                 # No value found
                 match usage_type:
                     case AttributeTypeValues.REQUIRED:
                         raise AttributeError(
                             "Unable to determine value for required "
-                            f'attribute "{dest_kw}" because the required '
+                            f"attribute '{dest_kw}' because the required "
                             "information is not present in the legacy files."
                         )
                     case AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN:

@@ -1,3 +1,4 @@
+from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timedelta
 import enum
@@ -6,7 +7,7 @@ from typing import Any
 
 from pydicom import FileDataset, Dataset
 from pydicom.data import get_testdata_file
-from pydicom.uid import JPEG2000Lossless
+from pydicom.uid import JPEG2000Lossless, RLELossless
 from pydicom.valuerep import DSfloat
 from highdicom.legacy import (
     LegacyConvertedEnhancedCTImage,
@@ -144,7 +145,7 @@ class DicomGenerator:
             tmp_dataset.BitsAllocated = bytes_per_voxel * 8
             tmp_dataset.BitsStored = bytes_per_voxel * 8
             tmp_dataset.HighBit = (bytes_per_voxel * 8 - 1)
-            tmp_dataset.PixelRepresentation = 1
+            tmp_dataset.PixelRepresentation = 0
             tmp_dataset.Columns = cols
             tmp_dataset.Rows = rows
             tmp_dataset.SamplesPerPixel = 1
@@ -279,7 +280,7 @@ def test_conversion(
         converted.SOPClassUID == MODALITY_ENHANCED_SOP_CLASS_MAP[modality]
     )
     assert not hasattr(converted, 'LargestImagePixelValue')
-    assert not hasattr(converted, 'SmalestImagePixelValue')
+    assert not hasattr(converted, 'SmallestImagePixelValue')
     sfgs = converted.SharedFunctionalGroupsSequence[0]
 
     # Frame Anatomy
@@ -439,6 +440,42 @@ def test_empty_type_2_attribute(modality: Modality, keyword: str):
     assert getattr(converted, keyword) is None
 
 
+@pytest.mark.parametrize(
+    ['keyword', 'replacement_value'],
+    [
+        ('PatientSex', 'M'),
+        ('AccessionNumber', 'A123')
+    ],
+)
+def test_inconsistent_type_2_attribute(
+    modality: Modality,
+    keyword: str,
+    replacement_value: Any,
+):
+    """Type 2 attributes inconsistent between source images should be set to
+    None.
+
+    """
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    setattr(legacy_datasets[-1], keyword, replacement_value)
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert keyword in converted
+    assert getattr(converted, keyword) is None
+
+
 def test_optional_module(modality: Modality) -> None:
     """Check that presence of the required attributes triggers inclusion of
     optional module.
@@ -558,6 +595,31 @@ def test_average_compression_ratio(modality: Modality):
 
     # Should be average of source values
     assert converted.LossyImageCompressionRatio == 3.0
+
+
+def test_largest_smallest_pixel_value(modality: Modality):
+    """Test that largest and smallest pixel values are min/maxed over instances."""
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    for i, ds in enumerate(legacy_datasets):
+        ds.SmallestImagePixelValue = i
+        ds.LargestImagePixelValue = i
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    # Should be average of source values
+    assert converted.SmallestImagePixelValue == 0
+    assert converted.LargestImagePixelValue == 4
 
 
 def test_aggregated_image_type():
@@ -992,3 +1054,45 @@ def test_laterality_from_structure_modifier(modality: Modality):
         'SCT'
     )
     assert fr_an_seq.FrameLaterality == 'B'  # inferred from modifier
+
+
+@pytest.mark.parametrize("workers", [0, 1, 4])
+def test_transcode(workers: int):
+    """Test transcoding frames to a new transfer syntax"""
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.MR, 1, True, True
+    )
+
+    converted = LegacyConvertedEnhancedMRImage(
+        legacy_datasets=legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        transfer_syntax_uid=RLELossless,
+        workers=workers,
+    )
+
+    assert converted.pixel_array.shape == (5, 2, 2)
+
+
+def test_transcode_custom_workers():
+    """Test transcoding frames with custom workers."""
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.MR, 1, True, True
+    )
+
+    with ProcessPoolExecutor(5) as workers:
+        converted = LegacyConvertedEnhancedMRImage(
+            legacy_datasets=legacy_datasets,
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            transfer_syntax_uid=RLELossless,
+            workers=workers,
+        )
+
+    assert converted.pixel_array.shape == (5, 2, 2)
