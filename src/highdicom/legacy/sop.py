@@ -1,6 +1,5 @@
-"""Module for SOP Classes of Legacy Converted Enhanced Image IODs.
+"""Module for SOP Classes of Legacy Converted Enhanced Image IODs."""
 
-"""
 from collections import Counter
 from concurrent.futures import Executor, ProcessPoolExecutor
 from copy import deepcopy
@@ -51,53 +50,53 @@ logger = logging.getLogger(__name__)
 
 LEGACY_ENHANCED_SOP_CLASS_UID_MAP = {
     # CT Image Storage
-    '1.2.840.10008.5.1.4.1.1.2': '1.2.840.10008.5.1.4.1.1.2.2',
+    "1.2.840.10008.5.1.4.1.1.2": "1.2.840.10008.5.1.4.1.1.2.2",
     # MR Image Storage
-    '1.2.840.10008.5.1.4.1.1.4': '1.2.840.10008.5.1.4.1.1.4.4',
+    "1.2.840.10008.5.1.4.1.1.4": "1.2.840.10008.5.1.4.1.1.4.4",
     # PET Image Storage
-    '1.2.840.10008.5.1.4.1.1.128': '1.2.840.10008.5.1.4.1.1.128.1',
+    "1.2.840.10008.5.1.4.1.1.128": "1.2.840.10008.5.1.4.1.1.128.1",
 }
 
 
 _SOP_CLASS_UID_IOD_KEY_MAP = {
-    '1.2.840.10008.5.1.4.1.1.2.2': 'legacy-converted-enhanced-ct-image',
-    '1.2.840.10008.5.1.4.1.1.4.4': 'legacy-converted-enhanced-mr-image',
-    '1.2.840.10008.5.1.4.1.1.128.1': 'legacy-converted-enhanced-pet-image',
+    "1.2.840.10008.5.1.4.1.1.2.2": "legacy-converted-enhanced-ct-image",
+    "1.2.840.10008.5.1.4.1.1.4.4": "legacy-converted-enhanced-mr-image",
+    "1.2.840.10008.5.1.4.1.1.128.1": "legacy-converted-enhanced-pet-image",
 }
 
 
-_FARTHEST_FUTURE_DATE_TIME = DT('99991231235959')
+_FARTHEST_FUTURE_DATE_TIME = DT("99991231235959")
 
 
 # List of attributes required to be consistent between each frame for the
 # conversion to be valid
 _CONSISTENT_KEYWORDS = [
-    'PatientID',
-    'PatientName',
-    'StudyInstanceUID',
-    'FrameOfReferenceUID',
-    'Manufacturer',
-    'InstitutionName',
-    'InstitutionAddress',
-    'StationName',
-    'InstitutionalDepartmentName',
-    'ManufacturerModelName',
-    'DeviceSerialNumber',
-    'SoftwareVersions',
-    'GantryID',
-    'PixelPaddingValue',
-    'Modality',
-    'SOPClassUID',
-    'Rows',
-    'Columns',
-    'BitsStored',
-    'BitsAllocated',
-    'HighBit',
-    'PixelRepresentation',
-    'PhotometricInterpretation',
-    'PlanarConfiguration',
-    'SamplesPerPixel',
-    'ProtocolName',
+    "PatientID",
+    "PatientName",
+    "StudyInstanceUID",
+    "FrameOfReferenceUID",
+    "Manufacturer",
+    "InstitutionName",
+    "InstitutionAddress",
+    "StationName",
+    "InstitutionalDepartmentName",
+    "ManufacturerModelName",
+    "DeviceSerialNumber",
+    "SoftwareVersions",
+    "GantryID",
+    "PixelPaddingValue",
+    "Modality",
+    "SOPClassUID",
+    "Rows",
+    "Columns",
+    "BitsStored",
+    "BitsAllocated",
+    "HighBit",
+    "PixelRepresentation",
+    "PhotometricInterpretation",
+    "PlanarConfiguration",
+    "SamplesPerPixel",
+    "ProtocolName",
 ]
 
 
@@ -107,10 +106,7 @@ def _istag_file_meta_information_group(t: BaseTag) -> bool:
 
 def _istag_repeating_group(t: BaseTag) -> bool:
     g = t.group
-    return (
-        (g >= 0x5000 and g <= 0x501e) or
-        (g >= 0x6000 and g <= 0x601e)
-    )
+    return (g >= 0x5000 and g <= 0x501E) or (g >= 0x6000 and g <= 0x601E)
 
 
 @lru_cache(maxsize=1)
@@ -129,17 +125,12 @@ def _get_anatomic_region_mapping() -> dict[str, CodedConcept]:
         AnatomicRegionSequence.
 
     """
-    data_file = pkgutil.get_data(
-        'highdicom',
-        '_standard/anatomic_regions.json'
-    )
+    data_file = pkgutil.get_data("highdicom", "_standard/anatomic_regions.json")
 
     if data_file is None:
-        raise FileNotFoundError(
-            "Error loading anatomic regions JSON data file."
-        )
+        raise FileNotFoundError("Error loading anatomic regions JSON data file.")
 
-    anatomic_regions = json.loads(data_file.decode('utf-8'))
+    anatomic_regions = json.loads(data_file.decode("utf-8"))
 
     return {
         k: CodedConcept(value=v[1], scheme_designator=v[0], meaning=v[2])
@@ -177,8 +168,8 @@ def _transcode_frame(
         bits_allocated=dataset.BitsAllocated,
         bits_stored=dataset.BitsStored,
         photometric_interpretation=dataset.PhotometricInterpretation,
-        pixel_representation=dataset.get('PixelRepresentation', 0),
-        planar_configuration=dataset.get('PlanarConfiguration'),
+        pixel_representation=dataset.get("PixelRepresentation", 0),
+        planar_configuration=dataset.get("PlanarConfiguration"),
     )
 
 
@@ -205,6 +196,7 @@ class _AttributeConfig:
         that will be processed by custom logic.
 
     """
+
     dest_kw: str
     src_kws: list[str] | None = None
     default_val: Any = None
@@ -257,10 +249,9 @@ class _LegacyConversionRunner:
 
     def run(self) -> None:
         """Run conversion."""
-        (
-            self._keyword_shared_dict,
-            self._private_tag_shared_dict
-        ) = self._find_shared_and_perframe_attributes()
+        (self._keyword_shared_dict, self._private_tag_shared_dict) = (
+            self._find_shared_and_perframe_attributes()
+        )
         self._check_attribute_consistency()
 
         # List of attributes that should never be placed into the
@@ -268,27 +259,26 @@ class _LegacyConversionRunner:
         # UnassignedSharedConvertedAttributesSequence
         excluded_keywords = [
             *_CONSISTENT_KEYWORDS,
-            'PixelData',
-            'SeriesInstanceUID',
-            'AcquisitionDate',
-            'AcquisitionTime',
-            'AcquisitionDateTime',
-            'ImageType',
-            'SeriesDescription',
+            "PixelData",
+            "SeriesInstanceUID",
+            "AcquisitionDate",
+            "AcquisitionTime",
+            "AcquisitionDateTime",
+            "ImageType",
+            "SeriesDescription",
             # TODO why is this here?
-            'SpecificCharacterSet',
+            "SpecificCharacterSet",
         ]
         self._unused_keywords = {
-            kw for kw in self._keyword_shared_dict.keys()
-            if kw not in excluded_keywords
+            kw for kw in self._keyword_shared_dict.keys() if kw not in excluded_keywords
         }
 
         # The name of the "Enhanced X Image" module within the IOD being
         # created
         enhanced_image_module_name = {
-            LegacyConvertedEnhancedPETImageStorage: 'enhanced-pet-image',
-            LegacyConvertedEnhancedCTImageStorage: 'enhanced-ct-image',
-            LegacyConvertedEnhancedMRImageStorage: 'enhanced-mr-image',
+            LegacyConvertedEnhancedPETImageStorage: "enhanced-pet-image",
+            LegacyConvertedEnhancedCTImageStorage: "enhanced-ct-image",
+            LegacyConvertedEnhancedMRImageStorage: "enhanced-mr-image",
         }[self._destination.SOPClassUID]
 
         # Attribute configs specific to the above module
@@ -298,135 +288,121 @@ class _LegacyConversionRunner:
             LegacyConvertedEnhancedCTImageStorage: [],
             LegacyConvertedEnhancedMRImageStorage: [
                 _AttributeConfig(
-                    'ResonantNucleus',
-                    src_kws=['ResonantNucleus', 'ImagedNucleus'],
+                    "ResonantNucleus",
+                    src_kws=["ResonantNucleus", "ImagedNucleus"],
                 ),
             ],
         }[self._destination.SOPClassUID]
 
-        self._add_module('patient')
-        self._add_module('clinical-trial-subject')
+        self._add_module("patient")
+        self._add_module("clinical-trial-subject")
         self._add_module(
-            'general-study',
+            "general-study",
             skip_attributes=[
-                'StudyInstanceUID',
-                'RequestingService',
-            ]
-        )
-        self._add_module(
-            'patient-study',
-            skip_attributes=[
-                'ReasonForVisit',
-                'ReasonForVisitCodeSequence'
+                "StudyInstanceUID",
+                "RequestingService",
             ],
         )
-        self._add_module('clinical-trial-study')
         self._add_module(
-            'general-series',
+            "patient-study",
+            skip_attributes=["ReasonForVisit", "ReasonForVisitCodeSequence"],
+        )
+        self._add_module("clinical-trial-study")
+        self._add_module(
+            "general-series",
             skip_attributes=[
-                'SeriesInstanceUID',
-                'SeriesNumber',
-                'SeriesDescription',
-                'SmallestPixelValueInSeries',
-                'LargestPixelValueInSeries',
-                'PerformedProcedureStepEndDate',
-                'PerformedProcedureStepEndTime'
+                "SeriesInstanceUID",
+                "SeriesNumber",
+                "SeriesDescription",
+                "SmallestPixelValueInSeries",
+                "LargestPixelValueInSeries",
+                "PerformedProcedureStepEndDate",
+                "PerformedProcedureStepEndTime",
             ],
         )
-        self._add_module('clinical-trial-series')
+        self._add_module("clinical-trial-series")
         self._add_module(
-            'general-equipment',
-            skip_attributes=[
-                'InstitutionalDepartmentTypeCodeSequence'
-            ],
+            "general-equipment",
+            skip_attributes=["InstitutionalDepartmentTypeCodeSequence"],
         )
-        self._add_module('frame-of-reference')
+        self._add_module("frame-of-reference")
         self._add_module(
-            'sop-common',
+            "sop-common",
             skip_attributes=[
-                'SOPClassUID',
-                'SOPInstanceUID',
-                'InstanceNumber',
-                'SpecificCharacterSet',
-                'EncryptedAttributesSequence',
-                'MACParametersSequence',
-                'DigitalSignaturesSequence'
+                "SOPClassUID",
+                "SOPInstanceUID",
+                "InstanceNumber",
+                "SpecificCharacterSet",
+                "EncryptedAttributesSequence",
+                "MACParametersSequence",
+                "DigitalSignaturesSequence",
             ],
         )
         self._add_module(
             enhanced_image_module_name,
             attribute_configs=[
+                _AttributeConfig("VolumetricProperties", default_val="VOLUME"),
                 _AttributeConfig(
-                    'VolumetricProperties',
-                    default_val='VOLUME'
+                    "VolumeBasedCalculationTechnique",
+                    default_val="NONE",
                 ),
                 _AttributeConfig(
-                    'VolumeBasedCalculationTechnique',
-                    default_val='NONE',
-                ),
-                _AttributeConfig(
-                    'PixelPresentation',
+                    "PixelPresentation",
                     default_val=(
-                        'COLOR'
+                        "COLOR"
                         if self._legacy_datasets[0].SamplesPerPixel == 3
-                        else 'MONOCHROME'
-                    )
+                        else "MONOCHROME"
+                    ),
                 ),
                 _AttributeConfig(
-                    'PresentationLUTShape',
+                    "PresentationLUTShape",
                     src_kws=[],
-                    default_val='IDENTITY',
+                    default_val="IDENTITY",
                 ),
                 _AttributeConfig(
-                    'ContentQualification',
-                    default_val='RESEARCH',
+                    "ContentQualification",
+                    default_val="RESEARCH",
                 ),
                 # Modality-spcific configs
                 *enhanced_image_module_attribute_configs,
             ],
             skip_attributes=[
-                'ImageType',
-                'AcquisitionDateTime',
-                'ReferencedWaveformSequence',
-                'ReferencedImageEvidenceSequence',
-                'AcquisitionNumber',
-                'InstanceNumber',
-                'ImageComments',
-                'BurnedInAnnotation',
-                'RecognizableVisualFeatures',
-                'LossyImageCompression',
-                'LossyImageCompressionRatio',
-                'IconImageSequence',
+                "ImageType",
+                "AcquisitionDateTime",
+                "ReferencedWaveformSequence",
+                "ReferencedImageEvidenceSequence",
+                "AcquisitionNumber",
+                "InstanceNumber",
+                "ImageComments",
+                "BurnedInAnnotation",
+                "RecognizableVisualFeatures",
+                "LossyImageCompression",
+                "LossyImageCompressionRatio",
+                "IconImageSequence",
             ],
             custom_logic_callback=self._common_enhanced_image_custom_logic,
         )
         self._add_module(
-            'image-pixel',
+            "image-pixel",
             skip_attributes=[
-                'ColorSpace',
-                'PixelDataProviderURL',
-                'ExtendedOffsetTable',
-                'ExtendedOffsetTableLengths',
-                'SmallestImagePixelValue',
-                'LargestImagePixelValue',
-                'PixelData',
+                "ColorSpace",
+                "PixelDataProviderURL",
+                "ExtendedOffsetTable",
+                "ExtendedOffsetTableLengths",
+                "SmallestImagePixelValue",
+                "LargestImagePixelValue",
+                "PixelData",
             ],
         )
         self._add_module(
-            'acquisition-context',
+            "acquisition-context",
             attribute_configs=[
-                _AttributeConfig(
-                    'AcquisitionContextSequence',
-                    default_val=[]
-                )
+                _AttributeConfig("AcquisitionContextSequence", default_val=[])
             ],
         )
 
-        if (
-            self._destination.SOPClassUID !=
-            LegacyConvertedEnhancedPETImageStorage
-        ):
-            self._add_module('contrast-bolus')
+        if self._destination.SOPClassUID != LegacyConvertedEnhancedPETImageStorage:
+            self._add_module("contrast-bolus")
 
         self._destination.SharedFunctionalGroupsSequence = [Dataset()]
         self._destination.PerFrameFunctionalGroupsSequence = [
@@ -434,17 +410,17 @@ class _LegacyConversionRunner:
         ]
 
         self._frame_type_seq_kw = {
-            LegacyConvertedEnhancedMRImageStorage: 'MRImageFrameTypeSequence',
-            LegacyConvertedEnhancedCTImageStorage: 'CTImageFrameTypeSequence',
-            LegacyConvertedEnhancedPETImageStorage: 'PETFrameTypeSequence',
+            LegacyConvertedEnhancedMRImageStorage: "MRImageFrameTypeSequence",
+            LegacyConvertedEnhancedCTImageStorage: "CTImageFrameTypeSequence",
+            LegacyConvertedEnhancedPETImageStorage: "PETFrameTypeSequence",
         }[self._destination.SOPClassUID]
 
         self._add_functional_group(
-            'DerivationImageSequence',
-            [_AttributeConfig('SourceImageSequence')],
+            "DerivationImageSequence",
+            [_AttributeConfig("SourceImageSequence")],
             optional_attributes=[
-                _AttributeConfig('DerivationDescription'),
-                _AttributeConfig('DerivationCodeSequence'),
+                _AttributeConfig("DerivationDescription"),
+                _AttributeConfig("DerivationCodeSequence"),
             ],
             required=False,
         )
@@ -452,24 +428,24 @@ class _LegacyConversionRunner:
             self._frame_type_seq_kw,
             [
                 _AttributeConfig(
-                    'FrameType',
-                    src_kws=['ImageType'],
+                    "FrameType",
+                    src_kws=["ImageType"],
                     defer_copy=True,  # handled in callback
                 ),
                 _AttributeConfig(
-                    'PixelPresentation',
+                    "PixelPresentation",
                     src_kws=[],
-                    default_val='MONOCHROME',
+                    default_val="MONOCHROME",
                 ),
                 _AttributeConfig(
-                    'VolumetricProperties',
+                    "VolumetricProperties",
                     src_kws=[],
-                    default_val='VOLUME',  # TODO check
+                    default_val="VOLUME",  # TODO check
                 ),
                 _AttributeConfig(
-                    'VolumeBasedCalculationTechnique',
+                    "VolumeBasedCalculationTechnique",
                     src_kws=[],
-                    default_val='NONE',
+                    default_val="NONE",
                 ),
             ],
             custom_logic_callback=self._frame_type_custom_logic,
@@ -477,120 +453,106 @@ class _LegacyConversionRunner:
 
         if self._check_frame_anatomy_condition():
             self._add_functional_group(
-                'FrameAnatomySequence',
+                "FrameAnatomySequence",
                 [
                     _AttributeConfig(
-                        'AnatomicRegionSequence',
-                        ['AnatomicRegionSequence', 'BodyPartExamined'],
+                        "AnatomicRegionSequence",
+                        ["AnatomicRegionSequence", "BodyPartExamined"],
                         defer_copy=True,  # handle this in callback
                     ),
                 ],
                 optional_attributes=[
-                    _AttributeConfig('PrimaryAnatomicStructureSequence'),
+                    _AttributeConfig("PrimaryAnatomicStructureSequence"),
                 ],
                 custom_logic_callback=self._frame_anatomy_custom_logic,
                 required=False,
             )
 
         self._add_functional_group(
-            'FrameContentSequence',
+            "FrameContentSequence",
             [],
             optional_attributes=[
                 _AttributeConfig(
-                    'FrameAcquisitionNumber', ['AcquisitionNumber'],
+                    "FrameAcquisitionNumber",
+                    ["AcquisitionNumber"],
                 ),
                 _AttributeConfig(
-                    'FrameAcquisitionDuration',
-                    src_kws=['AcquisitionDuration']
+                    "FrameAcquisitionDuration", src_kws=["AcquisitionDuration"]
                 ),
-                _AttributeConfig('TemporalPositionIndex'),
-                _AttributeConfig(
-                    'FrameComments',
-                    src_kws=['ImageComments']
-                ),
+                _AttributeConfig("TemporalPositionIndex"),
+                _AttributeConfig("FrameComments", src_kws=["ImageComments"]),
             ],
             custom_logic_callback=self._frame_content_custom_logic,
             can_be_shared=False,
             required=True,
         )
         self._add_functional_group(
-            'PlanePositionSequence',
-            [_AttributeConfig('ImagePositionPatient')],
+            "PlanePositionSequence",
+            [_AttributeConfig("ImagePositionPatient")],
         )
         self._add_functional_group(
-            'PlaneOrientationSequence',
-            [_AttributeConfig('ImageOrientationPatient')],
+            "PlaneOrientationSequence",
+            [_AttributeConfig("ImageOrientationPatient")],
         )
         self._add_functional_group(
-            'ConversionSourceAttributesSequence',
+            "ConversionSourceAttributesSequence",
             [
+                _AttributeConfig("ReferencedSOPClassUID", src_kws=["SOPClassUID"]),
                 _AttributeConfig(
-                    'ReferencedSOPClassUID',
-                    src_kws=['SOPClassUID']
-                ),
-                _AttributeConfig(
-                    'ReferencedSOPInstanceUID',
-                    src_kws=['SOPInstanceUID']
+                    "ReferencedSOPInstanceUID", src_kws=["SOPInstanceUID"]
                 ),
             ],
             can_be_shared=False,
         )
         self._add_functional_group(
-            'PixelMeasuresSequence',
+            "PixelMeasuresSequence",
             [
                 _AttributeConfig(
-                    'PixelSpacing',
-                    src_kws=['PixelSpacing', 'ImagerPixelSpacing'],
+                    "PixelSpacing",
+                    src_kws=["PixelSpacing", "ImagerPixelSpacing"],
                 ),
-                _AttributeConfig('SliceThickness'),
+                _AttributeConfig("SliceThickness"),
             ],
         )
         self._add_functional_group(
-            'FrameVOILUTSequence',
+            "FrameVOILUTSequence",
             [
-                _AttributeConfig('WindowWidth'),
-                _AttributeConfig('WindowCenter'),
+                _AttributeConfig("WindowWidth"),
+                _AttributeConfig("WindowCenter"),
             ],
             optional_attributes=[
-                _AttributeConfig('WindowCenterWidthExplanation'),
+                _AttributeConfig("WindowCenterWidthExplanation"),
             ],
         )
         # Pixel Value Transformation is technically optional for MR, but we
         # will populate with 0/1 rescale anyway for consistency
         self._add_functional_group(
-            'PixelValueTransformationSequence',
+            "PixelValueTransformationSequence",
             [
-                _AttributeConfig('RescaleSlope', default_val=1),
-                _AttributeConfig('RescaleIntercept', default_val=0),
+                _AttributeConfig("RescaleSlope", default_val=1),
+                _AttributeConfig("RescaleIntercept", default_val=0),
             ],
             optional_attributes=[
-                _AttributeConfig('RescaleType'),
+                _AttributeConfig("RescaleType"),
             ],
-            custom_logic_callback=(
-                self._pixel_value_transformation_custom_logic
-            ),
+            custom_logic_callback=(self._pixel_value_transformation_custom_logic),
         )
 
-        if (
-            self._destination.SOPClassUID in
-            (
-                LegacyConvertedEnhancedCTImageStorage,
-                LegacyConvertedEnhancedPETImageStorage,
-            )
+        if self._destination.SOPClassUID in (
+            LegacyConvertedEnhancedCTImageStorage,
+            LegacyConvertedEnhancedPETImageStorage,
         ):
             self._add_functional_group(
-                'IrradiationEventIdentificationSequence',
-                [_AttributeConfig('IrradiationEventUID')],
+                "IrradiationEventIdentificationSequence",
+                [_AttributeConfig("IrradiationEventUID")],
                 required=False,
             )
 
         # Functional grops where entire existing sequences are copied from the
         # source image
+        self._copy_existing_sequence_to_functional_groups("ReferencedImageSequence")
         self._copy_existing_sequence_to_functional_groups(
-            'ReferencedImageSequence'
-        )
-        self._copy_existing_sequence_to_functional_groups(
-            'RealWorldValueMappingSequence'
+            "RealWorldValueMappingSequence"
         )
 
         # Miscellaneous other tasks
@@ -600,9 +562,9 @@ class _LegacyConversionRunner:
         self._add_unassigned_attributes()
         self._copy_pixel_data()
 
-    def _find_shared_and_perframe_attributes(self) -> tuple[
-        dict[str, bool], dict[BaseTag, bool]
-    ]:
+    def _find_shared_and_perframe_attributes(
+        self,
+    ) -> tuple[dict[str, bool], dict[BaseTag, bool]]:
         """Find attributes present in any dataset and whether they are shared.
 
         The conversion logic is draws on from `PixelMed
@@ -627,9 +589,9 @@ class _LegacyConversionRunner:
         for ds in self._legacy_datasets:
             for t in ds.keys():
                 if (
-                    not _istag_file_meta_information_group(t) and
-                    not _istag_repeating_group(t) and
-                    not _istag_group_length(t)
+                    not _istag_file_meta_information_group(t)
+                    and not _istag_repeating_group(t)
+                    and not _istag_group_length(t)
                 ):
                     if t.is_private:
                         if not t.is_private_creator:
@@ -704,13 +666,13 @@ class _LegacyConversionRunner:
         if check_geometry:
             consistent_attributes.extend(
                 [
-                    'ImageOrientationPatient',
-                    'PixelSpacing',
-                    'SliceThickness',
+                    "ImageOrientationPatient",
+                    "PixelSpacing",
+                    "SliceThickness",
                 ]
             )
         if check_series_instance_uid:
-            consistent_attributes.append('SeriesInstanceUID')
+            consistent_attributes.append("SeriesInstanceUID")
 
         inconsistencies = []
 
@@ -730,12 +692,11 @@ class _LegacyConversionRunner:
         # Additionally check transfer syntex UID
         for ds in self._legacy_datasets:
             if (
-                ds.file_meta.TransferSyntaxUID !=
-                self._legacy_datasets[0].file_meta.TransferSyntaxUID
+                ds.file_meta.TransferSyntaxUID
+                != self._legacy_datasets[0].file_meta.TransferSyntaxUID
             ):
                 raise ValueError(
-                    'Legacy instances have inconsistent transfer syntaxes.'
-
+                    "Legacy instances have inconsistent transfer syntaxes."
                 )
 
     def _mark_keyword_used(self, kw: str) -> None:
@@ -775,10 +736,7 @@ class _LegacyConversionRunner:
             value.
 
         """
-        module_usage = get_module_usage(
-            module_name,
-            self._destination.SOPClassUID
-        )
+        module_usage = get_module_usage(module_name, self._destination.SOPClassUID)
         if skip_attributes is None:
             skip_attributes = []
         if attribute_configs is None:
@@ -787,7 +745,9 @@ class _LegacyConversionRunner:
         ref_dataset = self._legacy_datasets[0]
         module_tree = construct_module_tree(module_name)
 
-        def iter_attribute_configs(only_required: bool = False) -> Generator[
+        def iter_attribute_configs(
+            only_required: bool = False,
+        ) -> Generator[
             tuple[
                 str,
                 AttributeTypeValues,
@@ -827,14 +787,11 @@ class _LegacyConversionRunner:
                 Whether to defer the copying of this attribute to a callback.
 
             """
-            for dest_kw, info in module_tree['attributes'].items():
+            for dest_kw, info in module_tree["attributes"].items():
                 if dest_kw in skip_attributes:
                     continue
 
-                if (
-                    only_required and
-                    info['type'] != AttributeTypeValues.REQUIRED
-                ):
+                if only_required and info["type"] != AttributeTypeValues.REQUIRED:
                     continue
 
                 # Check for a provided configuration
@@ -855,7 +812,7 @@ class _LegacyConversionRunner:
                         if self._keyword_shared_dict[src_kw]:
                             yield (
                                 dest_kw,
-                                info['type'],
+                                info["type"],
                                 src_kw,
                                 True,
                                 getattr(ref_dataset, src_kw),
@@ -864,7 +821,7 @@ class _LegacyConversionRunner:
                         else:
                             yield (
                                 dest_kw,
-                                info['type'],
+                                info["type"],
                                 src_kw,
                                 False,
                                 None,
@@ -876,7 +833,7 @@ class _LegacyConversionRunner:
                     # No value found, use default
                     yield (
                         dest_kw,
-                        info['type'],
+                        info["type"],
                         None,
                         True,
                         default_val,
@@ -885,7 +842,7 @@ class _LegacyConversionRunner:
 
         # First determine whether the module should be included
         if module_usage != ModuleUsageValues.MANDATORY:
-            for (dest_kw, _, _, _, val, _) in iter_attribute_configs(True):
+            for dest_kw, _, _, _, val, _ in iter_attribute_configs(True):
                 if val is None:
                     # We have no value for one of hhe required attributes, so
                     # we should skip the entire module entirely
@@ -907,21 +864,17 @@ class _LegacyConversionRunner:
             if val is not None:
                 if is_shared:
                     if not defer_copy:
-                        setattr(
-                            self._destination,
-                            dest_kw,
-                            deepcopy(val)
-                        )
+                        setattr(self._destination, dest_kw, deepcopy(val))
                         if src_kw is not None:
                             self._mark_keyword_used(src_kw)
                 else:
                     match usage_type:
                         case AttributeTypeValues.REQUIRED:
                             raise AttributeError(
-                                'Unable to determine value for '
+                                "Unable to determine value for "
                                 f'required attribute "{dest_kw}" because '
-                                'the value is inconsistent between the '
-                                'legacy files.'
+                                "the value is inconsistent between the "
+                                "legacy files."
                             )
                         case AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN:
                             # Leave blank rather than selecting from
@@ -932,9 +885,9 @@ class _LegacyConversionRunner:
                 match usage_type:
                     case AttributeTypeValues.REQUIRED:
                         raise AttributeError(
-                            'Unable to determine value for required '
+                            "Unable to determine value for required "
                             f'attribute "{dest_kw}" because the required '
-                            'information is not present in the legacy files.'
+                            "information is not present in the legacy files."
                         )
                     case AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN:
                         setattr(self._destination, dest_kw, None)
@@ -1057,7 +1010,7 @@ class _LegacyConversionRunner:
                         all_required_attrs_exist = False
                         if required:
                             raise AttributeError(
-                                'Cannot determine value for required attribute '
+                                "Cannot determine value for required attribute "
                                 f"'{a_cfg.dest_kw}' in the '{sequence_name}'."
                             )
 
@@ -1098,30 +1051,29 @@ class _LegacyConversionRunner:
         # These attributes should be YES if any source has YES, NO if all
         # sources have NO, and skipped otherwise
         for kw in [
-            'BurnedInAnnotation',
-            'RecognizableVisualFeatures',
-            'LossyImageCompression'
+            "BurnedInAnnotation",
+            "RecognizableVisualFeatures",
+            "LossyImageCompression",
         ]:
             if any(
-                hasattr(src, kw) and
-                getattr(src, kw) == 'YES'
+                hasattr(src, kw) and getattr(src, kw) == "YES"
                 for src in self._legacy_datasets
             ):
-                setattr(self._destination, kw, 'YES')
+                setattr(self._destination, kw, "YES")
+                self._mark_keyword_used(kw)
             elif all(
-                hasattr(src, kw) and
-                getattr(src, kw) == 'NO'
+                hasattr(src, kw) and getattr(src, kw) == "NO"
                 for src in self._legacy_datasets
             ):
-                setattr(self._destination, kw, 'NO')
+                setattr(self._destination, kw, "NO")
+                self._mark_keyword_used(kw)
 
         if any(
-            hasattr(src, 'LossyImageCompressionRatio')
-            for src in self._legacy_datasets
+            hasattr(src, "LossyImageCompressionRatio") for src in self._legacy_datasets
         ):
             sum_compression_ratio = 0.0
             for fr_ds in self._legacy_datasets:
-                if 'LossyImageCompressionRatio' in fr_ds:
+                if "LossyImageCompressionRatio" in fr_ds:
                     ratio = fr_ds.LossyImageCompressionRatio
                     try:
                         sum_compression_ratio += float(ratio)
@@ -1129,11 +1081,10 @@ class _LegacyConversionRunner:
                         sum_compression_ratio += 1  # supposing uncompressed
                 else:
                     sum_compression_ratio += 1
-            avg_compression_ratio = (
-                sum_compression_ratio / len(self._legacy_datasets)
-            )
-            avg_ratio_str = '{:.6f}'.format(avg_compression_ratio)
+            avg_compression_ratio = sum_compression_ratio / len(self._legacy_datasets)
+            avg_ratio_str = "{:.6f}".format(avg_compression_ratio)
             self._destination.LossyImageCompressionRatio = avg_ratio_str
+            self._mark_keyword_used("LossyImageCompressionRatio")
 
     def _pixel_value_transformation_custom_logic(
         self,
@@ -1152,20 +1103,17 @@ class _LegacyConversionRunner:
             Dataset to copy to.
 
         """
-        value = 'US'  # unspecified
-        if source.get('Modality', '') == 'CT':
+        value = "US"  # unspecified
+        if source.get("Modality", "") == "CT":
             image_type_v = (
-                [] if 'ImageType' not in source
-                else source['ImageType'].value
+                [] if "ImageType" not in source else source["ImageType"].value
             )
-            if not any(
-                i == 'LOCALIZER' for i in image_type_v
-            ):
-                value = 'HU'
+            if not any(i == "LOCALIZER" for i in image_type_v):
+                value = "HU"
         else:
-            value = 'US'
+            value = "US"
 
-        if 'RescaleType' not in destination:
+        if "RescaleType" not in destination:
             destination.RescaleType = value
         elif destination.RescaleType != value:
             # keep the copied value as LUT explanation
@@ -1190,13 +1138,13 @@ class _LegacyConversionRunner:
 
         """
         frame_type = source.ImageType
-        dest_kw = 'FrameType'
+        dest_kw = "FrameType"
         lng = len(frame_type)
         new_val = [
-            'ORIGINAL' if lng == 0 else frame_type[0],
-            'PRIMARY',
-            'VOLUME' if lng < 3 else frame_type[2],
-            'NONE',
+            "ORIGINAL" if lng == 0 else frame_type[0],
+            "PRIMARY",
+            "VOLUME" if lng < 3 else frame_type[2],
+            "NONE",
         ]
         setattr(destination, dest_kw, new_val)
 
@@ -1219,10 +1167,10 @@ class _LegacyConversionRunner:
         mapping = _get_anatomic_region_mapping()
 
         for ds in self._legacy_datasets:
-            if 'AnatomicRegionSequence' in ds:
+            if "AnatomicRegionSequence" in ds:
                 continue
 
-            if 'BodyPartExamined' in ds and ds.BodyPartExamined in mapping:
+            if "BodyPartExamined" in ds and ds.BodyPartExamined in mapping:
                 continue
 
             return False
@@ -1247,10 +1195,8 @@ class _LegacyConversionRunner:
             Dataset to copy to.
 
         """
-        if hasattr(source, 'AnatomicRegionSequence'):
-            destination.AnatomicRegionSequence = deepcopy(
-                source.AnatomicRegionSequence
-            )
+        if hasattr(source, "AnatomicRegionSequence"):
+            destination.AnatomicRegionSequence = deepcopy(source.AnatomicRegionSequence)
         else:
             # Due to earlier checks, should have BodyPartExamined if we get
             # here
@@ -1268,52 +1214,42 @@ class _LegacyConversionRunner:
         # the primary anatomic structure and map following Part 3 Section 10.5
         # https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_10.5.html
         modifier_mapping = {
-            '7771000': 'L',
-            '24028007': 'R',
-            '66459002': 'U',
-            '51440002': 'B',
+            "7771000": "L",
+            "24028007": "R",
+            "66459002": "U",
+            "51440002": "B",
         }
 
-        if hasattr(destination, 'PrimaryAnatomicStructureSequence'):
-            pri_struct_seq = (
-                destination.PrimaryAnatomicStructureSequence[0]
-            )
-            if 'PrimaryAnatomicStructureModifierSequence' in pri_struct_seq:
-                modifier_seq = (
-                    pri_struct_seq.PrimaryAnatomicStructureModifierSequence[0]
-                )
+        if hasattr(destination, "PrimaryAnatomicStructureSequence"):
+            pri_struct_seq = destination.PrimaryAnatomicStructureSequence[0]
+            if "PrimaryAnatomicStructureModifierSequence" in pri_struct_seq:
+                modifier_seq = pri_struct_seq.PrimaryAnatomicStructureModifierSequence[
+                    0
+                ]
                 modifier_val = modifier_seq.CodeValue
 
                 if modifier_val in modifier_mapping:
-                    destination.FrameLaterality = modifier_mapping[
-                        modifier_val
-                    ]
+                    destination.FrameLaterality = modifier_mapping[modifier_val]
 
         # Now check the anatomic region modifier
-        if 'FrameLaterality' not in destination:
-            anatomic_region = (
-                destination.AnatomicRegionSequence[0]
-            )
-            if 'AnatomicRegionModifierSequence' in anatomic_region:
-                modifier_seq = (
-                    anatomic_region.AnatomicRegionModifierSequence[0]
-                )
+        if "FrameLaterality" not in destination:
+            anatomic_region = destination.AnatomicRegionSequence[0]
+            if "AnatomicRegionModifierSequence" in anatomic_region:
+                modifier_seq = anatomic_region.AnatomicRegionModifierSequence[0]
                 modifier_val = modifier_seq.CodeValue
 
                 if modifier_val in modifier_mapping:
-                    destination.FrameLaterality = modifier_mapping[
-                        modifier_val
-                    ]
+                    destination.FrameLaterality = modifier_mapping[modifier_val]
 
         # Check laterality information in the original source
-        if 'FrameLaterality' not in destination:
-            for kw in ['FrameLaterality', 'ImageLaterality', 'Laterality']:
+        if "FrameLaterality" not in destination:
+            for kw in ["FrameLaterality", "ImageLaterality", "Laterality"]:
                 if kw in source:
                     destination.FrameLaterality = getattr(source, kw)
                     break
             else:
                 # No laterality information, just assume unilateral
-                destination.FrameLaterality = 'U'
+                destination.FrameLaterality = "U"
 
     def _frame_content_custom_logic(
         self,
@@ -1333,30 +1269,17 @@ class _LegacyConversionRunner:
 
         """
         fa_dt: DT | None = None
-        if 'AcquisitionDateTime' in source:
+        if "AcquisitionDateTime" in source:
             fa_dt = DT(source.AcquisitionDateTime)
-        elif 'AcquisitionDate' in source and 'AcquisitionTime' in source:
+        elif "AcquisitionDate" in source and "AcquisitionTime" in source:
             fa_dt = DT(
-                datetime.combine(
-                    DA(source.AcquisitionDate),
-                    TM(source.AcquisitionTime)
-                )
+                datetime.combine(DA(source.AcquisitionDate), TM(source.AcquisitionTime))
             )
 
         if fa_dt is not None:
-            acq_time_kws = [
-                'AcquisitionDateTime',
-                'AcquisitionDate',
-                'AcquisitionTime'
-            ]
-            if all(
-                self._keyword_shared_dict.get(kw, True)
-                for kw in acq_time_kws
-            ):
-                if (
-                    'TriggerTime' in source and
-                    'FrameReferenceDateTime' not in source
-                ):
+            acq_time_kws = ["AcquisitionDateTime", "AcquisitionDate", "AcquisitionTime"]
+            if all(self._keyword_shared_dict.get(kw, True) for kw in acq_time_kws):
+                if "TriggerTime" in source and "FrameReferenceDateTime" not in source:
                     trigger_time_in_millisecond = int(source.TriggerTime)
                     if trigger_time_in_millisecond > 0:
                         t_delta = timedelta(trigger_time_in_millisecond)
@@ -1373,22 +1296,19 @@ class _LegacyConversionRunner:
         )
 
         if spacing is not None and position_indices is not None:
-            stack_id = '1'
+            stack_id = "1"
 
             for pffg, pos in zip(
-                self._destination.PerFrameFunctionalGroupsSequence,
-                position_indices
+                self._destination.PerFrameFunctionalGroupsSequence, position_indices
             ):
-                if 'FrameContentSequence' not in pffg:
+                if "FrameContentSequence" not in pffg:
                     pffg.FrameContentSequence = [Dataset()]
 
                 pffg.FrameContentSequence[0].StackID = str(stack_id)
-                pffg.FrameContentSequence[0].InStackPositionNumber = (
-                    int(pos) + 1
-                )
+                pffg.FrameContentSequence[0].InStackPositionNumber = int(pos) + 1
 
             sfgs = self._destination.SharedFunctionalGroupsSequence[0]
-            if 'PixelMeasuresSequence' in sfgs:
+            if "PixelMeasuresSequence" in sfgs:
                 (
                     sfgs.PixelMeasuresSequence[0].SpacingBetweenSlices
                 ) = format_number_as_ds(spacing)
@@ -1416,7 +1336,7 @@ class _LegacyConversionRunner:
                 setattr(
                     self._destination.SharedFunctionalGroupsSequence[0],
                     keyword,
-                    deepcopy(getattr(self._legacy_datasets[0], keyword))
+                    deepcopy(getattr(self._legacy_datasets[0], keyword)),
                 )
             else:
                 # Refernces are per-frame
@@ -1439,47 +1359,33 @@ class _LegacyConversionRunner:
         This includes private attributes.
 
         """
-        if (
-            len(self._unused_keywords) == 0 and
-            len(self._private_tag_shared_dict) == 0
-        ):
+        if len(self._unused_keywords) == 0 and len(self._private_tag_shared_dict) == 0:
             # Nothing to do
             return
 
         # Shared
-        if (
-            any(
-                self._keyword_shared_dict[kw] for kw in self._unused_keywords
-            ) or
-            any(self._private_tag_shared_dict.values())
+        if any(self._keyword_shared_dict[kw] for kw in self._unused_keywords) or any(
+            self._private_tag_shared_dict.values()
         ):
             (
-                self
-                ._destination
-                .SharedFunctionalGroupsSequence[0]
-                .UnassignedSharedConvertedAttributesSequence
+                self._destination.SharedFunctionalGroupsSequence[
+                    0
+                ].UnassignedSharedConvertedAttributesSequence
             ) = [Dataset()]
 
         # Per-frame
-        if (
-            any(
-                not self._keyword_shared_dict[kw]
-                for kw in self._unused_keywords
-            ) or
-            any(not shared for shared in self._private_tag_shared_dict.values())
-        ):
+        if any(
+            not self._keyword_shared_dict[kw] for kw in self._unused_keywords
+        ) or any(not shared for shared in self._private_tag_shared_dict.values()):
             for pffg in self._destination.PerFrameFunctionalGroupsSequence:
-                pffg.UnassignedPerFrameConvertedAttributesSequence = [
-                    Dataset()
-                ]
+                pffg.UnassignedPerFrameConvertedAttributesSequence = [Dataset()]
 
         for kw in self._unused_keywords:
             if self._keyword_shared_dict[kw]:
                 setattr(
-                    self
-                    ._destination
-                    .SharedFunctionalGroupsSequence[0]
-                    .UnassignedSharedConvertedAttributesSequence[0],
+                    self._destination.SharedFunctionalGroupsSequence[
+                        0
+                    ].UnassignedSharedConvertedAttributesSequence[0],
                     kw,
                     deepcopy(getattr(self._legacy_datasets[0], kw)),
                 )
@@ -1504,10 +1410,9 @@ class _LegacyConversionRunner:
                     t,
                     self._legacy_datasets[0],
                     (
-                        self
-                        ._destination
-                        .SharedFunctionalGroupsSequence[0]
-                        .UnassignedSharedConvertedAttributesSequence[0]
+                        self._destination.SharedFunctionalGroupsSequence[
+                            0
+                        ].UnassignedSharedConvertedAttributesSequence[0]
                     ),
                 )
 
@@ -1522,9 +1427,7 @@ class _LegacyConversionRunner:
 
     @staticmethod
     def _copy_private_attribute(
-        tag: BaseTag,
-        source: Dataset,
-        destination: Dataset
+        tag: BaseTag, source: Dataset, destination: Dataset
     ) -> None:
         """Copy a private attribute from source to destination.
 
@@ -1563,12 +1466,11 @@ class _LegacyConversionRunner:
         """
         # If the frame type is shared, no need to aggregate
         if hasattr(
-            self._destination.SharedFunctionalGroupsSequence[0],
-            self._frame_type_seq_kw
+            self._destination.SharedFunctionalGroupsSequence[0], self._frame_type_seq_kw
         ):
             self._destination.ImageType = getattr(
                 self._destination.SharedFunctionalGroupsSequence[0],
-                self._frame_type_seq_kw
+                self._frame_type_seq_kw,
             )[0].FrameType
             return
 
@@ -1577,7 +1479,7 @@ class _LegacyConversionRunner:
             for pffg in self._destination.PerFrameFunctionalGroupsSequence
         }
         if len(frame_v1) > 1:
-            v1 = 'MIXED'
+            v1 = "MIXED"
         else:
             v1 = list(frame_v1)[0]
 
@@ -1600,7 +1502,7 @@ class _LegacyConversionRunner:
             for pffg in self._destination.PerFrameFunctionalGroupsSequence
         }
         if len(frame_v4) > 1:
-            v4 = 'MIXED'
+            v4 = "MIXED"
         else:
             v4 = list(frame_v4)[0]
 
@@ -1613,7 +1515,7 @@ class _LegacyConversionRunner:
         These must be aggregated using min/max across the series.
 
         """
-        kw = 'LargestImagePixelValue'
+        kw = "LargestImagePixelValue"
         if kw in self._keyword_shared_dict:
             lval = float_info.min
             for frame in self._legacy_datasets:
@@ -1624,7 +1526,7 @@ class _LegacyConversionRunner:
                 setattr(self._destination, kw, int(lval))
                 self._mark_keyword_used(kw)
 
-        kw = 'SmallestImagePixelValue'
+        kw = "SmallestImagePixelValue"
         if kw in self._keyword_shared_dict:
             lval = float_info.max
             for frame in self._legacy_datasets:
@@ -1682,13 +1584,12 @@ class _LegacyConversionRunner:
             JPEGBaseline8Bit,
             RLELossless,
         )
-        if (
-            self._transfer_syntax_uid is not None and
-            (self._transfer_syntax_uid not in allowed_transfer_syntaxes)
+        if self._transfer_syntax_uid is not None and (
+            self._transfer_syntax_uid not in allowed_transfer_syntaxes
         ):
             raise ValueError(
                 f"Transfer syntax '{self._transfer_syntax_uid}' not recognized "
-                'or not supported.'
+                "or not supported."
             )
 
         self._destination.NumberOfFrames = len(self._legacy_datasets)
@@ -1702,7 +1603,7 @@ class _LegacyConversionRunner:
         if not isinstance(self._workers, (int, Executor)):
             raise TypeError(
                 'Argument "workers" must be of type int or '
-                'concurrent.futures.Executor (or a derived class).'
+                "concurrent.futures.Executor (or a derived class)."
             )
         using_multiprocessing = (
             isinstance(self._workers, Executor) or self._workers != 0
@@ -1710,9 +1611,8 @@ class _LegacyConversionRunner:
 
         frames: list[bytes]
 
-        if (
-            (dst_tx_uid != src_tx_uid) and
-            (src_tx_uid.is_encapsulated or dst_tx_uid.is_encapsulated)
+        if (dst_tx_uid != src_tx_uid) and (
+            src_tx_uid.is_encapsulated or dst_tx_uid.is_encapsulated
         ):
             if using_multiprocessing:
                 # Use the existing executor or create one
@@ -1740,8 +1640,7 @@ class _LegacyConversionRunner:
 
             else:
                 frames = [
-                    _transcode_frame(ds, dst_tx_uid)
-                    for ds in self._legacy_datasets
+                    _transcode_frame(ds, dst_tx_uid) for ds in self._legacy_datasets
                 ]
 
         else:
@@ -1758,11 +1657,10 @@ class _LegacyConversionRunner:
             else:
                 self._destination.PixelData = encapsulate(frames)
         else:
-            self._destination.PixelData = b''.join(frames)
+            self._destination.PixelData = b"".join(frames)
 
 
 class _CommonLegacyConvertedEnhancedImage(Image):
-
     """SOP class for common Legacy Converted Enhanced instances."""
 
     def __init__(
@@ -1775,9 +1673,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         transfer_syntax_uid: str | None = None,
         use_extended_offset_table: bool = False,
         sort_key: Callable | None = None,
-        contributing_equipment: Sequence[
-            ContributingEquipment
-        ] | None = None,
+        contributing_equipment: Sequence[ContributingEquipment] | None = None,
         workers: int | Executor = 0,
         **kwargs: Any,
     ) -> None:
@@ -1842,7 +1738,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
-            raise ValueError('At least one legacy dataset must be provided.')
+            raise ValueError("At least one legacy dataset must be provided.")
 
         if sort_key is None:
             sort_key = _CommonLegacyConvertedEnhancedImage.default_sort_key
@@ -1882,12 +1778,10 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             #  StudyTime is type 2
             study_time=getattr(ref_ds, "StudyTime", None),
             #  ReferringPhysicianName is type 2
-            referring_physician_name=getattr(
-                ref_ds, "ReferringPhysicianName", None
-            ),
+            referring_physician_name=getattr(ref_ds, "ReferringPhysicianName", None),
             content_date=content_date,
             content_time=content_time,
-            **kwargs
+            **kwargs,
         )
         self._add_contributing_equipment(
             contributing_equipment,
@@ -1943,36 +1837,31 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             frame_acquisition_datetime = None
             frame_content_datetime = None
 
-            if 'AcquisitionDateTime' in src:
+            if "AcquisitionDateTime" in src:
                 frame_content_datetime = DT(src.AcquisitionDateTime)
                 frame_acquisition_datetime = frame_content_datetime
-            elif 'AcquisitionDate' in src and 'AcquisitionTime' in src:
+            elif "AcquisitionDate" in src and "AcquisitionTime" in src:
                 frame_content_datetime = DT.combine(
-                    DA(src.AcquisitionDate),
-                    TM(src.AcquisitionTime)
+                    DA(src.AcquisitionDate), TM(src.AcquisitionTime)
                 )
                 frame_acquisition_datetime = frame_content_datetime
-            elif 'SeriesDate' in src and 'SeriesTime' in src:
+            elif "SeriesDate" in src and "SeriesTime" in src:
                 frame_content_datetime = DT.combine(
-                    DA(src.SeriesDate),
-                    TM(src.SeriesTime)
+                    DA(src.SeriesDate), TM(src.SeriesTime)
                 )
-            elif 'StudyDate' in src and 'StudyTime' in src:
+            elif "StudyDate" in src and "StudyTime" in src:
                 if src.StudyDate is not None and src.StudyTime is not None:
                     frame_content_datetime = DT.combine(
-                        DA(src.StudyDate),
-                        TM(src.StudyTime)
+                        DA(src.StudyDate), TM(src.StudyTime)
                     )
 
             if frame_content_datetime is not None:
                 earliest_content_date_time = min(
-                    frame_content_datetime,
-                    earliest_content_date_time
+                    frame_content_datetime, earliest_content_date_time
                 )
             if frame_acquisition_datetime is not None:
                 earliest_acquisition_date_time = min(
-                    frame_acquisition_datetime,
-                    earliest_acquisition_date_time
+                    frame_acquisition_datetime, earliest_acquisition_date_time
                 )
 
         content_date = None
@@ -1988,8 +1877,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         return content_date, content_time, acquisition_datetime
 
     @staticmethod
-    def default_sort_key(
-        x: Dataset) -> Tuple[Union[int, str, UID], ...]:
+    def default_sort_key(x: Dataset) -> Tuple[Union[int, str, UID], ...]:
         """The default sort key to sort all single frames before conversion
 
         Parameters
@@ -2007,12 +1895,12 @@ class _CommonLegacyConvertedEnhancedImage(Image):
 
         """
         out: tuple = tuple()
-        if 'SeriesNumber' in x:
-            out += (x.SeriesNumber, )
-        if 'InstanceNumber' in x:
-            out += (x.InstanceNumber, )
-        if 'SOPInstanceUID' in x:
-            out += (x.SOPInstanceUID, )
+        if "SeriesNumber" in x:
+            out += (x.SeriesNumber,)
+        if "InstanceNumber" in x:
+            out += (x.InstanceNumber,)
+        if "SOPInstanceUID" in x:
+            out += (x.SOPInstanceUID,)
 
         return out
 
@@ -2078,7 +1966,6 @@ workers: int | concurrent.futures.Executor, optional
 
 
 class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
-
     """SOP class for Legacy Converted Enhanced CT Image instances."""
 
     def __init__(
@@ -2091,9 +1978,7 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
         sort_key: Callable | None = None,
         transfer_syntax_uid: str | None = None,
         use_extended_offset_table: bool = False,
-        contributing_equipment: Sequence[
-            ContributingEquipment
-        ] | None = None,
+        contributing_equipment: Sequence[ContributingEquipment] | None = None,
         workers: int | Executor = 0,
         **kwargs: Any,
     ) -> None:
@@ -2101,15 +1986,11 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
-            raise ValueError('At least one legacy dataset must be provided.')
-        if ref_ds.Modality != 'CT':
-            raise ValueError(
-                'Wrong modality for conversion of legacy CT images.'
-            )
-        if ref_ds.SOPClassUID != '1.2.840.10008.5.1.4.1.1.2':
-            raise ValueError(
-                'Wrong SOP class for conversion of legacy CT images.'
-            )
+            raise ValueError("At least one legacy dataset must be provided.")
+        if ref_ds.Modality != "CT":
+            raise ValueError("Wrong modality for conversion of legacy CT images.")
+        if ref_ds.SOPClassUID != "1.2.840.10008.5.1.4.1.1.2":
+            raise ValueError("Wrong SOP class for conversion of legacy CT images.")
         super().__init__(
             legacy_datasets,
             series_instance_uid=series_instance_uid,
@@ -2121,12 +2002,11 @@ class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
             workers=workers,
             contributing_equipment=contributing_equipment,
             sort_key=sort_key,
-            **kwargs
+            **kwargs,
         )
 
 
 class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
-
     """SOP class for Legacy Converted Enhanced PET Image instances."""
 
     def __init__(
@@ -2139,9 +2019,7 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
         transfer_syntax_uid: str | None = None,
         use_extended_offset_table: bool = False,
         sort_key: Callable | None = None,
-        contributing_equipment: Sequence[
-            ContributingEquipment
-        ] | None = None,
+        contributing_equipment: Sequence[ContributingEquipment] | None = None,
         workers: int | Executor = 0,
         **kwargs: Any,
     ) -> None:
@@ -2149,15 +2027,11 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
-            raise ValueError('At least one legacy dataset must be provided.')
-        if ref_ds.Modality != 'PT':
-            raise ValueError(
-                'Wrong modality for conversion of legacy PET images.'
-            )
-        if ref_ds.SOPClassUID != '1.2.840.10008.5.1.4.1.1.128':
-            raise ValueError(
-                'Wrong SOP class for conversion of legacy PET images.'
-            )
+            raise ValueError("At least one legacy dataset must be provided.")
+        if ref_ds.Modality != "PT":
+            raise ValueError("Wrong modality for conversion of legacy PET images.")
+        if ref_ds.SOPClassUID != "1.2.840.10008.5.1.4.1.1.128":
+            raise ValueError("Wrong SOP class for conversion of legacy PET images.")
         super().__init__(
             legacy_datasets,
             series_instance_uid=series_instance_uid,
@@ -2169,12 +2043,11 @@ class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
             workers=workers,
             contributing_equipment=contributing_equipment,
             sort_key=sort_key,
-            **kwargs
+            **kwargs,
         )
 
 
 class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
-
     """SOP class for Legacy Converted Enhanced MR Image instances."""
 
     def __init__(
@@ -2187,9 +2060,7 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
         transfer_syntax_uid: str | None = None,
         use_extended_offset_table: bool = False,
         sort_key: Callable | None = None,
-        contributing_equipment: Sequence[
-            ContributingEquipment
-        ] | None = None,
+        contributing_equipment: Sequence[ContributingEquipment] | None = None,
         workers: int | Executor = 0,
         **kwargs: Any,
     ) -> None:
@@ -2197,15 +2068,11 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
         try:
             ref_ds = legacy_datasets[0]
         except IndexError:
-            raise ValueError('At least one legacy dataset must be provided.')
-        if ref_ds.Modality != 'MR':
-            raise ValueError(
-                'Wrong modality for conversion of legacy MR images.'
-            )
-        if ref_ds.SOPClassUID != '1.2.840.10008.5.1.4.1.1.4':
-            raise ValueError(
-                'Wrong SOP class for conversion of legacy MR images.'
-            )
+            raise ValueError("At least one legacy dataset must be provided.")
+        if ref_ds.Modality != "MR":
+            raise ValueError("Wrong modality for conversion of legacy MR images.")
+        if ref_ds.SOPClassUID != "1.2.840.10008.5.1.4.1.1.4":
+            raise ValueError("Wrong SOP class for conversion of legacy MR images.")
         super().__init__(
             legacy_datasets,
             series_instance_uid=series_instance_uid,
@@ -2217,5 +2084,5 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
             workers=workers,
             contributing_equipment=contributing_equipment,
             sort_key=sort_key,
-            **kwargs
+            **kwargs,
         )
