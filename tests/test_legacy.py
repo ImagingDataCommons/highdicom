@@ -598,7 +598,7 @@ def test_average_compression_ratio(modality: Modality):
 
 
 def test_largest_smallest_pixel_value(modality: Modality):
-    """Test that largest and smallest pixel values are min/maxed over instances."""
+    """Test that largest/smallest pixel values are min/maxed over instances."""
     LegacyConverterClass = MODALITY_CLASS_MAP[modality]
     data_generator = DicomGenerator(5)
     legacy_datasets = data_generator.generate_mixed_framesets(
