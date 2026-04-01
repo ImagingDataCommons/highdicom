@@ -2,16 +2,19 @@ import itertools
 from collections.abc import Sequence
 import warnings
 
+import numpy as np
 from pydicom.dataset import Dataset
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
 from highdicom.spatial import (
+    get_image_coordinate_system,
+    get_tile_array,
+    is_multiframe_image,
+    is_tiled_image,
+    iter_tiled_full_frame_data,
     map_pixel_into_coordinate_system,
     tile_pixel_matrix,
-    get_tile_array,
-    iter_tiled_full_frame_data,
-    is_tiled_image,
 )
 
 
@@ -106,7 +109,8 @@ def compute_plane_position_tiled_full(
         warnings.warn(
             "Passing a slice_thickness other than None has no effect and "
             "will be deprecated in a future version of the library.",
-            UserWarning
+            UserWarning,
+            stacklevel=2,
         )
     if row_index < 1 or column_index < 1:
         raise ValueError("Row and column indices must be positive integers.")
@@ -143,6 +147,118 @@ def compute_plane_position_tiled_full(
         # First tile has position (1, 1)
         pixel_matrix_position=(column_offset_frame + 1, row_offset_frame + 1)
     )
+
+
+def get_plane_positions_of_image(
+    image: Dataset,
+) -> Sequence[PlanePositionSequence]:
+    """Gets plane positions of frames in multi-frame image.
+
+    Parameters
+    ----------
+    image: Dataset
+        Multi-frame image
+
+    Returns
+    -------
+    List[highdicom.PlanePositionSequence]
+        Plane position of each frame in the image
+
+    """
+
+    is_multiframe = is_multiframe_image(image)
+    if not is_multiframe:
+        raise ValueError('Argument "image" must be a multi-frame image.')
+
+    coordinate_system = get_image_coordinate_system(image)
+    if coordinate_system is None:
+        raise ValueError(
+            'Cannot calculate plane positions when images do not exist '
+            'within a frame of reference.'
+        )
+    elif coordinate_system == CoordinateSystemNames.SLIDE:
+        if hasattr(image, 'PerFrameFunctionalGroupsSequence'):
+            plane_positions = [PlanePositionSequence.from_sequence(
+                item.PlanePositionSlideSequence
+            )
+                for item in image.PerFrameFunctionalGroupsSequence
+            ]
+        else:
+            # If Dimension Organization Type is TILED_FULL, plane
+            # positions are implicit and need to be computed.
+            plane_positions = compute_plane_position_slide_per_frame(image)
+    else:
+        plane_positions = [
+            PlanePositionSequence.from_sequence(item.PlanePositionSequence)
+            for item in image.PerFrameFunctionalGroupsSequence
+        ]
+
+    return plane_positions
+
+
+def get_plane_positions_of_series(
+    images: Sequence[Dataset],
+) -> Sequence[PlanePositionSequence]:
+    """Gets plane positions for series of single-frame images.
+
+    Parameters
+    ----------
+    images: Sequence[Dataset]
+        Series of single-frame images
+
+    Returns
+    -------
+    List[highdicom.PlanePositionSequence]
+        Plane position of each frame in the image
+
+    """
+    is_multiframe = any([is_multiframe_image(img) for img in images])
+    if is_multiframe:
+        raise ValueError(
+            'Argument "images" must be a series of single-frame images.'
+        )
+
+    coordinate_system = get_image_coordinate_system(images[0])
+    if coordinate_system is None:
+        raise ValueError(
+            'Cannot calculate plane positions when images do not exist '
+            'within a frame of reference.'
+        )
+    elif coordinate_system == CoordinateSystemNames.SLIDE:
+        plane_positions = []
+        for img in images:
+            # Unfortunately, the image position is not specified relative to
+            # the top left corner but to the center of the image.
+            # Therefore, we need to compute the offset and subtract it.
+            center_item = img.ImageCenterPointCoordinatesSequence[0]
+            x_center = center_item.XOffsetInSlideCoordinateSystem
+            y_center = center_item.YOffsetInSlideCoordinateSystem
+            z_center = center_item.ZOffsetInSlideCoordinateSystem
+            offset_coordinate = map_pixel_into_coordinate_system(
+                index=((img.Columns / 2, img.Rows / 2)),
+                image_position=(x_center, y_center, z_center),
+                image_orientation=img.ImageOrientationSlide,
+                pixel_spacing=img.PixelSpacing
+            )
+            center_coordinate = np.array((0., 0., 0.), dtype=float)
+            origin_coordinate = center_coordinate - offset_coordinate
+            plane_positions.append(
+                PlanePositionSequence(
+                    coordinate_system=CoordinateSystemNames.SLIDE,
+                    image_position=origin_coordinate,
+                    pixel_matrix_position=(1, 1)
+                )
+            )
+    else:
+        plane_positions = [
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.PATIENT,
+                image_position=img.ImagePositionPatient
+            )
+            for img in images
+        ]
+
+    return plane_positions
 
 
 def compute_plane_position_slide_per_frame(
