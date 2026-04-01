@@ -256,6 +256,16 @@ class _LegacyConversionRunner:
         )
         self._check_attribute_consistency()
 
+        incoming_pi = (
+            self._legacy_datasets[0].PhotometricInterpretation
+        )
+
+        if incoming_pi == "MONOCHROME1":
+            raise ValueError(
+                "Conversion of images with Photometric Interpretation "
+                "'MONOCHROME1' is not supported."
+            )
+
         # List of attributes that should never be placed into the
         # UnassignedPerFrameConvertedAttributesSequence or
         # UnassignedSharedConvertedAttributesSequence
@@ -394,6 +404,7 @@ class _LegacyConversionRunner:
                 "ExtendedOffsetTableLengths",
                 "SmallestImagePixelValue",
                 "LargestImagePixelValue",
+                "PhotometricInterpretation",
                 "PixelData",
             ],
         )
@@ -1657,8 +1668,28 @@ class _LegacyConversionRunner:
         src_tx_uid = self._legacy_datasets[0].file_meta.TransferSyntaxUID
         if self._transfer_syntax_uid is None:
             dst_tx_uid = src_tx_uid
+            outgoing_pi = self._legacy_datasets[0].PhotometricInterpretation
         else:
             dst_tx_uid = UID(self._transfer_syntax_uid)
+
+            # Deduce the PhotometricInterpretation for the converted image
+            samples_per_pixel = self._legacy_datasets[0].SamplesPerPixel
+            if samples_per_pixel == 1:
+                # Monochrome 1 is disallowed earlier
+                outgoing_pi = "MONOCHROME2"
+            else:
+                # Photometric interpretation depends on transfer syntax
+                outgoing_pi = {
+                    ImplicitVRLittleEndian: "RGB",
+                    ExplicitVRLittleEndian: "RGB",
+                    JPEGLSLossless: "RGB",
+                    RLELossless: "RGB",
+                    JPEG2000Lossless: "YBR_ICT",
+                    JPEG2000: "YBR_RCT",
+                    JPEGBaseline8Bit: "YBR_FULL_422",
+                }[dst_tx_uid]
+
+        self._destination.PhotometricInterpretation = outgoing_pi
 
         if not isinstance(self._workers, (int, Executor)):
             raise TypeError(
