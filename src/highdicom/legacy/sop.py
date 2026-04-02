@@ -1,6 +1,6 @@
 """Module for SOP Classes of Legacy Converted Enhanced Image IODs."""
 
-from collections import Counter
+from collections import Counter, defaultdict
 from concurrent.futures import Executor, ProcessPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timedelta
@@ -588,6 +588,7 @@ class _LegacyConversionRunner:
         self._add_image_type()
         self._add_stack_info_frame_content()
         self._add_largest_smallest_pixel_value()
+        self._add_common_instance_reference()
         self._add_unassigned_attributes()
         self._copy_pixel_data()
 
@@ -595,9 +596,6 @@ class _LegacyConversionRunner:
         self,
     ) -> tuple[dict[str, bool], dict[BaseTag, bool]]:
         """Find attributes present in any dataset and whether they are shared.
-
-        The conversion logic is draws on from `PixelMed
-        <https://www.dclunie.com>`_ by David Clunie.
 
         Returns
         -------
@@ -727,6 +725,13 @@ class _LegacyConversionRunner:
                 raise ValueError(
                     "Legacy instances have inconsistent transfer syntaxes."
                 )
+
+        # Further check that no duplicates were passed
+        sop_instance_uids = {ds.SOPInstanceUID for ds in self._legacy_datasets}
+        if len(sop_instance_uids) < len(self._legacy_datasets):
+            raise ValueError(
+                "Duplicate SOP Instance UIDs found in input datasets."
+            )
 
     def _mark_keyword_used(self, kw: str) -> None:
         """Record that a keyword in the source files has been used.
@@ -1607,6 +1612,106 @@ class _LegacyConversionRunner:
             if lval < float_info.max:
                 setattr(self._destination, kw, int(lval))
                 self._mark_keyword_used(kw)
+
+    def _add_common_instance_reference(self) -> None:
+        """Add the Common Instance Reference Module."""
+        sops_per_series = defaultdict(set)
+        sops_per_study = defaultdict(lambda: defaultdict(set))
+
+        studies_kw = (
+            "StudiesContainingOtherReferencedInstancesSequence"
+        )
+
+        # Gather deduplicated information on instances to include
+        for ds in self._legacy_datasets:
+            # The legacy datasets themselves should be added to the
+            # referenced instance sequence, since they are listed as
+            # the conversion source in the functional groups
+            sops_per_series[ds.SeriesInstanceUID].add(
+                (ds.SOPClassUID, ds.SOPInstanceUID)
+            )
+
+            # Any referenced series items in the legacy datasets should
+            # also be added, but need to be deduplicated across the legacy
+            # intances
+            for series_item in ds.get("ReferencedSeriesSequence", []):
+                for instance_item in series_item.get(
+                    "ReferencedInstanceSequence", []
+                ):
+                    sops_per_series[series_item.SeriesInstanceUID].add(
+                        (
+                            instance_item.ReferencedSOPClassUID,
+                            instance_item.ReferencedSOPInstanceUID
+                        )
+                    )
+
+            # Referenced instances fromother studies in the legacy datasets
+            # should also be added, but need to be deduplicated across the
+            # legacy intances
+            for study_item in ds.get(studies_kw, []):
+                for series_item in study_item.get(
+                    "ReferencedSeriesSequence", []
+                ):
+                    for instance_item in series_item.get(
+                        "ReferencedInstanceSequence", []
+                    ):
+                        sops_per_study[
+                            study_item.StudyInstanceUID
+                        ][
+                            series_item.SeriesInstanceUID
+                        ].add(
+                            (
+                                instance_item.ReferencedSOPClassUID,
+                                instance_item.ReferencedSOPInstanceUID
+                            )
+                        )
+
+        # Construct the sequences
+        series_items = []
+        for series_uid, instance_uids in sops_per_series.items():
+            series_item = Dataset()
+            series_item.SeriesInstanceUID = series_uid
+
+            instance_items = []
+            for sop_class_uid, sop_instance_uid in instance_uids:
+                instance_item = Dataset()
+                instance_item.ReferencedSOPInstanceUID = sop_instance_uid
+                instance_item.ReferencedSOPClassUID = sop_class_uid
+                instance_items.append(instance_item)
+
+            series_item.ReferencedInstanceSequence = instance_items
+            series_items.append(series_item)
+
+        if len(series_items) > 0:
+            self._destination.ReferencedSeriesSequence = series_items
+
+        study_items = []
+        for study_uid, sop_per_study_series in sops_per_study.items():
+            study_item = Dataset()
+            study_item.StudyInstanceUID = study_uid
+
+            series_items = []
+            for series_uid, instance_uids in sop_per_study_series.items():
+                series_item = Dataset()
+                series_item.SeriesInstanceUID = series_uid
+
+                instance_items = []
+                for sop_class_uid, sop_instance_uid in instance_uids:
+                    instance_item = Dataset()
+                    instance_item.ReferencedSOPInstanceUID = sop_instance_uid
+                    instance_item.ReferencedSOPClassUID = sop_class_uid
+                    instance_items.append(instance_item)
+
+                series_item.ReferencedInstanceSequence = instance_items
+                series_items.append(series_item)
+
+            if len(series_items) > 0:
+                study_item.ReferencedSeriesSequence = series_items
+
+            study_items.append(study_item)
+
+        if len(study_items) > 0:
+            setattr(self._destination, studies_kw, study_items)
 
     def _copy_pixel_data(self) -> None:
         """Set pixel data by optionally transcoding and combining legacy frames.

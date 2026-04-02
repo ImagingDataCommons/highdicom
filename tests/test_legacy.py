@@ -7,7 +7,11 @@ from typing import Any
 
 from pydicom import FileDataset, Dataset
 from pydicom.data import get_testdata_file
-from pydicom.uid import JPEG2000Lossless, RLELossless
+from pydicom.uid import (
+    JPEG2000Lossless,
+    RLELossless,
+    EnhancedMRImageStorage,
+)
 from pydicom.valuerep import DSfloat
 from highdicom.legacy import (
     LegacyConvertedEnhancedCTImage,
@@ -384,6 +388,27 @@ def test_conversion(
                 pl_pos_seq.ImagePositionPatient ==
                 src.ImagePositionPatient
             )
+
+    assert len(converted.ReferencedSeriesSequence) == 1
+    ref_series_item = converted.ReferencedSeriesSequence[0]
+    assert (
+        ref_series_item.SeriesInstanceUID ==
+        legacy_datasets[0].SeriesInstanceUID
+    )
+    assert (
+        len(ref_series_item.ReferencedInstanceSequence) ==
+        len(legacy_datasets)
+    )
+    ref_instances = {
+        item.ReferencedSOPInstanceUID
+        for item in ref_series_item.ReferencedInstanceSequence
+    }
+    legacy_instances = {ds.SOPInstanceUID for ds in legacy_datasets}
+    assert ref_instances == legacy_instances
+    assert (
+        "StudiesContainingOtherReferencedInstancesSequence"
+        not in converted
+    )
 
 
 @pytest.mark.parametrize(
@@ -1054,6 +1079,115 @@ def test_laterality_from_structure_modifier(modality: Modality):
         'SCT'
     )
     assert fr_an_seq.FrameLaterality == 'B'  # inferred from modifier
+
+
+def test_extra_referenced_series():
+    """Test that any Referenced Series in the legacy dataset are copied over."""
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.MR, 1, True, True
+    )
+
+    ref_series_uid = UID()
+    ref_series_item = Dataset()
+    ref_series_item.SeriesInstanceUID = ref_series_uid
+    ref_instance_uid = UID()
+    ref_sop_class_uid = EnhancedMRImageStorage
+    ref_instance_item = Dataset()
+    ref_instance_item.ReferencedSOPInstanceUID = ref_instance_uid
+    ref_instance_item.ReferencedSOPClassUID = ref_sop_class_uid
+    ref_series_item.ReferencedInstanceSequence = [ref_instance_item]
+
+    for ds in legacy_datasets:
+        ds.ReferencedSeriesSequence = [ref_series_item]
+
+    converted = LegacyConvertedEnhancedMRImage(
+        legacy_datasets=legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    # Should be 2 seres here: the legacy series and series
+    # referenced in the legacy dataset
+    assert len(converted.ReferencedSeriesSequence) == 2
+    # First comes from the legacy series
+    assert (
+        converted.ReferencedSeriesSequence[0].SeriesInstanceUID ==
+        legacy_datasets[0].SeriesInstanceUID
+    )
+    # The other comes from the series referenced in the legacy series
+    ref_series_item = converted.ReferencedSeriesSequence[1]
+    assert (
+        ref_series_item.SeriesInstanceUID == ref_series_uid
+    )
+    ref_ins_seq = ref_series_item.ReferencedInstanceSequence
+    assert len(ref_ins_seq) == 1
+    assert ref_ins_seq[0].ReferencedSOPInstanceUID == ref_instance_uid
+    assert ref_ins_seq[0].ReferencedSOPClassUID == ref_sop_class_uid
+
+
+def test_studies_containing_other_referenced_instances():
+    """Test that Studies Containing Other referenced in the legacy
+    dataset are copied over.
+
+    """
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.MR, 1, True, True
+    )
+
+    ref_study_uid = UID()
+    ref_study_item = Dataset()
+    ref_study_item.StudyInstanceUID = ref_study_uid
+    ref_series_uid = UID()
+    ref_series_item = Dataset()
+    ref_series_item.SeriesInstanceUID = ref_series_uid
+    ref_instance_uid = UID()
+    ref_sop_class_uid = EnhancedMRImageStorage
+    ref_instance_item = Dataset()
+    ref_instance_item.ReferencedSOPInstanceUID = ref_instance_uid
+    ref_instance_item.ReferencedSOPClassUID = ref_sop_class_uid
+    ref_series_item.ReferencedInstanceSequence = [ref_instance_item]
+    ref_study_item.ReferencedSeriesSequence = [ref_series_item]
+
+    for ds in legacy_datasets:
+        ds.StudiesContainingOtherReferencedInstancesSequence = [
+            ref_study_item
+        ]
+
+    converted = LegacyConvertedEnhancedMRImage(
+        legacy_datasets=legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    # Should be 2 seres here: the legacy series and series
+    # referenced in the legacy dataset
+    ref_studies_seq = (
+        converted
+        .StudiesContainingOtherReferencedInstancesSequence
+    )
+    assert len(ref_studies_seq) == 1
+    ref_series_seq = ref_studies_seq[0].ReferencedSeriesSequence
+    assert ref_studies_seq[0].StudyInstanceUID == ref_study_uid
+    ref_series_item = ref_series_seq[0]
+    assert (
+        ref_series_item.SeriesInstanceUID == ref_series_uid
+    )
+    ref_ins_seq = ref_series_item.ReferencedInstanceSequence
+    assert len(ref_ins_seq) == 1
+    assert (
+        ref_ins_seq[0].ReferencedSOPInstanceUID ==
+        ref_instance_uid
+    )
+    assert (
+        ref_ins_seq[0].ReferencedSOPClassUID ==
+        ref_sop_class_uid
+    )
 
 
 @pytest.mark.parametrize("workers", [0, 1, 4])
