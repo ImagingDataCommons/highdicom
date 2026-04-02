@@ -1,0 +1,1588 @@
+{
+  "_COMMENT": "Generated from table L-1 in version 2026a of the DICOM standard, https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_L.html",
+  "ABDOMEN": [
+    "SCT",
+    "818981001",
+    "Abdomen"
+  ],
+  "ABDOMENPELVIS": [
+    "SCT",
+    "818982008",
+    "Abdomen and Pelvis"
+  ],
+  "ABDOMINALAORTA": [
+    "SCT",
+    "7832008",
+    "Abdominal aorta"
+  ],
+  "ACJOINT": [
+    "SCT",
+    "85856004",
+    "Acromioclavicular joint"
+  ],
+  "ADRENAL": [
+    "SCT",
+    "23451007",
+    "Adrenal gland"
+  ],
+  "AMNIOTICFLUID": [
+    "SCT",
+    "77012006",
+    "Amniotic fluid"
+  ],
+  "ANKLE": [
+    "SCT",
+    "70258002",
+    "Ankle joint"
+  ],
+  "ANTECUBITALV": [
+    "SCT",
+    "128553008",
+    "Antecubital vein"
+  ],
+  "ANTCARDIACV": [
+    "SCT",
+    "194996006",
+    "Anterior cardiac vein"
+  ],
+  "ACA": [
+    "SCT",
+    "60176003",
+    "Anterior cerebral artery"
+  ],
+  "ANTCOMMA": [
+    "SCT",
+    "8012006",
+    "Anterior communicating artery"
+  ],
+  "ANTSPINALA": [
+    "SCT",
+    "17388009",
+    "Anterior spinal artery"
+  ],
+  "ANTTIBIALA": [
+    "SCT",
+    "68053000",
+    "Anterior tibial artery"
+  ],
+  "ANUSRECTUMSIGMD": [
+    "SCT",
+    "110612005",
+    "Anus, rectum and sigmoid colon"
+  ],
+  "AORTA": [
+    "SCT",
+    "15825003",
+    "Aorta"
+  ],
+  "AORTICARCH": [
+    "SCT",
+    "57034009",
+    "Aortic arch"
+  ],
+  "APPENDIX": [
+    "SCT",
+    "66754008",
+    "Appendix"
+  ],
+  "ARTERY": [
+    "SCT",
+    "51114001",
+    "Artery"
+  ],
+  "ASCAORTA": [
+    "SCT",
+    "54247002",
+    "Ascending aorta"
+  ],
+  "ASCENDINGCOLON": [
+    "SCT",
+    "9040008",
+    "Ascending colon"
+  ],
+  "AXILLA": [
+    "SCT",
+    "91470000",
+    "Axilla"
+  ],
+  "AXILLARYA": [
+    "SCT",
+    "67937003",
+    "Axillary Artery"
+  ],
+  "AXILLARYV": [
+    "SCT",
+    "68705008",
+    "Axillary vein"
+  ],
+  "AZYGOSVEIN": [
+    "SCT",
+    "72107004",
+    "Azygos vein"
+  ],
+  "BACK": [
+    "SCT",
+    "77568009",
+    "Back"
+  ],
+  "BASILARA": [
+    "SCT",
+    "59011009",
+    "Basilar artery"
+  ],
+  "BILEDUCT": [
+    "SCT",
+    "28273000",
+    "Bile duct"
+  ],
+  "BILIARYTRACT": [
+    "SCT",
+    "34707002",
+    "Biliary tract"
+  ],
+  "BLADDER": [
+    "SCT",
+    "89837001",
+    "Bladder"
+  ],
+  "BLADDERURETHRA": [
+    "SCT",
+    "110837003",
+    "Bladder and urethra"
+  ],
+  "BRACHIALA": [
+    "SCT",
+    "17137000",
+    "Brachial artery"
+  ],
+  "BRACHIALV": [
+    "SCT",
+    "20115005",
+    "Brachial vein"
+  ],
+  "BRAIN": [
+    "SCT",
+    "12738006",
+    "Brain"
+  ],
+  "BREAST": [
+    "SCT",
+    "76752008",
+    "Breast"
+  ],
+  "BRONCHUS": [
+    "SCT",
+    "955009",
+    "Bronchus"
+  ],
+  "BUTTOCK": [
+    "SCT",
+    "46862004",
+    "Buttock"
+  ],
+  "CALCANEUS": [
+    "SCT",
+    "80144004",
+    "Calcaneus"
+  ],
+  "CALF": [
+    "SCT",
+    "53840002",
+    "Calf of leg"
+  ],
+  "CARDIOVASCSYS": [
+    "SCT",
+    "113257007",
+    "Cardiovascular system"
+  ],
+  "CAROTID": [
+    "SCT",
+    "69105007",
+    "Carotid Artery"
+  ],
+  "BULB": [
+    "SCT",
+    "21479005",
+    "Carotid bulb"
+  ],
+  "CELIACA": [
+    "SCT",
+    "57850000",
+    "Celiac artery"
+  ],
+  "CEPHALICV": [
+    "SCT",
+    "20699002",
+    "Cephalic vein"
+  ],
+  "CEREBELLUM": [
+    "SCT",
+    "113305005",
+    "Cerebellum"
+  ],
+  "CEREBRALA": [
+    "SCT",
+    "88556005",
+    "Cerebral artery"
+  ],
+  "CEREBHEMISPHERE": [
+    "SCT",
+    "372073000",
+    "Cerebral hemisphere"
+  ],
+  "CSPINE": [
+    "SCT",
+    "122494005",
+    "Cervical spine"
+  ],
+  "CTSPINE": [
+    "SCT",
+    "1217257000",
+    "Cervico-thoracic spine"
+  ],
+  "CERVIX": [
+    "SCT",
+    "71252005",
+    "Cervix"
+  ],
+  "CHEEK": [
+    "SCT",
+    "60819002",
+    "Cheek"
+  ],
+  "CHEST": [
+    "SCT",
+    "816094009",
+    "Chest"
+  ],
+  "CHESTABDPELVIS": [
+    "SCT",
+    "416775004",
+    "Chest, Abdomen and Pelvis"
+  ],
+  "CHESTABDOMEN": [
+    "SCT",
+    "416550000",
+    "Chest and Abdomen"
+  ],
+  "CHOROIDPLEXUS": [
+    "SCT",
+    "80621003",
+    "Choroid plexus"
+  ],
+  "CIRCLEOFWILLIS": [
+    "SCT",
+    "11279006",
+    "Circle of Willis"
+  ],
+  "CLAVICLE": [
+    "SCT",
+    "51299004",
+    "Clavicle"
+  ],
+  "COCCYX": [
+    "SCT",
+    "64688005",
+    "Coccyx"
+  ],
+  "COLON": [
+    "SCT",
+    "71854001",
+    "Colon"
+  ],
+  "COMMONBILEDUCT": [
+    "SCT",
+    "79741001",
+    "Common bile duct"
+  ],
+  "CCA": [
+    "SCT",
+    "32062004",
+    "Common carotid artery"
+  ],
+  "CFA": [
+    "SCT",
+    "181347005",
+    "Common femoral artery"
+  ],
+  "CFV": [
+    "SCT",
+    "397363009",
+    "Common femoral vein"
+  ],
+  "COMILIACA": [
+    "SCT",
+    "73634005",
+    "Common iliac artery"
+  ],
+  "COMILIACV": [
+    "SCT",
+    "46027005",
+    "Common iliac vein"
+  ],
+  "CORNEA": [
+    "SCT",
+    "28726007",
+    "Cornea"
+  ],
+  "CORONARYARTERY": [
+    "SCT",
+    "41801008",
+    "Coronary artery"
+  ],
+  "CORONARYSINUS": [
+    "SCT",
+    "90219004",
+    "Coronary sinus"
+  ],
+  "DESCAORTA": [
+    "SCT",
+    "281130003",
+    "Descending aorta"
+  ],
+  "DESCENDINGCOLON": [
+    "SCT",
+    "32622004",
+    "Descending colon"
+  ],
+  "DUODENUM": [
+    "SCT",
+    "38848004",
+    "Duodenum"
+  ],
+  "EAR": [
+    "SCT",
+    "117590005",
+    "Ear"
+  ],
+  "ELBOW": [
+    "SCT",
+    "16953009",
+    "Elbow joint"
+  ],
+  "ENDOARTERIAL": [
+    "SCT",
+    "51114001",
+    "Endo-arterial"
+  ],
+  "ENDOCARDIAC": [
+    "SCT",
+    "80891009",
+    "Endo-cardiac"
+  ],
+  "ENDOESOPHAGEAL": [
+    "SCT",
+    "32849002",
+    "Endo-esophageal"
+  ],
+  "ENDOMETRIUM": [
+    "SCT",
+    "2739003",
+    "Endometrium"
+  ],
+  "ENDONASAL": [
+    "SCT",
+    "53342003",
+    "Endo-nasal"
+  ],
+  "ENDONASOPHARYNYX": [
+    "SCT",
+    "18962004",
+    "Endo-nasopharyngeal"
+  ],
+  "ENDORECTAL": [
+    "SCT",
+    "34402009",
+    "Endo-rectal"
+  ],
+  "ENDORENAL": [
+    "SCT",
+    "64033007",
+    "Endo-renal"
+  ],
+  "ENDOURETERIC": [
+    "SCT",
+    "87953007",
+    "Endo-ureteric"
+  ],
+  "ENDOURETHRAL": [
+    "SCT",
+    "13648007",
+    "Endo-urethral"
+  ],
+  "ENDOVAGINAL": [
+    "SCT",
+    "76784001",
+    "Endo-vaginal"
+  ],
+  "ENDOVASCULAR": [
+    "SCT",
+    "59820001",
+    "Endo-vascular"
+  ],
+  "ENDOVENOUS": [
+    "SCT",
+    "29092000",
+    "Endo-venous"
+  ],
+  "ENDOVESICAL": [
+    "SCT",
+    "48367006",
+    "Endo-vesical"
+  ],
+  "WHOLEBODY": [
+    "SCT",
+    "38266002",
+    "Entire body"
+  ],
+  "EPIDIDYMIS": [
+    "SCT",
+    "87644002",
+    "Epididymis"
+  ],
+  "EPIGASTRIC": [
+    "SCT",
+    "27947004",
+    "Epigastric region"
+  ],
+  "ESOPHAGUS": [
+    "SCT",
+    "32849002",
+    "Esophagus"
+  ],
+  "EAC": [
+    "SCT",
+    "84301002",
+    "External auditory canal"
+  ],
+  "ECA": [
+    "SCT",
+    "22286001",
+    "External carotid artery"
+  ],
+  "EXTILIACA": [
+    "SCT",
+    "113269004",
+    "External iliac artery"
+  ],
+  "EXTILIACV": [
+    "SCT",
+    "63507001",
+    "External iliac vein"
+  ],
+  "EXTJUGV": [
+    "SCT",
+    "71585003",
+    "External jugular vein"
+  ],
+  "EXTREMITY": [
+    "SCT",
+    "66019005",
+    "Extremity"
+  ],
+  "EYE": [
+    "SCT",
+    "81745001",
+    "Eye"
+  ],
+  "EYELID": [
+    "SCT",
+    "80243003",
+    "Eyelid"
+  ],
+  "FACE": [
+    "SCT",
+    "89545001",
+    "Face"
+  ],
+  "FACIALA": [
+    "SCT",
+    "23074001",
+    "Facial artery"
+  ],
+  "FEMORALA": [
+    "SCT",
+    "7657000",
+    "Femoral artery"
+  ],
+  "FEMORALV": [
+    "SCT",
+    "83419000",
+    "Femoral vein"
+  ],
+  "FEMUR": [
+    "SCT",
+    "71341001",
+    "Femur"
+  ],
+  "FIBULA": [
+    "SCT",
+    "87342007",
+    "Fibula"
+  ],
+  "FINGER": [
+    "SCT",
+    "7569003",
+    "Finger"
+  ],
+  "FLANK": [
+    "SCT",
+    "58602004",
+    "Flank"
+  ],
+  "FONTANEL": [
+    "SCT",
+    "79361005",
+    "Fontanel of skull"
+  ],
+  "FOOT": [
+    "SCT",
+    "56459004",
+    "Foot"
+  ],
+  "FOREARM": [
+    "SCT",
+    "14975008",
+    "Forearm"
+  ],
+  "4THVENTRICLE": [
+    "SCT",
+    "35918002",
+    "Fourth ventricle"
+  ],
+  "GALLBLADDER": [
+    "SCT",
+    "28231008",
+    "Gallbladder"
+  ],
+  "GASTRICV": [
+    "SCT",
+    "110568007",
+    "Gastric vein"
+  ],
+  "GENICULARA": [
+    "SCT",
+    "128559007",
+    "Genicular artery"
+  ],
+  "GESTSAC": [
+    "SCT",
+    "300571009",
+    "Gestational sac"
+  ],
+  "GLUTEAL": [
+    "SCT",
+    "46862004",
+    "Gluteal region"
+  ],
+  "GSV": [
+    "SCT",
+    "60734001",
+    "Great saphenous vein"
+  ],
+  "HAND": [
+    "SCT",
+    "85562004",
+    "Hand"
+  ],
+  "HEAD": [
+    "SCT",
+    "69536005",
+    "Head"
+  ],
+  "HEADNECK": [
+    "SCT",
+    "774007",
+    "Head and Neck"
+  ],
+  "HEART": [
+    "SCT",
+    "80891009",
+    "Heart"
+  ],
+  "HEPATICA": [
+    "SCT",
+    "76015000",
+    "Hepatic artery"
+  ],
+  "HEPATICV": [
+    "SCT",
+    "8993003",
+    "Hepatic vein"
+  ],
+  "HIP": [
+    "SCT",
+    "24136001",
+    "Hip joint"
+  ],
+  "HUMERUS": [
+    "SCT",
+    "85050009",
+    "Humerus"
+  ],
+  "HYPOGASTRIC": [
+    "SCT",
+    "11708003",
+    "Hypogastric region"
+  ],
+  "HYPOPHARYNX": [
+    "SCT",
+    "81502006",
+    "Hypopharynx"
+  ],
+  "ILEUM": [
+    "SCT",
+    "34516001",
+    "Ileum"
+  ],
+  "ILIACA": [
+    "SCT",
+    "10293006",
+    "Iliac artery"
+  ],
+  "ILIACV": [
+    "SCT",
+    "244411005",
+    "Iliac vein"
+  ],
+  "ILIUM": [
+    "SCT",
+    "22356005",
+    "Ilium"
+  ],
+  "INFMESA": [
+    "SCT",
+    "33795007",
+    "Inferior mesenteric artery"
+  ],
+  "INFVENACAVA": [
+    "SCT",
+    "64131007",
+    "Inferior vena cava"
+  ],
+  "INGUINAL": [
+    "SCT",
+    "26893007",
+    "Inguinal region"
+  ],
+  "INNOMINATEA": [
+    "SCT",
+    "12691009",
+    "Innominate artery"
+  ],
+  "INNOMINATEV": [
+    "SCT",
+    "8887007",
+    "Innominate vein"
+  ],
+  "IAC": [
+    "SCT",
+    "361078006",
+    "Internal Auditory Canal"
+  ],
+  "ICA": [
+    "SCT",
+    "86117002",
+    "Internal carotid artery"
+  ],
+  "INTILIACA": [
+    "SCT",
+    "90024005",
+    "Internal iliac artery"
+  ],
+  "INTJUGULARV": [
+    "SCT",
+    "12123001",
+    "Internal jugular vein"
+  ],
+  "INTMAMMARYA": [
+    "SCT",
+    "69327007",
+    "Internal mammary artery"
+  ],
+  "INTRACRANIAL": [
+    "SCT",
+    "1101003",
+    "Intracranial"
+  ],
+  "JAW": [
+    "SCT",
+    "661005",
+    "Jaw region"
+  ],
+  "JEJUNUM": [
+    "SCT",
+    "21306003",
+    "Jejunum"
+  ],
+  "JOINT": [
+    "SCT",
+    "39352004",
+    "Joint"
+  ],
+  "KIDNEY": [
+    "SCT",
+    "64033007",
+    "Kidney"
+  ],
+  "KNEE": [
+    "SCT",
+    "72696002",
+    "Knee"
+  ],
+  "LACRIMALA": [
+    "SCT",
+    "59749000",
+    "Lacrimal artery"
+  ],
+  "LARGEINTESTINE": [
+    "SCT",
+    "14742008",
+    "Large intestine"
+  ],
+  "LARYNX": [
+    "SCT",
+    "4596009",
+    "Larynx"
+  ],
+  "LATVENTRICLE": [
+    "SCT",
+    "66720007",
+    "Lateral Ventricle"
+  ],
+  "LATRIUM": [
+    "SCT",
+    "82471001",
+    "Left atrium"
+  ],
+  "LFEMORALA": [
+    "SCT",
+    "113270003",
+    "Left femoral artery"
+  ],
+  "LHEPATICV": [
+    "SCT",
+    "273202007",
+    "Left hepatic vein"
+  ],
+  "LHYPOCHONDRIAC": [
+    "SCT",
+    "133945003",
+    "Left hypochondriac region"
+  ],
+  "LINGUINAL": [
+    "SCT",
+    "85119005",
+    "Left inguinal region"
+  ],
+  "LLQ": [
+    "SCT",
+    "68505006",
+    "Left lower quadrant of abdomen"
+  ],
+  "LLUMBAR": [
+    "SCT",
+    "1017210004",
+    "Left lumbar region"
+  ],
+  "LPORTALV": [
+    "SCT",
+    "70253006",
+    "Left portal vein"
+  ],
+  "LPULMONARYA": [
+    "SCT",
+    "50408007",
+    "Left pulmonary artery"
+  ],
+  "LUQ": [
+    "SCT",
+    "86367003",
+    "Left upper quadrant of abdomen"
+  ],
+  "LVENTRICLE": [
+    "SCT",
+    "87878005",
+    "Left ventricle"
+  ],
+  "LINGUALA": [
+    "SCT",
+    "113264009",
+    "Lingual artery"
+  ],
+  "LIVER": [
+    "SCT",
+    "10200004",
+    "Liver"
+  ],
+  "LOWERLEG": [
+    "SCT",
+    "30021000",
+    "Lower leg"
+  ],
+  "LOWERLIMB": [
+    "SCT",
+    "61685007",
+    "Lower limb"
+  ],
+  "LOWERTRUNK": [
+    "SCT",
+    "63337009",
+    "Lower trunk"
+  ],
+  "LUMBARA": [
+    "SCT",
+    "34635009",
+    "Lumbar artery"
+  ],
+  "LUMBAR": [
+    "SCT",
+    "52612000",
+    "Lumbar region"
+  ],
+  "LSPINE": [
+    "SCT",
+    "122496007",
+    "Lumbar spine"
+  ],
+  "LSSPINE": [
+    "SCT",
+    "1217253001",
+    "Lumbo-sacral spine"
+  ],
+  "LUMEN": [
+    "SCT",
+    "91747007",
+    "Lumen of blood vessel"
+  ],
+  "LUNG": [
+    "SCT",
+    "39607008",
+    "Lung"
+  ],
+  "MANDIBLE": [
+    "SCT",
+    "91609006",
+    "Mandible"
+  ],
+  "MASTOID": [
+    "SCT",
+    "59066005",
+    "Mastoid bone"
+  ],
+  "MAXILLA": [
+    "SCT",
+    "70925003",
+    "Maxilla"
+  ],
+  "MEDIASTINUM": [
+    "SCT",
+    "72410000",
+    "Mediastinum"
+  ],
+  "MESENTRICA": [
+    "SCT",
+    "86570000",
+    "Mesenteric artery"
+  ],
+  "MESENTRICV": [
+    "SCT",
+    "128583004",
+    "Mesenteric vein"
+  ],
+  "MCA": [
+    "SCT",
+    "17232002",
+    "Middle cerebral artery"
+  ],
+  "MIDHEPATICV": [
+    "SCT",
+    "273099000",
+    "Middle hepatic vein"
+  ],
+  "MORISONSPOUCH": [
+    "SCT",
+    "243977002",
+    "Morisons pouch"
+  ],
+  "MOUTH": [
+    "SCT",
+    "123851003",
+    "Mouth"
+  ],
+  "NASOPHARYNX": [
+    "SCT",
+    "360955006",
+    "Nasopharynx"
+  ],
+  "NECK": [
+    "SCT",
+    "45048000",
+    "Neck"
+  ],
+  "NECKCHESTABDPELV": [
+    "SCT",
+    "416319003",
+    "Neck, Chest, Abdomen and Pelvis"
+  ],
+  "NECKCHESTABDOMEN": [
+    "SCT",
+    "416152001",
+    "Neck, Chest and Abdomen"
+  ],
+  "NECKCHEST": [
+    "SCT",
+    "417437006",
+    "Neck and Chest"
+  ],
+  "NOSE": [
+    "SCT",
+    "45206002",
+    "Nose"
+  ],
+  "OCCPITALA": [
+    "SCT",
+    "31145008",
+    "Occipital artery"
+  ],
+  "OCCIPTALV": [
+    "SCT",
+    "32114007",
+    "Occipital vein"
+  ],
+  "OPHTHALMICA": [
+    "SCT",
+    "53549008",
+    "Ophthalmic artery"
+  ],
+  "OPTICCANAL": [
+    "SCT",
+    "55024004",
+    "Optic canal"
+  ],
+  "ORBIT": [
+    "SCT",
+    "363654007",
+    "Orbital structure"
+  ],
+  "OVARY": [
+    "SCT",
+    "15497006",
+    "Ovary"
+  ],
+  "PANCREAS": [
+    "SCT",
+    "15776009",
+    "Pancreas"
+  ],
+  "PANCREATICDUCT": [
+    "SCT",
+    "69930009",
+    "Pancreatic duct"
+  ],
+  "PANCBILEDUCT": [
+    "SCT",
+    "110621006",
+    "Pancreatic duct and bile duct systems"
+  ],
+  "PARASTERNAL": [
+    "SCT",
+    "91691001",
+    "Parasternal"
+  ],
+  "PARATHYROID": [
+    "SCT",
+    "111002",
+    "Parathyroid"
+  ],
+  "PAROTID": [
+    "SCT",
+    "45289007",
+    "Parotid gland"
+  ],
+  "PATELLA": [
+    "SCT",
+    "64234005",
+    "Patella"
+  ],
+  "PELVIS": [
+    "SCT",
+    "816092008",
+    "Pelvis"
+  ],
+  "PELVISLOWEXTREMT": [
+    "SCT",
+    "1231522001",
+    "Pelvis and lower extremities"
+  ],
+  "PENILEA": [
+    "SCT",
+    "282044005",
+    "Penile artery"
+  ],
+  "PENIS": [
+    "SCT",
+    "18911002",
+    "Penis"
+  ],
+  "PERINEUM": [
+    "SCT",
+    "38864007",
+    "Perineum"
+  ],
+  "PERONEALA": [
+    "SCT",
+    "8821006",
+    "Peroneal artery"
+  ],
+  "PHANTOM": [
+    "SCT",
+    "706342009",
+    "Phantom"
+  ],
+  "PHARYNX": [
+    "SCT",
+    "54066008",
+    "Pharynx"
+  ],
+  "PHARYNXLARYNX": [
+    "SCT",
+    "312535008",
+    "Pharynx and larynx"
+  ],
+  "PLACENTA": [
+    "SCT",
+    "78067005",
+    "Placenta"
+  ],
+  "POPLITEALA": [
+    "SCT",
+    "43899006",
+    "Popliteal artery"
+  ],
+  "POPLITEALFOSSA": [
+    "SCT",
+    "32361000",
+    "Popliteal fossa"
+  ],
+  "POPLITEALV": [
+    "SCT",
+    "56849005",
+    "Popliteal vein"
+  ],
+  "PORTALV": [
+    "SCT",
+    "32764006",
+    "Portal vein"
+  ],
+  "PCA": [
+    "SCT",
+    "70382005",
+    "Posterior cerebral artery"
+  ],
+  "POSCOMMA": [
+    "SCT",
+    "43119007",
+    "Posterior communicating artery"
+  ],
+  "POSTIBIALA": [
+    "SCT",
+    "13363002",
+    "Posterior tibial artery"
+  ],
+  "PROFFEMA": [
+    "SCT",
+    "31677005",
+    "Profunda femoris artery"
+  ],
+  "PROFFEMV": [
+    "SCT",
+    "23438002",
+    "Profunda femoris vein"
+  ],
+  "PROSTATE": [
+    "SCT",
+    "41216001",
+    "Prostate"
+  ],
+  "PULMONARYA": [
+    "SCT",
+    "81040000",
+    "Pulmonary artery"
+  ],
+  "PULMONARYV": [
+    "SCT",
+    "122972007",
+    "Pulmonary vein"
+  ],
+  "RADIALA": [
+    "SCT",
+    "45631007",
+    "Radial artery"
+  ],
+  "RADIUS": [
+    "SCT",
+    "62413002",
+    "Radius"
+  ],
+  "RADIUSULNA": [
+    "SCT",
+    "110535000",
+    "Radius and ulna"
+  ],
+  "CULDESAC": [
+    "SCT",
+    "53843000",
+    "Rectouterine pouch"
+  ],
+  "RECTUM": [
+    "SCT",
+    "34402009",
+    "Rectum"
+  ],
+  "RENALA": [
+    "SCT",
+    "2841007",
+    "Renal artery"
+  ],
+  "RENALV": [
+    "SCT",
+    "56400007",
+    "Renal vein"
+  ],
+  "RETROPERITONEUM": [
+    "SCT",
+    "82849001",
+    "Retroperitoneum"
+  ],
+  "RIB": [
+    "SCT",
+    "113197003",
+    "Rib"
+  ],
+  "RATRIUM": [
+    "SCT",
+    "73829009",
+    "Right atrium"
+  ],
+  "RFEMORALA": [
+    "SCT",
+    "69833005",
+    "Right femoral artery"
+  ],
+  "RHEPATICV": [
+    "SCT",
+    "272998002",
+    "Right hepatic vein"
+  ],
+  "RHYPOCHONDRIAC": [
+    "SCT",
+    "133946002",
+    "Right hypochondriac region"
+  ],
+  "RINGUINAL": [
+    "SCT",
+    "37117007",
+    "Right inguinal region"
+  ],
+  "RLQ": [
+    "SCT",
+    "48544008",
+    "Right lower quadrant of abdomen"
+  ],
+  "RLUMBAR": [
+    "SCT",
+    "1017211000",
+    "Right lumbar region"
+  ],
+  "RPORTALV": [
+    "SCT",
+    "73931004",
+    "Right portal vein"
+  ],
+  "RPULMONARYA": [
+    "SCT",
+    "78480002",
+    "Right pulmonary artery"
+  ],
+  "RUQ": [
+    "SCT",
+    "50519007",
+    "Right upper quadrant of abdomen"
+  ],
+  "RVENTRICLE": [
+    "SCT",
+    "53085002",
+    "Right ventricle"
+  ],
+  "SIJOINT": [
+    "SCT",
+    "39723000",
+    "Sacroiliac joint"
+  ],
+  "SSPINE": [
+    "SCT",
+    "54735007",
+    "Sacrum"
+  ],
+  "SFJ": [
+    "SCT",
+    "128587003",
+    "Saphenofemoral junction"
+  ],
+  "SAPHENOUSV": [
+    "SCT",
+    "362072009",
+    "Saphenous vein"
+  ],
+  "SCALP": [
+    "SCT",
+    "41695006",
+    "Scalp"
+  ],
+  "SCAPULA": [
+    "SCT",
+    "79601000",
+    "Scapula"
+  ],
+  "SCLERA": [
+    "SCT",
+    "18619003",
+    "Sclera"
+  ],
+  "SCROTUM": [
+    "SCT",
+    "20233005",
+    "Scrotum"
+  ],
+  "SELLA": [
+    "SCT",
+    "42575006",
+    "Sella turcica"
+  ],
+  "SEMVESICLE": [
+    "SCT",
+    "64739004",
+    "Seminal vesicle"
+  ],
+  "SESAMOID": [
+    "SCT",
+    "58742003",
+    "Sesamoid bones of foot"
+  ],
+  "SHOULDER": [
+    "SCT",
+    "16982005",
+    "Shoulder"
+  ],
+  "SIGMOID": [
+    "SCT",
+    "60184004",
+    "Sigmoid colon"
+  ],
+  "SKULL": [
+    "SCT",
+    "89546000",
+    "Skull"
+  ],
+  "SMALLINTESTINE": [
+    "SCT",
+    "30315005",
+    "Small intestine"
+  ],
+  "SPINALCORD": [
+    "SCT",
+    "2748008",
+    "Spinal cord"
+  ],
+  "SPINE": [
+    "SCT",
+    "421060004",
+    "Spine"
+  ],
+  "SPLEEN": [
+    "SCT",
+    "78961009",
+    "Spleen"
+  ],
+  "SPLENICA": [
+    "SCT",
+    "22083002",
+    "Splenic artery"
+  ],
+  "SPLENICV": [
+    "SCT",
+    "35819009",
+    "Splenic vein"
+  ],
+  "SCJOINT": [
+    "SCT",
+    "7844006",
+    "Sternoclavicular joint"
+  ],
+  "STERNUM": [
+    "SCT",
+    "56873002",
+    "Sternum"
+  ],
+  "STOMACH": [
+    "SCT",
+    "69695003",
+    "Stomach"
+  ],
+  "SUBCLAVIANA": [
+    "SCT",
+    "36765005",
+    "Subclavian artery"
+  ],
+  "SUBCLAVIANV": [
+    "SCT",
+    "9454009",
+    "Subclavian vein"
+  ],
+  "SUBCOSTAL": [
+    "SCT",
+    "19695001",
+    "Subcostal"
+  ],
+  "SUBMANDIBULAR": [
+    "SCT",
+    "54019009",
+    "Submandibular gland"
+  ],
+  "SFA": [
+    "SCT",
+    "181349008",
+    "Superficial femoral artery"
+  ],
+  "SFV": [
+    "SCT",
+    "397364003",
+    "Superficial femoral vein"
+  ],
+  "LSUPPULMONARYV": [
+    "SCT",
+    "43863001",
+    "Superior left pulmonary vein"
+  ],
+  "SMA": [
+    "SCT",
+    "42258001",
+    "Superior mesenteric artery"
+  ],
+  "RSUPPULMONARYV": [
+    "SCT",
+    "8629005",
+    "Superior right pulmonary vein"
+  ],
+  "SUPTHYROIDA": [
+    "SCT",
+    "72021004",
+    "Superior thyroid artery"
+  ],
+  "SVC": [
+    "SCT",
+    "48345005",
+    "Superior vena cava"
+  ],
+  "SUPRACLAVICULAR": [
+    "SCT",
+    "77621008",
+    "Supraclavicular region of neck"
+  ],
+  "SUPRAPUBIC": [
+    "SCT",
+    "11708003",
+    "Suprapubic region"
+  ],
+  "TMJ": [
+    "SCT",
+    "53620006",
+    "Temporomandibular joint"
+  ],
+  "TESTIS": [
+    "SCT",
+    "40689003",
+    "Testis"
+  ],
+  "THALAMUS": [
+    "SCT",
+    "42695009",
+    "Thalamus"
+  ],
+  "THIGH": [
+    "SCT",
+    "68367000",
+    "Thigh"
+  ],
+  "3RDVENTRICLE": [
+    "SCT",
+    "49841001",
+    "Third ventricle"
+  ],
+  "THORACICAORTA": [
+    "SCT",
+    "113262008",
+    "Thoracic aorta"
+  ],
+  "TSPINE": [
+    "SCT",
+    "122495006",
+    "Thoracic spine"
+  ],
+  "TLSPINE": [
+    "SCT",
+    "1217256009",
+    "Thoraco-lumbar spine"
+  ],
+  "THORAX": [
+    "SCT",
+    "816094009",
+    "Chest"
+  ],
+  "THUMB": [
+    "SCT",
+    "76505004",
+    "Thumb"
+  ],
+  "THYMUS": [
+    "SCT",
+    "9875009",
+    "Thymus"
+  ],
+  "THYROID": [
+    "SCT",
+    "69748006",
+    "Thyroid"
+  ],
+  "TIBIA": [
+    "SCT",
+    "12611008",
+    "Tibia"
+  ],
+  "TIBIAFIBULA": [
+    "SCT",
+    "110536004",
+    "Tibia and fibula"
+  ],
+  "TOE": [
+    "SCT",
+    "29707007",
+    "Toe"
+  ],
+  "TONGUE": [
+    "SCT",
+    "21974007",
+    "Tongue"
+  ],
+  "TRACHEA": [
+    "SCT",
+    "44567001",
+    "Trachea"
+  ],
+  "TRACHEABRONCHUS": [
+    "SCT",
+    "110726009",
+    "Trachea and bronchus"
+  ],
+  "TRANSVERSECOLON": [
+    "SCT",
+    "485005",
+    "Transverse colon"
+  ],
+  "TRUNK": [
+    "SCT",
+    "22943007",
+    "Trunk"
+  ],
+  "ULNA": [
+    "SCT",
+    "23416004",
+    "Ulna"
+  ],
+  "ULNARA": [
+    "SCT",
+    "44984001",
+    "Ulnar artery"
+  ],
+  "UMBILICALA": [
+    "SCT",
+    "50536004",
+    "Umbilical artery"
+  ],
+  "UMBILICAL": [
+    "SCT",
+    "90290004",
+    "Umbilical region"
+  ],
+  "UMBILICALV": [
+    "SCT",
+    "284639000",
+    "Umbilical vein"
+  ],
+  "UPPERARM": [
+    "SCT",
+    "40983000",
+    "Upper arm"
+  ],
+  "UPPERLIMB": [
+    "SCT",
+    "53120007",
+    "Upper limb"
+  ],
+  "UPPERTRUNK": [
+    "SCT",
+    "67734004",
+    "Upper trunk"
+  ],
+  "UPRURINARYTRACT": [
+    "SCT",
+    "431491007",
+    "Upper urinary tract"
+  ],
+  "URETER": [
+    "SCT",
+    "87953007",
+    "Ureter"
+  ],
+  "URETHRA": [
+    "SCT",
+    "13648007",
+    "Urethra"
+  ],
+  "UTERUS": [
+    "SCT",
+    "35039007",
+    "Uterus"
+  ],
+  "VAGINA": [
+    "SCT",
+    "76784001",
+    "Vagina"
+  ],
+  "VEIN": [
+    "SCT",
+    "29092000",
+    "Vein"
+  ],
+  "VERTEBRALA": [
+    "SCT",
+    "85234005",
+    "Vertebral artery"
+  ],
+  "VULVA": [
+    "SCT",
+    "45292006",
+    "Vulva"
+  ],
+  "WRIST": [
+    "SCT",
+    "74670003",
+    "Wrist joint"
+  ],
+  "ZYGOMA": [
+    "SCT",
+    "13881006",
+    "Zygoma"
+  ]
+}
