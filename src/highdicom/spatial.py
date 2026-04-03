@@ -1,4 +1,5 @@
 import itertools
+from collections import Counter
 from collections.abc import Generator, Iterator, Sequence
 import logging
 from typing_extensions import Self
@@ -3403,12 +3404,65 @@ def are_points_coplanar(
     return max_dev <= tol
 
 
+def _check_orientation_consistency(
+    series_datasets: Sequence[Dataset],
+    orientation_tol: float,
+) -> Sequence[float] | None:
+    """Check orientations are consistent within a tolerance.
+
+    First establishes the most commonly occurring orientation value within the
+    series, then checks that all other orientation values found are within the
+    given tolerance.
+
+    Parameters
+    ----------
+    series_datasets: Sequence[pydicom.Dataset]
+        Series of legacy datasets whose orientations should be checked.
+    orientation_tol: float
+        Tolerance value used to determine whether two orientation values are
+        different. The checks fails if the cosine similarity of either of the
+        two direction unit vectors within an orientation has a cosine
+        similarity of less than 1 minus this value from the corresponding unit
+        vector in the most common orientation.
+
+    Returns
+    -------
+    list[float] | None:
+        If orientations are the similar within the given tolerance, returns the
+        most commonly occurring orientation in the ImageOrientationPatient
+        direction cosine format of a list of six floats. Otherwise returns None.
+
+    """
+    orientations = [
+        tuple(ds.ImageOrientationPatient)
+        for ds in series_datasets
+    ]
+    counter = Counter(orientations)
+
+    orientation, _ = counter.most_common(1)[0]
+    v1 = np.array(orientation[:3])
+    v2 = np.array(orientation[3:])
+
+    for ori, _ in counter.items():
+        if ori == orientation:
+            continue
+
+        if (
+            np.array(ori[:3]) @ v1 < (1.0 - orientation_tol) or
+            np.array(ori[3:]) @ v2 < (1.0 - orientation_tol)
+        ):
+            return None
+
+    return list(orientation)
+
+
 def get_series_volume_positions(
     datasets: Sequence[pydicom.Dataset],
     *,
     rtol: float | None = None,
     atol: float | None = None,
     perpendicular_tol: float | None = None,
+    orientation_tol: float | None = None,
     sort: bool = True,
     allow_missing_positions: bool = False,
     allow_duplicate_positions: bool = False,
@@ -3522,9 +3576,17 @@ def get_series_volume_positions(
             )
 
     # Check image orientations are consistent
-    image_orientation = datasets[0].ImageOrientationPatient
-    for ds in datasets[1:]:
-        if ds.ImageOrientationPatient != image_orientation:
+    if orientation_tol is None:
+        image_orientation = datasets[0].ImageOrientationPatient
+        for ds in datasets[1:]:
+            if ds.ImageOrientationPatient != image_orientation:
+                return None, None
+    else:
+        image_orientation = _check_orientation_consistency(
+            datasets,
+            orientation_tol
+        )
+        if image_orientation is None:
             return None, None
 
     positions = [ds.ImagePositionPatient for ds in datasets]
