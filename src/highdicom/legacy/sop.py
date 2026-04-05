@@ -31,10 +31,10 @@ from pydicom.uid import (
 )
 from pydicom.valuerep import DT, DA, TM, format_number_as_ds
 
-from highdicom.enum import PhotometricInterpretationValues
-from highdicom.image import Image, _Image
 from highdicom.base_content import ContributingEquipment
+from highdicom.enum import PhotometricInterpretationValues
 from highdicom.frame import encode_frame
+from highdicom.image import Image, _Image
 from highdicom.spatial import get_series_volume_positions
 
 from highdicom._module_utils import (

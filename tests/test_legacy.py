@@ -25,6 +25,8 @@ from highdicom import UID
 
 import pytest
 
+from tests.utils import write_and_read_dataset
+
 
 class Modality(enum.IntEnum):
     CT = 0
@@ -1299,4 +1301,34 @@ def test_transcode_custom_workers():
             workers=workers,
         )
 
+    assert converted.pixel_array.shape == (5, 2, 2)
+
+
+def test_from_datatset(modality: Modality,) -> None:
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    output_series_uid = UID()
+    output_sop_uid = UID()
+    output_series_number = 23
+    output_instance_number = 2
+    series_description = 'Converted Series'
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=output_series_uid,
+        sop_instance_uid=output_sop_uid,
+        series_number=output_series_number,
+        instance_number=output_instance_number,
+        series_description=series_description,
+    )
+
+    reread = LegacyConverterClass.from_dataset(
+        write_and_read_dataset(converted)
+    )
+
+    assert isinstance(reread, LegacyConverterClass)
     assert converted.pixel_array.shape == (5, 2, 2)
