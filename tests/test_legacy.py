@@ -303,7 +303,6 @@ def test_conversion(
     assert converted.SeriesInstanceUID == output_series_uid
     assert converted.SeriesNumber == output_series_number
     assert converted.InstanceNumber == output_instance_number
-    assert converted.SeriesDescription == series_description
 
     frame_type_seq_kw = {
         Modality.MR: 'MRImageFrameTypeSequence',
@@ -781,6 +780,27 @@ def test_aggregated_image_type():
     assert not hasattr(sfgs, frame_type_seq_kw)
     for pffg in converted.PerFrameFunctionalGroupsSequence:
         assert hasattr(pffg, frame_type_seq_kw)
+
+
+def test_default_series_description():
+    """Test that the default series description is added."""
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.CT, 1, True, True
+    )
+
+    converted = LegacyConvertedEnhancedCTImage(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert (
+        converted.SeriesDescription ==
+        f"{legacy_datasets[0].SeriesDescription} (enhanced conversion)"
+    )
 
 
 @pytest.mark.parametrize(

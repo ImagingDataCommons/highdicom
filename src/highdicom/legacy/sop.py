@@ -654,6 +654,7 @@ class _LegacyConversionRunner:
         )
 
         # Miscellaneous other tasks
+        self._add_series_description()
         self._add_image_type()
         self._add_stack_info_frame_content(require_volume)
         self._add_largest_smallest_pixel_value()
@@ -1428,6 +1429,24 @@ class _LegacyConversionRunner:
                         fa_dt += t_delta
 
             destination.FrameAcquisitionDateTime = fa_dt
+
+    def _add_series_description(self) -> None:
+        """Add a default series description."""
+        suffix = " (enhanced conversion)"
+
+        # If a series description is already there, it was provided
+        # explicity by the user and placed there by the SOPClass
+        # constructor, so should not be overidden
+        if "SeriesDescription" not in self._destination:
+            if self._keyword_shared_dict.get("SeriesDescription", False):
+                desc = self._legacy_datasets[0].SeriesDescription
+
+                # Add the suffix if it doesn't break the character
+                # limit for LO
+                if len(desc) + len(suffix) <= 64:
+                    desc += suffix
+
+                self._destination.SeriesDescription = desc
 
     def _add_stack_info_frame_content(self, require_volume: bool) -> None:
         """Adds stack info to the FrameContentSequence dicom attribute."""
