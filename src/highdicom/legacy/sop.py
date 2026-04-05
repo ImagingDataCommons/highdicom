@@ -2205,3 +2205,90 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
     _MODALITY_NAME = "MR"
     _LEGACY_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.4"
     _ENHANCED_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.4.4"
+
+
+def lcectimread(
+    fp: str | bytes | PathLike | BinaryIO,
+    lazy_frame_retrieval: bool = False
+) -> LegacyConvertedEnhancedCTImage:
+    """Read an LegacyConvertedEnhancedCTImage from DICOM file.
+
+    Parameters
+    ----------
+    fp: Union[str, bytes, os.PathLike]
+        Any file-like object representing a DICOM file containing an
+        Legacy Converted Enhanced CT Image.
+    lazy_frame_retrieval: bool
+        If True, the returned image will retrieve frames from the file as
+        requested, rather than loading in the entire object to memory
+        initially. This may be a good idea if file reading is slow and you are
+        likely to need only a subset of the frames in the image.
+
+    Returns
+    -------
+    highdicom.legacy.LegacyConvertedEnhancedCTImage:
+        Image read from the file.
+
+    """
+    return LegacyConvertedEnhancedCTImage.from_file(
+        fp,
+        lazy_frame_retrieval=lazy_frame_retrieval
+    )
+
+
+def lcemrimread(
+    fp: str | bytes | PathLike | BinaryIO,
+    lazy_frame_retrieval: bool = False
+) -> LegacyConvertedEnhancedMRImage:
+    """Read an LegacyConvertedEnhancedMRImage from DICOM file.
+
+    Parameters
+    ----------
+    fp: Union[str, bytes, os.PathLike]
+        Any file-like object representing a DICOM file containing an
+        Legacy Converted Enhanced MR Image.
+    lazy_frame_retrieval: bool
+        If True, the returned image will retrieve frames from the file as
+        requested, rather than loading in the entire object to memory
+        initially. This may be a good idea if file reading is slow and you are
+        likely to need only a subset of the frames in the image.
+
+    Returns
+    -------
+    highdicom.legacy.LegacyConvertedEnhancedMRImage:
+        Image read from the file.
+
+    """
+    return LegacyConvertedEnhancedMRImage.from_file(
+        fp,
+        lazy_frame_retrieval=lazy_frame_retrieval
+    )
+
+
+def lcepetimread(
+    fp: str | bytes | PathLike | BinaryIO,
+    lazy_frame_retrieval: bool = False
+) -> LegacyConvertedEnhancedPETImage:
+    """Read an LegacyConvertedEnhancedPETImage from DICOM file.
+
+    Parameters
+    ----------
+    fp: Union[str, bytes, os.PathLike]
+        Any file-like object representing a DICOM file containing an
+        Legacy Converted Enhanced PET Image.
+    lazy_frame_retrieval: bool
+        If True, the returned image will retrieve frames from the file as
+        requested, rather than loading in the entire object to memory
+        initially. This may be a good idea if file reading is slow and you are
+        likely to need only a subset of the frames in the image.
+
+    Returns
+    -------
+    highdicom.legacy.LegacyConvertedEnhancedPETImage:
+        Image read from the file.
+
+    """
+    return LegacyConvertedEnhancedPETImage.from_file(
+        fp,
+        lazy_frame_retrieval=lazy_frame_retrieval
+    )

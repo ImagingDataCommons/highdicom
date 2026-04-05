@@ -1,5 +1,6 @@
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
+from io import BytesIO
 from datetime import datetime, timedelta
 import enum
 import re
@@ -20,6 +21,9 @@ from highdicom.legacy import (
     LegacyConvertedEnhancedCTImage,
     LegacyConvertedEnhancedMRImage,
     LegacyConvertedEnhancedPETImage,
+    lcectimread,
+    lcemrimread,
+    lcepetimread,
 )
 from highdicom import UID
 
@@ -1374,3 +1378,42 @@ def test_from_dataset_wrong_modality(modality: Modality) -> None:
         WrongLegacyConverterClass.from_dataset(
             write_and_read_dataset(converted)
         )
+
+
+@pytest.mark.parametrize("lazy", [True, False])
+def test_read_function(modality: Modality, lazy: bool) -> None:
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    output_series_uid = UID()
+    output_sop_uid = UID()
+    output_series_number = 23
+    output_instance_number = 2
+    series_description = 'Converted Series'
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=output_series_uid,
+        sop_instance_uid=output_sop_uid,
+        series_number=output_series_number,
+        instance_number=output_instance_number,
+        series_description=series_description,
+    )
+
+    read_fn = {
+        Modality.PT: lcepetimread,
+        Modality.CT: lcectimread,
+        Modality.MR: lcemrimread,
+    }[modality]
+
+    with BytesIO() as fp:
+        converted.save_as(fp)
+        fp.seek(0)
+        reread = read_fn(fp, lazy_frame_retrieval=lazy)
+
+    assert isinstance(reread, LegacyConverterClass)
+    assert ('PixelData' in reread) == (not lazy)
+    assert converted.pixel_array.shape == (5, 2, 2)
