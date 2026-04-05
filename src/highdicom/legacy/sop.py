@@ -82,19 +82,9 @@ _FARTHEST_FUTURE_DATE_TIME = DT("99991231235959")
 # List of attributes required to be consistent between each frame for the
 # conversion to be valid
 _CONSISTENT_KEYWORDS = [
-    "PatientID",
-    "PatientName",
-    "StudyInstanceUID",
+    # Technical requirements
     "FrameOfReferenceUID",
-    "Manufacturer",
-    "InstitutionName",
-    "InstitutionAddress",
-    "StationName",
-    "InstitutionalDepartmentName",
-    "ManufacturerModelName",
-    "DeviceSerialNumber",
-    "SoftwareVersions",
-    "GantryID",
+    "StudyInstanceUID",
     "PixelPaddingValue",
     "Modality",
     "SOPClassUID",
@@ -107,8 +97,20 @@ _CONSISTENT_KEYWORDS = [
     "PhotometricInterpretation",
     "PlanarConfiguration",
     "SamplesPerPixel",
-    "ProtocolName",
     "SpecificCharacterSet",
+
+    # Opinionated requirements
+    "PatientID",
+    "PatientName",
+    "Manufacturer",
+    "InstitutionName",
+    "InstitutionAddress",
+    "StationName",
+    "InstitutionalDepartmentName",
+    "ManufacturerModelName",
+    "DeviceSerialNumber",
+    "SoftwareVersions",
+    "GantryID",
 ]
 
 
@@ -258,9 +260,9 @@ def default_sort_key(x: Dataset) -> Tuple[Union[int, str, UID], ...]:
 
 
 class _LegacyConversionRunner:
-    """Utility class for running a conversion process and associated state.
+    """Utility class for running a conversion process.
 
-    This class holds state required by the conversion process, but no longer
+    This class holds state required by the conversion process but no longer
     needed after the process has concluded.
 
     """
@@ -271,8 +273,9 @@ class _LegacyConversionRunner:
         destination: Dataset,
         transfer_syntax_uid: str | None = None,
         use_extended_offset_table: bool = False,
-        workers: int | Executor = 0,
+        require_volume: bool = False,
         sort_key: Callable | None = None,
+        workers: int | Executor = 0,
     ) -> None:
         """
 
@@ -297,12 +300,15 @@ class _LegacyConversionRunner:
             they may be less widely supported than basic offset tables. This
             parameter is ignored if using a native (uncompressed) transfer
             syntax. The default value may change in a future release.
-        workers: int | concurrent.futures.Executor, optional
-            Number of worker processes (or executor object) to use for frame
-            compression, if compression or transcoding is needed.
+        require_volume: bool, optional
+            Raise an error if the legacy datasets do not form a regularly-spaced
+            volume.
         sort_key: Callable | None, optional
             A function by which the single-frame instances will be sorted to
             determine the order of frames in the newly created instance.
+        workers: int | concurrent.futures.Executor, optional
+            Number of worker processes (or executor object) to use for frame
+            compression, if compression or transcoding is needed.
 
         """
         if sort_key is None:
@@ -320,7 +326,7 @@ class _LegacyConversionRunner:
         (self._keyword_shared_dict, self._private_tag_shared_dict) = (
             self._find_shared_and_perframe_attributes()
         )
-        self._check_attribute_consistency()
+        self._check_attribute_consistency(require_volume)
 
         incoming_pi = (
             self._legacy_datasets[0].PhotometricInterpretation
@@ -649,7 +655,7 @@ class _LegacyConversionRunner:
 
         # Miscellaneous other tasks
         self._add_image_type()
-        self._add_stack_info_frame_content()
+        self._add_stack_info_frame_content(require_volume)
         self._add_largest_smallest_pixel_value()
         self._add_common_instance_reference()
         self._add_unassigned_attributes()
@@ -721,8 +727,7 @@ class _LegacyConversionRunner:
 
     def _check_attribute_consistency(
         self,
-        check_geometry: bool = True,
-        check_series_instance_uid: bool = True,
+        require_volume: bool = False,
     ) -> None:
         """Check whether a list of instances is valid for legacy conversion.
 
@@ -735,12 +740,9 @@ class _LegacyConversionRunner:
             Dictionary whose keys include all tags present in any dataset. The
             corresponding value is a boolean that indicates whether that tag
             is consistent (in presence and value) across all datasets.
-        check_geometry: bool, optional
+        require_volume: bool, optional
             If True, require that the orientations, slice thickness, and pixel
             spacings of all instances are the same.
-        check_series_instance_uid: bool, optional
-            If True, require that all instances belong to the same series. This
-            is not a strict requirement of the standard.
 
         Raises
         ------
@@ -752,17 +754,6 @@ class _LegacyConversionRunner:
         # List of attributes that must be consistent across instances for the
         # conversion to be valid
         consistent_attributes = _CONSISTENT_KEYWORDS.copy()
-
-        if check_geometry:
-            consistent_attributes.extend(
-                [
-                    "ImageOrientationPatient",
-                    "PixelSpacing",
-                    "SliceThickness",
-                ]
-            )
-        if check_series_instance_uid:
-            consistent_attributes.append("SeriesInstanceUID")
 
         inconsistencies = []
 
@@ -778,6 +769,29 @@ class _LegacyConversionRunner:
                 "following attribute(s) is not consistent across instances: "
                 f"{inconsistencies_str}."
             )
+
+        if require_volume:
+            volume_attributes = [
+                "ImageOrientationPatient",
+                "PixelSpacing",
+                "SliceThickness",
+                "SeriesInstanceUID",
+            ]
+
+            inconsistencies = []
+
+            for attr in volume_attributes:
+                if not self._keyword_shared_dict.get(attr, True):
+                    inconsistencies.append(attr)
+
+            if len(inconsistencies) > 0:
+                inconsistencies_str = ", ".join(inconsistencies)
+                raise ValueError(
+                    "The legacy instances do not represent a regularly-spaced "
+                    "volume because the values of the following attribute(s) "
+                    "are not consistent across instances: "
+                    f"{inconsistencies_str}."
+                )
 
         # Additionally check transfer syntex UID
         for ds in self._legacy_datasets:
@@ -1415,12 +1429,10 @@ class _LegacyConversionRunner:
 
             destination.FrameAcquisitionDateTime = fa_dt
 
-    def _add_stack_info_frame_content(self) -> None:
+    def _add_stack_info_frame_content(self, require_volume: bool) -> None:
         """Adds stack info to the FrameContentSequence dicom attribute."""
         spacing, position_indices = get_series_volume_positions(
             self._legacy_datasets,
-            allow_missing_positions=True,
-            allow_duplicate_positions=True,
         )
 
         if spacing is not None and position_indices is not None:
@@ -1443,6 +1455,10 @@ class _LegacyConversionRunner:
                 (
                     sfgs.PixelMeasuresSequence[0].SpacingBetweenSlices
                 ) = format_number_as_ds(spacing)
+        elif require_volume:
+            raise ValueError(
+                "Legacy datasets are not a regularly-spaced set of frames."
+            )
 
     def _copy_existing_sequence_to_functional_groups(
         self,
@@ -1942,6 +1958,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         instance_number: int,
         transfer_syntax_uid: str | None = None,
         use_extended_offset_table: bool = False,
+        require_volume: bool = False,
         sort_key: Callable | None = None,
         contributing_equipment: Sequence[ContributingEquipment] | None = None,
         workers: int | Executor = 0,
@@ -1977,6 +1994,13 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             they may be less widely supported than basic offset tables. This
             parameter is ignored if using a native (uncompressed) transfer
             syntax. The default value may change in a future release.
+        require_volume: bool, optional
+            If Tue, raise an error if the legacy datasets represent a set of
+            parallel, regularly-spaced frames from the same series. This
+            is not a requirement for the conversion to be valid according to
+            the standard, but users may wish to additionally impose this
+            stricter requirement to ensure the resulting files are easier
+            to work with.
         sort_key: Callable | None, optional
             A function by which the single-frame instances will be sorted to
             determine the order of frames in the newly created instance.
@@ -2081,6 +2105,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             transfer_syntax_uid=transfer_syntax_uid,
             use_extended_offset_table=use_extended_offset_table,
             sort_key=sort_key,
+            require_volume=require_volume,
         )
 
         self._build_luts()
