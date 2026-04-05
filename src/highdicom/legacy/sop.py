@@ -8,9 +8,18 @@ from dataclasses import dataclass
 from functools import lru_cache
 import json
 import logging
+from os import PathLike
 import pkgutil
 from sys import float_info
-from typing import Any, Union, Callable, Generator, Sequence, Tuple
+from typing import (
+    Any,
+    BinaryIO,
+    Union,
+    Callable,
+    Generator,
+    Sequence,
+    Tuple,
+)
 from typing_extensions import Self
 
 from pydicom.datadict import keyword_for_tag
@@ -99,6 +108,7 @@ _CONSISTENT_KEYWORDS = [
     "PlanarConfiguration",
     "SamplesPerPixel",
     "ProtocolName",
+    "SpecificCharacterSet",
 ]
 
 
@@ -334,8 +344,6 @@ class _LegacyConversionRunner:
             "AcquisitionDateTime",
             "ImageType",
             "SeriesDescription",
-            # TODO why is this here?
-            "SpecificCharacterSet",
         ]
         self._unused_keywords = {
             kw for kw in self._keyword_shared_dict.keys()
@@ -401,7 +409,6 @@ class _LegacyConversionRunner:
                 "SOPClassUID",
                 "SOPInstanceUID",
                 "InstanceNumber",
-                "SpecificCharacterSet",
                 "EncryptedAttributesSequence",
                 "MACParametersSequence",
                 "DigitalSignaturesSequence",
