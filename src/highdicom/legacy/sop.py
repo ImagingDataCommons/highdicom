@@ -11,6 +11,7 @@ import logging
 import pkgutil
 from sys import float_info
 from typing import Any, Union, Callable, Generator, Sequence, Tuple
+from typing_extensions import Self
 
 from pydicom.datadict import keyword_for_tag
 from pydicom.dataset import Dataset
@@ -218,6 +219,34 @@ class _AttributeConfig:
         return [self.dest_kw]
 
 
+def default_sort_key(x: Dataset) -> Tuple[Union[int, str, UID], ...]:
+    """The default sort key to sort single frames before conversion.
+
+    Parameters
+    ----------
+    x: pydicom.Dataset
+        input Dataset to be sorted.
+
+    Returns
+    -------
+    tuple: Tuple[Union[int, str, UID]]
+        a sort key of three elements.
+            1st priority: SeriesNumber
+            2nd priority: InstanceNumber
+            3rd priority: SOPInstanceUID
+
+    """
+    out: tuple = tuple()
+    if "SeriesNumber" in x:
+        out += (x.SeriesNumber,)
+    if "InstanceNumber" in x:
+        out += (x.InstanceNumber,)
+    if "SOPInstanceUID" in x:
+        out += (x.SOPInstanceUID,)
+
+    return out
+
+
 class _LegacyConversionRunner:
     """Utility class for running a conversion process and associated state.
 
@@ -230,9 +259,10 @@ class _LegacyConversionRunner:
         self,
         legacy_datasets: Sequence[Dataset],
         destination: Dataset,
-        workers: int | Executor = 0,
         transfer_syntax_uid: str | None = None,
         use_extended_offset_table: bool = False,
+        workers: int | Executor = 0,
+        sort_key: Callable | None = None,
     ) -> None:
         """
 
@@ -242,9 +272,33 @@ class _LegacyConversionRunner:
             Legacy (single-frame) datasets to be converted.
         destination: pydicom.Dataset
             Existing Legacy Converted Enhanced dataset to copy attributes to.
+        transfer_syntax_uid: str, optional
+            UID of transfer syntax that should be used for encoding of data
+            elements. If ``None``(the default), the transfer syntax of the
+            legacy datasets will be used and the frames will not be re-encoded.
+            The following compressed transfer syntaxes are supported: JPEG 2000
+            Lossless (``"1.2.840.10008.1.2.4.90"``) and JPEG-LS Lossless
+            (``"1.2.840.10008.1.2.4.80"``).
+        use_extended_offset_table: bool, optional
+            Include an extended offset table instead of a basic offset table
+            for encapsulated transfer syntaxes. Extended offset tables avoid
+            size limitations on basic offset tables, and separate the offset
+            table from the pixel data by placing it into metadata. However,
+            they may be less widely supported than basic offset tables. This
+            parameter is ignored if using a native (uncompressed) transfer
+            syntax. The default value may change in a future release.
+        workers: int | concurrent.futures.Executor, optional
+            Number of worker processes (or executor object) to use for frame
+            compression, if compression or transcoding is needed.
+        sort_key: Callable | None, optional
+            A function by which the single-frame instances will be sorted to
+            determine the order of frames in the newly created instance.
 
         """
-        self._legacy_datasets = list(legacy_datasets)
+        if sort_key is None:
+            sort_key = default_sort_key
+
+        self._legacy_datasets = sorted(list(legacy_datasets), key=sort_key)
         self._destination = destination
         self._transfer_syntax_uid = transfer_syntax_uid
         self._workers = workers
@@ -253,8 +307,6 @@ class _LegacyConversionRunner:
         self._unused_keywords: set[str] = set()
         self._private_tag_shared_dict: dict[BaseTag, bool]
 
-    def run(self) -> None:
-        """Run conversion."""
         (self._keyword_shared_dict, self._private_tag_shared_dict) = (
             self._find_shared_and_perframe_attributes()
         )
@@ -1868,6 +1920,12 @@ class _LegacyConversionRunner:
 class _CommonLegacyConvertedEnhancedImage(Image):
     """SOP class for common Legacy Converted Enhanced instances."""
 
+    # Override these on the sub-classes
+    _MODALITY_ATTRIBUTE = ""
+    _MODALITY_NAME = ""
+    _LEGACY_SOP_CLASS_UID = ""
+    _ENHANCED_SOP_CLASS_UID = ""
+
     def __init__(
         self,
         legacy_datasets: Sequence[Dataset],
@@ -1913,7 +1971,8 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             parameter is ignored if using a native (uncompressed) transfer
             syntax. The default value may change in a future release.
         sort_key: Callable | None, optional
-            A function by which the single-frame instances will be sorted
+            A function by which the single-frame instances will be sorted to
+            determine the order of frames in the newly created instance.
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
             Additional equipment that has contributed to the acquisition,
             creation or modification of this instance.
@@ -1945,10 +2004,16 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         except IndexError:
             raise ValueError("At least one legacy dataset must be provided.")
 
-        if sort_key is None:
-            sort_key = _CommonLegacyConvertedEnhancedImage.default_sort_key
-
-        legacy_datasets = sorted(legacy_datasets, key=sort_key)
+        if ref_ds.Modality != self._MODALITY_ATTRIBUTE:
+            raise ValueError(
+                "Wrong modality for conversion of legacy "
+                f"{self._MODALITY_NAME} images."
+            )
+        if ref_ds.SOPClassUID != self._LEGACY_SOP_CLASS_UID:
+            raise ValueError(
+                f"Wrong SOP class for conversion of legacy "
+                f"{self._MODALITY_NAME} images."
+            )
 
         content_date, content_time, acquisition_datetime = self._get_datetimes(
             legacy_datasets
@@ -1959,7 +2024,9 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             series_instance_uid=series_instance_uid,
             series_number=series_number,
             sop_instance_uid=sop_instance_uid,
-            sop_class_uid=LEGACY_ENHANCED_SOP_CLASS_UID_MAP[ref_ds.SOPClassUID],
+            sop_class_uid=LEGACY_ENHANCED_SOP_CLASS_UID_MAP[
+                self._LEGACY_SOP_CLASS_UID
+            ],
             instance_number=instance_number,
             transfer_syntax_uid=transfer_syntax_uid,
             #  Manufacturer is type 2
@@ -2000,20 +2067,20 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         if acquisition_datetime is not None:
             self.AcquisitionDateTime = acquisition_datetime
 
-        runner = _LegacyConversionRunner(
+        _LegacyConversionRunner(
             legacy_datasets,
             destination=self,
             workers=workers,
             transfer_syntax_uid=transfer_syntax_uid,
             use_extended_offset_table=use_extended_offset_table,
+            sort_key=sort_key,
         )
-        runner.run()
 
         self._build_luts()
 
     def _get_datetimes(
         self,
-        legacy_datasets: list[Dataset],
+        legacy_datasets: Sequence[Dataset],
     ) -> Tuple[DA | None, TM | None, DT | None]:
         """Choose appropriate date/times for the new object.
 
@@ -2085,229 +2152,56 @@ class _CommonLegacyConvertedEnhancedImage(Image):
 
         return content_date, content_time, acquisition_datetime
 
-    @staticmethod
-    def default_sort_key(x: Dataset) -> Tuple[Union[int, str, UID], ...]:
-        """The default sort key to sort all single frames before conversion
+    @classmethod
+    def from_dataset(cls, dataset: Dataset, copy: bool = False) -> Self:
+        """Create instance from an existing dataset.
 
         Parameters
         ----------
-        x: pydicom.Dataset
-            input Dataset to be sorted.
+        dataset: pydicom.dataset.Dataset
+            Dataset representing a LegacyConvertedEnhanced image.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
 
         Returns
         -------
-        tuple: Tuple[Union[int, str, UID]]
-            a sort key of three elements.
-                1st priority: SeriesNumber
-                2nd priority: InstanceNumber
-                3rd priority: SOPInstanceUID
+        Self:
+            Representation of the supplied dataset as a highdicom Legacy
+            Converted Enhanced image.
 
         """
-        out: tuple = tuple()
-        if "SeriesNumber" in x:
-            out += (x.SeriesNumber,)
-        if "InstanceNumber" in x:
-            out += (x.InstanceNumber,)
-        if "SOPInstanceUID" in x:
-            out += (x.SOPInstanceUID,)
-
-        return out
-
-
-_SHARED_DOCSTRING = """
-
-Parameters
-----------
-legacy_datasets: Sequence[pydicom.Dataset]
-    DICOM data sets of legacy single-frame image instances that should
-    be converted
-series_instance_uid: str
-    UID of the series
-series_number: int
-    Number of the series within the study
-sop_instance_uid: str
-    UID that should be assigned to the instance
-instance_number: int
-    Number that should be assigned to the instance
-transfer_syntax_uid: str | None, optional
-    UID of transfer syntax that should be used for encoding of data
-    elements. If ``None``(the default), the transfer syntax of the
-    legacy datasets will be used and the frames will not be re-encoded.
-    The following compressed transfer syntaxes are supported: JPEG 2000
-    Lossless (``"1.2.840.10008.1.2.4.90"``) and JPEG-LS Lossless
-    (``"1.2.840.10008.1.2.4.80"``).
-use_extended_offset_table: bool, optional
-    Include an extended offset table instead of a basic offset table
-    for encapsulated transfer syntaxes. Extended offset tables avoid
-    size limitations on basic offset tables, and separate the offset
-    table from the pixel data by placing it into metadata. However,
-    they may be less widely supported than basic offset tables. This
-    parameter is ignored if using a native (uncompressed) transfer
-    syntax. The default value may change in a future release.
-sort_key: Callable | None, optional
-    A function by which the single-frame instances will be sorted
-contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
-    Additional equipment that has contributed to the acquisition,
-    creation or modification of this instance.
-workers: int | concurrent.futures.Executor, optional
-    Number of worker processes to use for frame compression, if
-    compression or transcoding is needed. If 0, no workers are used and
-    compression is performed in the main process (this is the default
-    behavior). If negative, as many processes are created as the
-    machine has processors.
-
-    Alternatively, you may directly pass an instance of a class derived
-    from ``concurrent.futures.Executor`` (most likely an instance of
-    ``concurrent.futures.ProcessPoolExecutor``) for highdicom to use.
-    You may wish to do this either to have greater control over the
-    setup of the executor, or to avoid the setup cost of spawning new
-    processes each time this ``__init__`` method is called if your
-    application creates a large number of objects.
-
-    Note that if you use worker processes, you must ensure that your
-    main process uses the ``if __name__ == "__main__"`` idiom to guard
-    against spawned child processes creating further workers.
-**kwargs: Any, optional
-    Additional keyword arguments that will be passed to the constructor
-    of `highdicom.base.SOPClass`
-
-"""  # noqa: E501
+        if dataset.SOPClassUID != cls._ENHANCED_SOP_CLASS_UID:
+            raise ValueError(
+                "Dataset is not a Legacy Converted Enhanced "
+                f"{cls._MODALITY_NAME} image."
+            )
+        return super().from_dataset(dataset, copy=copy)
 
 
 class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
     """SOP class for Legacy Converted Enhanced CT Image instances."""
 
-    def __init__(
-        self,
-        legacy_datasets: Sequence[Dataset],
-        series_instance_uid: str,
-        series_number: int,
-        sop_instance_uid: str,
-        instance_number: int,
-        sort_key: Callable | None = None,
-        transfer_syntax_uid: str | None = None,
-        use_extended_offset_table: bool = False,
-        contributing_equipment: Sequence[ContributingEquipment] | None = None,
-        workers: int | Executor = 0,
-        **kwargs: Any,
-    ) -> None:
-        f"""{_SHARED_DOCSTRING}"""
-        try:
-            ref_ds = legacy_datasets[0]
-        except IndexError:
-            raise ValueError(
-                "At least one legacy dataset must be provided."
-            )
-        if ref_ds.Modality != "CT":
-            raise ValueError(
-                "Wrong modality for conversion of legacy CT images."
-            )
-        if ref_ds.SOPClassUID != "1.2.840.10008.5.1.4.1.1.2":
-            raise ValueError(
-                "Wrong SOP class for conversion of legacy CT images."
-            )
-        super().__init__(
-            legacy_datasets,
-            series_instance_uid=series_instance_uid,
-            series_number=series_number,
-            sop_instance_uid=sop_instance_uid,
-            instance_number=instance_number,
-            transfer_syntax_uid=transfer_syntax_uid,
-            use_extended_offset_table=use_extended_offset_table,
-            workers=workers,
-            contributing_equipment=contributing_equipment,
-            sort_key=sort_key,
-            **kwargs,
-        )
+    _MODALITY_ATTRIBUTE = "CT"
+    _MODALITY_NAME = "CT"
+    _LEGACY_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.2"
+    _ENHANCED_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.2.2"
 
 
 class LegacyConvertedEnhancedPETImage(_CommonLegacyConvertedEnhancedImage):
     """SOP class for Legacy Converted Enhanced PET Image instances."""
 
-    def __init__(
-        self,
-        legacy_datasets: Sequence[Dataset],
-        series_instance_uid: str,
-        series_number: int,
-        sop_instance_uid: str,
-        instance_number: int,
-        transfer_syntax_uid: str | None = None,
-        use_extended_offset_table: bool = False,
-        sort_key: Callable | None = None,
-        contributing_equipment: Sequence[ContributingEquipment] | None = None,
-        workers: int | Executor = 0,
-        **kwargs: Any,
-    ) -> None:
-        f"""{_SHARED_DOCSTRING}"""
-        try:
-            ref_ds = legacy_datasets[0]
-        except IndexError:
-            raise ValueError(
-                "At least one legacy dataset must be provided."
-            )
-        if ref_ds.Modality != "PT":
-            raise ValueError(
-                "Wrong modality for conversion of legacy PET images."
-            )
-        if ref_ds.SOPClassUID != "1.2.840.10008.5.1.4.1.1.128":
-            raise ValueError(
-                "Wrong SOP class for conversion of legacy PET images."
-            )
-        super().__init__(
-            legacy_datasets,
-            series_instance_uid=series_instance_uid,
-            series_number=series_number,
-            sop_instance_uid=sop_instance_uid,
-            instance_number=instance_number,
-            transfer_syntax_uid=transfer_syntax_uid,
-            use_extended_offset_table=use_extended_offset_table,
-            workers=workers,
-            contributing_equipment=contributing_equipment,
-            sort_key=sort_key,
-            **kwargs,
-        )
+    _MODALITY_ATTRIBUTE = "PT"
+    _MODALITY_NAME = "PET"
+    _LEGACY_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.128"
+    _ENHANCED_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.128.1"
 
 
 class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
     """SOP class for Legacy Converted Enhanced MR Image instances."""
 
-    def __init__(
-        self,
-        legacy_datasets: Sequence[Dataset],
-        series_instance_uid: str,
-        series_number: int,
-        sop_instance_uid: str,
-        instance_number: int,
-        transfer_syntax_uid: str | None = None,
-        use_extended_offset_table: bool = False,
-        sort_key: Callable | None = None,
-        contributing_equipment: Sequence[ContributingEquipment] | None = None,
-        workers: int | Executor = 0,
-        **kwargs: Any,
-    ) -> None:
-        f"""{_SHARED_DOCSTRING}"""
-        try:
-            ref_ds = legacy_datasets[0]
-        except IndexError:
-            raise ValueError("At least one legacy dataset must be provided.")
-        if ref_ds.Modality != "MR":
-            raise ValueError(
-                "Wrong modality for conversion of legacy MR images."
-            )
-        if ref_ds.SOPClassUID != "1.2.840.10008.5.1.4.1.1.4":
-            raise ValueError(
-                "Wrong SOP class for conversion of legacy MR images."
-            )
-        super().__init__(
-            legacy_datasets,
-            series_instance_uid=series_instance_uid,
-            series_number=series_number,
-            sop_instance_uid=sop_instance_uid,
-            instance_number=instance_number,
-            transfer_syntax_uid=transfer_syntax_uid,
-            use_extended_offset_table=use_extended_offset_table,
-            workers=workers,
-            contributing_equipment=contributing_equipment,
-            sort_key=sort_key,
-            **kwargs,
-        )
+    _MODALITY_ATTRIBUTE = "MR"
+    _MODALITY_NAME = "MR"
+    _LEGACY_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.4"
+    _ENHANCED_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.4.4"

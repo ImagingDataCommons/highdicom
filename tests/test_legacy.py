@@ -1304,7 +1304,7 @@ def test_transcode_custom_workers():
     assert converted.pixel_array.shape == (5, 2, 2)
 
 
-def test_from_datatset(modality: Modality,) -> None:
+def test_from_dataset(modality: Modality) -> None:
     LegacyConverterClass = MODALITY_CLASS_MAP[modality]
     data_generator = DicomGenerator(5)
     legacy_datasets = data_generator.generate_mixed_framesets(
@@ -1332,3 +1332,45 @@ def test_from_datatset(modality: Modality,) -> None:
 
     assert isinstance(reread, LegacyConverterClass)
     assert converted.pixel_array.shape == (5, 2, 2)
+
+
+def test_from_dataset_wrong_modality(modality: Modality) -> None:
+    # Using the wrong modality should raise an error
+    LegacyConverterClass = MODALITY_CLASS_MAP[modality]
+
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        modality, 1, True, True
+    )
+
+    output_series_uid = UID()
+    output_sop_uid = UID()
+    output_series_number = 23
+    output_instance_number = 2
+    series_description = 'Converted Series'
+
+    converted = LegacyConverterClass(
+        legacy_datasets,
+        series_instance_uid=output_series_uid,
+        sop_instance_uid=output_sop_uid,
+        series_number=output_series_number,
+        instance_number=output_instance_number,
+        series_description=series_description,
+    )
+
+    # Choose wrong modality
+    WrongLegacyConverterClass = {
+        Modality.PT: LegacyConvertedEnhancedCTImage,
+        Modality.CT: LegacyConvertedEnhancedMRImage,
+        Modality.MR: LegacyConvertedEnhancedPETImage,
+    }[modality]
+
+    msg = (
+        "Dataset is not a Legacy Converted Enhanced "
+        f"{WrongLegacyConverterClass._MODALITY_NAME} image."
+    )
+
+    with pytest.raises(ValueError, match=msg):
+        WrongLegacyConverterClass.from_dataset(
+            write_and_read_dataset(converted)
+        )
