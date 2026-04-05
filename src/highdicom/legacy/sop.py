@@ -31,6 +31,7 @@ from pydicom.uid import (
 )
 from pydicom.valuerep import DT, DA, TM, format_number_as_ds
 
+from highdicom.enum import PhotometricInterpretationValues
 from highdicom.image import Image, _Image
 from highdicom.base_content import ContributingEquipment
 from highdicom.frame import encode_frame
@@ -147,6 +148,7 @@ def _istag_group_length(t: BaseTag) -> bool:
 def _transcode_frame(
     dataset: Dataset,
     transfer_syntax_uid: str,
+    photometric_interpretation: PhotometricInterpretationValues,
 ) -> bytes:
     """Transcode single frame dataset's pixel data.
 
@@ -156,6 +158,8 @@ def _transcode_frame(
         Single frame (legacy) dataset whose pixel data should be transcoded.
     transfer_syntax_uid: str
         New transfer syntax.
+    photometric_interpretation: highdicom.PhotometricInterpretationValues
+        Photometric interpretation to use with the new transfer syntax.
 
     Returns
     -------
@@ -169,7 +173,7 @@ def _transcode_frame(
         transfer_syntax_uid=transfer_syntax_uid,
         bits_allocated=dataset.BitsAllocated,
         bits_stored=dataset.BitsStored,
-        photometric_interpretation=dataset.PhotometricInterpretation,
+        photometric_interpretation=photometric_interpretation,
         pixel_representation=dataset.get("PixelRepresentation", 0),
         planar_configuration=dataset.get("PlanarConfiguration"),
     )
@@ -1773,7 +1777,9 @@ class _LegacyConversionRunner:
         src_tx_uid = self._legacy_datasets[0].file_meta.TransferSyntaxUID
         if self._transfer_syntax_uid is None:
             dst_tx_uid = src_tx_uid
-            outgoing_pi = self._legacy_datasets[0].PhotometricInterpretation
+            outgoing_pi = PhotometricInterpretationValues(
+                self._legacy_datasets[0].PhotometricInterpretation
+            )
         else:
             dst_tx_uid = UID(self._transfer_syntax_uid)
 
@@ -1781,20 +1787,21 @@ class _LegacyConversionRunner:
             samples_per_pixel = self._legacy_datasets[0].SamplesPerPixel
             if samples_per_pixel == 1:
                 # Monochrome 1 is disallowed earlier
-                outgoing_pi = "MONOCHROME2"
+                outgoing_pi = PhotometricInterpretationValues.MONOCHROME2
             else:
                 # Photometric interpretation depends on transfer syntax
                 outgoing_pi = {
-                    ImplicitVRLittleEndian: "RGB",
-                    ExplicitVRLittleEndian: "RGB",
-                    JPEGLSLossless: "RGB",
-                    RLELossless: "RGB",
-                    JPEG2000Lossless: "YBR_ICT",
-                    JPEG2000: "YBR_RCT",
-                    JPEGBaseline8Bit: "YBR_FULL_422",
+                    ImplicitVRLittleEndian: PhotometricInterpretationValues.RGB,
+                    ExplicitVRLittleEndian: PhotometricInterpretationValues.RGB,
+                    JPEGLSLossless: PhotometricInterpretationValues.RGB,
+                    RLELossless: PhotometricInterpretationValues.RGB,
+                    JPEG2000Lossless: PhotometricInterpretationValues.YBR_RCT,
+                    JPEG2000: PhotometricInterpretationValues.YBR_ICT,
+                    JPEGBaseline8Bit:
+                        PhotometricInterpretationValues.YBR_FULL_422,
                 }[dst_tx_uid]
 
-        self._destination.PhotometricInterpretation = outgoing_pi
+        self._destination.PhotometricInterpretation = outgoing_pi.value
 
         if not isinstance(self._workers, (int, Executor)):
             raise TypeError(
@@ -1825,6 +1832,7 @@ class _LegacyConversionRunner:
                         _transcode_frame,
                         dataset=ds,
                         transfer_syntax_uid=dst_tx_uid,
+                        photometric_interpretation=outgoing_pi,
                     )
                     for ds in self._legacy_datasets
                 ]
@@ -1836,7 +1844,7 @@ class _LegacyConversionRunner:
 
             else:
                 frames = [
-                    _transcode_frame(ds, dst_tx_uid)
+                    _transcode_frame(ds, dst_tx_uid, outgoing_pi)
                     for ds in self._legacy_datasets
                 ]
 

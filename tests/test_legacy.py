@@ -5,10 +5,13 @@ import enum
 import re
 from typing import Any
 
-from pydicom import FileDataset, Dataset
+from pydicom import FileDataset, FileMetaDataset, Dataset
 from pydicom.data import get_testdata_file
 from pydicom.uid import (
     JPEG2000Lossless,
+    JPEG2000,
+    JPEGBaseline8Bit,
+    JPEGLSLossless,
     RLELossless,
     EnhancedMRImageStorage,
 )
@@ -85,7 +88,9 @@ class DicomGenerator:
         position_vec: list,
         series_uid: str,
         first_slice_offset: float = 0,
-        frameset_idx: int = 0
+        frameset_idx: int = 0,
+        color: bool = False,
+        bytes_per_voxel: int = 2,
     ) -> list:
         output_dataset = []
         slice_pos = first_slice_offset
@@ -97,11 +102,14 @@ class DicomGenerator:
         time_ = datetime.now().time()
         cols = self._col
         rows = self._row
-        bytes_per_voxel = 2
+        samples_per_pixel = 3 if color else 1
+        photomtc_intn = 'RGB' if color else 'MONOCHROME2'
 
         for i in range(self._slice_per_frameset):
-            file_meta = Dataset()
-            pixel_array = b"\0" * cols * rows * bytes_per_voxel
+            file_meta = FileMetaDataset()
+            pixel_array = (
+                b"\0" * cols * rows * bytes_per_voxel * samples_per_pixel
+            )
             file_meta.MediaStorageSOPClassUID = MODALITY_LEGACY_SOP_CLASS_MAP[
                 modality
             ]
@@ -152,7 +160,7 @@ class DicomGenerator:
             tmp_dataset.PixelRepresentation = 0
             tmp_dataset.Columns = cols
             tmp_dataset.Rows = rows
-            tmp_dataset.SamplesPerPixel = 1
+            tmp_dataset.SamplesPerPixel = samples_per_pixel
             tmp_dataset.AccessionNumber = '1{:05d}'.format(frameset_idx)
             tmp_dataset.AcquisitionDate = date_
             tmp_dataset.AcquisitionTime = datetime.now().time()
@@ -168,7 +176,7 @@ class DicomGenerator:
             tmp_dataset.PatientIdentityRemoved = 'YES'
             tmp_dataset.PatientPosition = 'FFS'
             tmp_dataset.PatientSex = 'F'
-            tmp_dataset.PhotometricInterpretation = 'MONOCHROME2'
+            tmp_dataset.PhotometricInterpretation = photomtc_intn
             tmp_dataset.PixelData = pixel_array
             tmp_dataset.PositionReferenceIndicator = 'XY'
             tmp_dataset.ProtocolName = 'some protocol'
@@ -183,11 +191,13 @@ class DicomGenerator:
             tmp_dataset.StudyDate = date_
             tmp_dataset.StudyDescription = 'test study'
             tmp_dataset.StudyID = ''
+            tmp_dataset.StudyTime = time_
             if (modality == Modality.CT):
                 tmp_dataset.RescaleIntercept = -1024
                 tmp_dataset.RescaleSlope = 1
 
-            tmp_dataset.StudyTime = time_
+            if color:
+                tmp_dataset.PlanarConfiguration = 0
             output_dataset.append(tmp_dataset)
 
         return output_dataset
@@ -198,6 +208,8 @@ class DicomGenerator:
         frame_set_count: int,
         parallel: bool = True,
         flatten_output: bool = True,
+        color: bool = False,
+        bytes_per_voxel: int = 2,
     ) -> list:
         out = []
         orients = [
@@ -221,13 +233,27 @@ class DicomGenerator:
             if flatten_output:
                 out.extend(
                     self._generate_frameset(
-                        modality, orient, pos, se_uid, i * 50, i
+                        modality,
+                        orient,
+                        pos,
+                        se_uid,
+                        i * 50,
+                        i,
+                        color=color,
+                        bytes_per_voxel=bytes_per_voxel,
                     )
                 )
             else:
                 out.append(
                     self._generate_frameset(
-                        modality, orient, pos, se_uid, i * 50, i
+                        modality,
+                        orient,
+                        pos,
+                        se_uid,
+                        i * 50,
+                        i,
+                        color=color,
+                        bytes_per_voxel=bytes_per_voxel,
                     )
                 )
 
@@ -1209,6 +1235,50 @@ def test_transcode(workers: int):
     )
 
     assert converted.pixel_array.shape == (5, 2, 2)
+
+
+@pytest.mark.parametrize(
+    ["transfer_syntax_uid", "photometric_interpretation"],
+    [
+        (JPEG2000, 'YBR_ICT'),
+        (JPEG2000Lossless, 'YBR_RCT'),
+        (JPEGLSLossless, 'RGB'),
+        (RLELossless, 'RGB'),
+        (JPEGBaseline8Bit, 'YBR_FULL_422'),
+    ]
+)
+@pytest.mark.parametrize("workers", [0, 1, 4])
+def test_transcode_rgb(
+    workers: int,
+    transfer_syntax_uid: str,
+    photometric_interpretation: str,
+):
+    """Test transcoding frames to a new transfer syntax"""
+    if transfer_syntax_uid in (JPEG2000, JPEG2000Lossless):
+        pytest.importorskip('openjpeg')
+    elif transfer_syntax_uid in (JPEGLSLossless, JPEGBaseline8Bit):
+        pytest.importorskip('libjpeg')
+
+    data_generator = DicomGenerator(5, row=32, col=32)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.MR, 1, True, True, color=True, bytes_per_voxel=1,
+    )
+
+    converted = LegacyConvertedEnhancedMRImage(
+        legacy_datasets=legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        transfer_syntax_uid=transfer_syntax_uid,
+        workers=workers,
+    )
+
+    assert converted.pixel_array.shape == (5, 32, 32, 3)
+    assert (
+        converted.PhotometricInterpretation ==
+        photometric_interpretation
+    )
 
 
 def test_transcode_custom_workers():
