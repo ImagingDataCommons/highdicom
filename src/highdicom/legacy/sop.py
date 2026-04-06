@@ -20,6 +20,7 @@ from typing import (
     Sequence,
     Tuple,
 )
+from pydicom.multival import MultiValue
 from typing_extensions import Self
 
 from pydicom.datadict import keyword_for_tag
@@ -43,7 +44,7 @@ from pydicom.valuerep import DT, DA, TM, format_number_as_ds
 
 from highdicom.base_content import ContributingEquipment
 from highdicom.enum import PhotometricInterpretationValues
-from highdicom.frame import encode_frame
+from highdicom.frame import encode_frame, get_lossy_compression_attributes
 from highdicom.image import Image, _Image
 from highdicom.spatial import get_series_volume_positions
 
@@ -1908,6 +1909,41 @@ class _LegacyConversionRunner:
 
         frames: list[bytes]
 
+        uncompressed_length = (
+            self._destination.SamplesPerPixel *
+            self._destination.BitsAllocated *
+            self._destination.Rows *
+            self._destination.Columns *
+            len(self._legacy_datasets)
+        )
+
+        (
+            src_lossy_compression,
+            src_lossy_method,
+        ) = get_lossy_compression_attributes(src_tx_uid)
+
+        # Record that the source was lossy (may append to this later)
+        if (
+            src_lossy_compression == "01" and
+            "LossyImageCompression" not in self._destination
+        ):
+            self._destination.LossyImageCompression = "01"
+            self._destination.LossyImageCompressionMethod = (
+                src_lossy_method
+            )
+
+        if (
+            src_lossy_compression == "01" and
+            "LossyImageCompressionRatio" not in self._destination
+        ):
+            compressed_length = sum((
+                len(dcm.PixelData) for dcm in self._legacy_datasets)
+            )
+            compression_ratio = format_number_as_ds(
+                uncompressed_length / compressed_length
+            )
+            self._destination.LossyImageCompressionRatio = compression_ratio
+
         if (dst_tx_uid != src_tx_uid) and (
             src_tx_uid.is_encapsulated or dst_tx_uid.is_encapsulated
         ):
@@ -1941,6 +1977,55 @@ class _LegacyConversionRunner:
                     _transcode_frame(ds, dst_tx_uid, outgoing_pi)
                     for ds in self._legacy_datasets
                 ]
+
+            (
+                dst_lossy_compression,
+                dst_lossy_method,
+            ) = get_lossy_compression_attributes(dst_tx_uid)
+
+            if dst_lossy_compression == "01":
+                self._destination.LossyImageCompression = "01"
+
+                if "LossyImageCompressionMethod" in self._destination:
+                    prev_method = (
+                        self._destination.LossyImageCompressionMethod
+                    )
+                    if isinstance(prev_method, MultiValue):
+                        prev_methods = list(prev_method)
+                    else:
+                        prev_methods = [prev_method]
+
+                    prev_methods.append(dst_lossy_method)
+                    (
+                        self._destination.LossyImageCompressionMethod
+                    ) = prev_methods
+                else:
+                    (
+                        self._destination.LossyImageCompressionMethod
+                    ) = dst_lossy_method
+
+                compressed_length = sum((len(f) for f in frames))
+                compression_ratio = format_number_as_ds(
+                    uncompressed_length / compressed_length
+                )
+
+                if "LossyImageCompressionRatio" in self._destination:
+                    prev_ratio = (
+                        self._destination.LossyImageCompressionRatio
+                    )
+                    if isinstance(prev_ratio, MultiValue):
+                        prev_ratios = list(prev_ratio)
+                    else:
+                        prev_ratios = [prev_ratio]
+
+                    prev_ratios.append(compression_ratio)
+                    (
+                        self._destination.LossyImageCompressionRatio
+                    ) = prev_ratios
+                else:
+                    (
+                        self._destination.LossyImageCompressionRatio
+                    ) = compression_ratio
 
         else:
             # No transcoding is required, just concatenate frames

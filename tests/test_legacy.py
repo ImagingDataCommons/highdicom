@@ -8,11 +8,13 @@ from typing import Any
 
 from pydicom import FileDataset, FileMetaDataset, Dataset
 from pydicom.data import get_testdata_file
+from pydicom.multival import MultiValue
 from pydicom.uid import (
     JPEG2000Lossless,
     JPEG2000,
     JPEGBaseline8Bit,
     JPEGLSLossless,
+    JPEGLSNearLossless,
     RLELossless,
     EnhancedMRImageStorage,
 )
@@ -188,9 +190,7 @@ class DicomGenerator:
             tmp_dataset.ProtocolName = 'some protocol'
             tmp_dataset.ReferringPhysicianName = ''
             tmp_dataset.SeriesDate = date_
-            tmp_dataset.SeriesDescription = (
-                f'test series_frameset{frameset_idx:05d}'
-            )
+            tmp_dataset.SeriesDescription = "A legacy series"
             tmp_dataset.SeriesTime = time_
             tmp_dataset.SoftwareVersions = '01'
             tmp_dataset.SpecificCharacterSet = 'ISO_IR 100'
@@ -1372,7 +1372,7 @@ def test_transcode(workers: int):
     ]
 )
 @pytest.mark.parametrize("workers", [0, 1, 4])
-def test_transcode_rgb(
+def test_encode_rgb(
     workers: int,
     transfer_syntax_uid: str,
     photometric_interpretation: str,
@@ -1403,6 +1403,103 @@ def test_transcode_rgb(
         converted.PhotometricInterpretation ==
         photometric_interpretation
     )
+
+    if transfer_syntax_uid == JPEG2000:
+        assert converted.LossyImageCompression == "01"
+        assert converted.LossyImageCompressionMethod == "ISO_15444_1"
+        assert "LossyImageCompressionRatio" in converted
+    elif transfer_syntax_uid == JPEGBaseline8Bit:
+        assert converted.LossyImageCompression == "01"
+        assert converted.LossyImageCompressionMethod == "ISO_10918_1"
+        assert "LossyImageCompressionRatio" in converted
+    else:
+        for kw in [
+            "LossyImageCompression",
+            "LossyImageCompressionMethod",
+            "LossyImageCompressionRatio",
+        ]:
+            assert kw not in converted
+
+
+@pytest.mark.parametrize(
+    ["transfer_syntax_uid", "photometric_interpretation"],
+    [
+        (JPEG2000, 'YBR_ICT'),
+        (JPEG2000Lossless, 'YBR_RCT'),
+        (JPEGLSLossless, 'RGB'),
+        (RLELossless, 'RGB'),
+        (JPEGBaseline8Bit, 'YBR_FULL_422'),
+    ]
+)
+@pytest.mark.parametrize("workers", [0, 1, 4])
+def test_transcode_rgb(
+    workers: int,
+    transfer_syntax_uid: str,
+    photometric_interpretation: str,
+):
+    """Test transcoding frames to a new transfer syntax
+    from an existing lossy method."""
+    if transfer_syntax_uid in (JPEG2000, JPEG2000Lossless):
+        pytest.importorskip('openjpeg')
+    elif transfer_syntax_uid in (JPEGLSLossless, JPEGBaseline8Bit):
+        pytest.importorskip('libjpeg')
+
+    data_generator = DicomGenerator(5, row=32, col=32)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.MR, 1, True, True, color=True, bytes_per_voxel=1,
+    )
+
+    # Input datasets are lossy compressed
+    for ds in legacy_datasets:
+        ds.compress(JPEGLSNearLossless)
+
+    converted = LegacyConvertedEnhancedMRImage(
+        legacy_datasets=legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        transfer_syntax_uid=transfer_syntax_uid,
+        workers=workers,
+    )
+
+    assert converted.pixel_array.shape == (5, 32, 32, 3)
+    assert (
+        converted.PhotometricInterpretation ==
+        photometric_interpretation
+    )
+
+    # Since input is lossy compressed, this should be set regardless of
+    # whether the new transfer syntax is lossy
+    assert converted.LossyImageCompression == "01"
+
+    if transfer_syntax_uid == JPEG2000:
+        assert converted.LossyImageCompressionMethod == [
+            "ISO_14495_1",  # Original
+            "ISO_15444_1",  # New
+        ]
+        assert isinstance(
+            converted.LossyImageCompressionRatio,
+            MultiValue,
+        )
+    elif transfer_syntax_uid == JPEGBaseline8Bit:
+        assert converted.LossyImageCompression == "01"
+        assert converted.LossyImageCompressionMethod == [
+            "ISO_14495_1",  # Original
+            "ISO_10918_1",  # New
+        ]
+        assert isinstance(
+            converted.LossyImageCompressionRatio,
+            MultiValue,
+        )
+    else:
+        # New transfer syntax is lossy, so only information on the original
+        # should be present
+        assert converted.LossyImageCompressionMethod == "ISO_14495_1"
+        assert not isinstance(
+            converted.LossyImageCompressionRatio,
+            MultiValue,
+        )
 
 
 def test_transcode_custom_workers():
