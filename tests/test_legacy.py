@@ -809,7 +809,6 @@ def test_default_series_description():
         ('ImageOrientationPatient', 'PlaneOrientationSequence'),
         ('ImagePositionPatient', 'PlanePositionSequence'),
         ('PixelSpacing', 'PixelMeasuresSequence'),
-        ('WindowWidth', 'FrameVOILUTSequence'),
     ],
 )
 def test_missing_required_attribute_for_mandatory_group(

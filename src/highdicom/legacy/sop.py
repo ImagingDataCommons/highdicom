@@ -317,6 +317,7 @@ class _LegacyConversionRunner:
             "AcquisitionDateTime",
             "ImageType",
             "SeriesDescription",
+            "NumberOfSlices",
         ]
         self._unused_keywords = {
             kw for kw in self._keyword_shared_dict.keys()
@@ -472,6 +473,26 @@ class _LegacyConversionRunner:
             LegacyConvertedEnhancedPETImageStorage: "PETFrameTypeSequence",
         }[self._destination.SOPClassUID]
 
+        # Frame VOI LUT is required for CT and PET, but for PET no values are
+        # required in the legacy datasets. Need to set a default value to use
+        # in this case. Ideally we would not need to decode pixel data to do
+        # this, so just assume values take the full allocated range. Do not
+        # apply these default in MR, because there it is better to omit the
+        # attributes
+        default_window_width = None
+        default_window_center = None
+        if (
+            self._destination.SOPClassUID !=
+            LegacyConvertedEnhancedMRImageStorage
+        ):
+            twos_complement = self._legacy_datasets[0].PixelRepresentation == 1
+            bits_stored = self._legacy_datasets[0].BitsStored
+            default_window_width = 2 ** bits_stored
+            if twos_complement:
+                default_window_center = 0
+            else:
+                default_window_center = 2 ** (bits_stored - 1)
+
         self._add_functional_group(
             "DerivationImageSequence",
             [_AttributeConfig("SourceImageSequence")],
@@ -535,7 +556,7 @@ class _LegacyConversionRunner:
                 ),
                 _AttributeConfig(
                     "FrameAcquisitionDuration",
-                    src_kws=["AcquisitionDuration"]
+                    src_kws=["AcquisitionDuration", "ActualFrameDuration"]
                 ),
                 _AttributeConfig("TemporalPositionIndex"),
                 _AttributeConfig(
@@ -582,8 +603,14 @@ class _LegacyConversionRunner:
         self._add_functional_group(
             "FrameVOILUTSequence",
             [
-                _AttributeConfig("WindowWidth"),
-                _AttributeConfig("WindowCenter"),
+                _AttributeConfig(
+                    "WindowWidth",
+                    default_val=default_window_width,
+                ),
+                _AttributeConfig(
+                    "WindowCenter",
+                    default_val=default_window_center,
+                ),
             ],
             optional_attributes=[
                 _AttributeConfig("WindowCenterWidthExplanation"),
