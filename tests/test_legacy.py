@@ -1121,6 +1121,9 @@ def test_body_part_mapping(modality: Modality):
     )
     assert fr_an_seq.FrameLaterality == 'U'  # unimodal (default)
 
+    # The body part examined should not be used
+    assert "BodyPartExamined" not in converted
+
 
 def test_laterality_from_region_modifier(modality: Modality):
     """Test that the laterality is correctly inferred from the

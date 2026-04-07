@@ -368,6 +368,7 @@ class _LegacyConversionRunner:
                 "LargestPixelValueInSeries",
                 "PerformedProcedureStepEndDate",
                 "PerformedProcedureStepEndTime",
+                "BodyPartExamined",
             ],
         )
         self._add_module("clinical-trial-series")
@@ -823,6 +824,11 @@ class _LegacyConversionRunner:
             skip_attributes = []
         if attribute_configs is None:
             attribute_configs = []
+
+        # Remove all the skipped attributes so they don't end up in unassigned
+        # converted attributes
+        for kw in skip_attributes:
+            self._mark_keyword_used(kw)
 
         ref_dataset = self._legacy_datasets[0]
         module_tree = construct_module_tree(module_name)
@@ -1294,6 +1300,7 @@ class _LegacyConversionRunner:
             destination.AnatomicRegionSequence = deepcopy(
                 source.AnatomicRegionSequence
             )
+            self._mark_keyword_used("AnatomicRegionSequence")
         else:
             # Due to earlier checks, should have BodyPartExamined if we get
             # here
@@ -1306,6 +1313,8 @@ class _LegacyConversionRunner:
                 code = mapping[source.BodyPartExamined]
 
                 destination.AnatomicRegionSequence = [code]
+
+                self._mark_keyword_used("BodyPartExamined")
 
         # Determine the required frame laterality. First check the modifier of
         # the primary anatomic structure and map following Part 3 Section 10.5
@@ -1344,6 +1353,7 @@ class _LegacyConversionRunner:
             for kw in ["FrameLaterality", "ImageLaterality", "Laterality"]:
                 if kw in source:
                     destination.FrameLaterality = getattr(source, kw)
+                    self._mark_keyword_used(kw)
                     break
             else:
                 # No laterality information, just assume unilateral
@@ -2120,6 +2130,9 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             legacy_datasets
         )
 
+        if transfer_syntax_uid is None:
+            transfer_syntax_uid = ref_ds.file_meta.TransferSyntaxUID
+
         super(_Image, self).__init__(
             study_instance_uid=ref_ds.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -2228,10 +2241,10 @@ class _CommonLegacyConvertedEnhancedImage(Image):
                     DA(src.SeriesDate), TM(src.SeriesTime)
                 )
             elif "StudyDate" in src and "StudyTime" in src:
-                if src.StudyDate is not None and src.StudyTime is not None:
-                    frame_content_datetime = DT.combine(
-                        DA(src.StudyDate), TM(src.StudyTime)
-                    )
+                da = DA(src.StudyDate)
+                tm = TM(src.StudyTime)
+                if da is not None and tm is not None:
+                    frame_content_datetime = DT.combine(da, tm)
 
             if frame_content_datetime is not None:
                 earliest_content_date_time = min(
