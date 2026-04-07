@@ -7,7 +7,7 @@ from pydicom.filereader import dcmread
 from pydicom import uid
 
 
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     does_iod_have_pixel_data,
 )
 

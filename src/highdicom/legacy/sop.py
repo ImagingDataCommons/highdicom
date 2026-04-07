@@ -5,11 +5,8 @@ from concurrent.futures import Executor, ProcessPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-from functools import lru_cache
-import json
 import logging
 from os import PathLike
-import pkgutil
 from sys import float_info
 from typing import (
     Any,
@@ -42,19 +39,19 @@ from pydicom.uid import (
 )
 from pydicom.valuerep import DT, DA, TM, format_number_as_ds
 
+from highdicom._standard_utils import get_anatomic_region_map
 from highdicom.base_content import ContributingEquipment
 from highdicom.enum import PhotometricInterpretationValues
 from highdicom.frame import encode_frame, get_lossy_compression_attributes
 from highdicom.image import Image, _Image
 from highdicom.spatial import get_series_volume_positions
 
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     AttributeTypeValues,
     ModuleUsageValues,
     construct_module_tree,
     get_module_usage,
 )
-from highdicom.sr.coding import CodedConcept
 
 
 logger = logging.getLogger(__name__)
@@ -122,37 +119,6 @@ def _istag_file_meta_information_group(t: BaseTag) -> bool:
 def _istag_repeating_group(t: BaseTag) -> bool:
     g = t.group
     return (g >= 0x5000 and g <= 0x501E) or (g >= 0x6000 and g <= 0x601E)
-
-
-@lru_cache(maxsize=1)
-def _get_anatomic_region_mapping() -> dict[str, CodedConcept]:
-    """Get a mapping from body part examined to SCT codes.
-
-    This mapping is defined in the standard at :dcm:`Annex L
-    <part16/chapter_L.html>` and intended to modernize body parts expressed in
-    the old "BodyPartExamined" attribute to the more standardized
-    "AnatomicRegionSequence", using SNOMED controlled terminology.
-
-    Returns
-    -------
-    dict[str, highdicom.sr.CodedConcept]
-        Mapping from old-style BodyPartExamined values to SNOMED codes used for
-        AnatomicRegionSequence.
-
-    """
-    data_file = pkgutil.get_data("highdicom", "_standard/anatomic_regions.json")
-
-    if data_file is None:
-        raise FileNotFoundError(
-            "Error loading anatomic regions JSON data file."
-        )
-
-    anatomic_regions = json.loads(data_file.decode("utf-8"))
-
-    return {
-        k: CodedConcept(value=v[1], scheme_designator=v[0], meaning=v[2])
-        for k, v in anatomic_regions.items()
-    }
 
 
 def _istag_group_length(t: BaseTag) -> bool:
@@ -1293,7 +1259,7 @@ class _LegacyConversionRunner:
         Converted CT and similarly for other IODs.
 
         """
-        mapping = _get_anatomic_region_mapping()
+        mapping = get_anatomic_region_map()
 
         for ds in self._legacy_datasets:
             if "AnatomicRegionSequence" in ds:
@@ -1335,7 +1301,7 @@ class _LegacyConversionRunner:
             # required by the standard but the AnatomicRegionSequence may be
             # omitted in the body part examined is not present or has a
             # non-standard value.
-            mapping = _get_anatomic_region_mapping()
+            mapping = get_anatomic_region_map()
             if source.BodyPartExamined in mapping:
                 code = mapping[source.BodyPartExamined]
 

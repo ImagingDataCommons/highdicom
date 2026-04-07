@@ -7,7 +7,7 @@ from pydicom import Dataset
 import numpy as np
 import pydicom
 
-from highdicom._module_utils import is_multiframe_image
+from highdicom._standard_utils import is_multiframe_image
 from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,

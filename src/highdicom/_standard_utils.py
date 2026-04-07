@@ -1,13 +1,17 @@
 from enum import Enum
+from functools import lru_cache
+import json
+import pkgutil
 from typing import Any
 from collections.abc import Sequence
 
 from pydicom import Dataset
 
+from highdicom.sr.coding import CodedConcept
+
 
 # Allowed values for the type of an attribute
 class AttributeTypeValues(Enum):
-
     """Enumerated values for the type of an attribute."""
 
     REQUIRED = '1'
@@ -18,7 +22,6 @@ class AttributeTypeValues(Enum):
 
 
 class ModuleUsageValues(Enum):
-
     """Enumerated values for the usage of a module."""
 
     MANDATORY = 'M'
@@ -26,12 +29,124 @@ class ModuleUsageValues(Enum):
     USER_OPTIONAL = 'C'
 
 
+@lru_cache(1)
+def get_sop_class_iod_map() -> dict[str, str]:
+    """Get a mapping from SOP Class UID to IOD name.
+
+    This is loaded from JSON format data distributed with highdicom. This
+    function is cached so that the file should only be read once.
+
+    Returns
+    -------
+    dict[str, str]:
+        Mapping whose keys are SOP Class UIDs and whose values are the names of
+        the IODs used for those SOP Classes.
+
+    """
+    data_file = pkgutil.get_data(
+        "highdicom",
+        "_standard/sop_class_iod_map.json",
+    )
+
+    if data_file is None:
+        raise FileNotFoundError(
+            "Error loading SOP Class IOD map JSON data file."
+        )
+
+    return json.loads(data_file.decode("utf-8"))
+
+
+@lru_cache(1)
+def get_iod_module_map() -> dict[str, list]:
+    """Get a mapping from IOD to modules it contains.
+
+    This is loaded from JSON format data distributed with highdicom. This
+    function is cached so that the file should only be read once.
+
+    Returns
+    -------
+    dict[str, list]:
+        Mapping whose keys are IOD names and whose values are lists of modules
+        that the IODs contain.
+
+    """
+    data_file = pkgutil.get_data(
+        "highdicom",
+        "_standard/iod_module_map.json",
+    )
+
+    if data_file is None:
+        raise FileNotFoundError(
+            "Error loading IOD module map JSON data file."
+        )
+
+    return json.loads(data_file.decode("utf-8"))
+
+
+@lru_cache(1)
+def get_module_attribute_map() -> dict[str, list]:
+    """Get a mapping from module name to attributes.
+
+    This is loaded from JSON format data distributed with highdicom. This
+    function is cached so that the file should only be read once.
+
+    Returns
+    -------
+    dict[str, list]:
+        Mapping whose keys are module names and whose values are lists of
+        attributes that the modules contain.
+
+    """
+    data_file = pkgutil.get_data(
+        "highdicom",
+        "_standard/module_attribute_map.json",
+    )
+
+    if data_file is None:
+        raise FileNotFoundError(
+            "Error loading IOD module map JSON data file."
+        )
+
+    return json.loads(data_file.decode("utf-8"))
+
+
+@lru_cache(maxsize=1)
+def get_anatomic_region_map() -> dict[str, CodedConcept]:
+    """Get a mapping from body part examined to SCT codes.
+
+    This mapping is defined in table L1 the standard at :dcm:`Annex L
+    <part16/chapter_L.html>` and intended to modernize body parts expressed in
+    the old "BodyPartExamined" attribute to the more standardized
+    "AnatomicRegionSequence", using SNOMED controlled terminology.
+
+    Returns
+    -------
+    dict[str, highdicom.sr.CodedConcept]
+        Mapping from old-style BodyPartExamined values to SNOMED codes used for
+        AnatomicRegionSequence.
+
+    """
+    data_file = pkgutil.get_data("highdicom", "_standard/anatomic_regions.json")
+
+    if data_file is None:
+        raise FileNotFoundError(
+            "Error loading anatomic regions JSON data file."
+        )
+
+    anatomic_regions = json.loads(data_file.decode("utf-8"))
+
+    return {
+        k: CodedConcept(value=v[1], scheme_designator=v[0], meaning=v[2])
+        for k, v in anatomic_regions.items()
+    }
+
+
 def check_required_attributes(
     dataset: Dataset,
     module: str,
     base_path: Sequence[str] | None = None,
     recursive: bool = True,
-    check_optional_sequences: bool = True
+    check_optional_sequences: bool = True,
 ) -> None:
     """Check that a dataset contains a module's required attributes.
 
@@ -83,7 +198,7 @@ def check_required_attributes(
     # Only check for type 1 and type 2 attributes
     types_to_check = [
         AttributeTypeValues.REQUIRED,
-        AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN
+        AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN,
     ]
 
     # Construct tree once and reuse in all recursive calls
@@ -162,11 +277,12 @@ def construct_module_tree(module: str) -> dict[str, Any]:
         dictionary that forms an item in the next level of the tree structure.
 
     """
-    from highdicom._modules import MODULE_ATTRIBUTE_MAP
-    if module not in MODULE_ATTRIBUTE_MAP:
+    module_attribute_map = get_module_attribute_map()
+
+    if module not in module_attribute_map:
         raise AttributeError(f"No such module found: '{module}'.")
     tree: dict[str, Any] = {'attributes': {}}
-    for item in MODULE_ATTRIBUTE_MAP[module]:
+    for item in module_attribute_map[module]:
         location = tree['attributes']
         for p in item['path']:
             if 'attributes' not in location[p]:
@@ -200,17 +316,16 @@ def get_module_usage(
 
 
     """
-    from highdicom._iods import (
-        IOD_MODULE_MAP,
-        SOP_CLASS_UID_IOD_KEY_MAP
-    )
+    sop_class_iod_map = get_sop_class_iod_map()
+    iod_module_map = get_iod_module_map()
+
     try:
-        iod_name = SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid]
+        iod_name = sop_class_iod_map[sop_class_uid]
     except KeyError as e:
         msg = f'No IOD found for SOP Class UID: {sop_class_uid}.'
         raise KeyError(msg) from e
 
-    for mod in IOD_MODULE_MAP[iod_name]:
+    for mod in iod_module_map[iod_name]:
         if mod['key'] == module_key:
             return ModuleUsageValues(mod['usage'])
 
@@ -241,19 +356,18 @@ def is_attribute_in_iod(
         specified by the sop_class_uid. False otherwise.
 
     """
-    from highdicom._iods import (
-        IOD_MODULE_MAP,
-        SOP_CLASS_UID_IOD_KEY_MAP
-    )
-    from highdicom._modules import MODULE_ATTRIBUTE_MAP
+    sop_class_iod_map = get_sop_class_iod_map()
+    iod_module_map = get_iod_module_map()
+    module_attribute_map = get_module_attribute_map()
+
     try:
-        iod_name = SOP_CLASS_UID_IOD_KEY_MAP[sop_class_uid]
+        iod_name = sop_class_iod_map[sop_class_uid]
     except KeyError as e:
         msg = f'No IOD found for SOP Class UID: {sop_class_uid}.'
         raise KeyError(msg) from e
 
-    for module in IOD_MODULE_MAP[iod_name]:
-        module_attributes = MODULE_ATTRIBUTE_MAP[module['key']]
+    for module in iod_module_map[iod_name]:
+        module_attributes = module_attribute_map[module['key']]
         for attr in module_attributes:
             if exclude_path_elements is not None:
                 if any(

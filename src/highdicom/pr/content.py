@@ -41,7 +41,7 @@ from highdicom.valuerep import (
     _check_long_string,
     _check_short_text
 )
-from highdicom._module_utils import is_multiframe_image
+from highdicom._standard_utils import is_multiframe_image
 
 
 logger = logging.getLogger(__name__)
