@@ -369,6 +369,7 @@ class _LegacyConversionRunner:
                 "PerformedProcedureStepEndDate",
                 "PerformedProcedureStepEndTime",
                 "BodyPartExamined",
+                "Laterality",
             ],
         )
         self._add_module("clinical-trial-series")
@@ -386,6 +387,8 @@ class _LegacyConversionRunner:
                 "EncryptedAttributesSequence",
                 "MACParametersSequence",
                 "DigitalSignaturesSequence",
+                "InstanceCreationDate",
+                "InstanceCreationTime",
             ],
         )
         self._add_module(
