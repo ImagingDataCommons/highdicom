@@ -38,7 +38,7 @@ jobs:
         pip install ${{ matrix.dependencies }}
     - name: Lint with flake8
       run: |
-        flake8 --exclude='bin,build,.eggs,src/highdicom/_*'
+        flake8 --exclude='bin,build,.eggs'
     - name: Test with pytest
       run: |
         pytest --cov=highdicom --cov-fail-under=80
