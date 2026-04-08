@@ -2091,7 +2091,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             Number that should be assigned to the instance
         transfer_syntax_uid: str, optional
             UID of transfer syntax that should be used for encoding of data
-            elements. If ``None``(the default), the transfer syntax of the
+            elements. If ``None`` (the default), the transfer syntax of the
             legacy datasets will be used and the frames will not be re-encoded.
             The following compressed transfer syntaxes are supported: JPEG 2000
             Lossless (``"1.2.840.10008.1.2.4.90"``) and JPEG-LS Lossless
@@ -2137,7 +2137,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             against spawned child processes creating further workers.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
-            of `highdicom.base.SOPClass`
+            of :class:`highdicom.base.SOPClass`.
 
         """  # noqa: E501
         try:
