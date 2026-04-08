@@ -3505,10 +3505,9 @@ def get_series_volume_positions(
         the slice spacing. If the image positions do not represent a
         regularly-spaced volume, returns None.
     Union[List[int], None]:
-        List with the same length as the number of image positions. Each
-        element gives the zero-based index of the corresponding input position
-        in the volume. If the image positions do not represent a volume,
-        returns None.
+        List with the same length as the ``datasets`` input. Each element gives
+        the zero-based index of the corresponding dataset's position in the
+        volume. If the image positions do not represent a volume, returns None.
 
     """  # noqa: E501
     if len(datasets) == 0:
@@ -3672,8 +3671,8 @@ def get_volume_positions(
         the slice spacing. If the image positions do not represent a
         regularly-spaced volume, returns None.
     Union[List[int], None]:
-        List with the same length as the number of image positions. Each
-        element gives the zero-based index of the corresponding input position
+        List with the same length as the ``image_positions`` input. Each
+        element gives the zero-based index of the corresponding image position
         in the volume. If the image positions do not represent a volume,
         returns None.
 

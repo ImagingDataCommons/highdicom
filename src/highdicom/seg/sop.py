@@ -218,7 +218,7 @@ class Segmentation(_Image):
         """
         Parameters
         ----------
-        source_images: Sequence[Dataset]
+        source_images: Sequence[pydicom.Dataset]
             Image(s) from which this segmentation was derived. A sequence
             containing either one or more single-frame images, or exactly one
             multi-frame image. Passing the metadata of the image(s) is
