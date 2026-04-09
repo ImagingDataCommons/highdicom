@@ -22,7 +22,7 @@ from typing_extensions import Self
 
 from pydicom.datadict import keyword_for_tag
 from pydicom.dataset import Dataset
-from pydicom.encaps import encapsulate, encapsulate_extended
+from pydicom.encaps import encapsulate, encapsulate_extended, get_frame
 from pydicom.tag import BaseTag
 from pydicom.uid import (
     LegacyConvertedEnhancedCTImageStorage,
@@ -2035,7 +2035,15 @@ class _LegacyConversionRunner:
 
         else:
             # No transcoding is required, just concatenate frames
-            frames = [ds.PixelData for ds in self._legacy_datasets]
+            if src_tx_uid.is_encapsulated:
+                # Need to strip the encapsulation from the legacy frames
+                def _get_frame(pixel_data: bytes) -> bytes:
+                    return get_frame(pixel_data, 0)
+            else:
+                def _get_frame(pixel_data: bytes) -> bytes:
+                    return pixel_data
+
+            frames = [_get_frame(ds.PixelData) for ds in self._legacy_datasets]
 
         if dst_tx_uid.is_encapsulated:
             if self._use_extended_offset_table:

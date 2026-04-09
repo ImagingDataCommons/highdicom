@@ -91,8 +91,8 @@ character limit for series descriptions (64 characters).
   multiframe.save_as("legacy_converted_ct.dcm")
 
 
-Transcoding
------------
+Encoding, Decoding, and Transcoding
+-----------------------------------
 
 By default, the new instance will keep the transfer syntax of the legacy
 datasets. If the legacy datasets are compressed, highdicom will simply re-use
@@ -100,12 +100,12 @@ the existing compressed pixel data without decoding it and combine the
 compressed frames together.
 
 Alternatively, you can opt to choose a new transfer syntax for the new
-instance, in which case highdicom will decode and re-encode the pixel data from
-the legacy instances. Since this can be slow, you can optionally specify a
-non-zero number of sub-processes to perform this operation using the
-``workers`` parameter. When using multiple workers, you must place your code
-within a ``if __name__ == "__main__":`` guard (this is a requirement wherever
-you use multiprocessing in Python).
+instance, in which case highdicom will decode and/or (re-)encode the pixel data
+(as necessary) from the legacy instances. Since this can be slow, you can
+optionally specify a non-zero number of sub-processes to perform this operation
+using the ``workers`` parameter. When using multiple workers, you must place
+your code within a ``if __name__ == "__main__":`` guard (this is a requirement
+wherever you use multiprocessing in Python).
 
 .. code-block:: python
 

@@ -6,6 +6,7 @@ import enum
 import re
 from typing import Any
 
+import numpy as np
 from pydicom import FileDataset, FileMetaDataset, Dataset
 from pydicom.data import get_testdata_file
 from pydicom.multival import MultiValue
@@ -112,19 +113,22 @@ class DicomGenerator:
         rows = self._row
         samples_per_pixel = 3 if color else 1
         photomtc_intn = 'RGB' if color else 'MONOCHROME2'
+        max_pixel_value = 2 ** (8 * bytes_per_voxel)
+        array_shape = (rows, cols, 3) if color else (rows, cols)
+        dtype = {
+            1: np.uint8,
+            2: np.uint16,
+        }[bytes_per_voxel]
 
         for i in range(self._slice_per_frameset):
             file_meta = FileMetaDataset()
-            pixel_array = (
-                b"\0" * cols * rows * bytes_per_voxel * samples_per_pixel
-            )
             file_meta.MediaStorageSOPClassUID = MODALITY_LEGACY_SOP_CLASS_MAP[
                 modality
             ]
             file_meta.MediaStorageSOPInstanceUID = UID()
             file_meta.ImplementationClassUID = UID()
             tmp_dataset = FileDataset(
-                '', {}, file_meta=file_meta, preamble=pixel_array
+                '', {}, file_meta=file_meta,
             )
             tmp_dataset.file_meta.TransferSyntaxUID = "1.2.840.10008.1.2.1"
             tmp_dataset.SliceLocation = DSfloat(
@@ -162,7 +166,6 @@ class DicomGenerator:
             tmp_dataset.SOPInstanceUID = UID()
             tmp_dataset.SeriesInstanceUID = series_uid
             tmp_dataset.StudyInstanceUID = study_uid
-            tmp_dataset.BitsAllocated = bytes_per_voxel * 8
             tmp_dataset.BitsStored = bytes_per_voxel * 8
             tmp_dataset.HighBit = (bytes_per_voxel * 8 - 1)
             tmp_dataset.PixelRepresentation = 0
@@ -185,7 +188,6 @@ class DicomGenerator:
             tmp_dataset.PatientPosition = 'FFS'
             tmp_dataset.PatientSex = 'F'
             tmp_dataset.PhotometricInterpretation = photomtc_intn
-            tmp_dataset.PixelData = pixel_array
             tmp_dataset.PositionReferenceIndicator = 'XY'
             tmp_dataset.ProtocolName = 'some protocol'
             tmp_dataset.ReferringPhysicianName = ''
@@ -204,6 +206,16 @@ class DicomGenerator:
 
             if color:
                 tmp_dataset.PlanarConfiguration = 0
+
+            pixel_array = np.random.randint(
+                0, max_pixel_value, array_shape, dtype=dtype
+            )
+            tmp_dataset.set_pixel_data(
+                pixel_array,
+                photometric_interpretation=photomtc_intn,
+                bits_stored=8 * bytes_per_voxel,
+            )
+
             output_dataset.append(tmp_dataset)
 
         return output_dataset
@@ -1342,12 +1354,53 @@ def test_studies_containing_other_referenced_instances():
     )
 
 
+@pytest.mark.parametrize(
+    "transfer_syntax_uid",
+    [
+        JPEG2000,
+        JPEG2000Lossless,
+        JPEGLSLossless,
+        RLELossless,
+    ]
+)
+def test_encapsulated(transfer_syntax_uid: UID):
+    """Test encapsulated legacy datasets."""
+    if transfer_syntax_uid in (JPEG2000, JPEG2000Lossless):
+        pytest.importorskip('openjpeg')
+    elif transfer_syntax_uid in (JPEGLSLossless, JPEGBaseline8Bit):
+        pytest.importorskip('libjpeg')
+    data_generator = DicomGenerator(5, row=32, col=32)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.MR, 1, True, True, color=True, bytes_per_voxel=1,
+    )
+
+    compress_kwargs = {}
+    if transfer_syntax_uid == JPEG2000:
+        compress_kwargs["j2k_psnr"] = [10.0]
+
+    for ds in legacy_datasets:
+        ds.compress(transfer_syntax_uid, **compress_kwargs)
+
+    converted = LegacyConvertedEnhancedMRImage(
+        legacy_datasets=legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    expected_pixels = np.stack(
+        [ds.pixel_array for ds in legacy_datasets]
+    )
+    assert np.array_equal(converted.pixel_array, expected_pixels)
+
+
 @pytest.mark.parametrize("workers", [0, 1, 4])
 def test_transcode(workers: int):
     """Test transcoding frames to a new transfer syntax"""
     data_generator = DicomGenerator(5)
     legacy_datasets = data_generator.generate_mixed_framesets(
-        Modality.MR, 1, True, True
+        Modality.MR, 1, True, True,
     )
 
     converted = LegacyConvertedEnhancedMRImage(
@@ -1360,7 +1413,10 @@ def test_transcode(workers: int):
         workers=workers,
     )
 
-    assert converted.pixel_array.shape == (5, 2, 2)
+    expected_pixels = np.stack(
+        [ds.pixel_array for ds in legacy_datasets]
+    )
+    assert np.array_equal(converted.pixel_array, expected_pixels)
 
 
 @pytest.mark.parametrize(
@@ -1400,7 +1456,15 @@ def test_encode_rgb(
         workers=workers,
     )
 
-    assert converted.pixel_array.shape == (5, 32, 32, 3)
+    expected_pixels = np.stack(
+        [ds.pixel_array for ds in legacy_datasets]
+    )
+    if transfer_syntax_uid in (JPEG2000, JPEGBaseline8Bit):
+        # Lossy transfer syntax: don't expect equality
+        assert converted.pixel_array.shape == expected_pixels.shape
+    else:
+        assert np.array_equal(converted.pixel_array, expected_pixels)
+
     assert (
         converted.PhotometricInterpretation ==
         photometric_interpretation
@@ -1465,7 +1529,15 @@ def test_transcode_rgb(
         workers=workers,
     )
 
-    assert converted.pixel_array.shape == (5, 32, 32, 3)
+    expected_pixels = np.stack(
+        [ds.pixel_array for ds in legacy_datasets]
+    )
+    if transfer_syntax_uid in (JPEG2000, JPEGBaseline8Bit):
+        # Lossy transfer syntax: don't expect equality
+        assert converted.pixel_array.shape == expected_pixels.shape
+    else:
+        assert np.array_equal(converted.pixel_array, expected_pixels)
+
     assert (
         converted.PhotometricInterpretation ==
         photometric_interpretation
@@ -1522,7 +1594,10 @@ def test_transcode_custom_workers():
             workers=workers,
         )
 
-    assert converted.pixel_array.shape == (5, 2, 2)
+    expected_pixels = np.stack(
+        [ds.pixel_array for ds in legacy_datasets]
+    )
+    assert np.array_equal(converted.pixel_array, expected_pixels)
 
 
 def test_from_dataset(modality: Modality) -> None:
@@ -1552,7 +1627,10 @@ def test_from_dataset(modality: Modality) -> None:
     )
 
     assert isinstance(reread, LegacyConvertedClass)
-    assert converted.pixel_array.shape == (5, 2, 2)
+    expected_pixels = np.stack(
+        [ds.pixel_array for ds in legacy_datasets]
+    )
+    assert np.array_equal(converted.pixel_array, expected_pixels)
 
 
 def test_from_dataset_wrong_modality(modality: Modality) -> None:
