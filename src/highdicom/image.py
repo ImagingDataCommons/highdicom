@@ -32,7 +32,7 @@ from pydicom.sr.codedict import codes
 from pydicom.uid import ParametricMapStorage
 from pydicom.valuerep import format_number_as_ds
 
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     does_iod_have_pixel_data,
     is_multiframe_image,
 )

@@ -1029,11 +1029,49 @@ preferred for storing annotations for clinical or research purposes.
     gsps.save_as('gsps.dcm')
 
 
-.. .. _creation-legacy:
+.. _creation-legacy:
 
-.. Creating Legacy Converted Enhanced Images
-.. -----------------------------------------
+Creating Legacy Converted Enhanced Images
+-----------------------------------------
 
-.. .. code-block:: python
+Highdicom provides the following Python classes for converting legacy
+single-frame images to multi-frame Legacy Converted Enhanced images:
 
-..     from highdicom.legacy.sop import LegacyConvertedEnhancedCTImage
+- :class:`highdicom.legacy.LegacyConvertedEnhancedMRImage` for MR images stored
+  in the legacy "MR Image Storage" SOP Class.
+- :class:`highdicom.legacy.LegacyConvertedEnhancedCTImage` for CT images stored
+  in the legacy "CT Image Storage" SOPClass.
+- :class:`highdicom.legacy.LegacyConvertedEnhancedPETImage` for PET images
+  stored in the legacy "Positron Emission Tomography" SOPClass.
+
+Here is a simple example using CT. See :ref:`legacy` for more detail.
+
+.. code-block:: python
+
+  import highdicom as hd
+  from pydicom import dcmread
+  from pydicom.data import get_testdata_file
+
+
+  # Use this series of files from the pydicom test data
+  legacy_ct_files = [
+      get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+      get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+      get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+  ]
+
+  # Read in the files
+  ct_series = [dcmread(f) for f in legacy_ct_files]
+
+  # Use the class constructor to perform the conversion
+  multiframe = hd.legacy.LegacyConvertedEnhancedCTImage(
+      ct_series,
+      series_number=1,
+      instance_number=1,
+      series_instance_uid=hd.UID(),
+      sop_instance_uid=hd.UID(),
+      series_description="Enhanced Test Files",
+  )
+
+  # Save out the new multiframe conversion
+  multiframe.save_as("legacy_converted_ct.dcm")
