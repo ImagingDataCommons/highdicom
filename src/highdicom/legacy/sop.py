@@ -1720,8 +1720,10 @@ class _LegacyConversionRunner:
 
     def _add_common_instance_reference(self) -> None:
         """Add the Common Instance Reference Module."""
-        sops_per_series = defaultdict(set)
-        sops_per_study = defaultdict(lambda: defaultdict(set))
+        sops_per_series: dict[str, set] = defaultdict(set)
+        sops_per_study: dict[str, dict[str, set]] = defaultdict(
+            lambda: defaultdict(set)
+        )
 
         studies_kw = (
             "StudiesContainingOtherReferencedInstancesSequence"
@@ -2279,8 +2281,9 @@ class _CommonLegacyConvertedEnhancedImage(Image):
                     DA(src.SeriesDate), TM(src.SeriesTime)
                 )
             elif "StudyDate" in src and "StudyTime" in src:
-                da = DA(src.StudyDate)
-                tm = TM(src.StudyTime)
+                # Type 2 attributes: have to check for the empty case
+                da: DA | None = DA(src.StudyDate)
+                tm: TM | None = TM(src.StudyTime)
                 if da is not None and tm is not None:
                     frame_content_datetime = DT.combine(da, tm)
 
