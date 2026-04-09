@@ -11,6 +11,8 @@ from pydicom import FileDataset, FileMetaDataset, Dataset
 from pydicom.data import get_testdata_file
 from pydicom.multival import MultiValue
 from pydicom.uid import (
+    ExplicitVRLittleEndian,
+    ImplicitVRLittleEndian,
     JPEG2000Lossless,
     JPEG2000,
     JPEGBaseline8Bit,
@@ -1494,6 +1496,8 @@ def test_encode_rgb(
         (JPEG2000Lossless, 'YBR_RCT'),
         (JPEGLSLossless, 'RGB'),
         (RLELossless, 'RGB'),
+        (ExplicitVRLittleEndian, 'RGB'),
+        (ImplicitVRLittleEndian, 'RGB'),
         (JPEGBaseline8Bit, 'YBR_FULL_422'),
     ]
 )
