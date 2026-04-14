@@ -1738,7 +1738,6 @@ class _LegacyConversionRunner:
             v4 = list(frame_v4)[0]
 
         self._destination.ImageType = [v1, v2, v3, v4]
-        print([v1, v2, v3, v4])
 
     def _add_largest_smallest_pixel_value(self) -> None:
         """Adds the attributes for largest and smallest pixel value.
