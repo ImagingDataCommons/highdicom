@@ -202,8 +202,9 @@ For example, to sort by ``KVP`` and then ``SliceLocation``:
   # Save out the new multiframe conversion
   multiframe.save_as("legacy_converted_ct.dcm")
 
-Alternatively, you could use highdicom's ``sort_datasets`` function to sort the
-datasets based purely on spatial location:
+Alternatively, you could use highdicom's
+:func:`highdicom.spatial.sort_datasets` function to sort the datasets based
+purely on spatial location:
 
 .. code-block:: python
 

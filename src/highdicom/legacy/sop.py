@@ -113,15 +113,55 @@ _CONSISTENT_KEYWORDS = [
 
 
 def _istag_file_meta_information_group(t: BaseTag) -> bool:
+    """Determine whether a tag represents a file meta element.
+
+    Parameters
+    ----------
+    t: pydicom.tag.BaseTag
+        The tag in question
+
+    Returns
+    -------
+    bool:
+        True if this tag sits in the file meta information group (group 2),
+        False otherwise.
+
+    """
     return t.group == 0x0002
 
 
 def _istag_repeating_group(t: BaseTag) -> bool:
+    """Determine whether a tag lies in a repeating group.
+
+    Parameters
+    ----------
+    t: pydicom.tag.BaseTag
+        The tag in question
+
+    Returns
+    -------
+    bool:
+        True if this tag sits in a repeating group. False otherwise.
+
+    """
     g = t.group
     return (g >= 0x5000 and g <= 0x501E) or (g >= 0x6000 and g <= 0x601E)
 
 
 def _istag_group_length(t: BaseTag) -> bool:
+    """Determine whether a tag represents a group length.
+
+    Parameters
+    ----------
+    t: pydicom.tag.BaseTag
+        The tag in question
+
+    Returns
+    -------
+    bool:
+        True if this tag represents a group length. False otherwise.
+
+    """
     return t.element == 0
 
 
@@ -198,12 +238,12 @@ class _AttributeConfig:
         return [self.dest_kw]
 
 
-def _default_sort_key(x: Dataset) -> Tuple[Union[int, str, UID], ...]:
+def _default_sort_key(ds: Dataset) -> Tuple[Union[int, str, UID], ...]:
     """The default sort key to sort single frames before conversion.
 
     Parameters
     ----------
-    x: pydicom.Dataset
+    ds: pydicom.Dataset
         input Dataset to be sorted.
 
     Returns
@@ -216,12 +256,12 @@ def _default_sort_key(x: Dataset) -> Tuple[Union[int, str, UID], ...]:
 
     """
     out: tuple = tuple()
-    if "SeriesNumber" in x:
-        out += (x.SeriesNumber,)
-    if "InstanceNumber" in x:
-        out += (x.InstanceNumber,)
-    if "SOPInstanceUID" in x:
-        out += (x.SOPInstanceUID,)
+    if "SeriesNumber" in ds:
+        out += (ds.SeriesNumber,)
+    if "InstanceNumber" in ds:
+        out += (ds.InstanceNumber,)
+    if "SOPInstanceUID" in ds:
+        out += (ds.SOPInstanceUID,)
 
     return out
 
@@ -741,10 +781,6 @@ class _LegacyConversionRunner:
 
         Parameters
         ----------
-        tag_shared_dict: dict[pydicom.uid.BaseTag, bool]
-            Dictionary whose keys include all tags present in any dataset. The
-            corresponding value is a boolean that indicates whether that tag
-            is consistent (in presence and value) across all datasets.
         require_volume: bool, optional
             If True, require that the orientations, slice thickness, and pixel
             spacings of all instances are the same.
@@ -1416,12 +1452,10 @@ class _LegacyConversionRunner:
         if "AcquisitionDateTime" in source:
             fa_dt = DT(source.AcquisitionDateTime)
         elif "AcquisitionDate" in source and "AcquisitionTime" in source:
-            fa_dt = DT(
-                datetime.combine(
-                    DA(source.AcquisitionDate),
-                    TM(source.AcquisitionTime)
-                )
-            )
+            da = DA(source.AcquisitionDate)
+            tm = TM(source.AcquisitionTime)
+            if da is not None and tm is not None:
+                fa_dt = DT(datetime.combine(da, tm))
 
         if fa_dt is not None:
             acq_time_kws = [
@@ -1462,7 +1496,15 @@ class _LegacyConversionRunner:
                 self._destination.SeriesDescription = desc
 
     def _add_stack_info_frame_content(self, require_volume: bool) -> None:
-        """Adds stack info to the FrameContentSequence dicom attribute."""
+        """Adds stack info to the FrameContentSequence dicom attribute.
+
+        Parameters
+        ----------
+        require_volume: bool
+            Whether to require that the frames represent a regularly-spaced
+            volume.
+
+        """
         spacing, position_indices = get_series_volume_positions(
             self._legacy_datasets,
         )
@@ -1613,7 +1655,9 @@ class _LegacyConversionRunner:
 
     @staticmethod
     def _copy_private_attribute(
-        tag: BaseTag, source: Dataset, destination: Dataset
+        tag: BaseTag,
+        source: Dataset,
+        destination: Dataset,
     ) -> None:
         """Copy a private attribute from source to destination.
 
@@ -1828,40 +1872,6 @@ class _LegacyConversionRunner:
 
     def _copy_pixel_data(self) -> None:
         """Set pixel data by optionally transcoding and combining legacy frames.
-
-        Parameters
-        ----------
-        legacy_datasets: list[pydicom.Dataset]
-            Legacy datasets (in order) whose pixel data is to combined.
-        transfer_syntax_uid: str | None
-            Transfer syntax UID to use to encode the frames in the new object.
-            If None, the transfer syntax of the original objects is used.
-        workers: int | concurrent.futures.Executor, optional
-            Number of worker processes to use for frame compression, if
-            compression or transcoding is needed. If 0, no workers are used and
-            compression is performed in the main process (this is the default
-            behavior). If negative, as many processes are created as the
-            machine has processors.
-
-            Alternatively, you may directly pass an instance of a class derived
-            from ``concurrent.futures.Executor`` (most likely an instance of
-            ``concurrent.futures.ProcessPoolExecutor``) for highdicom to use.
-            You may wish to do this either to have greater control over the
-            setup of the executor, or to avoid the setup cost of spawning new
-            processes each time this ``__init__`` method is called if your
-            application creates a large number of objects.
-
-            Note that if you use worker processes, you must ensure that your
-            main process uses the ``if __name__ == "__main__"`` idiom to guard
-            against spawned child processes creating further workers.
-        use_extended_offset_table: bool, optional
-            Include an extended offset table instead of a basic offset table
-            for encapsulated transfer syntaxes. Extended offset tables avoid
-            size limitations on basic offset tables, and separate the offset
-            table from the pixel data by placing it into metadata. However,
-            they may be less widely supported than basic offset tables. This
-            parameter is ignored if using a native (uncompressed) transfer
-            syntax. The default value may change in a future release.
 
         """
         allowed_transfer_syntaxes = (
@@ -2084,6 +2094,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         instance_number: int,
         transfer_syntax_uid: str | None = None,
         use_extended_offset_table: bool = False,
+        *,
         require_volume: bool = False,
         sort: bool = True,
         contributing_equipment: Sequence[ContributingEquipment] | None = None,
@@ -2133,9 +2144,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             datasets were passed. When True, sorting is performed first by
             Series Number, then Instance Number, then SOP Instance UID. To use
             an alternative sort order, pre-sort the legacy datasets, and pass
-            ``sort=False``. Though there are no requirements on sort order in
-            the standard, it is generally a best practice to use some sensible
-            sort order.
+            ``sort=False``.
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
             Additional equipment that has contributed to the acquisition,
             creation or modification of this instance.
