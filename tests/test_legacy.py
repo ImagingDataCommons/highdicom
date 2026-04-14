@@ -1090,6 +1090,57 @@ def test_mixed_series(modality: Modality):
     )
 
 
+def test_unsorted():
+    # Combining two series is valid if other attributes are consistent
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.PT, 1, True, True
+    )
+
+    # Reverse the order
+    reversed_legacy_datasets = legacy_datasets[::-1]
+
+    converted_sorted = LegacyConvertedEnhancedPETImage(
+        legacy_datasets=reversed_legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        sort=True,
+    )
+
+    # Frames should be sorted by instance number
+    for ds, pffg in zip(
+        legacy_datasets,
+        converted_sorted.PerFrameFunctionalGroupsSequence,
+    ):
+        frame_source_uid = (
+            pffg.ConversionSourceAttributesSequence[0]
+            .ReferencedSOPInstanceUID
+        )
+        assert frame_source_uid == ds.SOPInstanceUID
+
+    converted_unsorted = LegacyConvertedEnhancedPETImage(
+        legacy_datasets=reversed_legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        sort=False,
+    )
+
+    # Frames should be in same order they were passed
+    for ds, pffg in zip(
+        reversed_legacy_datasets,
+        converted_unsorted.PerFrameFunctionalGroupsSequence,
+    ):
+        frame_source_uid = (
+            pffg.ConversionSourceAttributesSequence[0]
+            .ReferencedSOPInstanceUID
+        )
+        assert frame_source_uid == ds.SOPInstanceUID
+
+
 def test_body_part_mapping(modality: Modality):
     """Test that BodyPartExamined is correctly mapped to a coded
     AnatomicRegionSequence.

@@ -159,9 +159,12 @@ multiframe instance. The default behavior sorts first by the "SeriesNumber"
 attribute (for cases with multiple series), then by the "InstanceNumber"
 attribute, then by the "SOPInstanceUID" attribute (to give a predictable sort
 order in cases where instance number is not present). If you prefer an
-alternative sorting scheme, you can pass a callable to the ``sort_key``
-argument of the form accepted by the Python built-in ``sorted`` function. For
-example, to sort by ``KVP`` and then ``SliceLocation``:
+alternative sorting scheme, you can disable the default sorting by passing
+``sort=False`` and then pass the datasets in whatever order you prefer. There
+is no strict requirement that frames be sorted, but it would be best practice
+to use some sort of logical sorting scheme.
+
+For example, to sort by ``KVP`` and then ``SliceLocation``:
 
 .. code-block:: python
 
@@ -180,6 +183,11 @@ example, to sort by ``KVP`` and then ``SliceLocation``:
   # Read in the files
   ct_series = [dcmread(f) for f in legacy_ct_files]
 
+  # Sort using KVP and slice location
+  ct_series = sorted(
+      ct_series, key=lambda dcm: (dcm.KVP, dcm.SliceLocation)
+  )
+
   # Create multiframe instance with custom sort key
   multiframe = hd.legacy.LegacyConvertedEnhancedCTImage(
       ct_series,
@@ -188,7 +196,44 @@ example, to sort by ``KVP`` and then ``SliceLocation``:
       series_instance_uid=hd.UID(),
       sop_instance_uid=hd.UID(),
       series_description="Enhanced Test Files",
-      sort_key=lambda dcm: (dcm.KVP, dcm.SliceLocation),
+      sort=False,  # disable default sorting
+  )
+
+  # Save out the new multiframe conversion
+  multiframe.save_as("legacy_converted_ct.dcm")
+
+Alternatively, you could use highdicom's ``sort_datasets`` function to sort the
+datasets based purely on spatial location:
+
+.. code-block:: python
+
+  import highdicom as hd
+  from pydicom import dcmread
+  from pydicom.data import get_testdata_file
+
+
+  # Use this series of files from the pydicom test data
+  legacy_ct_files = [
+      get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+      get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+      get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+  ]
+
+  # Read in the files
+  ct_series = [dcmread(f) for f in legacy_ct_files]
+
+  # Sort frames spatially
+  ct_series = hd.spatial.sort_datasets(ct_series)
+
+  # Create multiframe instance with custom sort key
+  multiframe = hd.legacy.LegacyConvertedEnhancedCTImage(
+      ct_series,
+      series_number=1,
+      instance_number=1,
+      series_instance_uid=hd.UID(),
+      sop_instance_uid=hd.UID(),
+      series_description="Enhanced Test Files",
+      sort=False,  # disable default sorting
   )
 
   # Save out the new multiframe conversion

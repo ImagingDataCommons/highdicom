@@ -198,7 +198,7 @@ class _AttributeConfig:
         return [self.dest_kw]
 
 
-def default_sort_key(x: Dataset) -> Tuple[Union[int, str, UID], ...]:
+def _default_sort_key(x: Dataset) -> Tuple[Union[int, str, UID], ...]:
     """The default sort key to sort single frames before conversion.
 
     Parameters
@@ -241,7 +241,7 @@ class _LegacyConversionRunner:
         transfer_syntax_uid: str | None = None,
         use_extended_offset_table: bool = False,
         require_volume: bool = False,
-        sort_key: Callable | None = None,
+        sort: bool = True,
         workers: int | Executor = 0,
     ) -> None:
         """
@@ -270,18 +270,24 @@ class _LegacyConversionRunner:
         require_volume: bool, optional
             Raise an error if the legacy datasets do not form a regularly-spaced
             volume.
-        sort_key: Callable | None, optional
-            A function by which the single-frame instances will be sorted to
-            determine the order of frames in the newly created instance.
+        sort: bool, optional
+            Whether to sort datasets before placing them into the legacy
+            instance. If True, datasets will be sorted using the default sort
+            key. If False, frames of the new instance will be in the same order
+            as the list of legacy instances were passed.
         workers: int | concurrent.futures.Executor, optional
             Number of worker processes (or executor object) to use for frame
             compression, if compression or transcoding is needed.
 
         """
-        if sort_key is None:
-            sort_key = default_sort_key
+        if sort:
+            self._legacy_datasets = sorted(
+                list(legacy_datasets),
+                key=_default_sort_key
+            )
+        else:
+            self._legacy_datasets = list(legacy_datasets)
 
-        self._legacy_datasets = sorted(list(legacy_datasets), key=sort_key)
         self._destination = destination
         self._transfer_syntax_uid = transfer_syntax_uid
         self._workers = workers
@@ -2079,7 +2085,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         transfer_syntax_uid: str | None = None,
         use_extended_offset_table: bool = False,
         require_volume: bool = False,
-        sort_key: Callable | None = None,
+        sort: bool = True,
         contributing_equipment: Sequence[ContributingEquipment] | None = None,
         workers: int | Executor = 0,
         **kwargs: Any,
@@ -2121,9 +2127,15 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             the standard, but users may wish to additionally impose this
             stricter requirement to ensure the resulting files are easier
             to work with.
-        sort_key: Callable | None, optional
-            A function by which the single-frame instances will be sorted to
-            determine the order of frames in the newly created instance.
+        sort: bool, optional
+            Sort the legacy datasets before placing them into the new instance
+            as frames. If False, frames are placed in the same order legacy
+            datasets were passed. When True, sorting is performed first by
+            Series Number, then Instance Number, then SOP Instance UID. To use
+            an alternative sort order, pre-sort the legacy datasets, and pass
+            ``sort=False``. Though there are no requirements on sort order in
+            the standard, it is generally a best practice to use some sensible
+            sort order.
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
             Additional equipment that has contributed to the acquisition,
             creation or modification of this instance.
@@ -2227,7 +2239,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             workers=workers,
             transfer_syntax_uid=transfer_syntax_uid,
             use_extended_offset_table=use_extended_offset_table,
-            sort_key=sort_key,
+            sort=sort,
             require_volume=require_volume,
         )
 
