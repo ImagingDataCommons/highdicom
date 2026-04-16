@@ -39,7 +39,7 @@ dependencies = [
     "pydicom>=3.0.1",
     "pyjpegls>=1.0.0",
     "typing-extensions>=4.0.0",
-    "packaging"
+    "packaging>=17.1"
 ]
 
 [project.optional-dependencies]
