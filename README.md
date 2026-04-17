@@ -40,10 +40,13 @@ If you use highdicom in your research, please cite the above article.
 
 The developers gratefully acknowledge their support:
 * The [Alliance for Digital Pathology](https://digitalpathologyalliance.org/)
-* The [MGH & BWH Center for Clinical Data Science](https://www.ccds.io/)
+* The MGH & BWH Center for Clinical Data Science, now [MGB AI](https://www.massgeneralbrigham.org/en/research-and-innovation/centers-and-programs/artificial-intelligence)
 * [Quantitative Image Informatics for Cancer Research (QIICR)](https://qiicr.org/)
 * [Radiomics](https://www.radiomics.io/)
+* The NCI [Imaging Data Commons](https://imaging.datacommons.cancer.gov)
+* The [APOLLO Network](https://www.cancer.gov/about-nci/organization/cbiit/projects/apollo)
 
 This software is maintained in part by the [NCI Imaging Data Commons](https://imaging.datacommons.cancer.gov/) project,
 which has been funded in whole or in part with Federal funds from the NCI, NIH, under task order no. HHSN26110071
 under contract no. HHSN261201500003l.
+Furthermore, this project has been funded in whole or in part with Federal funds from the National Cancer Institute, National Institutes of Health, Department of Health and Human Services, under Contract No. HHSN261201500003I. The content of this publication does not necessarily reflect the views or policies of the Department of Health and Human Services, nor does mention of trade names, commercial products, or organizations imply endorsement by the U.S. Government.
