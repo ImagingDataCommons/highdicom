@@ -3585,7 +3585,7 @@ class Volume(_VolumeBase):
             channels=self._channels,
         )
 
-    def to_sitk(self) -> SimpleITK.Image:
+    def to_sitk(self) -> SimpleITK.Image: # noqa
         """Convert the Volume to `SimpleITK.Image` format.
 
         Returns
@@ -3615,7 +3615,7 @@ class Volume(_VolumeBase):
     @classmethod
     def from_sitk(
         cls,
-        sitk_im: SimpleITK.Image,
+        sitk_im: SimpleITK.Image, # noqa
         coordinate_system: CoordinateSystemNames | str = 'PATIENT',
         frame_of_reference_uid: str | None = None,
     ) -> Self:
@@ -3657,7 +3657,7 @@ class Volume(_VolumeBase):
             frame_of_reference_uid=frame_of_reference_uid
         )
 
-    def to_itk(self) -> itk.Image:
+    def to_itk(self) -> itk.Image: # noqa
         """Convert the volume to `itk.Image` format.
 
         Returns
@@ -3687,7 +3687,7 @@ class Volume(_VolumeBase):
     @classmethod
     def from_itk(
         cls,
-        itk_im: itk.Image,
+        itk_im: itk.Image, # noqa
         coordinate_system: CoordinateSystemNames | str = 'PATIENT',
         frame_of_reference_uid: str | None = None,
     ) -> Self:
