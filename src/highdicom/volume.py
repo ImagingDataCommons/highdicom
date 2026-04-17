@@ -3618,10 +3618,6 @@ class Volume(_VolumeBase):
         sitk_im: SimpleITK.Image,
         coordinate_system: CoordinateSystemNames | str = 'PATIENT',
         frame_of_reference_uid: str | None = None,
-        channels: dict[
-            BaseTag | int | str | ChannelDescriptor,
-            Sequence[int | str | float | Enum]
-        ] | None = None,
     ) -> Self:
         """Construct a Volume from a `SimpleITK.Image`.
 
@@ -3658,8 +3654,7 @@ class Volume(_VolumeBase):
             coordinate_system=coordinate_system,
             direction=np.reshape(sitk_im.GetDirection(), (3, 3)),
             position=sitk_im.GetOrigin(),
-            frame_of_reference_uid=frame_of_reference_uid,
-            channels=channels
+            frame_of_reference_uid=frame_of_reference_uid
         )
 
     def to_itk(self) -> itk.Image:
@@ -3731,8 +3726,7 @@ class Volume(_VolumeBase):
             coordinate_system=coordinate_system,
             direction=np.reshape(itk_im.GetDirection(), (3, 3)),
             position=np.array(itk_im.GetOrigin()),
-            frame_of_reference_uid=frame_of_reference_uid,
-            channels=channels
+            frame_of_reference_uid=frame_of_reference_uid
         )
 
 
