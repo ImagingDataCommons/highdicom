@@ -115,10 +115,10 @@ class SCImage(SOPClass):
             (RGB color space)
         photometric_interpretation: Union[str, highdicom.PhotometricInterpretationValues]
             Interpretation with which to store pixel data in the dataset;
-            either ``"MONOCHROME1"`` or ``"MONOCHROME2"`` for 2D grayscale
-            images or ``"RGB"`` or ``"YBR_FULL"`` for 3D color images. Note
-            that this should match the photometric interpretation of the input
-            pixel array, except in the following cases: if
+            either ``"MONOCHROME1"`` or ``"MONOCHROME2"`` for single channel
+            grayscale images or ``"RGB"`` or ``"YBR_FULL"`` for 3 channel color
+            images. Note that this should match the photometric interpretation
+            of the input pixel array, except in the following cases: if
             ``transfer_syntax_uid`` is ``"JPEGBaseline8Bit"``,
             ``photometric_interpretation must be ``"YBR_FULL_422"``, if
             ``transfer_syntax_uid`` is ``"JPEG2000"``,

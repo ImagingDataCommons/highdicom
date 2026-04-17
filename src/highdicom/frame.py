@@ -18,6 +18,7 @@ from pydicom.uid import (
     JPEGLSNearLossless,
     UID,
     RLELossless,
+    HTJ2K,
 )
 
 from highdicom.enum import (
@@ -484,3 +485,38 @@ def decode_frame(
         **kwargs,
     )
     return array
+
+
+def get_lossy_compression_attributes(
+    transfer_syntax_uid: str
+) -> tuple[str, str | None]:
+    """Get lossy compression attributes for a transfer syntax.
+
+    See :dcm:`C.7.6.1.1.5 <part03/sect_C.7.6.html#sect_C.7.6.1.1.5>`
+    for more details.
+
+    Parameters
+    ----------
+    transfer_syntax_uid: str
+        Transfer syntax UID.
+
+    Returns
+    -------
+    lossy_image_compression: str
+        Value for the Lossy Image Compression attribute.
+    lossy_image_compression_method: str | None
+        Value for the Lossy Image Compression Method attribute.
+        If None, no value should be set for this attribute.
+
+    """
+    lossy_transfer_syntaxes = {
+        str(JPEGBaseline8Bit): "ISO_10918_1",
+        str(JPEGLSNearLossless): "ISO_14495_1",
+        str(JPEG2000): "ISO_15444_1",
+        str(HTJ2K): "ISO_15444_15",
+    }
+
+    if transfer_syntax_uid in lossy_transfer_syntaxes:
+        return "01", lossy_transfer_syntaxes[transfer_syntax_uid]
+
+    return "00", None

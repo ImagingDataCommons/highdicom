@@ -12,8 +12,8 @@
 #
 import os
 import sys
-import pkg_resources
 import datetime
+import importlib.metadata
 
 source_dir = os.path.dirname(__file__)
 pkg_dir = os.path.join(source_dir, '..', '..', 'src', 'highdicom')
@@ -23,14 +23,15 @@ sys.path.insert(0, os.path.abspath(pkg_dir))
 
 project = 'highdicom'
 copyright = f'2020-{datetime.datetime.now().year}, highdicom contributors'
-author = 'Markus D. Herrmann'
+author = 'Markus D. Herrmann, Christopher P. Bridge'
 
 # The full version, including alpha/beta/rc tags
 try:
-    release = pkg_resources.get_distribution('highdicom').version
-except pkg_resources.DistributionNotFound:
+    release = importlib.metadata.version("highdicom")
+except importlib.metadata.PackageNotFoundError:
     print('Package "highdicom" must be installed to build docs.')
     sys.exit(1)
+
 # The short X.Y version
 version = '.'.join(release.split('.')[:2])
 
@@ -48,7 +49,7 @@ extensions = [
     'sphinxcontrib.autoprogram',
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
-    'sphinx_autodoc_typehints',
+    # 'sphinx_autodoc_typehints',
     'sphinx.ext.extlinks',
 ]
 

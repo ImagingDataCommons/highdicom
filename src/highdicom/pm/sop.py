@@ -24,7 +24,7 @@ from highdicom.valuerep import (
     _check_code_string,
     _check_long_string,
 )
-from highdicom._module_utils import is_multiframe_image
+from highdicom._standard_utils import is_multiframe_image
 from pydicom import Dataset
 from pydicom.uid import (
     UID,

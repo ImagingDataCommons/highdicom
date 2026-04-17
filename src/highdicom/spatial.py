@@ -7,7 +7,7 @@ from pydicom import Dataset
 import numpy as np
 import pydicom
 
-from highdicom._module_utils import is_multiframe_image
+from highdicom._standard_utils import is_multiframe_image
 from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,
@@ -3505,10 +3505,9 @@ def get_series_volume_positions(
         the slice spacing. If the image positions do not represent a
         regularly-spaced volume, returns None.
     Union[List[int], None]:
-        List with the same length as the number of image positions. Each
-        element gives the zero-based index of the corresponding input position
-        in the volume. If the image positions do not represent a volume,
-        returns None.
+        List with the same length as the ``datasets`` input. Each element gives
+        the zero-based index of the corresponding dataset's position in the
+        volume. If the image positions do not represent a volume, returns None.
 
     """  # noqa: E501
     if len(datasets) == 0:
@@ -3530,7 +3529,14 @@ def get_series_volume_positions(
 
     positions = [ds.ImagePositionPatient for ds in datasets]
 
-    spacing_hint = datasets[0].get('SpacingBetweenSlices')
+    spacing_hint: float | None = None
+    if allow_missing_positions:
+        spacing_hint = datasets[0].get('SpacingBetweenSlices')
+
+        if spacing_hint == 0.0:
+            # Zero is sometimes used as an unknown value. Ignore it in this
+            # case rather than raising an unhelpful error later
+            spacing_hint = None
 
     return get_volume_positions(
         image_positions=positions,
@@ -3665,8 +3671,8 @@ def get_volume_positions(
         the slice spacing. If the image positions do not represent a
         regularly-spaced volume, returns None.
     Union[List[int], None]:
-        List with the same length as the number of image positions. Each
-        element gives the zero-based index of the corresponding input position
+        List with the same length as the ``image_positions`` input. Each
+        element gives the zero-based index of the corresponding image position
         in the volume. If the image positions do not represent a volume,
         returns None.
 
@@ -3823,10 +3829,11 @@ def get_volume_positions(
                 rtol=rtol,
                 atol=atol,
             ):
-                raise RuntimeError(
+                logger.info(
                     f"Inferred spacing ({abs(spacing):.3f}) does not match the "
                     f"given 'spacing_hint' ({spacing_hint})."
                 )
+                return None, None
 
         is_regular = np.isclose(
             spacings,
