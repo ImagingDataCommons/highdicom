@@ -3596,8 +3596,8 @@ class Volume(_VolumeBase):
         """
         func = self.to_sitk
         sitk = import_optional_dependency(
-            module_name="SimpleITK",
-            feature=f"{func.__module__}.{func.__qualname__}"
+            module_name='SimpleITK',
+            feature=f'{func.__module__}.{func.__qualname__}'
         )
 
         array = self.array.transpose(2, 1, 0)
@@ -3612,18 +3612,28 @@ class Volume(_VolumeBase):
 
         return sitk_im
 
-
     @classmethod
     def from_sitk(
         cls,
-        sitk_im: SimpleITK.Image
-    ):
+        sitk_im: SimpleITK.Image,
+        coordinate_system: CoordinateSystemNames | str = 'PATIENT',
+        frame_of_reference_uid: str | None = None,
+        channels: dict[
+            BaseTag | int | str | ChannelDescriptor,
+            Sequence[int | str | float | Enum]
+        ] | None = None,
+    ) -> Self:
         """Construct a Volume from a `SimpleITK.Image`.
 
         Parameters
         ----------
         sitk_im: SimpleITK.Image
             A `SimpleITK.Image` to convert to a volume.
+        coordinate_system: highdicom.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
 
         Returns
         -------
@@ -3633,8 +3643,8 @@ class Volume(_VolumeBase):
         """
         func = cls.from_sitk
         sitk = import_optional_dependency(
-            module_name="SimpleITK",
-            feature=f"{func.__module__}.{func.__qualname__}"
+            module_name='SimpleITK',
+            feature=f'{func.__module__}.{func.__qualname__}'
         )
 
         array = sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
@@ -3645,11 +3655,12 @@ class Volume(_VolumeBase):
         return cls.from_components(
             array=array,
             spacing=sitk_im.GetSpacing(),
-            coordinate_system="PATIENT",
+            coordinate_system=coordinate_system,
             direction=np.reshape(sitk_im.GetDirection(), (3, 3)),
-            position=sitk_im.GetOrigin()
+            position=sitk_im.GetOrigin(),
+            frame_of_reference_uid=frame_of_reference_uid,
+            channels=channels
         )
-
 
     def to_itk(self) -> itk.Image:
         """Convert the volume to `itk.Image` format.
@@ -3662,8 +3673,8 @@ class Volume(_VolumeBase):
         """
         func = self.to_itk
         itk = import_optional_dependency(
-            module_name="itk",
-            feature=f"{func.__module__}.{func.__qualname__}"
+            module_name='itk',
+            feature=f'{func.__module__}.{func.__qualname__}'
         )
 
         array = self.array
@@ -3678,18 +3689,24 @@ class Volume(_VolumeBase):
 
         return itk_im
 
-
     @classmethod
     def from_itk(
         cls,
-        itk_im: itk.Image
-    ):
+        itk_im: itk.Image,
+        coordinate_system: CoordinateSystemNames | str = 'PATIENT',
+        frame_of_reference_uid: str | None = None,
+    ) -> Self:
         """Construct a Volume from an `itk.Image`.
 
         Parameters
         ----------
         itk_im: itk.Image
             A `itk.Image` to convert to a volume.
+        coordinate_system: highdicom.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
 
         Returns
         -------
@@ -3699,8 +3716,8 @@ class Volume(_VolumeBase):
         """
         func = cls.from_itk
         itk = import_optional_dependency(
-            module_name="itk",
-            feature=f"{func.__module__}.{func.__qualname__}"
+            module_name='itk',
+            feature=f'{func.__module__}.{func.__qualname__}'
         )
 
         array = itk.GetArrayFromImage(itk_im)
@@ -3711,9 +3728,11 @@ class Volume(_VolumeBase):
         return cls.from_components(
             array=array,
             spacing=np.array(itk_im.GetSpacing()),
-            coordinate_system="PATIENT",
+            coordinate_system=coordinate_system,
             direction=np.reshape(itk_im.GetDirection(), (3, 3)),
-            position=np.array(itk_im.GetOrigin())
+            position=np.array(itk_im.GetOrigin()),
+            frame_of_reference_uid=frame_of_reference_uid,
+            channels=channels
         )
 
 
