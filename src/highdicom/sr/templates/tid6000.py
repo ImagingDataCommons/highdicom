@@ -443,7 +443,6 @@ class CircumpapillaryRNFLKeyMeasurements(Template):
             items.
 
         """  # noqa: E501
-        super().__init__()
 
         if not measurement_groups:
             raise ValueError(
@@ -592,7 +591,6 @@ class MacularThicknessKeyMeasurements(Template):
             items.
 
         """  # noqa: E501
-        super().__init__()
 
         if not measurement_groups:
             raise ValueError(
