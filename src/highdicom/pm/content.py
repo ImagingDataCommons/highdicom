@@ -5,7 +5,7 @@ from pydicom.datadict import keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
-from highdicom._module_utils import is_multiframe_image
+from highdicom._standard_utils import is_multiframe_image
 
 from highdicom.content import PlanePositionSequence
 from highdicom.enum import CoordinateSystemNames
