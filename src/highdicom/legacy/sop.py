@@ -364,6 +364,8 @@ class _LegacyConversionRunner:
             "ImageType",
             "SeriesDescription",
             "NumberOfSlices",
+            "NumberOfFrames",
+            "ImagesInAcquisition",
         ]
         self._unused_keywords = {
             kw for kw in self._keyword_shared_dict.keys()
@@ -1266,7 +1268,7 @@ class _LegacyConversionRunner:
     ) -> None:
         """Custom logic for the PixelValueTransformationSequence.
 
-        This is needed to handle setting the RescaleType and LUTExplanation.
+        This is needed to handle setting the RescaleType.
 
         Parameters
         ----------
@@ -1286,12 +1288,7 @@ class _LegacyConversionRunner:
         else:
             value = "US"
 
-        if "RescaleType" not in destination:
-            destination.RescaleType = value
-        elif destination.RescaleType != value:
-            # keep the copied value as LUT explanation
-            destination.LUTExplanation = destination.RescaleType
-            destination.RescaleType = value
+        destination.RescaleType = value
 
     def _frame_type_custom_logic(
         self,
