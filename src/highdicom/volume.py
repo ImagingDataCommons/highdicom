@@ -1,5 +1,4 @@
 """Representations of multidimensional arrays with spatial metadata."""
-from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import Enum
 import itertools
@@ -3585,7 +3584,7 @@ class Volume(_VolumeBase):
             channels=self._channels,
         )
 
-    def to_sitk(self) -> SimpleITK.Image: # noqa
+    def to_sitk(self) -> 'SimpleITK.Image':  # noqa: F821
         """Convert the Volume to `SimpleITK.Image` format.
 
         Returns
@@ -3602,8 +3601,8 @@ class Volume(_VolumeBase):
 
         array = self.array.transpose(2, 1, 0)
 
-        if self.dtype == np.bool_:
-            array = array.astype(int)
+        if array.dtype == np.bool_:
+            array = array.astype(np.uint8)
 
         sitk_im = sitk.GetImageFromArray(array)
         sitk_im.SetSpacing(self.spacing)
@@ -3615,7 +3614,7 @@ class Volume(_VolumeBase):
     @classmethod
     def from_sitk(
         cls,
-        sitk_im: SimpleITK.Image, # noqa
+        sitk_im: 'SimpleITK.Image',  # noqa: F821
         coordinate_system: CoordinateSystemNames | str = 'PATIENT',
         frame_of_reference_uid: str | None = None,
     ) -> Self:
@@ -3645,9 +3644,6 @@ class Volume(_VolumeBase):
 
         array = sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
 
-        if array.dtype == np.bool_:
-            array = array.astype(int)
-
         return cls.from_components(
             array=array,
             spacing=sitk_im.GetSpacing(),
@@ -3657,7 +3653,7 @@ class Volume(_VolumeBase):
             frame_of_reference_uid=frame_of_reference_uid
         )
 
-    def to_itk(self) -> itk.Image: # noqa
+    def to_itk(self) -> 'itk.Image':  # noqa: F821
         """Convert the volume to `itk.Image` format.
 
         Returns
@@ -3674,8 +3670,8 @@ class Volume(_VolumeBase):
 
         array = self.array
 
-        if self.dtype == np.bool_:
-            array = array.astype(int)
+        if array.dtype == np.bool_:
+            array = array.astype(np.uint8)
 
         itk_im = itk.GetImageFromArray(array)
         itk_im.SetSpacing(self.spacing)
@@ -3687,7 +3683,7 @@ class Volume(_VolumeBase):
     @classmethod
     def from_itk(
         cls,
-        itk_im: itk.Image, # noqa
+        itk_im: 'itk.Image',  # noqa: F821
         coordinate_system: CoordinateSystemNames | str = 'PATIENT',
         frame_of_reference_uid: str | None = None,
     ) -> Self:
@@ -3716,9 +3712,6 @@ class Volume(_VolumeBase):
         )
 
         array = itk.GetArrayFromImage(itk_im)
-
-        if array.dtype == np.bool_:
-            array = array.astype(int)
 
         return cls.from_components(
             array=array,
