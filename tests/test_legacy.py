@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import enum
 import re
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import numpy as np
 from pydicom import FileDataset, FileMetaDataset, Dataset
@@ -21,7 +22,7 @@ from pydicom.uid import (
     RLELossless,
     EnhancedMRImageStorage,
 )
-from pydicom.valuerep import DA, DSfloat, TM
+from pydicom.valuerep import DA, DSfloat, DT, TM
 from highdicom.legacy import (
     LegacyConvertedEnhancedCTImage,
     LegacyConvertedEnhancedMRImage,
@@ -815,6 +816,29 @@ def test_default_series_description():
         converted.SeriesDescription ==
         f"{legacy_datasets[0].SeriesDescription} (enhanced conversion)"
     )
+
+
+def test_datetimes_with_timezones():
+    """Test with timezones in legacy datetimes."""
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.CT, 1, True, True
+    )
+
+    dt = DT(datetime.now(tz=ZoneInfo("America/New_York")))
+
+    for ds in legacy_datasets:
+        ds.AcquisitionDateTime = dt
+
+    converted = LegacyConvertedEnhancedCTImage(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert converted.AcquisitionDateTime.tzinfo is not None
 
 
 @pytest.mark.parametrize(

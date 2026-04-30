@@ -2288,6 +2288,8 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         """
         earliest_content_date_time = _FARTHEST_FUTURE_DATE_TIME
         earliest_acquisition_date_time = _FARTHEST_FUTURE_DATE_TIME
+        have_content_datetime = False
+        have_acquisition_datetime = False
 
         for src in legacy_datasets:
             frame_acquisition_datetime = None
@@ -2317,22 +2319,40 @@ class _CommonLegacyConvertedEnhancedImage(Image):
                     frame_content_datetime = DT.combine(da, tm)
 
             if frame_content_datetime is not None:
+                # For comparison to be valid, need to ensure presence of time zone
+                # information is consistent
+                if frame_content_datetime.tzinfo is not None:
+                    earliest_content_date_time = earliest_content_date_time.replace(
+                        tzinfo=frame_content_datetime.tzinfo
+                    )
+
                 earliest_content_date_time = min(
                     frame_content_datetime, earliest_content_date_time
                 )
+                have_content_datetime = True
             if frame_acquisition_datetime is not None:
+                # For comparison to be valid, need to ensure presence of time zone
+                # information is consistent
+                if frame_acquisition_datetime.tzinfo is not None:
+                    earliest_acquisition_date_time = (
+                        earliest_acquisition_date_time.replace(
+                            tzinfo=frame_acquisition_datetime.tzinfo
+                        )
+                    )
+
                 earliest_acquisition_date_time = min(
                     frame_acquisition_datetime, earliest_acquisition_date_time
                 )
+                have_acquisition_datetime = True
 
         content_date = None
         content_time = None
         acquisition_datetime = None
-        if earliest_content_date_time < _FARTHEST_FUTURE_DATE_TIME:
+        if have_content_datetime:
             content_date = DA(earliest_content_date_time.date())
             content_time = TM(earliest_content_date_time.time())
 
-        if earliest_acquisition_date_time < _FARTHEST_FUTURE_DATE_TIME:
+        if have_acquisition_datetime:
             acquisition_datetime = DT(earliest_acquisition_date_time)
 
         return content_date, content_time, acquisition_datetime
