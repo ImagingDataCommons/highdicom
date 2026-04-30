@@ -16,6 +16,7 @@ from typing import (
     Generator,
     Sequence,
     Tuple,
+    cast,
 )
 from pydicom.multival import MultiValue
 from typing_extensions import Self
@@ -74,7 +75,7 @@ _SOP_CLASS_UID_IOD_KEY_MAP = {
 }
 
 
-_FARTHEST_FUTURE_DATE_TIME = DT("99991231235959")
+_FARTHEST_FUTURE_DATE_TIME = cast(DT, DT("99991231235959"))
 
 
 # List of attributes required to be consistent between each frame for the
@@ -2286,17 +2287,21 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             frame_content_datetime = None
 
             if "AcquisitionDateTime" in src:
-                frame_content_datetime = DT(src.AcquisitionDateTime)
-                frame_acquisition_datetime = frame_content_datetime
+                dt = DT(src.AcquisitionDateTime)
+                if dt is not None:
+                    frame_content_datetime = dt
+                    frame_acquisition_datetime = dt
             elif "AcquisitionDate" in src and "AcquisitionTime" in src:
-                frame_content_datetime = DT.combine(
-                    DA(src.AcquisitionDate), TM(src.AcquisitionTime)
-                )
-                frame_acquisition_datetime = frame_content_datetime
+                da: DA | None = DA(src.AcquisitionDate)
+                tm: TM | None = TM(src.AcquisitionTime)
+                if da is not None and tm is not None:
+                    frame_content_datetime = DT.combine(da, tm)
+                    frame_acquisition_datetime = frame_content_datetime
             elif "SeriesDate" in src and "SeriesTime" in src:
-                frame_content_datetime = DT.combine(
-                    DA(src.SeriesDate), TM(src.SeriesTime)
-                )
+                da: DA | None = DA(src.SeriesDate)
+                tm: TM | None = TM(src.SeriesTime)
+                if da is not None and tm is not None:
+                    frame_content_datetime = DT.combine(da, tm)
             elif "StudyDate" in src and "StudyTime" in src:
                 # Type 2 attributes: have to check for the empty case
                 da: DA | None = DA(src.StudyDate)
