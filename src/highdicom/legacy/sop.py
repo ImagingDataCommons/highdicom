@@ -1422,7 +1422,14 @@ class _LegacyConversionRunner:
         if "FrameLaterality" not in destination:
             for kw in ["FrameLaterality", "ImageLaterality", "Laterality"]:
                 if kw in source:
-                    destination.FrameLaterality = getattr(source, kw)
+                    src_laterality = getattr(source, kw)
+
+                    # Replace empty value, commonly seen in legacy files, with
+                    # "unpaired"
+                    if src_laterality == "":
+                        src_laterality = "U"
+
+                    destination.FrameLaterality = src_laterality
                     self._mark_keyword_used(kw)
                     break
             else:
