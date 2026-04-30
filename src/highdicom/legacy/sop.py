@@ -85,6 +85,7 @@ _CONSISTENT_KEYWORDS = [
     "FrameOfReferenceUID",
     "StudyInstanceUID",
     "PixelPaddingValue",
+    "PixelPaddingRangeLimit",
     "Modality",
     "SOPClassUID",
     "Rows",
@@ -164,6 +165,43 @@ def _istag_group_length(t: BaseTag) -> bool:
 
     """
     return t.element == 0
+
+
+def _read_ambiguous_vr(dataset: Dataset, kw: str) -> int:
+    """Read attribute from dataset while coercing ambiguous VR.
+
+    Some pixel-value related attributes have a VR or either SS or US
+    depending on the PixelRepresentation. Unforunately, some GE images with
+    PixelRepresentation=1 incorrectly use a VR of US, and store the two's
+    complement of the intended (negative) value. Unforunately, if this is
+    not corrected, pydicom will (correctly) refuse to write the dataset
+    out.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        Dataset to read attribute from.
+    kw: str
+        Keyword of attribute to read.
+
+    """
+    val = getattr(dataset, kw)
+    if (
+        dataset.PixelRepresentation == 1 and
+        dataset[kw].VR == "US"
+    ):
+        # Incorrect VR is used
+
+        if val > 32767:
+            # Value in this range indicates that correction is
+            # needed, since it is invalid for VR of 'SS'
+
+            # Find the negative number that has the same 16-bit binary
+            # representation as the value found and assume this is what was
+            # intended in the original file
+            return val - 65536
+
+    return val
 
 
 def _transcode_frame(
@@ -425,7 +463,10 @@ class _LegacyConversionRunner:
         self._add_module("clinical-trial-series")
         self._add_module(
             "general-equipment",
-            skip_attributes=["InstitutionalDepartmentTypeCodeSequence"],
+            skip_attributes=[
+                "InstitutionalDepartmentTypeCodeSequence",
+                "PixelPaddingValue",
+            ],
         )
         self._add_module("frame-of-reference")
         self._add_module(
@@ -494,6 +535,7 @@ class _LegacyConversionRunner:
                 "ExtendedOffsetTableLengths",
                 "SmallestImagePixelValue",
                 "LargestImagePixelValue",
+                "PixelPaddingRangeLimit",
                 "PhotometricInterpretation",
                 "PixelData",
             ],
@@ -1755,7 +1797,8 @@ class _LegacyConversionRunner:
             lval = float_info.min
             for frame in self._legacy_datasets:
                 if kw in frame:
-                    lval = max(lval, getattr(frame, kw))
+                    # NB need to deal with potential ambiguous VR problems
+                    lval = max(lval, _read_ambiguous_vr(frame, kw))
 
             if lval > float_info.min:
                 setattr(self._destination, kw, int(lval))
@@ -1766,7 +1809,8 @@ class _LegacyConversionRunner:
             lval = float_info.max
             for frame in self._legacy_datasets:
                 if kw in frame:
-                    lval = min(lval, getattr(frame, kw))
+                    # NB need to deal with potential ambiguous VR problems
+                    lval = min(lval, _read_ambiguous_vr(frame, kw))
 
             if lval < float_info.max:
                 setattr(self._destination, kw, int(lval))
@@ -2079,6 +2123,14 @@ class _LegacyConversionRunner:
         else:
             self._destination.PixelData = b"".join(frames)
 
+        for kw in ["PixelPaddingValue", "PixelPaddingRangeLimit"]:
+            # It has already been checked that these are consistent across
+            # datasets, if present
+            if kw in self._legacy_datasets[0]:
+                # Read the value dealing with possible ambiguous VR issues
+                val = _read_ambiguous_vr(self._legacy_datasets[0], kw)
+                setattr(self._destination, kw, val)
+
 
 class _CommonLegacyConvertedEnhancedImage(Image):
     """SOP class for common Legacy Converted Enhanced instances."""
@@ -2319,11 +2371,13 @@ class _CommonLegacyConvertedEnhancedImage(Image):
                     frame_content_datetime = DT.combine(da, tm)
 
             if frame_content_datetime is not None:
-                # For comparison to be valid, need to ensure presence of time zone
-                # information is consistent
+                # For comparison to be valid, need to ensure presence of time
+                # zone information is consistent
                 if frame_content_datetime.tzinfo is not None:
-                    earliest_content_date_time = earliest_content_date_time.replace(
-                        tzinfo=frame_content_datetime.tzinfo
+                    earliest_content_date_time = (
+                        earliest_content_date_time.replace(
+                            tzinfo=frame_content_datetime.tzinfo
+                        )
                     )
 
                 earliest_content_date_time = min(
@@ -2331,8 +2385,8 @@ class _CommonLegacyConvertedEnhancedImage(Image):
                 )
                 have_content_datetime = True
             if frame_acquisition_datetime is not None:
-                # For comparison to be valid, need to ensure presence of time zone
-                # information is consistent
+                # For comparison to be valid, need to ensure presence of time
+                # zone information is consistent
                 if frame_acquisition_datetime.tzinfo is not None:
                     earliest_acquisition_date_time = (
                         earliest_acquisition_date_time.replace(

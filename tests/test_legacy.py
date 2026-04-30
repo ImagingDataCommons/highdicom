@@ -10,6 +10,8 @@ from zoneinfo import ZoneInfo
 import numpy as np
 from pydicom import FileDataset, FileMetaDataset, Dataset
 from pydicom.data import get_testdata_file
+from pydicom.datadict import tag_for_keyword
+from pydicom.dataelem import DataElement
 from pydicom.multival import MultiValue
 from pydicom.uid import (
     ExplicitVRLittleEndian,
@@ -839,6 +841,38 @@ def test_datetimes_with_timezones():
     )
 
     assert converted.AcquisitionDateTime.tzinfo is not None
+
+
+def test_ambiguous_vr_coercion():
+    """Test legacy images with ambiguous VR issues."""
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.CT, 1, True, True
+    )
+
+    # Simulate incorrectly populated PixelPaddingValue (VR of US instead of SS
+    # when PixelRepresentation=1)
+    for ds in legacy_datasets:
+        ds.PixelRepresentation = 1
+        ds["PixelPaddingValue"] = DataElement(
+            tag_for_keyword("PixelPaddingValue"),
+            VR="US",
+            # Invalid for PixelRepresentation=1,
+            # would be -2000 if correct VR of SS were used
+            value=63536,
+        )
+
+    converted = LegacyConvertedEnhancedCTImage(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    converted = write_and_read_dataset(converted)
+
+    assert converted.PixelPaddingValue == -2000
 
 
 @pytest.mark.parametrize(
