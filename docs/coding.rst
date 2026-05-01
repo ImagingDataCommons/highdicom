@@ -127,12 +127,27 @@ hash to the same value if you use them within sets or as keys in dictionaries.
 For equality and hashing, two codes are considered equivalent if they have the
 same coding scheme, and value, regardless of how their meaning is represented.
 
+Context Groups
+--------------
+
+Many places where codes are used in the standard are associated with a
+`Context Group`. These are sets of codes determined to be suitable for a
+particular purpose. Most are `extensible`, meaning you can choose codes 
+outside the context group if you wish. However, it is best practice to use
+a code within the context group if a suitable code exists within it.
+
+Context groups are have an identifier called a `CID`. For example, :dcm:`CID
+7150 <part16/sect_CID_7150.html>` is the context group containing codes to use
+to describe segmented properties categories in a DICOM segmentation and
+:dcm:`CID 7151 <part16/sect_CID_7151.html>` contains values for the more
+specific segmented property types. Note that this second example includes other
+CIDs recursively.
+
 Finding Suitable Codes
 ----------------------
 
 The `pydicom` code dictionary allows searching for concepts via simple string
-matching. However, for more advanced searching it is generally advisable to
-search the documentation for the coding scheme itself.
+matching. You can also search with context groups.
 
 .. code-block:: python
 
@@ -146,3 +161,24 @@ search the documentation for the coding scheme itself.
 
    print(codes.SCT.Liver)
    # Code(value='10200004', scheme_designator='SCT', meaning='Liver', scheme_version=None)
+
+   # Search within a context group (e.g. CID7150)
+   print(codes.cid7150.dir())
+   # ['AnatomicalStructure',
+   #  'BodySubstance',
+   #  'Function',
+   #  'MorphologicallyAbnormalStructure',
+   #  'PhysicalObject',
+   #  'SpatialAndRelationalConcept',
+   #  'Substance',
+   #  'Tissue']
+
+   # Check whether a code lies within a context group
+   print(codes.SCT.BodySubstance in codes.cid7150)
+   # True
+
+However, for more advanced searching it is generally advisable to search the
+documentation for the coding scheme itself. This 
+`webpage <https://fedorov.github.io/dcmterms/terminology.html>`_ is a nice
+interactive tool for searching the terms and Context Groups defined within
+DICOM.
