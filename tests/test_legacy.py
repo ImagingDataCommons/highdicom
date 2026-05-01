@@ -1630,7 +1630,7 @@ def test_encode_rgb(
     transfer_syntax_uid: str,
     photometric_interpretation: str,
 ):
-    """Test transcoding frames to a new transfer syntax"""
+    """Test encoding frames to a compressed transfer syntax"""
     if transfer_syntax_uid in (JPEG2000, JPEG2000Lossless):
         pytest.importorskip('openjpeg')
     elif transfer_syntax_uid in (JPEGLSLossless, JPEGBaseline8Bit):

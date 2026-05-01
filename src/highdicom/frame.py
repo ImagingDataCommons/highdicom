@@ -249,14 +249,14 @@ def encode_frame(
                     'MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR'
                 ):
                 raise ValueError(
-                    'Photometric intpretation must be either "MONOCHROME1", '
+                    'Photometric interpretation must be either "MONOCHROME1", '
                     '"MONOCHROME2", or "PALETTE COLOR" for encoding of '
                     'monochrome image frames with JPEG Baseline codec.'
                 )
         elif samples_per_pixel == 3:
             if photometric_interpretation != 'YBR_FULL_422':
                 raise ValueError(
-                    'Photometric intpretation must be "YBR_FULL_422" for '
+                    'Photometric interpretation must be "YBR_FULL_422" for '
                     'encoding of color image frames with '
                     'JPEG Baseline codec.'
                 )
@@ -323,7 +323,7 @@ def encode_frame(
                         'MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR'
                     ):
                     raise ValueError(
-                        'Photometric intpretation must be either '
+                        'Photometric interpretation must be either '
                         '"MONOCHROME1", "MONOCHROME2", or "PALETTE COLOR" '
                         'for encoding of monochrome image frames with '
                         f'{name} codec.'

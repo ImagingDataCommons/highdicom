@@ -1992,7 +1992,7 @@ class _LegacyConversionRunner:
                 "or not supported."
             )
 
-        if dst_tx_uid != src_tx_uid:
+        if dst_tx_uid == src_tx_uid:
             outgoing_pi = PhotometricInterpretationValues(
                 self._legacy_datasets[0].PhotometricInterpretation
             )
