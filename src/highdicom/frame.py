@@ -1,5 +1,6 @@
 import logging
 from io import BytesIO
+import sys
 from typing import cast
 
 import numpy as np
@@ -28,6 +29,45 @@ from highdicom.enum import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_array_byteorder(array: np.ndarray, transfer_syntax_uid: str):
+    """Ensure an array has the correct byte order for a transfer syntax.
+
+    Parameters
+    ----------
+    array: np.ndarray
+        NumPy array.
+    transfer_syntax_uid: str
+        Transfer syntax UID used to infer the required byte order.
+
+    Returns
+    -------
+    np.ndarray:
+        Array with the byteorder required for transfer_syntax_uid.
+
+    """
+    byteorder = array.dtype.byteorder
+
+    if byteorder == '|':
+        # Byte order not applicable
+        return array
+
+    if byteorder == '=':
+        byteorder = {'little': '<', 'big': '>'}[sys.byteorder]
+
+    require_little_endian = UID(transfer_syntax_uid).is_little_endian
+
+    if require_little_endian and byteorder == '>':
+        # Have big endian, need little endian
+        new_dtype = f'<{array.dtype.kind}{array.dtype.itemsize}'
+        array = array.astype(new_dtype)
+    elif not require_little_endian and byteorder == '<':
+        # Have little endian, need big endian
+        new_dtype = f'>{array.dtype.kind}{array.dtype.itemsize}'
+        array = array.astype(new_dtype)
+
+    return array
 
 
 def encode_frame(
@@ -116,6 +156,35 @@ def encode_frame(
         photometric_interpretation
     ).value
 
+    if bits_allocated not in (1, 8, 16, 24, 32, 40, 48, 56, 64):
+        raise ValueError(
+            f'{bits_allocated} is not a valid value for bits_allocated'
+        )
+
+    if bits_stored > bits_allocated:
+        raise ValueError('bits_stored may be not larger than bits_allocated.')
+
+    if pixel_representation == PixelRepresentationValues.COMPLEMENT:
+        if array.dtype.kind != 'i':
+            raise ValueError(
+                'When encoding frames with pixel_representation=1, array '
+                'must have a signed integer dtype.'
+            )
+    else:
+        if array.dtype.kind != 'u':
+            raise ValueError(
+                'When encoding frames with pixel_representation=0, array '
+                'must have an unsigned integer dtype.'
+            )
+
+    expected_itemsize = 1 if bits_allocated == 1 else bits_allocated // 8
+    if array.dtype.itemsize != expected_itemsize:
+        n_bits = expected_itemsize * 8
+        raise ValueError(
+            f'When encoding frames with bits_allocated={bits_allocated}, '
+            f"array must have an {n_bits}-bit dtype."
+        )
+
     uncompressed_transfer_syntaxes = {
         ExplicitVRLittleEndian,
         ImplicitVRLittleEndian,
@@ -138,6 +207,10 @@ def encode_frame(
                 '", "'.join(supported_transfer_syntaxes)
             )
         )
+
+    # Ensure byte order
+    array = _ensure_array_byteorder(array, transfer_syntax_uid)
+
     if transfer_syntax_uid in uncompressed_transfer_syntaxes:
         if samples_per_pixel > 1:
             if planar_configuration != 0:

@@ -14,6 +14,7 @@ from pydicom.datadict import tag_for_keyword
 from pydicom.dataelem import DataElement
 from pydicom.multival import MultiValue
 from pydicom.uid import (
+    ExplicitVRBigEndian,
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     JPEG2000Lossless,
@@ -873,6 +874,39 @@ def test_ambiguous_vr_coercion():
     converted = write_and_read_dataset(converted)
 
     assert converted.PixelPaddingValue == -2000
+
+
+def test_from_big_endian():
+    """Test big-endian legacy images become little endian."""
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.CT, 1, True, True
+    )
+
+    for ds in legacy_datasets:
+        ds.file_meta.TransferSyntaxUID = ExplicitVRBigEndian
+
+        # Re-encode frame as big endian
+        dtype = ds.pixel_array.dtype
+        be_dtype = f">{dtype.kind}{dtype.itemsize}"
+        ds.PixelData = ds.pixel_array.astype(be_dtype).flatten().tobytes()
+
+    converted = LegacyConvertedEnhancedCTImage(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    converted = write_and_read_dataset(converted)
+
+    # Converted should be little endian again
+    assert converted.file_meta.TransferSyntaxUID == ExplicitVRLittleEndian
+
+    # Pixel data should have been converted back to little endian
+    for f, ds in enumerate(legacy_datasets):
+        assert np.array_equal(converted.pixel_array[f], ds.pixel_array)
 
 
 @pytest.mark.parametrize(

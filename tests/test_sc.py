@@ -227,7 +227,7 @@ class TestSCImage(unittest.TestCase):
             )
 
     def test_construct_monochrome_patient(self):
-        bits_allocated = 12
+        bits_allocated = 16
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
         instance = SCImage(

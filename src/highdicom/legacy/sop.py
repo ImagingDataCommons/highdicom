@@ -2016,8 +2016,13 @@ class _LegacyConversionRunner:
             )
             self._destination.LossyImageCompressionRatio = compression_ratio
 
-        if (dst_tx_uid != src_tx_uid) and (
-            src_tx_uid.is_encapsulated or dst_tx_uid.is_encapsulated
+        if (
+            (dst_tx_uid != src_tx_uid) and
+            (
+                src_tx_uid.is_encapsulated or
+                dst_tx_uid.is_encapsulated or
+                not src_tx_uid.is_little_endian
+            )
         ):
             if using_multiprocessing:
                 # Use the existing executor or create one
@@ -2249,6 +2254,14 @@ class _CommonLegacyConvertedEnhancedImage(Image):
 
         if transfer_syntax_uid is None:
             transfer_syntax_uid = ref_ds.file_meta.TransferSyntaxUID
+
+            if not transfer_syntax_uid.is_little_endian:
+                logger.warning(
+                    "Big Endian transfer syntaxes are retired. The converted "
+                    "image will use the 'ExplicitVRLittleEndian' transfer "
+                    "syntax."
+                )
+                transfer_syntax_uid = ExplicitVRLittleEndian
 
         super(_Image, self).__init__(
             study_instance_uid=ref_ds.StudyInstanceUID,
