@@ -32,7 +32,7 @@ from pydicom.sr.codedict import codes
 from pydicom.valuerep import PersonName, format_number_as_ds
 from pydicom.sr.coding import Code
 
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     ModuleUsageValues,
     get_module_usage,
     is_multiframe_image,
@@ -218,7 +218,7 @@ class Segmentation(_Image):
         """
         Parameters
         ----------
-        source_images: Sequence[Dataset]
+        source_images: Sequence[pydicom.Dataset]
             Image(s) from which this segmentation was derived. A sequence
             containing either one or more single-frame images, or exactly one
             multi-frame image. Passing the metadata of the image(s) is
