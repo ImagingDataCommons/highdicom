@@ -37,6 +37,9 @@ contains. The required metadata elements include:
 * An ``annotated_property_category`` and ``annotated_property_type``
   (:class:`highdicom.sr.CodedConcept`), coded values (see :ref:`coding`)
   describing the category and specific structure that has been annotated.
+  See :dcm:`CID 7151 <part16/sect_CID_7151.html>` and
+  :dcm:`CID 8135 <part16/sect_CID_8135.html>` respectively for the associated
+  context groups. 
 * A ``graphic_type`` (:class:`highdicom.ann.GraphicTypeValues`) indicating the
   "form" of the annotations. Permissible values are ``"ELLIPSE"``, ``"POINT"``,
   ``"POLYGON"``, ``"RECTANGLE"``, and ``"POLYLINE"``.
