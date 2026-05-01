@@ -321,6 +321,7 @@ class _LegacyConversionRunner:
         use_extended_offset_table: bool = False,
         require_volume: bool = False,
         sort: bool = True,
+        strict: bool = True,
         skip_private_attributes: bool = False,
         workers: int | Executor = 0,
     ) -> None:
@@ -355,6 +356,13 @@ class _LegacyConversionRunner:
             instance. If True, datasets will be sorted using the default sort
             key. If False, frames of the new instance will be in the same order
             as the list of legacy instances were passed.
+        strict: bool, optional
+            Whether to use strict requirements on the new converted dataset. If
+            True and any attributes required to create a standard-compliant
+            Legacy Converted Enhanced instance are missing or inconsistent in
+            the legacy source files, an error will be raised. If False, a
+            warning will be raised in the same situation and the attribute will
+            be skipped in the new Legacy Converted Enhanced file.
         skip_private_attributes: bool, optional
             Whether to skip copying private attributes to the converted file.
         workers: int | concurrent.futures.Executor, optional
@@ -373,6 +381,7 @@ class _LegacyConversionRunner:
         self._destination = destination
         self._transfer_syntax_uid = transfer_syntax_uid
         self._workers = workers
+        self._strict = strict
         self._skip_private_attributes = skip_private_attributes
         self._use_extended_offset_table = use_extended_offset_table
         self._keyword_shared_dict: dict[str, bool] = {}
@@ -1083,12 +1092,24 @@ class _LegacyConversionRunner:
                     case AttributeTypeValues.REQUIRED:
                         # Most of these cases will have been caught earlier
                         # by the initial consistency checks
-                        raise AttributeError(
+                        msg = (
                             "Unable to determine value for "
                             f"required attribute '{dest_kw}' because "
                             "the value is inconsistent between the "
-                            "legacy files."
+                            "legacy files. "
                         )
+                        if self._strict:
+                            msg += (
+                                "To omit the attribute in this situation, "
+                                "set the 'strict' parameter to False."
+                            )
+                            raise AttributeError(msg)
+                        else:
+                            msg += (
+                                "The attribute will be omitted from the "
+                                "legacy converted enhanced object."
+                            )
+                            logger.warning(msg)
                     case AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN:
                         # This shouldn't really happen, but probably
                         # failing if it did would be overly strict. Issue
@@ -1103,11 +1124,23 @@ class _LegacyConversionRunner:
                 # No value found
                 match usage_type:
                     case AttributeTypeValues.REQUIRED:
-                        raise AttributeError(
+                        msg = (
                             "Unable to determine value for required "
                             f"attribute '{dest_kw}' because the required "
-                            "information is not present in the legacy files."
+                            "information is not present in the legacy files. "
                         )
+                        if self._strict:
+                            msg += (
+                                "To omit the attribute in this situation, set "
+                                "the 'strict' parameter to False."
+                            )
+                            raise AttributeError(msg)
+                        else:
+                            msg += (
+                                "The attribute will be omitted from the "
+                                "legacy converted enhanced object."
+                            )
+                            logger.warning(msg)
                     case AttributeTypeValues.REQUIRED_EMPTY_IF_UNKNOWN:
                         setattr(self._destination, dest_kw, None)
 
@@ -1228,10 +1261,22 @@ class _LegacyConversionRunner:
                     elif required_attr:
                         all_required_attrs_exist = False
                         if required:
-                            raise AttributeError(
+                            msg = (
                                 "Cannot determine value for required attribute "
-                                f"'{a_cfg.dest_kw}' in the '{sequence_name}'."
+                                f"'{a_cfg.dest_kw}' in the '{sequence_name}'. "
                             )
+                            if self._strict:
+                                msg += (
+                                    "To omit the attribute in this situation, "
+                                    "set the 'strict' parameter to False."
+                                )
+                                raise AttributeError(msg)
+                            else:
+                                msg += (
+                                    "The attribute will be omitted from the "
+                                    "legacy converted enhanced object."
+                                )
+                                logger.warning(msg)
 
         if not required and not all_required_attrs_exist:
             # Do not include this functional group. Nothing more to do
@@ -2162,6 +2207,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         *,
         require_volume: bool = False,
         sort: bool = True,
+        strict: bool = True,
         skip_private_attributes: bool = False,
         contributing_equipment: Sequence[ContributingEquipment] | None = None,
         workers: int | Executor = 0,
@@ -2211,6 +2257,13 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             Series Number, then Instance Number, then SOP Instance UID. To use
             an alternative sort order, pre-sort the legacy datasets, and pass
             ``sort=False``.
+        strict: bool, optional
+            Whether to use strict requirements on the new converted dataset. If
+            True and any attributes required to create a standard-compliant
+            Legacy Converted Enhanced instance are missing or inconsistent in
+            the legacy source files, an error will be raised. If False, a
+            warning will be raised in the same situation and the attribute will
+            be skipped in the new Legacy Converted Enhanced file.
         skip_private_attributes: bool, optional
             Whether to skip copying private attributes to the converted file.
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
@@ -2325,8 +2378,9 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             transfer_syntax_uid=transfer_syntax_uid,
             use_extended_offset_table=use_extended_offset_table,
             sort=sort,
-            require_volume=require_volume,
             skip_private_attributes=skip_private_attributes,
+            strict=strict,
+            require_volume=require_volume,
         )
 
         self._build_luts()

@@ -915,6 +915,7 @@ def test_from_big_endian():
         ('ImageOrientationPatient', 'PlaneOrientationSequence'),
         ('ImagePositionPatient', 'PlanePositionSequence'),
         ('PixelSpacing', 'PixelMeasuresSequence'),
+        ('SliceThickness', 'PixelMeasuresSequence'),
     ],
 )
 def test_missing_required_attribute_for_mandatory_group(
@@ -946,6 +947,18 @@ def test_missing_required_attribute_for_mandatory_group(
             series_number=1,
             sop_instance_uid=UID(),
             instance_number=1,
+        )
+
+    # Check it works okay with strict = False
+    if missing_keyword == "SliceThickness":
+        # (other keywords will trigger other errors if missing)
+        LegacyConvertedClass(
+            legacy_datasets,
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            strict=False,
         )
 
 
