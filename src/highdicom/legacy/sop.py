@@ -317,7 +317,7 @@ class _LegacyConversionRunner:
         self,
         legacy_datasets: Sequence[Dataset],
         destination: Dataset,
-        transfer_syntax_uid: str | None = None,
+        transfer_syntax_uid: str,
         use_extended_offset_table: bool = False,
         require_volume: bool = False,
         sort: bool = True,
@@ -1564,6 +1564,7 @@ class _LegacyConversionRunner:
             ):
                 if (
                     "TriggerTime" in source and
+                    source.TriggerTime is not None and
                     "FrameReferenceDateTime" not in source
                 ):
                     trigger_time_in_millisecond = int(source.TriggerTime)
@@ -1971,6 +1972,8 @@ class _LegacyConversionRunner:
         """Set pixel data by optionally transcoding and combining legacy frames.
 
         """
+        src_tx_uid = self._legacy_datasets[0].file_meta.TransferSyntaxUID
+        dst_tx_uid = UID(self._transfer_syntax_uid)
         allowed_transfer_syntaxes = (
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
@@ -1980,25 +1983,20 @@ class _LegacyConversionRunner:
             JPEGBaseline8Bit,
             RLELossless,
         )
-        if self._transfer_syntax_uid is not None and (
-            self._transfer_syntax_uid not in allowed_transfer_syntaxes
+
+        if dst_tx_uid != src_tx_uid and (
+            dst_tx_uid not in allowed_transfer_syntaxes
         ):
             raise ValueError(
-                f"Transfer syntax '{self._transfer_syntax_uid}' not recognized "
+                f"Transfer syntax '{dst_tx_uid}' not recognized "
                 "or not supported."
             )
 
-        self._destination.NumberOfFrames = len(self._legacy_datasets)
-
-        src_tx_uid = self._legacy_datasets[0].file_meta.TransferSyntaxUID
-        if self._transfer_syntax_uid is None:
-            dst_tx_uid = src_tx_uid
+        if dst_tx_uid != src_tx_uid:
             outgoing_pi = PhotometricInterpretationValues(
                 self._legacy_datasets[0].PhotometricInterpretation
             )
         else:
-            dst_tx_uid = UID(self._transfer_syntax_uid)
-
             # Deduce the PhotometricInterpretation for the converted image
             samples_per_pixel = self._legacy_datasets[0].SamplesPerPixel
             if samples_per_pixel == 1:
@@ -2164,6 +2162,8 @@ class _LegacyConversionRunner:
                     return pixel_data
 
             frames = [_get_frame(ds.PixelData) for ds in self._legacy_datasets]
+
+        self._destination.NumberOfFrames = len(self._legacy_datasets)
 
         if dst_tx_uid.is_encapsulated:
             if self._use_extended_offset_table:

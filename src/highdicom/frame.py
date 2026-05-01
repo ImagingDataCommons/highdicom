@@ -164,7 +164,7 @@ def encode_frame(
     if bits_stored > bits_allocated:
         raise ValueError('bits_stored may be not larger than bits_allocated.')
 
-    if pixel_representation == PixelRepresentationValues.COMPLEMENT:
+    if pixel_representation == PixelRepresentationValues.COMPLEMENT.value:
         if array.dtype.kind != 'i':
             raise ValueError(
                 'When encoding frames with pixel_representation=1, array '
