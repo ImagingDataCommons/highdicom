@@ -321,6 +321,7 @@ class _LegacyConversionRunner:
         use_extended_offset_table: bool = False,
         require_volume: bool = False,
         sort: bool = True,
+        skip_private_attributes: bool = False,
         workers: int | Executor = 0,
     ) -> None:
         """
@@ -354,6 +355,8 @@ class _LegacyConversionRunner:
             instance. If True, datasets will be sorted using the default sort
             key. If False, frames of the new instance will be in the same order
             as the list of legacy instances were passed.
+        skip_private_attributes: bool, optional
+            Whether to skip copying private attributes to the converted file.
         workers: int | concurrent.futures.Executor, optional
             Number of worker processes (or executor object) to use for frame
             compression, if compression or transcoding is needed.
@@ -370,6 +373,7 @@ class _LegacyConversionRunner:
         self._destination = destination
         self._transfer_syntax_uid = transfer_syntax_uid
         self._workers = workers
+        self._skip_private_attributes = skip_private_attributes
         self._use_extended_offset_table = use_extended_offset_table
         self._keyword_shared_dict: dict[str, bool] = {}
         self._unused_keywords: set[str] = set()
@@ -779,7 +783,7 @@ class _LegacyConversionRunner:
                     _istag_repeating_group(t) and not
                     _istag_group_length(t)
                 ):
-                    if t.is_private:
+                    if t.is_private and not self._skip_private_attributes:
                         if not t.is_private_creator:
                             all_private_tags_present.add(t)
                     else:
@@ -2158,6 +2162,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         *,
         require_volume: bool = False,
         sort: bool = True,
+        skip_private_attributes: bool = False,
         contributing_equipment: Sequence[ContributingEquipment] | None = None,
         workers: int | Executor = 0,
         **kwargs: Any,
@@ -2206,6 +2211,8 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             Series Number, then Instance Number, then SOP Instance UID. To use
             an alternative sort order, pre-sort the legacy datasets, and pass
             ``sort=False``.
+        skip_private_attributes: bool, optional
+            Whether to skip copying private attributes to the converted file.
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
             Additional equipment that has contributed to the acquisition,
             creation or modification of this instance.
@@ -2319,6 +2326,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             use_extended_offset_table=use_extended_offset_table,
             sort=sort,
             require_volume=require_volume,
+            skip_private_attributes=skip_private_attributes,
         )
 
         self._build_luts()

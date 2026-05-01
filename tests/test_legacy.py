@@ -985,6 +985,43 @@ def test_private_attributes():
     assert unassigned_perframe_seq[0x0019_0010].value == 'GEMS_ACQU_01'
 
 
+def test_skip_private_attributes():
+    """Test private attributes are correctly copied."""
+    # Some test files that have a lot of private attributes
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166', read=True),
+    ]
+
+    converted = LegacyConvertedEnhancedCTImage(
+        ct_files,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        skip_private_attributes=True,
+    )
+
+    unassigned_shared_seq = (
+        converted
+        .SharedFunctionalGroupsSequence[0]
+        .UnassignedSharedConvertedAttributesSequence[0]
+    )
+    unassigned_perframe_seq = (
+        converted
+        .PerFrameFunctionalGroupsSequence[0]
+        .UnassignedPerFrameConvertedAttributesSequence[0]
+    )
+
+    # Check some arbitrary tags and their private creators
+    assert 0x0045_1006 not in unassigned_shared_seq
+    assert 0x0045_0010 not in unassigned_shared_seq
+
+    assert 0x0019_1024 not in unassigned_perframe_seq
+    assert 0x0019_0010 not in unassigned_perframe_seq
+
+
 def test_optional_functional_group():
     data_generator = DicomGenerator(5)
     legacy_datasets = data_generator.generate_mixed_framesets(
