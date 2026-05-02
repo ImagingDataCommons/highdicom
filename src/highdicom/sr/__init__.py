@@ -33,10 +33,12 @@ from highdicom.sr.sop import (
 )
 from highdicom.sr.templates import (
     AlgorithmIdentification,
+    CircumpapillaryRNFLKeyMeasurements,
     DeviceObserverIdentifyingAttributes,
     ImageLibrary,
     ImageLibraryEntryDescriptors,
     LanguageOfContentItemAndDescendants,
+    MacularThicknessKeyMeasurements,
     Measurement,
     MeasurementProperties,
     MeasurementReport,
@@ -45,6 +47,7 @@ from highdicom.sr.templates import (
     NormalRangeProperties,
     ObserverContext,
     ObservationContext,
+    OphthalmologyMeasurementsGroup,
     PersonObserverIdentifyingAttributes,
     PlanarROIMeasurementsAndQualitativeEvaluations,
     QualitativeEvaluation,
