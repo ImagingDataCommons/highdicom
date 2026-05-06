@@ -21,7 +21,12 @@ from highdicom.spatial import get_closest_patient_orientation
 from highdicom._dependency_utils import import_optional_dependency
 
 # itk = import_optional_dependency('itk', feature='itk tests')
-sitk = import_optional_dependency('SimpleITK', feature='itk tests')
+
+try:
+    sitk = import_optional_dependency('SimpleITK', feature='itk tests')
+
+except Exception:
+    pytest.skip("Optional dependency not available", allow_module_level=True)
 
 
 def read_multiframe_ct_volume():
