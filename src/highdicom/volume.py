@@ -3606,17 +3606,26 @@ class Volume(_VolumeBase):
             array = array.astype(np.uint8)
 
         elif array.dtype == np.float16:
-            warnings.warn('SimpleITK does not support float16 data. Safely recasting to float32.')
+            warnings.warn(
+                'SimpleITK does not support float16 data.'
+                ' Safely recasting to float32.'
+            )
             array = array.astype(np.float32)
 
         elif array.dtype == np.float128:
             f64 = np.finfo(np.float64)
             if array.min() >= f64.min and array.max() <= f64.max:
-                warnings.warn('SimpleITK does not support float128 data. Safely recasting to float64.')
+                warnings.warn(
+                    'SimpleITK does not support float128 data.'
+                    ' Safely recasting to float64.'
+                )
                 array = array.astype(np.float64)
 
             else:
-                raise ValueError('SimpleITK does not support float128 data. Safely recasting to float64 is not possible.')
+                raise ValueError(
+                    'SimpleITK does not support float128 data.'
+                    ' Safely recasting to float64 is not possible.'
+                )
 
         sitk_im = sitk.GetImageFromArray(array)
         sitk_im.SetSpacing(self.spacing)
@@ -3688,30 +3697,48 @@ class Volume(_VolumeBase):
             array = array.astype(np.uint8)
 
         elif array.dtype == np.int8:
-            warnings.warn('ITK does not support int8 data. Safely recasting to int16.')
+            warnings.warn(
+                'ITK does not support int8 data.'
+                ' Safely recasting to int16.'
+            )
             array = array.astype(np.int16)
 
         elif array.dtype == np.int64:
             i32 = np.iinfo(np.int32)
             if array.min() >= i32.min and array.max() <= i32.max:
-                warnings.warn('ITK does not support int64 data. Safely recasting to int32.')
+                warnings.warn(
+                    'ITK does not support int64 data.'
+                    ' Safely recasting to int32.'
+                )
                 array = array.astype(np.int32)
 
             else:
-                raise ValueError('ITK does not support int64 data. Safely recasting to int32 is not possible.')
+                raise ValueError(
+                    'ITK does not support int64 data. '
+                    ' Safely recasting to int32 is not possible.'
+                )
 
         elif array.dtype == np.float16:
-            warnings.warn('ITK does not support float16 data. Safely recasting to float32.')
+            warnings.warn(
+                'ITK does not support float16 data.'
+                ' Safely recasting to float32.'
+            )
             array = array.astype(np.float32)
 
         elif array.dtype == np.float128:
             f64 = np.finfo(np.float64)
             if array.min() >= f64.min and array.max() <= f64.max:
-                warnings.warn('ITK does not support float128 data. Safely recasting to float64.')
+                warnings.warn(
+                    'ITK does not support float128 data. '
+                    ' Safely recasting to float64.'
+                )
                 array = array.astype(np.float64)
 
             else:
-                raise ValueError('ITK does not support float128 data. Safely recasting to float64 is not possible.')
+                raise ValueError(
+                    'ITK does not support float128 data. '
+                    ' Safely recasting to float64 is not possible.'
+                )
 
         itk_im = itk.GetImageFromArray(array)
         itk_im.SetSpacing(self.spacing)
