@@ -502,27 +502,27 @@ def test_dtype_sitk(dtype: np.dtype):
     'zip_url,nifti_url',
     [
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/2_t1_mp2rage_sag_p3_32.zip'  # noqa: E501,
+            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/2_t1_mp2rage_sag_p3_32.zip',  # noqa: E501
             'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_2_t1_mp2rage_sag_p3_32_INV1.nii.gz'  # noqa: E501
         ),
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/3_t1_mp2rage_sag_p3_32.zip'  # noqa: E501,
+            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/3_t1_mp2rage_sag_p3_32.zip',  # noqa: E501
             'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_3_t1_mp2rage_sag_p3_32_INV2.nii.gz'  # noqa: E501
         ),
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/4_t1_mp2rage_sag_p3_32.zip'  # noqa: E501,
+            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/4_t1_mp2rage_sag_p3_32.zip',  # noqa: E501
             'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_4_t1_mp2rage_sag_p3_32_UNI_Images.nii.gz'  # noqa: E501
         ),
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/5_HCP_T1.zip'  # noqa: E501,
+            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/5_HCP_T1.zip',  # noqa: E501
             'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_5_HCP_T1.nii.gz'  # noqa: E501
         ),
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/6_T1_mprage_ns_sag_p2.zip'  # noqa: E501,
+            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/6_T1_mprage_ns_sag_p2.zip',  # noqa: E501
             'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_6_T1_mprage_ns_sag_p2.nii.gz'  # noqa: E501
         ),
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/8_T1_memprage_rms.zip'  # noqa: E501,
+            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/8_T1_memprage_rms.zip',  # noqa: E501
             'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_8_T1_memprage_rms_RMS.nii.gz'  # noqa: E501
         ),
     ]
