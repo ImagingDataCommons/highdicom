@@ -45,6 +45,7 @@ from pydicom.datadict import (
 )
 
 from highdicom._dependency_utils import import_optional_dependency
+import warnings
 
 _DCM_PYTHON_TYPE_MAP = {
     'CS': str,
@@ -3604,6 +3605,19 @@ class Volume(_VolumeBase):
         if array.dtype == np.bool_:
             array = array.astype(np.uint8)
 
+        elif array.dtype == np.float16:
+            warnings.warn('SimpleITK does not support float16 data. Safely recasting to float32.')
+            array = array.astype(np.float32)
+
+        elif array.dtype == np.float128:
+            f64 = np.finfo(np.float64)
+            if array.min() >= f64.min and array.max() <= f64.max:
+                warnings.warn('SimpleITK does not support float128 data. Safely recasting to float64.')
+                array = array.astype(np.float64)
+
+            else:
+                raise ValueError('SimpleITK does not support float128 data. Safely recasting to float64 is not possible.')
+
         sitk_im = sitk.GetImageFromArray(array)
         sitk_im.SetSpacing(self.spacing)
         sitk_im.SetDirection(self.direction.flatten())
@@ -3668,10 +3682,36 @@ class Volume(_VolumeBase):
             feature=f'{func.__module__}.{func.__qualname__}'
         )
 
-        array = self.array
+        array = self.array.transpose(2, 1, 0)
 
         if array.dtype == np.bool_:
             array = array.astype(np.uint8)
+
+        elif array.dtype == np.int8:
+            warnings.warn('ITK does not support int8 data. Safely recasting to int16.')
+            array = array.astype(np.int16)
+
+        elif array.dtype == np.int64:
+            i32 = np.iinfo(np.int32)
+            if array.min() >= i32.min and array.max() <= i32.max:
+                warnings.warn('ITK does not support int64 data. Safely recasting to int32.')
+                array = array.astype(np.int32)
+
+            else:
+                raise ValueError('ITK does not support int64 data. Safely recasting to int32 is not possible.')
+
+        elif array.dtype == np.float16:
+            warnings.warn('ITK does not support float16 data. Safely recasting to float32.')
+            array = array.astype(np.float32)
+
+        elif array.dtype == np.float128:
+            f64 = np.finfo(np.float64)
+            if array.min() >= f64.min and array.max() <= f64.max:
+                warnings.warn('ITK does not support float128 data. Safely recasting to float64.')
+                array = array.astype(np.float64)
+
+            else:
+                raise ValueError('ITK does not support float128 data. Safely recasting to float64 is not possible.')
 
         itk_im = itk.GetImageFromArray(array)
         itk_im.SetSpacing(self.spacing)
@@ -3711,7 +3751,7 @@ class Volume(_VolumeBase):
             feature=f'{func.__module__}.{func.__qualname__}'
         )
 
-        array = itk.GetArrayFromImage(itk_im)
+        array = itk.GetArrayFromImage(itk_im).transpose(2, 1, 0)
 
         return cls.from_components(
             array=array,

@@ -48,6 +48,8 @@ libjpeg = [
     "pylibjpeg-openjpeg>=2.0.0",
     "pylibjpeg>=2.0",
 ]
+itk = ["itk>=5.4.0"]
+sitk = ["SimpleITK>=2.2.1"]
 
 [dependency-groups]
 test = [
@@ -62,10 +64,6 @@ docs = [
     "sphinx-rtd-theme==1.0.0",
     "sphinxcontrib-autoprogram==0.1.7",
     "sphinxcontrib-websupport==1.2.4",
-]
-itk = [
-    "itk>=5.4.0",
-    "SimpleITK>=2.5.0"
 ]
 
 [project.urls]
