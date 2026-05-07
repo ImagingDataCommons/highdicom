@@ -3691,7 +3691,7 @@ class Volume(_VolumeBase):
             feature=f'{func.__module__}.{func.__qualname__}'
         )
 
-        array = self.array.transpose(2, 1, 0)
+        array = self.array.transpose(2, 1, 0).copy()
 
         if array.dtype == np.bool_:
             array = array.astype(np.uint8)
@@ -3714,7 +3714,7 @@ class Volume(_VolumeBase):
 
             else:
                 raise ValueError(
-                    'ITK does not support int64 data. '
+                    'ITK does not support int64 data.'
                     ' Safely recasting to int32 is not possible.'
                 )
 
@@ -3729,14 +3729,14 @@ class Volume(_VolumeBase):
             f64 = np.finfo(np.float64)
             if array.min() >= f64.min and array.max() <= f64.max:
                 warnings.warn(
-                    'ITK does not support float128 data. '
+                    'ITK does not support float128 data.'
                     ' Safely recasting to float64.'
                 )
                 array = array.astype(np.float64)
 
             else:
                 raise ValueError(
-                    'ITK does not support float128 data. '
+                    'ITK does not support float128 data.'
                     ' Safely recasting to float64 is not possible.'
                 )
 
@@ -3778,7 +3778,7 @@ class Volume(_VolumeBase):
             feature=f'{func.__module__}.{func.__qualname__}'
         )
 
-        array = itk.GetArrayFromImage(itk_im).transpose(2, 1, 0)
+        array = itk.GetArrayFromImage(itk_im).transpose(2, 1, 0).copy()
 
         return cls.from_components(
             array=array,

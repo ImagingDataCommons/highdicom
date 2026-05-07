@@ -17,7 +17,7 @@ from highdicom.spatial import get_closest_patient_orientation
 from highdicom._dependency_utils import import_optional_dependency
 
 try:
-    sitk = import_optional_dependency('SimpleITK', feature='sitk tests')
+    itk = import_optional_dependency('itk', feature='itk tests')
 
 except Exception:
     pytest.skip("Optional dependency not available", allow_module_level=True)
@@ -63,14 +63,14 @@ def read_github_series_volume(urls: Sequence[str]):
     return get_volume_from_series(series), series
 
 
-def read_github_sitk(url: str):
+def read_github_itk(url: str):
     with tempfile.TemporaryDirectory() as temp_dir:
         filename = Path(temp_dir) / Path(url).name
         urllib.request.urlretrieve(url, filename)
 
-        sitk_im = sitk.ReadImage(filename)
+        itk_im = itk.imread(filename)
 
-    return sitk_im
+    return itk_im
 
 
 @pytest.mark.parametrize(
@@ -373,23 +373,23 @@ def read_github_sitk(url: str):
     ]
 )
 def test_roundtrip(vol: Volume):
-    sitk_im = vol.to_sitk()
+    itk_im = vol.to_itk()
 
-    assert np.allclose(vol.position, sitk_im.GetOrigin(), atol=1e-4)
-    assert np.allclose(vol.spacing, sitk_im.GetSpacing(), atol=1e-4)
+    assert np.allclose(vol.position, itk_im.GetOrigin(), atol=1e-4)
+    assert np.allclose(vol.spacing, itk_im.GetSpacing(), atol=1e-4)
     assert np.allclose(
-        vol.direction.flatten(),
-        sitk_im.GetDirection(),
+        vol.direction,
+        itk_im.GetDirection(),
         atol=1e-4
     )
     assert (
-        vol.array == sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
+        vol.array == itk.GetArrayFromImage(itk_im).transpose(2, 1, 0)
     ).all()
 
-    sitk_roundtrip = Volume.from_sitk(sitk_im)
+    itk_roundtrip = Volume.from_itk(itk_im)
 
-    assert np.allclose(vol.affine, sitk_roundtrip.affine, atol=1e-4)
-    assert (vol.array == sitk_roundtrip.array).all()
+    assert np.allclose(vol.affine, itk_roundtrip.affine, atol=1e-4)
+    assert (vol.array == itk_roundtrip.array).all()
 
 
 @pytest.mark.parametrize(
@@ -410,7 +410,7 @@ def test_roundtrip(vol: Volume):
         np.bool_
     ]
 )
-def test_dtype_sitk(dtype: np.dtype):
+def test_dtype_itk(dtype):
     array = np.zeros((10, 10, 10), dtype=dtype)
     volume = Volume.from_attributes(
         array=array,
@@ -422,54 +422,96 @@ def test_dtype_sitk(dtype: np.dtype):
     )
 
     if dtype == np.bool_:
-        sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
-        assert sitk_roundtrip.dtype == np.uint8
+        itk_roundtrip = Volume.from_itk(volume.to_itk())
+        assert itk_roundtrip.dtype == np.uint8
+
+    elif dtype == np.int8:
+        with pytest.warns(
+            UserWarning,
+            match=(
+                'ITK does not support int8 data.'
+                ' Safely recasting to int16.'
+            )
+        ):
+            itk_roundtrip = Volume.from_itk(volume.to_itk())
+            assert itk_roundtrip.dtype == np.int16
+
+    elif dtype == np.int64:
+        with pytest.warns(
+            UserWarning,
+            match=(
+                'ITK does not support int64 data.'
+                ' Safely recasting to int32.'
+            )
+        ):
+            itk_roundtrip = Volume.from_itk(volume.to_itk())
+            assert itk_roundtrip.dtype == np.int32
+
+        volume.array[(0, 0, 0)] = np.int64(np.iinfo(np.int32).max) + 1
+        with pytest.raises(
+            ValueError,
+            match=(
+                'ITK does not support int64 data.'
+                ' Safely recasting to int32 is not possible.'
+            )
+        ):
+            itk_roundtrip = Volume.from_itk(volume.to_itk())
+
+        volume.array[(0, 0, 0)] = np.int64(np.iinfo(np.int32).min) - 1
+        with pytest.raises(
+            ValueError,
+            match=(
+                'ITK does not support int64 data.'
+                ' Safely recasting to int32 is not possible.'
+            )
+        ):
+            itk_roundtrip = Volume.from_itk(volume.to_itk())
 
     elif dtype == np.float16:
         with pytest.warns(
             UserWarning,
             match=(
-                'SimpleITK does not support float16 data.'
+                'ITK does not support float16 data.'
                 ' Safely recasting to float32.'
             )
         ):
-            sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
-        assert sitk_roundtrip.dtype == np.float32
+            itk_roundtrip = Volume.from_itk(volume.to_itk())
+        assert itk_roundtrip.dtype == np.float32
 
     elif dtype == np.float128:
         with pytest.warns(
             UserWarning,
             match=(
-                'SimpleITK does not support float128 data.'
+                'ITK does not support float128 data.'
                 ' Safely recasting to float64.'
             )
         ):
-            sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
-        assert sitk_roundtrip.dtype == np.float64
+            itk_roundtrip = Volume.from_itk(volume.to_itk())
+        assert itk_roundtrip.dtype == np.float64
 
         volume.array[(0, 0, 0)] = 1.1 * np.float128(np.finfo(np.float64).max)
         with pytest.raises(
             ValueError,
             match=(
-                'SimpleITK does not support float128 data.'
+                'ITK does not support float128 data.'
                 ' Safely recasting to float64 is not possible.'
             )
         ):
-            sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
+            itk_roundtrip = Volume.from_itk(volume.to_itk())
 
         volume.array[(0, 0, 0)] = 1.1 * np.float128(np.finfo(np.float64).min)
         with pytest.raises(
             ValueError,
             match=(
-                'SimpleITK does not support float128 data.'
+                'ITK does not support float128 data.'
                 ' Safely recasting to float64 is not possible.'
             )
         ):
-            sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
+            itk_roundtrip = Volume.from_itk(volume.to_itk())
 
     else:
-        sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
-        assert sitk_roundtrip.dtype == volume.dtype
+        itk_roundtrip = Volume.from_itk(volume.to_itk())
+        assert itk_roundtrip.dtype == volume.dtype
 
 
 @pytest.mark.parametrize(
@@ -503,22 +545,22 @@ def test_dtype_sitk(dtype: np.dtype):
 )
 def test_nifti_equivalence_zip(zip_url: str, nifti_url: str):
     vol, series = read_github_zip_volume(zip_url)
-    sitk_im = read_github_sitk(nifti_url)
+    itk_im = read_github_itk(nifti_url)
 
     orientation = get_closest_patient_orientation(
-        np.reshape(sitk_im.GetDirection(), (3, 3))
+        np.reshape(itk_im.GetDirection(), (3, 3))
     )
     oriented_vol = vol.to_patient_orientation(orientation)
 
-    assert np.allclose(oriented_vol.position, sitk_im.GetOrigin(), atol=1e-4)
-    assert np.allclose(oriented_vol.spacing, sitk_im.GetSpacing(), atol=1e-4)
+    assert np.allclose(oriented_vol.position, itk_im.GetOrigin(), atol=1e-4)
+    assert np.allclose(oriented_vol.spacing, itk_im.GetSpacing(), atol=1e-4)
     assert np.allclose(
-        oriented_vol.direction.flatten(),
-        sitk_im.GetDirection(),
+        oriented_vol.direction,
+        itk_im.GetDirection(),
         atol=1e-4
     )
     assert (
-        oriented_vol.array == sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
+        oriented_vol.array == itk.GetArrayFromImage(itk_im).transpose(2, 1, 0)
     ).all()
 
 
@@ -564,20 +606,20 @@ def test_nifti_equivalence_zip(zip_url: str, nifti_url: str):
 )
 def test_nifti_equivalence_series(dcm_urls: Sequence[str], nifti_url: str):
     vol, series = read_github_series_volume(dcm_urls)
-    sitk_im = read_github_sitk(nifti_url)
+    itk_im = read_github_itk(nifti_url)
 
     orientation = get_closest_patient_orientation(
-        np.reshape(sitk_im.GetDirection(), (3, 3))
+        np.reshape(itk_im.GetDirection(), (3, 3))
     )
     oriented_vol = vol.to_patient_orientation(orientation)
 
-    assert np.allclose(oriented_vol.position, sitk_im.GetOrigin(), atol=1e-4)
-    assert np.allclose(oriented_vol.spacing, sitk_im.GetSpacing(), atol=1e-4)
+    assert np.allclose(oriented_vol.position, itk_im.GetOrigin(), atol=1e-4)
+    assert np.allclose(oriented_vol.spacing, itk_im.GetSpacing(), atol=1e-4)
     assert np.allclose(
-        oriented_vol.direction.flatten(),
-        sitk_im.GetDirection(),
+        oriented_vol.direction,
+        itk_im.GetDirection(),
         atol=1e-4
     )
     assert (
-        oriented_vol.array == sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
+        oriented_vol.array == itk.GetArrayFromImage(itk_im).transpose(2, 1, 0)
     ).all()
