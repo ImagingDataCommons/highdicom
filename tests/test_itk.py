@@ -22,6 +22,10 @@ try:
 except Exception:
     pytest.skip("Optional dependency not available", allow_module_level=True)
 
+DCM_QA_MPRAGE = 'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main'  # noqa: E501
+DCM_QA_ME = 'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master'
+DCM_QA_PDT2 = 'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main'
+
 
 def read_multiframe_ct_volume():
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))

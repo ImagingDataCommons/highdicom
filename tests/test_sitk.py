@@ -22,6 +22,10 @@ try:
 except Exception:
     pytest.skip("Optional dependency not available", allow_module_level=True)
 
+DCM_QA_MPRAGE = 'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main'  # noqa: E501
+DCM_QA_ME = 'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master'
+DCM_QA_PDT2 = 'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main'
+
 
 def read_multiframe_ct_volume():
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
@@ -476,28 +480,28 @@ def test_dtype_sitk(dtype: np.dtype):
     'zip_url,nifti_url',
     [
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/2_t1_mp2rage_sag_p3_32.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_2_t1_mp2rage_sag_p3_32_INV1.nii.gz'  # noqa: E501
+            f'{DCM_QA_MPRAGE}/In/2_t1_mp2rage_sag_p3_32.zip',
+            f'{DCM_QA_MPRAGE}/Ref/Si_2_t1_mp2rage_sag_p3_32_INV1.nii.gz'
         ),
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/3_t1_mp2rage_sag_p3_32.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_3_t1_mp2rage_sag_p3_32_INV2.nii.gz'  # noqa: E501
+            f'{DCM_QA_MPRAGE}/In/3_t1_mp2rage_sag_p3_32.zip',
+            f'{DCM_QA_MPRAGE}/Ref/Si_3_t1_mp2rage_sag_p3_32_INV2.nii.gz'
         ),
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/4_t1_mp2rage_sag_p3_32.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_4_t1_mp2rage_sag_p3_32_UNI_Images.nii.gz'  # noqa: E501
+            f'{DCM_QA_MPRAGE}/In/4_t1_mp2rage_sag_p3_32.zip',
+            f'{DCM_QA_MPRAGE}/Ref/Si_4_t1_mp2rage_sag_p3_32_UNI_Images.nii.gz'
         ),
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/5_HCP_T1.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_5_HCP_T1.nii.gz'  # noqa: E501
+            f'{DCM_QA_MPRAGE}/In/5_HCP_T1.zip',
+            f'{DCM_QA_MPRAGE}/Ref/Si_5_HCP_T1.nii.gz'
         ),
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/6_T1_mprage_ns_sag_p2.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_6_T1_mprage_ns_sag_p2.nii.gz'  # noqa: E501
+            f'{DCM_QA_MPRAGE}/In/6_T1_mprage_ns_sag_p2.zip',
+            f'{DCM_QA_MPRAGE}/Ref/Si_6_T1_mprage_ns_sag_p2.nii.gz'
         ),
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/8_T1_memprage_rms.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_8_T1_memprage_rms_RMS.nii.gz'  # noqa: E501
+            f'{DCM_QA_MPRAGE}/In/8_T1_memprage_rms.zip',
+            f'{DCM_QA_MPRAGE}/Ref/Si_8_T1_memprage_rms_RMS.nii.gz'
         ),
     ]
 )
@@ -527,38 +531,38 @@ def test_nifti_equivalence_zip(zip_url: str, nifti_url: str):
     [
         (
             [
-                f'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/In/2_me_FieldMap_GRE/{i:04d}.dcm'  # noqa: E501
+                f'{DCM_QA_ME}/In/2_me_FieldMap_GRE/{i:04d}.dcm'
                 for i in range(1, 37)
             ],
-            'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/Ref/me_FieldMap_GRE_2_e1.nii'  # noqa: E501
+            f'{DCM_QA_ME}/Ref/me_FieldMap_GRE_2_e1.nii'
         ),
         (
             [
-                f'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/In/2_me_FieldMap_GRE/{i:04d}_e2.dcm'  # noqa: E501
+                f'{DCM_QA_ME}/In/2_me_FieldMap_GRE/{i:04d}_e2.dcm'
                 for i in range(1, 37)
             ],
-            'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/Ref/me_FieldMap_GRE_2_e2.nii'  # noqa: E501
+            f'{DCM_QA_ME}/Ref/me_FieldMap_GRE_2_e2.nii'
         ),
         (
             [
-                f'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/In/3_me_FieldMap_GRE/{i:04d}_e2_ph.dcm'  # noqa: E501
+                f'{DCM_QA_ME}/In/3_me_FieldMap_GRE/{i:04d}_e2_ph.dcm'
                 for i in range(1, 37)
             ],
-            'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/Ref/me_FieldMap_GRE_3_e2_ph.nii'  # noqa: E501
+            f'{DCM_QA_ME}/Ref/me_FieldMap_GRE_3_e2_ph.nii'
         ),
         (
             [
-                f'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main/In/Siemens/VE11/{i:04d}.dcm'  # noqa: E501
+                f'{DCM_QA_PDT2}/In/Siemens/VE11/{i:04d}.dcm'
                 for i in range(1, 36)
             ],
-            'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main/Ref/Siemens_pd+t2_tse_sag_ISO_1.8mm_3_e1.nii'  # noqa: E501
+            f'{DCM_QA_PDT2}/Ref/Siemens_pd+t2_tse_sag_ISO_1.8mm_3_e1.nii'
         ),
         (
             [
-                f'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main/In/Siemens/VE11/{i:04d}_e2.dcm'  # noqa: E501
+                f'{DCM_QA_PDT2}/In/Siemens/VE11/{i:04d}_e2.dcm'
                 for i in range(36, 71)
             ],
-            'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main/Ref/Siemens_pd+t2_tse_sag_ISO_1.8mm_3_e2.nii'  # noqa: E501
+            f'{DCM_QA_PDT2}/Ref/Siemens_pd+t2_tse_sag_ISO_1.8mm_3_e2.nii'
         ),
     ]
 )
