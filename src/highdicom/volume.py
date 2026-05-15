@@ -3586,12 +3586,36 @@ class Volume(_VolumeBase):
         )
 
     def to_sitk(self) -> 'SimpleITK.Image':  # noqa: F821
-        """Convert the Volume to `SimpleITK.Image` format.
+        """Convert the Volume to ``SimpleITK.Image`` format.
+
+        The Volume is converted to a 3D ``SimpleITK.image``. If
+        its array's current datatype is not supported by SimpleITK,
+        it is safely cast to a compatible type where possible. If
+        impossible to cast safely, a ``ValueError`` is raised.
+        Casting is performed on the following data types:
+
+        - ``bool`` -> ``uint8``
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float128`` -> ``float64`` (with warning if possible,
+          else raises error)
+
+        Spatial metadata (spacing, direction, origin) is preserved.
+        As SimpleITK uses a different dimension convention (zyx)
+        than NumPy (xyz), this method automatically applies a
+        transpose to the array.
 
         Returns
         -------
         SimpleITK.Image:
             Image constructed from the Volume.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+        ValueError
+            When the array's current datatype is not supported
+            and it is not possible to safely cast to a new datatype.
 
         """
         func = self.to_sitk
@@ -3602,13 +3626,19 @@ class Volume(_VolumeBase):
 
         array = self.array.transpose(2, 1, 0)
 
+        if array.ndim != 3:
+            raise ValueError(
+                'SimpleITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
         if array.dtype == np.bool_:
             array = array.astype(np.uint8)
 
         elif array.dtype == np.float16:
             warnings.warn(
                 'SimpleITK does not support float16 data.'
-                ' Safely recasting to float32.'
+                ' Safely casting to float32.'
             )
             array = array.astype(np.float32)
 
@@ -3617,14 +3647,14 @@ class Volume(_VolumeBase):
             if array.min() >= f64.min and array.max() <= f64.max:
                 warnings.warn(
                     'SimpleITK does not support float128 data.'
-                    ' Safely recasting to float64.'
+                    ' Casting to float64, precision may be lost.'
                 )
                 array = array.astype(np.float64)
 
             else:
                 raise ValueError(
                     'SimpleITK does not support float128 data.'
-                    ' Safely recasting to float64 is not possible.'
+                    ' Casting to float64 is not possible.'
                 )
 
         sitk_im = sitk.GetImageFromArray(array)
@@ -3643,6 +3673,12 @@ class Volume(_VolumeBase):
     ) -> Self:
         """Construct a Volume from a `SimpleITK.Image`.
 
+        The ``SimpleITK.Image`` is converted to a 3D Volume.
+        Spatial metadata (spacing, direction, origin) is preserved.
+        As SimpleITK uses a different dimension convention (zyx)
+        than NumPy (xyz), this method automatically applies a
+        transpose to the array.
+
         Parameters
         ----------
         sitk_im: SimpleITK.Image
@@ -3658,6 +3694,11 @@ class Volume(_VolumeBase):
         highdicom.Volume:
             Volume constructed from the `SimpleITK.Image`.
 
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+
         """
         func = cls.from_sitk
         sitk = import_optional_dependency(
@@ -3666,6 +3707,12 @@ class Volume(_VolumeBase):
         )
 
         array = sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
+
+        if array.ndim != 3:
+            raise ValueError(
+                'SimpleITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
 
         return cls.from_components(
             array=array,
@@ -3679,10 +3726,37 @@ class Volume(_VolumeBase):
     def to_itk(self) -> 'itk.Image':  # noqa: F821
         """Convert the volume to `itk.Image` format.
 
+        The Volume is converted to a 3D ``itk.image``. If its array's
+        current datatype is not supported by ITK, it is safely cast to
+        a compatible type where possible. If impossible to cast safely,
+        a ``ValueError`` is raised. Casting is performed on the following
+        data types:
+
+        - ``bool`` -> ``uint8``
+        - ``int8`` -> ``int16`` (with warning)
+        - ``int64`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float128`` -> ``float64`` (with warning if possible, else
+          raises error)
+
+        Spatial metadata (spacing, direction, origin) is preserved.
+        As ITK uses a different dimension convention (zyx)
+        than NumPy (xyz), this method automatically applies a
+        transpose to the array.
+
         Returns
         -------
         itk.Image:
             Image constructed from the volume.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+        ValueError
+            When the array's current datatype is not supported
+            and it is not possible to safely cast to a new datatype.
 
         """
         func = self.to_itk
@@ -3693,13 +3767,19 @@ class Volume(_VolumeBase):
 
         array = self.array.transpose(2, 1, 0).copy()
 
+        if array.ndim != 3:
+            raise ValueError(
+                'ITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
         if array.dtype == np.bool_:
             array = array.astype(np.uint8)
 
         elif array.dtype == np.int8:
             warnings.warn(
                 'ITK does not support int8 data.'
-                ' Safely recasting to int16.'
+                ' Safely casting to int16.'
             )
             array = array.astype(np.int16)
 
@@ -3708,20 +3788,20 @@ class Volume(_VolumeBase):
             if array.min() >= i32.min and array.max() <= i32.max:
                 warnings.warn(
                     'ITK does not support int64 data.'
-                    ' Safely recasting to int32.'
+                    ' Safely casting to int32.'
                 )
                 array = array.astype(np.int32)
 
             else:
                 raise ValueError(
                     'ITK does not support int64 data.'
-                    ' Safely recasting to int32 is not possible.'
+                    ' Safely casting to int32 is not possible.'
                 )
 
         elif array.dtype == np.float16:
             warnings.warn(
                 'ITK does not support float16 data.'
-                ' Safely recasting to float32.'
+                ' Safely casting to float32.'
             )
             array = array.astype(np.float32)
 
@@ -3730,14 +3810,14 @@ class Volume(_VolumeBase):
             if array.min() >= f64.min and array.max() <= f64.max:
                 warnings.warn(
                     'ITK does not support float128 data.'
-                    ' Safely recasting to float64.'
+                    ' Casting to float64, precision may be lost.'
                 )
                 array = array.astype(np.float64)
 
             else:
                 raise ValueError(
                     'ITK does not support float128 data.'
-                    ' Safely recasting to float64 is not possible.'
+                    ' Casting to float64 is not possible.'
                 )
 
         itk_im = itk.GetImageFromArray(array)
@@ -3756,6 +3836,12 @@ class Volume(_VolumeBase):
     ) -> Self:
         """Construct a Volume from an `itk.Image`.
 
+        The ``itk.Image`` is converted to a 3D Volume.
+        Spatial metadata (spacing, direction, origin) is preserved.
+        As SimpleITK uses a different dimension convention (zyx)
+        than NumPy (xyz), this method automatically applies a
+        transpose to the array.
+
         Parameters
         ----------
         itk_im: itk.Image
@@ -3771,6 +3857,11 @@ class Volume(_VolumeBase):
         highdicom.Volume:
             Volume constructed from the `itk.Image`.
 
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+
         """
         func = cls.from_itk
         itk = import_optional_dependency(
@@ -3779,6 +3870,12 @@ class Volume(_VolumeBase):
         )
 
         array = itk.GetArrayFromImage(itk_im).transpose(2, 1, 0).copy()
+
+        if array.ndim != 3:
+            raise ValueError(
+                'ITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
 
         return cls.from_components(
             array=array,
