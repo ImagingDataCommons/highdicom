@@ -731,60 +731,20 @@ Writing a volume to a NIfTI file:
     nifti_path = '/path/to/nifti.nii'  # or .nii.gz
     nib.save(nifti, nifti_path)
 
-Volumes To/From ITK Images
---------------------------
 
-`ITK`_ is a widely-used library for volumetric image processing. Its ``Image``
-class shares many similarities with our :class:`highdicom.Volume` class. Like
-highdicom, ITK uses the "LPS" convention. However, when converting to and from
-NumPy arrays, ITK reverses the order of dimensions. It is important to account
-for this when performing conversions.
+Volumes To/From Other Libraries
+-------------------------------
 
-We plan to add tools to handle this conversion in the near future, but for now
-these snippets should correctly handle simple situations converting to and from
-ITK Images.
+Many other libraries have classes that share similarities with our
+:class:`highdicom.Volume` class and allow for simple conversions between
+formats. For commonly used libraries, highdicom Volumes provide
+``to_<library>()`` and ``from_<library>()`` methods to simplify moving to and
+from other libraries as much as possible. For more information about each library,
+visit the following:
 
-Creating a volume from an ITK Image:
-
-.. code-block:: python
-
-    import itk
-    import numpy as np
-    import highdicom as hd
-
-
-    im = itk.image(...)
-
-    # Reverse array dimension order
-    array = itk.array_from_image(im).transpose([2, 1, 0])
-
-    vol2 = hd.Volume.from_components(
-        array=array,
-        direction=np.asarray(im.GetDirection()),
-        spacing=np.asarray(im.GetSpacing()),
-        position=np.asarray(im.GetOrigin()),
-        coordinate_system="PATIENT"
-    )
-
-Creating an ITK Image from a Volume:
-
-.. code-block:: python
-
-    import itk
-    import highdicom as hd
-
-
-    vol = hd.Volume(...)
-
-    # Reverse array dimension order
-    array = vol.array.transpose([2, 1, 0])
-
-    im = itk.image_from_array(array)
-    im.SetOrigin(vol.position)
-    im.SetDirection(vol.direction)
-    im.SetSpacing(vol.spacing)
+  - :ref:`ITK <itk_vol>`
+  - :ref:`SimpleITK <sitk_vol>`
 
 
 .. _`NIfTI`: https://nifti.nimh.nih.gov/
-.. _`ITK`: https://itk.org/
 .. _`nibabel`: https://nipy.org/nibabel/

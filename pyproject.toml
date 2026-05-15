@@ -48,6 +48,8 @@ libjpeg = [
     "pylibjpeg-openjpeg>=2.0.0",
     "pylibjpeg>=2.0",
 ]
+itk = ["itk>=5.4.0"]
+sitk = ["SimpleITK>=2.2.1"]
 
 [dependency-groups]
 test = [

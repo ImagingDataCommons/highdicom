@@ -44,6 +44,8 @@ from pydicom.datadict import (
     keyword_for_tag,
 )
 
+from highdicom._dependency_utils import import_optional_dependency
+import warnings
 
 _DCM_PYTHON_TYPE_MAP = {
     'CS': str,
@@ -3581,6 +3583,313 @@ class Volume(_VolumeBase):
             coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
             channels=self._channels,
+        )
+
+    def to_sitk(self) -> 'SimpleITK.Image':  # noqa: F821
+        """Convert the Volume to ``SimpleITK.Image`` format.
+
+        The Volume is converted to a 3D ``SimpleITK.Image``. If
+        its array's current datatype is not supported by SimpleITK,
+        it is safely cast to a compatible type where possible. If
+        impossible to cast safely, a ``ValueError`` is raised.
+        Casting is performed on the following data types:
+
+        - ``bool`` -> ``uint8``
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float128`` -> ``float64`` (with warning if possible,
+          else raises error)
+
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and SimpletITK using "LPS" convention.
+        As SimpleITK uses column-major order and NumPy uses row-major,
+        this method automatically applies a transpose to the original
+        array.
+
+        Returns
+        -------
+        SimpleITK.Image:
+            Image constructed from the Volume.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+        ValueError
+            When the array's current datatype is not supported
+            and it is not possible to safely cast to a new datatype.
+
+        """
+        func = self.to_sitk
+        sitk = import_optional_dependency(
+            module_name='SimpleITK',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        if self.array.ndim != 3:
+            raise ValueError(
+                'SimpleITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        array = self.array.transpose(2, 1, 0)
+
+        if array.dtype == np.bool_:
+            array = array.astype(np.uint8)
+
+        elif array.dtype == np.float16:
+            warnings.warn(
+                'SimpleITK does not support float16 data.'
+                ' Safely casting to float32.'
+            )
+            array = array.astype(np.float32)
+
+        elif array.dtype == np.float128:
+            f64 = np.finfo(np.float64)
+            if array.min() >= f64.min and array.max() <= f64.max:
+                warnings.warn(
+                    'SimpleITK does not support float128 data.'
+                    ' Casting to float64, precision may be lost.'
+                )
+                array = array.astype(np.float64)
+
+            else:
+                raise ValueError(
+                    'SimpleITK does not support float128 data.'
+                    ' Casting to float64 is not possible.'
+                )
+
+        sitk_im = sitk.GetImageFromArray(array)
+        sitk_im.SetSpacing(self.spacing)
+        sitk_im.SetDirection(self.direction.flatten())
+        sitk_im.SetOrigin(self.position)
+
+        return sitk_im
+
+    @classmethod
+    def from_sitk(
+        cls,
+        sitk_im: 'SimpleITK.Image',  # noqa: F821
+        coordinate_system: CoordinateSystemNames | str = 'PATIENT',
+        frame_of_reference_uid: str | None = None,
+    ) -> Self:
+        """Construct a Volume from a `SimpleITK.Image`.
+
+        The ``SimpleITK.Image`` is converted to a 3D Volume.
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and SimpletITK using "LPS" convention.
+        As SimpleITK uses column-major order and NumPy uses row-major,
+        this method automatically applies a transpose to the original
+        array.
+
+        Parameters
+        ----------
+        sitk_im: SimpleITK.Image
+            A `SimpleITK.Image` to convert to a volume.
+        coordinate_system: highdicom.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the `SimpleITK.Image`.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+
+        """
+        func = cls.from_sitk
+        sitk = import_optional_dependency(
+            module_name='SimpleITK',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        array = sitk.GetArrayFromImage(sitk_im)
+
+        if array.ndim != 3:
+            raise ValueError(
+                'SimpleITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        array = array.transpose(2, 1, 0)
+
+        return cls.from_components(
+            array=array,
+            spacing=sitk_im.GetSpacing(),
+            coordinate_system=coordinate_system,
+            direction=np.reshape(sitk_im.GetDirection(), (3, 3)),
+            position=sitk_im.GetOrigin(),
+            frame_of_reference_uid=frame_of_reference_uid
+        )
+
+    def to_itk(self) -> 'itk.Image':  # noqa: F821
+        """Convert the volume to `itk.Image` format.
+
+        The Volume is converted to a 3D ``itk.image``. If its array's
+        current datatype is not supported by ITK, it is safely cast to
+        a compatible type where possible. If impossible to cast safely,
+        a ``ValueError`` is raised. Casting is performed on the following
+        data types:
+
+        - ``bool`` -> ``uint8``
+        - ``int8`` -> ``int16`` (with warning)
+        - ``int64`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float128`` -> ``float64`` (with warning if possible, else
+          raises error)
+
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and ITK using "LPS" convention. As ITK uses
+        column-major order and NumPy uses row-major, this method automatically
+        applies a transpose to the original array.
+
+        Returns
+        -------
+        itk.Image:
+            Image constructed from the volume.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+        ValueError
+            When the array's current datatype is not supported
+            and it is not possible to safely cast to a new datatype.
+
+        """
+        func = self.to_itk
+        itk = import_optional_dependency(
+            module_name='itk',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        if self.array.ndim != 3:
+            raise ValueError(
+                'ITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        array = self.array.transpose(2, 1, 0).copy()
+
+        if array.dtype == np.bool_:
+            array = array.astype(np.uint8)
+
+        elif array.dtype == np.int8:
+            warnings.warn(
+                'ITK does not support int8 data.'
+                ' Safely casting to int16.'
+            )
+            array = array.astype(np.int16)
+
+        elif array.dtype == np.int64:
+            i32 = np.iinfo(np.int32)
+            if array.min() >= i32.min and array.max() <= i32.max:
+                warnings.warn(
+                    'ITK does not support int64 data.'
+                    ' Safely casting to int32.'
+                )
+                array = array.astype(np.int32)
+
+            else:
+                raise ValueError(
+                    'ITK does not support int64 data.'
+                    ' Safely casting to int32 is not possible.'
+                )
+
+        elif array.dtype == np.float16:
+            warnings.warn(
+                'ITK does not support float16 data.'
+                ' Safely casting to float32.'
+            )
+            array = array.astype(np.float32)
+
+        elif array.dtype == np.float128:
+            f64 = np.finfo(np.float64)
+            if array.min() >= f64.min and array.max() <= f64.max:
+                warnings.warn(
+                    'ITK does not support float128 data.'
+                    ' Casting to float64, precision may be lost.'
+                )
+                array = array.astype(np.float64)
+
+            else:
+                raise ValueError(
+                    'ITK does not support float128 data.'
+                    ' Casting to float64 is not possible.'
+                )
+
+        itk_im = itk.GetImageFromArray(array)
+        itk_im.SetSpacing(self.spacing)
+        itk_im.SetDirection(self.direction)
+        itk_im.SetOrigin(self.position)
+
+        return itk_im
+
+    @classmethod
+    def from_itk(
+        cls,
+        itk_im: 'itk.Image',  # noqa: F821
+        coordinate_system: CoordinateSystemNames | str = 'PATIENT',
+        frame_of_reference_uid: str | None = None,
+    ) -> Self:
+        """Construct a Volume from an `itk.Image`.
+
+        The ``itk.Image`` is converted to a 3D Volume.
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and ITK using "LPS" convention. As ITK uses
+        column-major order and NumPy uses row-major, this method automatically
+        applies a transpose to the original array.
+
+        Parameters
+        ----------
+        itk_im: itk.Image
+            A `itk.Image` to convert to a volume.
+        coordinate_system: highdicom.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the `itk.Image`.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+
+        """
+        func = cls.from_itk
+        itk = import_optional_dependency(
+            module_name='itk',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        array = itk.GetArrayFromImage(itk_im)
+
+        if array.ndim != 3:
+            raise ValueError(
+                'ITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        array = array.transpose(2, 1, 0).copy()
+
+        return cls.from_components(
+            array=array,
+            spacing=np.array(itk_im.GetSpacing()),
+            coordinate_system=coordinate_system,
+            direction=np.reshape(itk_im.GetDirection(), (3, 3)),
+            position=np.array(itk_im.GetOrigin()),
+            frame_of_reference_uid=frame_of_reference_uid
         )
 
 
