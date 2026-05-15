@@ -782,7 +782,7 @@ Creating a volume from an ITK Image:
     )
 
 
-SImpleITK
+SimpleITK
 ~~~~~~~~~
 
 `SimpleITK`_ provides a simplified interface for the algorithms and data structures
