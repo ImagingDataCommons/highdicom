@@ -3588,7 +3588,7 @@ class Volume(_VolumeBase):
     def to_sitk(self) -> 'SimpleITK.Image':  # noqa: F821
         """Convert the Volume to ``SimpleITK.Image`` format.
 
-        The Volume is converted to a 3D ``SimpleITK.image``. If
+        The Volume is converted to a 3D ``SimpleITK.Image``. If
         its array's current datatype is not supported by SimpleITK,
         it is safely cast to a compatible type where possible. If
         impossible to cast safely, a ``ValueError`` is raised.
@@ -3599,10 +3599,11 @@ class Volume(_VolumeBase):
         - ``float128`` -> ``float64`` (with warning if possible,
           else raises error)
 
-        Spatial metadata (spacing, direction, origin) is preserved.
-        As SimpleITK uses a different dimension convention (zyx)
-        than NumPy (xyz), this method automatically applies a
-        transpose to the array.
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and SimpletITK using "LPS" convention.
+        As SimpleITK uses column-major order and NumPy uses row-major,
+        this method automatically applies a transpose to the original
+        array.
 
         Returns
         -------
@@ -3674,10 +3675,11 @@ class Volume(_VolumeBase):
         """Construct a Volume from a `SimpleITK.Image`.
 
         The ``SimpleITK.Image`` is converted to a 3D Volume.
-        Spatial metadata (spacing, direction, origin) is preserved.
-        As SimpleITK uses a different dimension convention (zyx)
-        than NumPy (xyz), this method automatically applies a
-        transpose to the array.
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and SimpletITK using "LPS" convention.
+        As SimpleITK uses column-major order and NumPy uses row-major,
+        this method automatically applies a transpose to the original
+        array.
 
         Parameters
         ----------
@@ -3740,10 +3742,10 @@ class Volume(_VolumeBase):
         - ``float128`` -> ``float64`` (with warning if possible, else
           raises error)
 
-        Spatial metadata (spacing, direction, origin) is preserved.
-        As ITK uses a different dimension convention (zyx)
-        than NumPy (xyz), this method automatically applies a
-        transpose to the array.
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and ITK using "LPS" convention. As ITK uses
+        column-major order and NumPy uses row-major, this method automatically
+        applies a transpose to the original array.
 
         Returns
         -------
@@ -3837,10 +3839,10 @@ class Volume(_VolumeBase):
         """Construct a Volume from an `itk.Image`.
 
         The ``itk.Image`` is converted to a 3D Volume.
-        Spatial metadata (spacing, direction, origin) is preserved.
-        As SimpleITK uses a different dimension convention (zyx)
-        than NumPy (xyz), this method automatically applies a
-        transpose to the array.
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and ITK using "LPS" convention. As ITK uses
+        column-major order and NumPy uses row-major, this method automatically
+        applies a transpose to the original array.
 
         Parameters
         ----------
