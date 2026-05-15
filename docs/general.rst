@@ -16,3 +16,4 @@ parts of the library.
    volume
    coding
    remote
+   other_libraries

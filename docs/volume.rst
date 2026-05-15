@@ -739,89 +739,12 @@ Many other libraries have classes that share similarities with our
 :class:`highdicom.Volume` class and allow for simple conversions between
 formats. For commonly used libraries, highdicom Volumes provide
 ``to_<library>()`` and ``from_<library>()`` methods to simplify moving to and
-from other libraries as much as possible. We have listed currently supported
-libraries below and provided example snippets implementing the conversions.
+from other libraries as much as possible. For more information about each library,
+visit the following:
 
-
-ITK
-~~~
-
-`ITK`_ is a widely-used library for volumetric image processing. We support
-conversions with its ``Image`` class through the :meth:`highdicom.Volume.to_itk`
-and :meth:`highdicom.Volume.from_itk` methods. Like highdicom, ITK uses the "LPS"
-convention. However, when converting to and from NumPy arrays, ITK reverses the
-order of dimensions. This permutation is handled automatically by highdicom and
-requires no intervention by the user.
-
-Creating an ITK Image from a Volume:
-
-.. code-block:: python
-
-    import itk
-    import highdicom as hd
-
-
-    vol = hd.Volume(...)
-
-    itk_im = vol.to_itk()
-
-Creating a volume from an ITK Image:
-
-.. code-block:: python
-
-    import itk
-    import highdicom as hd
-
-
-    itk_im = itk.image(...)
-
-    vol = hd.Volume.from_itk(
-        itk_im=itk_im,
-        coordinate_system='PATIENT',
-        frame_of_reference_uid=None
-    )
-
-
-SimpleITK
-~~~~~~~~~
-
-`SimpleITK`_ provides a simplified interface for the algorithms and data structures
-of ITK. We similarly support conversions with its ``Image`` class through the
-:meth:`highdicom.Volume.to_sitk` and :meth:`highdicom.Volume.from_sitk` methods.
-Conversion is essentially the same as the ITK interface, also using the "LPS"
-convention and reversing the order of dimensions of the array. This permutation is
-again handled automatically by highdicom and requires no intervention by the user.
-
-Creating a SimpleITK Image from a Volume:
-
-.. code-block:: python
-
-    import SimpleITK as sitk
-    import highdicom as hd
-
-
-    vol = hd.Volume(...)
-
-    sitk_im = vol.to_sitk()
-
-Creating a volume from a SimpleITK Image:
-
-.. code-block:: python
-
-    import SimpleITK as sitk
-    import highdicom as hd
-
-
-    sitk_im = sitk.image(...)
-
-    vol = hd.Volume.from_sitk(
-        sitk_im=sitk_im,
-        coordinate_system='PATIENT',
-        frame_of_reference_uid=None
-    )
+  - :ref:`ITK <itk_vol>`
+  - :ref:`SimpleITK <sitk_vol>`
 
 
 .. _`NIfTI`: https://nifti.nimh.nih.gov/
-.. _`ITK`: https://itk.org/
-.. _`SimpleITK`: https://simpleitk.org/
 .. _`nibabel`: https://nipy.org/nibabel/
