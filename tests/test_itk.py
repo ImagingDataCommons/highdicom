@@ -666,3 +666,37 @@ def test_nifti_equivalence_series(dcm_urls: Sequence[str], nifti_url: str):
     assert (
         oriented_vol.array == itk.GetArrayFromImage(itk_im).transpose(2, 1, 0)
     ).all()
+
+
+def test_multichannel_volume():
+    array = np.zeros((10, 10, 10, 2))
+    volume = Volume.from_attributes(
+        array=array,
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=2.0,
+        channels={'OpticalPathIdentifier': ['path1', 'path2']},
+        coordinate_system="PATIENT",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            'ITK conversion does not currently support'
+            ' volumes with multiple channels.'
+        )
+    ):
+        volume.to_itk()
+
+    array = np.zeros((10, 10, 10, 2))
+    itk_im = itk.GetImageFromArray(array)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            'ITK conversion does not currently support'
+            ' volumes with multiple channels.'
+        )
+    ):
+        Volume.from_itk(itk_im)

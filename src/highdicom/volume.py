@@ -3625,13 +3625,13 @@ class Volume(_VolumeBase):
             feature=f'{func.__module__}.{func.__qualname__}'
         )
 
-        array = self.array.transpose(2, 1, 0)
-
-        if array.ndim != 3:
+        if self.array.ndim != 3:
             raise ValueError(
                 'SimpleITK conversion does not currently support'
                 ' volumes with multiple channels.'
             )
+
+        array = self.array.transpose(2, 1, 0)
 
         if array.dtype == np.bool_:
             array = array.astype(np.uint8)
@@ -3708,13 +3708,15 @@ class Volume(_VolumeBase):
             feature=f'{func.__module__}.{func.__qualname__}'
         )
 
-        array = sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
+        array = sitk.GetArrayFromImage(sitk_im)
 
         if array.ndim != 3:
             raise ValueError(
                 'SimpleITK conversion does not currently support'
                 ' volumes with multiple channels.'
             )
+
+        array = array.transpose(2, 1, 0)
 
         return cls.from_components(
             array=array,
@@ -3767,13 +3769,13 @@ class Volume(_VolumeBase):
             feature=f'{func.__module__}.{func.__qualname__}'
         )
 
-        array = self.array.transpose(2, 1, 0).copy()
-
-        if array.ndim != 3:
+        if self.array.ndim != 3:
             raise ValueError(
                 'ITK conversion does not currently support'
                 ' volumes with multiple channels.'
             )
+
+        array = self.array.transpose(2, 1, 0).copy()
 
         if array.dtype == np.bool_:
             array = array.astype(np.uint8)
@@ -3871,13 +3873,15 @@ class Volume(_VolumeBase):
             feature=f'{func.__module__}.{func.__qualname__}'
         )
 
-        array = itk.GetArrayFromImage(itk_im).transpose(2, 1, 0).copy()
+        array = itk.GetArrayFromImage(itk_im)
 
         if array.ndim != 3:
             raise ValueError(
                 'ITK conversion does not currently support'
                 ' volumes with multiple channels.'
             )
+
+        array = array.transpose(2, 1, 0).copy()
 
         return cls.from_components(
             array=array,
