@@ -731,40 +731,27 @@ Writing a volume to a NIfTI file:
     nifti_path = '/path/to/nifti.nii'  # or .nii.gz
     nib.save(nifti, nifti_path)
 
-Volumes To/From ITK Images
---------------------------
 
-`ITK`_ is a widely-used library for volumetric image processing. Its ``Image``
-class shares many similarities with our :class:`highdicom.Volume` class. Like
-highdicom, ITK uses the "LPS" convention. However, when converting to and from
-NumPy arrays, ITK reverses the order of dimensions. It is important to account
-for this when performing conversions.
+Volumes To/From Other Libraries
+-------------------------------
 
-We plan to add tools to handle this conversion in the near future, but for now
-these snippets should correctly handle simple situations converting to and from
-ITK Images.
-
-Creating a volume from an ITK Image:
-
-.. code-block:: python
-
-    import itk
-    import numpy as np
-    import highdicom as hd
+Many other libraries have classes that share similarities with our
+:class:`highdicom.Volume` class and allow for simple conversions between
+formats. For commonly used libraries, highdicom Volumes provide
+``to_<library>()`` and ``from_<library>()`` methods to simplify moving to and
+from other libraries as much as possible. We have listed currently supported
+libraries below and provided example snippets implementing the conversions.
 
 
-    im = itk.image(...)
+ITK
+~~~
 
-    # Reverse array dimension order
-    array = itk.array_from_image(im).transpose([2, 1, 0])
-
-    vol2 = hd.Volume.from_components(
-        array=array,
-        direction=np.asarray(im.GetDirection()),
-        spacing=np.asarray(im.GetSpacing()),
-        position=np.asarray(im.GetOrigin()),
-        coordinate_system="PATIENT"
-    )
+`ITK`_ is a widely-used library for volumetric image processing. We support
+conversions with its ``Image`` class through the :meth:`highdicom.Volume.to_itk`
+and :meth:`highdicom.Volume.from_itk` methods. Like highdicom, ITK uses the "LPS"
+convention. However, when converting to and from NumPy arrays, ITK reverses the
+order of dimensions. This permutation is handled automatically by highdicom and
+requires no intervention by the user.
 
 Creating an ITK Image from a Volume:
 
@@ -776,15 +763,65 @@ Creating an ITK Image from a Volume:
 
     vol = hd.Volume(...)
 
-    # Reverse array dimension order
-    array = vol.array.transpose([2, 1, 0])
+    itk_im = vol.to_itk()
 
-    im = itk.image_from_array(array)
-    im.SetOrigin(vol.position)
-    im.SetDirection(vol.direction)
-    im.SetSpacing(vol.spacing)
+Creating a volume from an ITK Image:
+
+.. code-block:: python
+
+    import itk
+    import highdicom as hd
+
+
+    itk_im = itk.image(...)
+
+    vol = hd.Volume.from_itk(
+        itk_im=itk_im,
+        coordinate_system='PATIENT',
+        frame_of_reference_uid=None
+    )
+
+
+SImpleITK
+~~~~~~~~~
+
+`SimpleITK`_ provides a simplified interface for the algorithms and data structures
+of ITK. We similarly support conversions with its ``Image`` class through the
+:meth:`highdicom.Volume.to_sitk` and :meth:`highdicom.Volume.from_sitk` methods.
+Conversion is essentially the same as the ITK interface, also using the "LPS"
+convention and reversing the order of dimensions of the array. This permutation is
+again handled automatically by highdicom and requires no intervention by the user.
+
+Creating a SimpleITK Image from a Volume:
+
+.. code-block:: python
+
+    import SimpleITK as sitk
+    import highdicom as hd
+
+
+    vol = hd.Volume(...)
+
+    sitk_im = vol.to_sitk()
+
+Creating a volume from a SimpleITK Image:
+
+.. code-block:: python
+
+    import SimpleITK as sitk
+    import highdicom as hd
+
+
+    sitk_im = sitk.image(...)
+
+    vol = hd.Volume.from_sitk(
+        sitk_im=sitk_im,
+        coordinate_system='PATIENT',
+        frame_of_reference_uid=None
+    )
 
 
 .. _`NIfTI`: https://nifti.nimh.nih.gov/
 .. _`ITK`: https://itk.org/
+.. _`SimpleITK`: https://simpleitk.org/
 .. _`nibabel`: https://nipy.org/nibabel/
