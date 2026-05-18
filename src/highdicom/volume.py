@@ -3607,6 +3607,9 @@ class Volume(_VolumeBase):
     def to_sitk(self) -> 'SimpleITK.Image':  # noqa: F821
         """Convert the Volume to ``SimpleITK.Image`` format.
 
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``SimpleITK>=2.2.1``.
+
         The Volume is converted to a 3D ``SimpleITK.Image``. If
         its array's current datatype is not supported by SimpleITK,
         it is safely cast to a compatible type where possible. If
@@ -3693,6 +3696,9 @@ class Volume(_VolumeBase):
     ) -> Self:
         """Construct a Volume from a `SimpleITK.Image`.
 
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``SimpleITK>=2.2.1``.
+
         The ``SimpleITK.Image`` is converted to a 3D Volume.
         Spatial metadata (spacing, direction, origin) is preserved
         with both highdicom and SimpletITK using "LPS" convention.
@@ -3748,6 +3754,9 @@ class Volume(_VolumeBase):
 
     def to_itk(self) -> 'itk.Image':  # noqa: F821
         """Convert the volume to `itk.Image` format.
+
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``itk>=5.4.0``.
 
         The Volume is converted to a 3D ``itk.image``. If its array's
         current datatype is not supported by ITK, it is safely cast to
@@ -3858,6 +3867,9 @@ class Volume(_VolumeBase):
         frame_of_reference_uid: str | None = None,
     ) -> Self:
         """Construct a Volume from an `itk.Image`.
+
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``itk>=5.4.0``.
 
         The ``itk.Image`` is converted to a 3D Volume.
         Spatial metadata (spacing, direction, origin) is preserved
