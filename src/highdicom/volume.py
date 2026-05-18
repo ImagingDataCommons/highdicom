@@ -2504,6 +2504,15 @@ class Volume(_VolumeBase):
                 "Argument 'array' must be at least three dimensional."
             )
 
+        if not any([
+            np.issubdtype(array.dtype, dtype) for dtype in
+            [np.floating, np.integer, np.bool_]
+        ]):
+            raise ValueError(
+                "Argument 'array' must have a dtype of float, integer,"
+                f" or bool, received '{array.dtype}'."
+            )
+
         if channels is None:
             channels = {}
 
@@ -2856,6 +2865,16 @@ class Volume(_VolumeBase):
             raise ValueError(
                 "Array must match the shape of the existing array."
             )
+
+        if not any([
+            np.issubdtype(value.dtype, dtype) for dtype in
+            [np.floating, np.integer, np.bool_]
+        ]):
+            raise ValueError(
+                "Array must have a dtype of float, integer,"
+                f" or bool, received '{value.dtype}'."
+            )
+
         self._array = value
 
     def astype(self, dtype: type) -> Self:
