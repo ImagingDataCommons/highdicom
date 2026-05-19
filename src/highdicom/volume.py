@@ -3892,6 +3892,136 @@ class Volume(_VolumeBase):
             frame_of_reference_uid=frame_of_reference_uid
         )
 
+    def to_nib(self) -> 'nibabel.Nifti1Image':  # noqa: F821
+        """Convert the volume to `nibabel.Nifti1Image` format.
+
+        The Volume is converted to a 3D ``nibabel.Nifti1Image``. If its
+        array's current datatype is not supported by NiBabel, it is safely
+        cast to a compatible type where possible. If impossible to cast safely,
+        a ``ValueError`` is raised. Casting is performed on the following
+        data types:
+
+        - ``bool`` -> ``uint8``
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float128`` -> ``float64`` (with warning if possible, else
+          raises error)
+
+        Spatial metadata is preserved through the affine array. However,
+        highdicom uses "LPS" convention and NiBabel uses "RAS". This change
+        in convention is performed directly by this method.
+
+        Returns
+        -------
+        nibabel.Nifti1Image:
+            Image constructed from the volume.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+        ValueError
+            When the array's current datatype is not supported
+            and it is not possible to safely cast to a new datatype.
+
+        """
+        func = self.to_nib
+        nib = import_optional_dependency(
+            module_name='nibabel',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        if self.array.ndim != 3:
+            raise ValueError(
+                'NiBabel conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        array = self.array
+
+        if array.dtype == np.bool_:
+            array = array.astype(np.uint8)
+
+        elif array.dtype == np.float16:
+            warnings.warn(
+                'NiBabel does not support float16 data.'
+                ' Safely casting to float32.'
+            )
+            array = array.astype(np.float32)
+
+        elif array.dtype == np.float128:
+            f64 = np.finfo(np.float64)
+            if array.min() >= f64.min and array.max() <= f64.max:
+                warnings.warn(
+                    'NiBabel does not support float128 data.'
+                    ' Casting to float64, precision may be lost.'
+                )
+                array = array.astype(np.float64)
+
+            else:
+                raise ValueError(
+                    'NiBabel does not support float128 data.'
+                    ' Casting to float64 is not possible.'
+                )
+
+        nifti = nib.Nifti1Image(
+            array,
+            self.get_affine('RAS'),
+            dtype=array.dtype
+        )
+
+        return nifti
+
+    @classmethod
+    def from_nib(
+        cls,
+        nifti: 'nibabel.Nifti1Image',  # noqa: F821
+        coordinate_system: CoordinateSystemNames | str = 'PATIENT',
+        frame_of_reference_uid: str | None = None
+    ) -> Self:
+        """Construct a Volume from an `nibabel.Nifti1Image`.
+
+        The ``nibabel.Nifti1Image`` is converted to a 3D Volume.
+        Spatial metadata is preserved through the affine array. However,
+        highdicom uses "LPS" convention and NiBabel uses "RAS". This change
+        in convention is performed directly by this method.
+
+        Parameters
+        ----------
+        nifti: nibabel.Nifti1Image
+            An ``nibabel.Nifti1Image`` to convert to a volume.
+        coordinate_system: highdicom.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the `itk.Image`.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+
+        """
+        array = np.asarray(nifti.dataobj)
+
+        if array.ndim != 3:
+            raise ValueError(
+                'NiBabel conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        return cls(
+            array=array,
+            affine=nifti.affine,
+            coordinate_system=coordinate_system,
+            frame_of_reference_uid=frame_of_reference_uid,
+            from_reference_convention='RAS'
+        )
+
 
 class VolumeToVolumeTransformer:
 
