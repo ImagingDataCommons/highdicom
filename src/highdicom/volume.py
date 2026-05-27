@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import itertools
-from typing import cast, Union
+from typing import cast, Union, Literal
 from collections.abc import Sequence
 from pydicom.tag import BaseTag
 from typing_extensions import Self
@@ -2873,7 +2873,60 @@ class Volume(_VolumeBase):
             volume.
 
         """
-        new_array = self._array.astype(dtype)
+        array = self._array
+
+        original_dtype = array.dtype
+        if np.issubdtype(original_dtype, np.floating):
+            original_info = np.finfo(original_dtype)
+        elif np.issubdtype(original_dtype, np.integer):
+            original_info = np.iinfo(original_dtype)
+
+
+        if np.issubdtype(dtype, np.floating):
+            info = np.finfo(dtype)
+            if array.min() >= info.min and array.max() <= info.max:
+                # if (
+                #     np.issubdtype(original_dtype, np.floating)
+                #     and original_info.bits > info.bits
+                # ) or (
+                #     np.issubdtype(original_dtype, np.integer)
+                #     and original_info.bits > info.nmant
+                # ):
+                #     warnings.warn(
+                #         f'Casting from {original_dtype} to {dtype}'
+                #         ' may involve a loss of precision.'
+                #     )
+                # new_array = array.astype(dtype)
+            else:
+                raise ValueError(
+                    f'Cannot cast {original_dtype} to {dtype}.'
+                    f' Values exceed supported range: [{info.min}, {info.max}].'
+                )
+
+        elif np.issubdtype(dtype, np.integer):
+            info = np.iinfo(dtype)
+            if array.min() >= info.min and array.max() <= info.max:
+                new_array = array.astype(dtype)
+            #     if not (array == new_array).all():
+            #         raise ValueError(
+            #             f'Cannot cast from {original_dtype} to {dtype} safely.'
+            #         )
+            else:
+                raise ValueError(
+                    f'Cannot cast {original_ddtype} to {dtype}.'
+                    f' Values exceed supported range: [{info.min}, {info.max}].'
+                )
+
+        elif np.issubdtype(dtype, np.bool_):
+            unique = np.unique(array)
+            if not np.isin(unique, [0, 1]).all():
+                raise ValueError(
+                    f'Cannot cast to {dtype}. Encountered unique values: {unique}.'
+                )
+            new_array = array.astype(dtype)
+
+        else:
+            raise ValueError(f'Casting to {dtype} is not supported.')
 
         return self.with_array(new_array)
 
@@ -3892,7 +3945,17 @@ class Volume(_VolumeBase):
             frame_of_reference_uid=frame_of_reference_uid
         )
 
-    def to_nib(self) -> 'nibabel.Nifti1Image':  # noqa: F821
+    def to_nibabel(
+        self,
+        image_class = Literal[
+            'Nifti1Image',
+            'Nifti2Image',
+            'MGHImage',
+            'Minc1Image',
+            'Minc2Image',
+            'AnalyzeImage'
+        ] = 'Nifti1Image'
+    ) -> 'nibabel.spatialimages.SpatialImage':  # noqa: F821
         """Convert the volume to `nibabel.Nifti1Image` format.
 
         The Volume is converted to a 3D ``nibabel.Nifti1Image``. If its
@@ -3924,11 +3987,13 @@ class Volume(_VolumeBase):
             and it is not possible to safely cast to a new datatype.
 
         """
-        func = self.to_nib
+        func = self.to_nibabel
         nib = import_optional_dependency(
             module_name='nibabel',
             feature=f'{func.__module__}.{func.__qualname__}'
         )
+
+        image_class = getattr(nib, image_class)
 
         if self.array.ndim != 3:
             raise ValueError(
@@ -3938,43 +4003,247 @@ class Volume(_VolumeBase):
 
         array = self.array
 
-        if array.dtype == np.bool_:
-            array = array.astype(np.uint8)
+        if image_class in [nib.Nifti1Image, nib.Nifti2Image]:
+            if array.dtype == np.bool_:
+                array = array.astype(np.uint8)
 
-        elif array.dtype == np.float16:
-            warnings.warn(
-                'NiBabel does not support float16 data.'
-                ' Safely casting to float32.'
-            )
-            array = array.astype(np.float32)
-
-        elif array.dtype == np.float128:
-            f64 = np.finfo(np.float64)
-            if array.min() >= f64.min and array.max() <= f64.max:
+            elif array.dtype == np.float16:
                 warnings.warn(
-                    'NiBabel does not support float128 data.'
-                    ' Casting to float64, precision may be lost.'
+                    f'NiBabel\'s {image_class} class does not support'
+                    ' float16 data. Safely casting to float32.'
                 )
-                array = array.astype(np.float64)
+                array = array.astype(np.float32)
 
-            else:
-                raise ValueError(
-                    'NiBabel does not support float128 data.'
-                    ' Casting to float64 is not possible.'
+            elif array.dtype == np.float128:
+                f64 = np.finfo(np.float64)
+                if array.min() >= f64.min and array.max() <= f64.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' float128 data. Casting to float64, precision may be lost.'
+                    )
+                    array = array.astype(np.float64)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' float128 data. Casting to float64 is not possible.'
+                    )
+        elif image_class == nib.MGHImage:
+            if array.dtype == np.bool_:
+                array = array.astype(np.uint8)
+
+            elif array.dtype == np.uint32:
+                i32 = np.iinfo(np.int32)
+                if array.min() >= i32.min and array.max() <= i32.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint32 data. Safely casting to int32.'
+                    )
+                    array = array.astype(np.int32)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint32 data. Casting to int32 is not possible.'
+                    )
+
+            elif array.dtype == np.uint64:
+                i32 = np.iinfo(np.i32)
+                if array.min() >= i32.min and array.max() <= i32.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint64 data. Safely casting to int32.'
+                    )
+                    array = array.astype(np.int32)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint64 data. Casting to int32 is not possible.'
+                    )
+
+            elif array.dtype == np.int8:
+                warnings.warn(
+                    f'NiBabel\'s {image_class} class does not support'
+                    ' int8 data. Safely casting to int16.'
                 )
+                array = array.astype(np.int16)
 
-        nifti = nib.Nifti1Image(
+            elif array.dtype == np.int64:
+                i32 = np.iinfo(np.i32)
+                if array.min() >= i32.min and array.max() <= i32.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' int64 data. Safely casting to int32.'
+                    )
+                    array = array.astype(np.int32)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint64 data. Casting to int32 is not possible.'
+                    )
+
+            elif array.dtype == np.float16:
+                warnings.warn(
+                    f'NiBabel\'s {image_class} class does not support'
+                    ' float16 data. Safely casting to float32.'
+                )
+                array = array.astype(np.float32)
+
+            elif array.dtype == np.float64:
+                f32 = np.finfo(np.float32)
+                if array.min() >= f32.min and array.max() <= f32.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' float64 data. Casting to float32, precision may be lost.'
+                    )
+                    array = array.astype(np.float32)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' float64 data. Casting to float32 is not possible.'
+                    )
+
+            elif array.dtype == np.float128:
+                f32 = np.finfo(np.float32)
+                if array.min() >= f32.min and array.max() <= f32.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' float128 data. Casting to float32, precision may be lost.'
+                    )
+                    array = array.astype(np.float64)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' float128 data. Casting to float32 is not possible.'
+                    )
+
+        elif image_class == nib.AnalyzeImage:
+            if array.dtype == np.bool_:
+                array = array.astype(np.uint8)
+
+            elif array.dtype == np.uint16:
+                i32 = np.iinfo(np.int32)
+                if array.min() >= i32.min and array.max() <= i32.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint16 data. Safely casting to int32.'
+                    )
+                    array = array.astype(np.int32)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint32 data. Casting to int32 is not possible.'
+                    )
+
+            elif array.dtype == np.uint32:
+                i32 = np.iinfo(np.int32)
+                if array.min() >= i32.min and array.max() <= i32.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint32 data. Safely casting to uint16.'
+                    )
+                    array = array.astype(np.int32)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint32 data. Casting to int32 is not possible.'
+                    )
+
+            elif array.dtype == np.uint64:
+                i32 = np.iinfo(np.i32)
+                if array.min() >= i32.min and array.max() <= i32.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint64 data. Safely casting to int32.'
+                    )
+                    array = array.astype(np.int32)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint64 data. Casting to int32 is not possible.'
+                    )
+
+            elif array.dtype == np.int8:
+                warnings.warn(
+                    f'NiBabel\'s {image_class} class does not support'
+                    ' int8 data. Safely casting to int16.'
+                )
+                array = array.astype(np.int16)
+
+            elif array.dtype == np.int64:
+                i32 = np.iinfo(np.i32)
+                if array.min() >= i32.min and array.max() <= i32.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' int64 data. Safely casting to int32.'
+                    )
+                    array = array.astype(np.int32)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' uint64 data. Casting to int32 is not possible.'
+                    )
+
+            elif array.dtype == np.float16:
+                warnings.warn(
+                    f'NiBabel\'s {image_class} class does not support'
+                    ' float16 data. Safely casting to float32.'
+                )
+                array = array.astype(np.float32)
+
+            elif array.dtype == np.float64:
+                f32 = np.finfo(np.float32)
+                if array.min() >= f32.min and array.max() <= f32.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' float64 data. Casting to float32, precision may be lost.'
+                    )
+                    array = array.astype(np.float32)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' float64 data. Casting to float32 is not possible.'
+                    )
+
+            elif array.dtype == np.float128:
+                f32 = np.finfo(np.float32)
+                if array.min() >= f32.min and array.max() <= f32.max:
+                    warnings.warn(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' float128 data. Casting to float32, precision may be lost.'
+                    )
+                    array = array.astype(np.float64)
+
+                else:
+                    raise ValueError(
+                        f'NiBabel\'s {image_class} class does not support'
+                        ' float128 data. Casting to float32 is not possible.'
+                    )
+
+
+        header = image_class.header_class()
+        header.set_data_dtype(array.dtype)
+        image = image_class(
             array,
             self.get_affine('RAS'),
-            dtype=array.dtype
+            header=header
         )
 
-        return nifti
+        return image
 
     @classmethod
-    def from_nib(
+    def from_nibabel(
         cls,
-        nifti: 'nibabel.Nifti1Image',  # noqa: F821
+        nifti: 'nibabel.spatialimages.SpatialImage',  # noqa: F821
         coordinate_system: CoordinateSystemNames | str = 'PATIENT',
         frame_of_reference_uid: str | None = None
     ) -> Self:

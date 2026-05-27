@@ -385,7 +385,7 @@ def read_github_nib(url: str):
     ]
 )
 def test_roundtrip(vol: Volume):
-    nifti = vol.to_nib()
+    nifti = vol.to_nibabel()
 
     assert np.allclose(vol.get_affine('RAS'), nifti.affine, atol=1e-4)
     assert (vol.array == nifti.dataobj).all()
@@ -430,7 +430,7 @@ def test_dtype_nib(dtype: np.dtype):
     if dtype == np.bool_:
         volume.array = np.round(rng.random(size=size)).astype(dtype)
 
-        nib_roundtrip = Volume.from_nib(volume.to_nib())
+        nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
         assert nib_roundtrip.dtype == np.uint8
         assert (nib_roundtrip.array == volume.array).all()
 
@@ -445,7 +445,7 @@ def test_dtype_nib(dtype: np.dtype):
                 ' Safely casting to float32.'
             )
         ):
-            nib_roundtrip = Volume.from_nib(volume.to_nib())
+            nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
 
         assert nib_roundtrip.dtype == np.float32
         assert (nib_roundtrip.array == volume.array).all()
@@ -462,7 +462,7 @@ def test_dtype_nib(dtype: np.dtype):
                 ' Casting to float64, precision may be lost.'
             )
         ):
-            nib_roundtrip = Volume.from_nib(volume.to_nib())
+            nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
 
         assert nib_roundtrip.dtype == np.float64
         assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
@@ -475,7 +475,7 @@ def test_dtype_nib(dtype: np.dtype):
                 ' Casting to float64 is not possible.'
             )
         ):
-            nib_roundtrip = Volume.from_nib(volume.to_nib())
+            nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
 
         volume.array[(0, 0, 0)] = 1.1 * np.float128(np.finfo(np.float64).min)
         with pytest.raises(
@@ -485,13 +485,13 @@ def test_dtype_nib(dtype: np.dtype):
                 ' Casting to float64 is not possible.'
             )
         ):
-            nib_roundtrip = Volume.from_nib(volume.to_nib())
+            nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
 
     elif np.issubdtype(dtype, np.integer):
         ib = np.iinfo(dtype)
         volume.array = rng.integers(ib.min, ib.max, size=size, dtype=dtype)
 
-        nib_roundtrip = Volume.from_nib(volume.to_nib())
+        nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
         assert nib_roundtrip.dtype == volume.dtype
         assert (nib_roundtrip.array == volume.array).all()
 
@@ -500,7 +500,7 @@ def test_dtype_nib(dtype: np.dtype):
         array = rng.random(size).astype(dtype)
         volume.array = (2 * array - 1) * 0.9 * fb.max
 
-        nib_roundtrip = Volume.from_nib(volume.to_nib())
+        nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
         assert nib_roundtrip.dtype == volume.dtype
         assert (nib_roundtrip.array == volume.array).all()
 
@@ -627,7 +627,7 @@ def test_multichannel_volume():
             ' volumes with multiple channels.'
         )
     ):
-        volume.to_nib()
+        volume.to_nibabel()
 
     array = np.zeros((10, 10, 10, 2))
     nifti = nib.Nifti1Image(array, np.eye(4))
@@ -639,4 +639,4 @@ def test_multichannel_volume():
             ' volumes with multiple channels.'
         )
     ):
-        Volume.from_nib(nifti)
+        Volume.from_nibabel(nifti)
