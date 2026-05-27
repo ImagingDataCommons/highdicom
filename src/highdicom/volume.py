@@ -3608,7 +3608,7 @@ class Volume(_VolumeBase):
         """Convert the Volume to ``SimpleITK.Image`` format.
 
         This method requires an optional dependency to be installed
-        separately from highdicom, specifically ``SimpleITK>=2.2.1``.
+        separately from highdicom, specifically ``SimpleITK``.
 
         The Volume is converted to a 3D ``SimpleITK.Image``. If
         its array's current datatype is not supported by SimpleITK,
@@ -3697,7 +3697,7 @@ class Volume(_VolumeBase):
         """Construct a Volume from a `SimpleITK.Image`.
 
         This method requires an optional dependency to be installed
-        separately from highdicom, specifically ``SimpleITK>=2.2.1``.
+        separately from highdicom, specifically ``SimpleITK``.
 
         The ``SimpleITK.Image`` is converted to a 3D Volume.
         Spatial metadata (spacing, direction, origin) is preserved
@@ -3756,7 +3756,7 @@ class Volume(_VolumeBase):
         """Convert the volume to `itk.Image` format.
 
         This method requires an optional dependency to be installed
-        separately from highdicom, specifically ``itk>=5.4.0``.
+        separately from highdicom, specifically ``itk``.
 
         The Volume is converted to a 3D ``itk.image``. If its array's
         current datatype is not supported by ITK, it is safely cast to
@@ -3869,7 +3869,7 @@ class Volume(_VolumeBase):
         """Construct a Volume from an `itk.Image`.
 
         This method requires an optional dependency to be installed
-        separately from highdicom, specifically ``itk>=5.4.0``.
+        separately from highdicom, specifically ``itk``.
 
         The ``itk.Image`` is converted to a 3D Volume.
         Spatial metadata (spacing, direction, origin) is preserved
