@@ -2871,8 +2871,8 @@ class Volume(_VolumeBase):
             [np.floating, np.integer, np.bool_]
         ]):
             raise ValueError(
-                "Array must have a dtype of float, integer,"
-                f" or bool, received '{value.dtype}'."
+                "Argument 'array' must have an integer, floating point, "
+                f" or boolean dtype, received '{array.dtype}'."
             )
 
         self._array = value
