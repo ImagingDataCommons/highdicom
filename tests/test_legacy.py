@@ -1291,12 +1291,14 @@ def test_unsorted():
         ('ANTECUBITALV', Code('128553008', 'SCT', 'Antecubital vein'), ''),
         # An unpaired structure, expect laterality default of 'U'
         ('HEAD', Code('69536005', 'SCT', 'Head'), 'U'),
+        # An unrecognized structure, expect no frame anatomy sequence
+        ('FIFTHTENTACLE', None, ''),
     ]
 )
 def test_body_part_mapping(
     modality: Modality,
     body_part_examined: str,
-    region: Code,
+    region: Code | None,
     expected_laterality: str,
 ):
     """Test that BodyPartExamined is correctly mapped to a coded
@@ -1321,24 +1323,29 @@ def test_body_part_mapping(
     )
 
     sfgs = converted.SharedFunctionalGroupsSequence[0]
-    assert hasattr(sfgs, 'FrameAnatomySequence')
-    fr_an_seq = sfgs.FrameAnatomySequence[0]
-    assert (
-        fr_an_seq.AnatomicRegionSequence[0].CodeValue ==
-        region.value
-    )
-    assert (
-        fr_an_seq.AnatomicRegionSequence[0].CodeMeaning ==
-        region.meaning
-    )
-    assert (
-        fr_an_seq.AnatomicRegionSequence[0].CodingSchemeDesignator ==
-        region.scheme_designator
-    )
-    assert fr_an_seq.FrameLaterality == expected_laterality
 
-    # The body part examined should not be used
-    assert "BodyPartExamined" not in converted
+    if region is None:
+        assert 'FrameAnatomySequence' not in sfgs
+        assert converted.BodyPartExamined == body_part_examined
+    else:
+        assert hasattr(sfgs, 'FrameAnatomySequence')
+        fr_an_seq = sfgs.FrameAnatomySequence[0]
+        assert (
+            fr_an_seq.AnatomicRegionSequence[0].CodeValue ==
+            region.value
+        )
+        assert (
+            fr_an_seq.AnatomicRegionSequence[0].CodeMeaning ==
+            region.meaning
+        )
+        assert (
+            fr_an_seq.AnatomicRegionSequence[0].CodingSchemeDesignator ==
+            region.scheme_designator
+        )
+        assert fr_an_seq.FrameLaterality == expected_laterality
+
+        # The body part examined should not be used
+        assert "BodyPartExamined" not in converted
 
 
 def test_laterality_from_region_modifier(modality: Modality):

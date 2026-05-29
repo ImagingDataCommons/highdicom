@@ -649,6 +649,11 @@ class _LegacyConversionRunner:
                 custom_logic_callback=self._frame_anatomy_custom_logic,
                 required=False,
             )
+        elif self._keyword_shared_dict.get("BodyPartExamined", False):
+            # Add the unrecognized BodyPartExamined to the base dataset
+            self._destination.BodyPartExamined = (
+                self._legacy_datasets[0].BodyPartExamined
+            )
 
         self._add_functional_group(
             "FrameContentSequence",
@@ -1552,8 +1557,8 @@ class _LegacyConversionRunner:
         if "AcquisitionDateTime" in source:
             fa_dt = DT(source.AcquisitionDateTime)
         elif "AcquisitionDate" in source and "AcquisitionTime" in source:
-            da = DA(source.AcquisitionDate)
-            tm = TM(source.AcquisitionTime)
+            da: DA | None = DA(source.AcquisitionDate)
+            tm: TM | None = TM(source.AcquisitionTime)
             if da is not None and tm is not None:
                 fa_dt = DT(datetime.combine(da, tm))
 
@@ -2432,22 +2437,22 @@ class _CommonLegacyConvertedEnhancedImage(Image):
                     frame_content_datetime = dt
                     frame_acquisition_datetime = dt
             elif "AcquisitionDate" in src and "AcquisitionTime" in src:
-                da: DA | None = DA(src.AcquisitionDate)
-                tm: TM | None = TM(src.AcquisitionTime)
-                if da is not None and tm is not None:
-                    frame_content_datetime = DT.combine(da, tm)
+                acq_da: DA | None = DA(src.AcquisitionDate)
+                acq_tm: TM | None = TM(src.AcquisitionTime)
+                if acq_da is not None and acq_tm is not None:
+                    frame_content_datetime = DT.combine(acq_da, acq_tm)
                     frame_acquisition_datetime = frame_content_datetime
             elif "SeriesDate" in src and "SeriesTime" in src:
-                da: DA | None = DA(src.SeriesDate)
-                tm: TM | None = TM(src.SeriesTime)
-                if da is not None and tm is not None:
-                    frame_content_datetime = DT.combine(da, tm)
+                series_da: DA | None = DA(src.SeriesDate)
+                series_tm: TM | None = TM(src.SeriesTime)
+                if series_da is not None and series_tm is not None:
+                    frame_content_datetime = DT.combine(series_da, series_tm)
             elif "StudyDate" in src and "StudyTime" in src:
                 # Type 2 attributes: have to check for the empty case
-                da: DA | None = DA(src.StudyDate)
-                tm: TM | None = TM(src.StudyTime)
-                if da is not None and tm is not None:
-                    frame_content_datetime = DT.combine(da, tm)
+                study_da: DA | None = DA(src.StudyDate)
+                study_tm: TM | None = TM(src.StudyTime)
+                if study_da is not None and study_tm is not None:
+                    frame_content_datetime = DT.combine(study_da, study_tm)
 
             if frame_content_datetime is not None:
                 # For comparison to be valid, need to ensure presence of time

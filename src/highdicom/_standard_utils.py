@@ -119,8 +119,8 @@ def get_anatomic_region_map() -> dict[str, tuple[CodedConcept, bool]]:
     the old "BodyPartExamined" attribute to the more standardized
     "AnatomicRegionSequence", using SNOMED controlled terminology.
 
-    The pairings have been added by the highdicom authors and are not part of the
-    standard.
+    The pairings have been added by the highdicom authors and are not part of
+    the standard.
 
     Returns
     -------
