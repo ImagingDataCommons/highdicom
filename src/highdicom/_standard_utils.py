@@ -111,7 +111,7 @@ def get_module_attribute_map() -> dict[str, list]:
 
 
 @lru_cache(maxsize=1)
-def get_anatomic_region_map() -> dict[str, CodedConcept]:
+def get_anatomic_region_map() -> dict[str, tuple[CodedConcept, bool]]:
     """Get a mapping from body part examined to SCT codes.
 
     This mapping is defined in table L1 the standard at :dcm:`Annex L
@@ -119,9 +119,12 @@ def get_anatomic_region_map() -> dict[str, CodedConcept]:
     the old "BodyPartExamined" attribute to the more standardized
     "AnatomicRegionSequence", using SNOMED controlled terminology.
 
+    The pairings have been added by the highdicom authors and are not part of the
+    standard.
+
     Returns
     -------
-    dict[str, highdicom.sr.CodedConcept]
+    dict[str, tuple[highdicom.sr.CodedConcept]]
         Mapping from old-style BodyPartExamined values to SNOMED codes used for
         AnatomicRegionSequence.
 
@@ -136,7 +139,10 @@ def get_anatomic_region_map() -> dict[str, CodedConcept]:
     anatomic_regions = json.loads(data_file.decode("utf-8"))
 
     return {
-        k: CodedConcept(value=v[1], scheme_designator=v[0], meaning=v[2])
+        k: (
+            CodedConcept(value=v[1], scheme_designator=v[0], meaning=v[2]),
+            v[3]
+        )
         for k, v in anatomic_regions.items()
     }
 

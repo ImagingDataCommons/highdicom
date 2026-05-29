@@ -1457,6 +1457,9 @@ class _LegacyConversionRunner:
             Dataset to copy to.
 
         """
+        # If unknown, assume a structure is paired
+        is_paired = True
+
         if hasattr(source, "AnatomicRegionSequence"):
             destination.AnatomicRegionSequence = deepcopy(
                 source.AnatomicRegionSequence
@@ -1471,7 +1474,7 @@ class _LegacyConversionRunner:
             # non-standard value.
             mapping = get_anatomic_region_map()
             if source.BodyPartExamined in mapping:
-                code = mapping[source.BodyPartExamined]
+                code, is_paired = mapping[source.BodyPartExamined]
 
                 destination.AnatomicRegionSequence = [code]
 
@@ -1517,15 +1520,16 @@ class _LegacyConversionRunner:
 
                     # Replace empty value, commonly seen in legacy files, with
                     # "unpaired"
-                    if src_laterality == "":
+                    if src_laterality == "" and not is_paired:
                         src_laterality = "U"
 
                     destination.FrameLaterality = src_laterality
                     self._mark_keyword_used(kw)
                     break
             else:
-                # No laterality information, just assume unilateral
-                destination.FrameLaterality = "U"
+                # No laterality information, just assume unpaired if an
+                # unpaired structure, else leave empty
+                destination.FrameLaterality = "" if is_paired else "U"
 
     def _frame_content_custom_logic(
         self,

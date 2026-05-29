@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 from pydicom import FileDataset, FileMetaDataset, Dataset
+from pydicom.sr.coding import Code
 from pydicom.data import get_testdata_file
 from pydicom.datadict import tag_for_keyword
 from pydicom.dataelem import DataElement
@@ -1283,7 +1284,21 @@ def test_unsorted():
         assert frame_source_uid == ds.SOPInstanceUID
 
 
-def test_body_part_mapping(modality: Modality):
+@pytest.mark.parametrize(
+    'body_part_examined,region,expected_laterality',
+    [
+        # A paired structure, expect no laterality information
+        ('ANTECUBITALV', Code('128553008', 'SCT', 'Antecubital vein'), ''),
+        # An unpaired structure, expect laterality default of 'U'
+        ('HEAD', Code('69536005', 'SCT', 'Head'), 'U'),
+    ]
+)
+def test_body_part_mapping(
+    modality: Modality,
+    body_part_examined: str,
+    region: Code,
+    expected_laterality: str,
+):
     """Test that BodyPartExamined is correctly mapped to a coded
     AnatomicRegionSequence.
 
@@ -1293,11 +1308,6 @@ def test_body_part_mapping(modality: Modality):
     legacy_datasets = data_generator.generate_mixed_framesets(
         modality, 1, True, True
     )
-
-    body_part_examined = 'ANTECUBITALV'
-    expected_scheme_designator = 'SCT'
-    expected_code_value = '128553008'
-    expected_code_meaning = 'Antecubital vein'
 
     for dcm in legacy_datasets:
         dcm.BodyPartExamined = body_part_examined
@@ -1315,17 +1325,17 @@ def test_body_part_mapping(modality: Modality):
     fr_an_seq = sfgs.FrameAnatomySequence[0]
     assert (
         fr_an_seq.AnatomicRegionSequence[0].CodeValue ==
-        expected_code_value
+        region.value
     )
     assert (
         fr_an_seq.AnatomicRegionSequence[0].CodeMeaning ==
-        expected_code_meaning
+        region.meaning
     )
     assert (
         fr_an_seq.AnatomicRegionSequence[0].CodingSchemeDesignator ==
-        expected_scheme_designator
+        region.scheme_designator
     )
-    assert fr_an_seq.FrameLaterality == 'U'  # unimodal (default)
+    assert fr_an_seq.FrameLaterality == expected_laterality
 
     # The body part examined should not be used
     assert "BodyPartExamined" not in converted

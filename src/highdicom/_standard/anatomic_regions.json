@@ -2,1586 +2,1904 @@
   "ABDOMEN": [
     "SCT",
     "818981001",
-    "Abdomen"
+    "Abdomen",
+    false
   ],
   "ABDOMENPELVIS": [
     "SCT",
     "818982008",
-    "Abdomen and Pelvis"
+    "Abdomen and Pelvis",
+    false
   ],
   "ABDOMINALAORTA": [
     "SCT",
     "7832008",
-    "Abdominal aorta"
+    "Abdominal aorta",
+    false
   ],
   "ACJOINT": [
     "SCT",
     "85856004",
-    "Acromioclavicular joint"
+    "Acromioclavicular joint",
+    true
   ],
   "ADRENAL": [
     "SCT",
     "23451007",
-    "Adrenal gland"
+    "Adrenal gland",
+    true
   ],
   "AMNIOTICFLUID": [
     "SCT",
     "77012006",
-    "Amniotic fluid"
+    "Amniotic fluid",
+    false
   ],
   "ANKLE": [
     "SCT",
     "70258002",
-    "Ankle joint"
+    "Ankle joint",
+    true
   ],
   "ANTECUBITALV": [
     "SCT",
     "128553008",
-    "Antecubital vein"
+    "Antecubital vein",
+    true
   ],
   "ANTCARDIACV": [
     "SCT",
     "194996006",
-    "Anterior cardiac vein"
+    "Anterior cardiac vein",
+    false
   ],
   "ACA": [
     "SCT",
     "60176003",
-    "Anterior cerebral artery"
+    "Anterior cerebral artery",
+    true
   ],
   "ANTCOMMA": [
     "SCT",
     "8012006",
-    "Anterior communicating artery"
+    "Anterior communicating artery",
+    false
   ],
   "ANTSPINALA": [
     "SCT",
     "17388009",
-    "Anterior spinal artery"
+    "Anterior spinal artery",
+    false
   ],
   "ANTTIBIALA": [
     "SCT",
     "68053000",
-    "Anterior tibial artery"
+    "Anterior tibial artery",
+    true
   ],
   "ANUSRECTUMSIGMD": [
     "SCT",
     "110612005",
-    "Anus, rectum and sigmoid colon"
+    "Anus, rectum and sigmoid colon",
+    false
   ],
   "AORTA": [
     "SCT",
     "15825003",
-    "Aorta"
+    "Aorta",
+    false
   ],
   "AORTICARCH": [
     "SCT",
     "57034009",
-    "Aortic arch"
+    "Aortic arch",
+    false
   ],
   "APPENDIX": [
     "SCT",
     "66754008",
-    "Appendix"
+    "Appendix",
+    false
   ],
   "ARTERY": [
     "SCT",
     "51114001",
-    "Artery"
+    "Artery",
+    false
   ],
   "ASCAORTA": [
     "SCT",
     "54247002",
-    "Ascending aorta"
+    "Ascending aorta",
+    false
   ],
   "ASCENDINGCOLON": [
     "SCT",
     "9040008",
-    "Ascending colon"
+    "Ascending colon",
+    false
   ],
   "AXILLA": [
     "SCT",
     "91470000",
-    "Axilla"
+    "Axilla",
+    true
   ],
   "AXILLARYA": [
     "SCT",
     "67937003",
-    "Axillary Artery"
+    "Axillary Artery",
+    true
   ],
   "AXILLARYV": [
     "SCT",
     "68705008",
-    "Axillary vein"
+    "Axillary vein",
+    true
   ],
   "AZYGOSVEIN": [
     "SCT",
     "72107004",
-    "Azygos vein"
+    "Azygos vein",
+    false
   ],
   "BACK": [
     "SCT",
     "77568009",
-    "Back"
+    "Back",
+    false
   ],
   "BASILARA": [
     "SCT",
     "59011009",
-    "Basilar artery"
+    "Basilar artery",
+    false
   ],
   "BILEDUCT": [
     "SCT",
     "28273000",
-    "Bile duct"
+    "Bile duct",
+    false
   ],
   "BILIARYTRACT": [
     "SCT",
     "34707002",
-    "Biliary tract"
+    "Biliary tract",
+    false
   ],
   "BLADDER": [
     "SCT",
     "89837001",
-    "Bladder"
+    "Bladder",
+    false
   ],
   "BLADDERURETHRA": [
     "SCT",
     "110837003",
-    "Bladder and urethra"
+    "Bladder and urethra",
+    false
   ],
   "BRACHIALA": [
     "SCT",
     "17137000",
-    "Brachial artery"
+    "Brachial artery",
+    true
   ],
   "BRACHIALV": [
     "SCT",
     "20115005",
-    "Brachial vein"
+    "Brachial vein",
+    true
   ],
   "BRAIN": [
     "SCT",
     "12738006",
-    "Brain"
+    "Brain",
+    false
   ],
   "BREAST": [
     "SCT",
     "76752008",
-    "Breast"
+    "Breast",
+    true
   ],
   "BRONCHUS": [
     "SCT",
     "955009",
-    "Bronchus"
+    "Bronchus",
+    true
   ],
   "BUTTOCK": [
     "SCT",
     "46862004",
-    "Buttock"
+    "Buttock",
+    true
   ],
   "CALCANEUS": [
     "SCT",
     "80144004",
-    "Calcaneus"
+    "Calcaneus",
+    true
   ],
   "CALF": [
     "SCT",
     "53840002",
-    "Calf of leg"
+    "Calf of leg",
+    true
   ],
   "CARDIOVASCSYS": [
     "SCT",
     "113257007",
-    "Cardiovascular system"
+    "Cardiovascular system",
+    false
   ],
   "CAROTID": [
     "SCT",
     "69105007",
-    "Carotid Artery"
+    "Carotid Artery",
+    true
   ],
   "BULB": [
     "SCT",
     "21479005",
-    "Carotid bulb"
+    "Carotid bulb",
+    true
   ],
   "CELIACA": [
     "SCT",
     "57850000",
-    "Celiac artery"
+    "Celiac artery",
+    false
   ],
   "CEPHALICV": [
     "SCT",
     "20699002",
-    "Cephalic vein"
+    "Cephalic vein",
+    true
   ],
   "CEREBELLUM": [
     "SCT",
     "113305005",
-    "Cerebellum"
+    "Cerebellum",
+    false
   ],
   "CEREBRALA": [
     "SCT",
     "88556005",
-    "Cerebral artery"
+    "Cerebral artery",
+    true
   ],
   "CEREBHEMISPHERE": [
     "SCT",
     "372073000",
-    "Cerebral hemisphere"
+    "Cerebral hemisphere",
+    true
   ],
   "CSPINE": [
     "SCT",
     "122494005",
-    "Cervical spine"
+    "Cervical spine",
+    false
   ],
   "CTSPINE": [
     "SCT",
     "1217257000",
-    "Cervico-thoracic spine"
+    "Cervico-thoracic spine",
+    false
   ],
   "CERVIX": [
     "SCT",
     "71252005",
-    "Cervix"
+    "Cervix",
+    false
   ],
   "CHEEK": [
     "SCT",
     "60819002",
-    "Cheek"
+    "Cheek",
+    true
   ],
   "CHEST": [
     "SCT",
     "816094009",
-    "Chest"
+    "Chest",
+    false
   ],
   "CHESTABDPELVIS": [
     "SCT",
     "416775004",
-    "Chest, Abdomen and Pelvis"
+    "Chest, Abdomen and Pelvis",
+    false
   ],
   "CHESTABDOMEN": [
     "SCT",
     "416550000",
-    "Chest and Abdomen"
+    "Chest and Abdomen",
+    false
   ],
   "CHOROIDPLEXUS": [
     "SCT",
     "80621003",
-    "Choroid plexus"
+    "Choroid plexus",
+    false
   ],
   "CIRCLEOFWILLIS": [
     "SCT",
     "11279006",
-    "Circle of Willis"
+    "Circle of Willis",
+    false
   ],
   "CLAVICLE": [
     "SCT",
     "51299004",
-    "Clavicle"
+    "Clavicle",
+    true
   ],
   "COCCYX": [
     "SCT",
     "64688005",
-    "Coccyx"
+    "Coccyx",
+    false
   ],
   "COLON": [
     "SCT",
     "71854001",
-    "Colon"
+    "Colon",
+    false
   ],
   "COMMONBILEDUCT": [
     "SCT",
     "79741001",
-    "Common bile duct"
+    "Common bile duct",
+    false
   ],
   "CCA": [
     "SCT",
     "32062004",
-    "Common carotid artery"
+    "Common carotid artery",
+    true
   ],
   "CFA": [
     "SCT",
     "181347005",
-    "Common femoral artery"
+    "Common femoral artery",
+    true
   ],
   "CFV": [
     "SCT",
     "397363009",
-    "Common femoral vein"
+    "Common femoral vein",
+    true
   ],
   "COMILIACA": [
     "SCT",
     "73634005",
-    "Common iliac artery"
+    "Common iliac artery",
+    true
   ],
   "COMILIACV": [
     "SCT",
     "46027005",
-    "Common iliac vein"
+    "Common iliac vein",
+    true
   ],
   "CORNEA": [
     "SCT",
     "28726007",
-    "Cornea"
+    "Cornea",
+    true
   ],
   "CORONARYARTERY": [
     "SCT",
     "41801008",
-    "Coronary artery"
+    "Coronary artery",
+    true
   ],
   "CORONARYSINUS": [
     "SCT",
     "90219004",
-    "Coronary sinus"
+    "Coronary sinus",
+    false
   ],
   "DESCAORTA": [
     "SCT",
     "281130003",
-    "Descending aorta"
+    "Descending aorta",
+    false
   ],
   "DESCENDINGCOLON": [
     "SCT",
     "32622004",
-    "Descending colon"
+    "Descending colon",
+    false
   ],
   "DUODENUM": [
     "SCT",
     "38848004",
-    "Duodenum"
+    "Duodenum",
+    false
   ],
   "EAR": [
     "SCT",
     "117590005",
-    "Ear"
+    "Ear",
+    true
   ],
   "ELBOW": [
     "SCT",
     "16953009",
-    "Elbow joint"
+    "Elbow joint",
+    true
   ],
   "ENDOARTERIAL": [
     "SCT",
     "51114001",
-    "Endo-arterial"
+    "Endo-arterial",
+    false
   ],
   "ENDOCARDIAC": [
     "SCT",
     "80891009",
-    "Endo-cardiac"
+    "Endo-cardiac",
+    false
   ],
   "ENDOESOPHAGEAL": [
     "SCT",
     "32849002",
-    "Endo-esophageal"
+    "Endo-esophageal",
+    false
   ],
   "ENDOMETRIUM": [
     "SCT",
     "2739003",
-    "Endometrium"
+    "Endometrium",
+    false
   ],
   "ENDONASAL": [
     "SCT",
     "53342003",
-    "Endo-nasal"
+    "Endo-nasal",
+    false
   ],
   "ENDONASOPHARYNYX": [
     "SCT",
     "18962004",
-    "Endo-nasopharyngeal"
+    "Endo-nasopharyngeal",
+    false
   ],
   "ENDORECTAL": [
     "SCT",
     "34402009",
-    "Endo-rectal"
+    "Endo-rectal",
+    false
   ],
   "ENDORENAL": [
     "SCT",
     "64033007",
-    "Endo-renal"
+    "Endo-renal",
+    true
   ],
   "ENDOURETERIC": [
     "SCT",
     "87953007",
-    "Endo-ureteric"
+    "Endo-ureteric",
+    false
   ],
   "ENDOURETHRAL": [
     "SCT",
     "13648007",
-    "Endo-urethral"
+    "Endo-urethral",
+    false
   ],
   "ENDOVAGINAL": [
     "SCT",
     "76784001",
-    "Endo-vaginal"
+    "Endo-vaginal",
+    false
   ],
   "ENDOVASCULAR": [
     "SCT",
     "59820001",
-    "Endo-vascular"
+    "Endo-vascular",
+    false
   ],
   "ENDOVENOUS": [
     "SCT",
     "29092000",
-    "Endo-venous"
+    "Endo-venous",
+    false
   ],
   "ENDOVESICAL": [
     "SCT",
     "48367006",
-    "Endo-vesical"
+    "Endo-vesical",
+    false
   ],
   "WHOLEBODY": [
     "SCT",
     "38266002",
-    "Entire body"
+    "Entire body",
+    false
   ],
   "EPIDIDYMIS": [
     "SCT",
     "87644002",
-    "Epididymis"
+    "Epididymis",
+    true
   ],
   "EPIGASTRIC": [
     "SCT",
     "27947004",
-    "Epigastric region"
+    "Epigastric region",
+    false
   ],
   "ESOPHAGUS": [
     "SCT",
     "32849002",
-    "Esophagus"
+    "Esophagus",
+    false
   ],
   "EAC": [
     "SCT",
     "84301002",
-    "External auditory canal"
+    "External auditory canal",
+    true
   ],
   "ECA": [
     "SCT",
     "22286001",
-    "External carotid artery"
+    "External carotid artery",
+    true
   ],
   "EXTILIACA": [
     "SCT",
     "113269004",
-    "External iliac artery"
+    "External iliac artery",
+    true
   ],
   "EXTILIACV": [
     "SCT",
     "63507001",
-    "External iliac vein"
+    "External iliac vein",
+    true
   ],
   "EXTJUGV": [
     "SCT",
     "71585003",
-    "External jugular vein"
+    "External jugular vein",
+    false
   ],
   "EXTREMITY": [
     "SCT",
     "66019005",
-    "Extremity"
+    "Extremity",
+    true
   ],
   "EYE": [
     "SCT",
     "81745001",
-    "Eye"
+    "Eye",
+    true
   ],
   "EYELID": [
     "SCT",
     "80243003",
-    "Eyelid"
+    "Eyelid",
+    true
   ],
   "FACE": [
     "SCT",
     "89545001",
-    "Face"
+    "Face",
+    false
   ],
   "FACIALA": [
     "SCT",
     "23074001",
-    "Facial artery"
+    "Facial artery",
+    false
   ],
   "FEMORALA": [
     "SCT",
     "7657000",
-    "Femoral artery"
+    "Femoral artery",
+    true
   ],
   "FEMORALV": [
     "SCT",
     "83419000",
-    "Femoral vein"
+    "Femoral vein",
+    true
   ],
   "FEMUR": [
     "SCT",
     "71341001",
-    "Femur"
+    "Femur",
+    true
   ],
   "FIBULA": [
     "SCT",
     "87342007",
-    "Fibula"
+    "Fibula",
+    true
   ],
   "FINGER": [
     "SCT",
     "7569003",
-    "Finger"
+    "Finger",
+    true
   ],
   "FLANK": [
     "SCT",
     "58602004",
-    "Flank"
+    "Flank",
+    true
   ],
   "FONTANEL": [
     "SCT",
     "79361005",
-    "Fontanel of skull"
+    "Fontanel of skull",
+    false
   ],
   "FOOT": [
     "SCT",
     "56459004",
-    "Foot"
+    "Foot",
+    true
   ],
   "FOREARM": [
     "SCT",
     "14975008",
-    "Forearm"
+    "Forearm",
+    true
   ],
   "4THVENTRICLE": [
     "SCT",
     "35918002",
-    "Fourth ventricle"
+    "Fourth ventricle",
+    false
   ],
   "GALLBLADDER": [
     "SCT",
     "28231008",
-    "Gallbladder"
+    "Gallbladder",
+    false
   ],
   "GASTRICV": [
     "SCT",
     "110568007",
-    "Gastric vein"
+    "Gastric vein",
+    true
   ],
   "GENICULARA": [
     "SCT",
     "128559007",
-    "Genicular artery"
+    "Genicular artery",
+    true
   ],
   "GESTSAC": [
     "SCT",
     "300571009",
-    "Gestational sac"
+    "Gestational sac",
+    false
   ],
   "GLUTEAL": [
     "SCT",
     "46862004",
-    "Gluteal region"
+    "Gluteal region",
+    true
   ],
   "GSV": [
     "SCT",
     "60734001",
-    "Great saphenous vein"
+    "Great saphenous vein",
+    true
   ],
   "HAND": [
     "SCT",
     "85562004",
-    "Hand"
+    "Hand",
+    true
   ],
   "HEAD": [
     "SCT",
     "69536005",
-    "Head"
+    "Head",
+    false
   ],
   "HEADNECK": [
     "SCT",
     "774007",
-    "Head and Neck"
+    "Head and Neck",
+    false
   ],
   "HEART": [
     "SCT",
     "80891009",
-    "Heart"
+    "Heart",
+    false
   ],
   "HEPATICA": [
     "SCT",
     "76015000",
-    "Hepatic artery"
+    "Hepatic artery",
+    true
   ],
   "HEPATICV": [
     "SCT",
     "8993003",
-    "Hepatic vein"
+    "Hepatic vein",
+    true
   ],
   "HIP": [
     "SCT",
     "24136001",
-    "Hip joint"
+    "Hip joint",
+    true
   ],
   "HUMERUS": [
     "SCT",
     "85050009",
-    "Humerus"
+    "Humerus",
+    true
   ],
   "HYPOGASTRIC": [
     "SCT",
     "11708003",
-    "Hypogastric region"
+    "Hypogastric region",
+    false
   ],
   "HYPOPHARYNX": [
     "SCT",
     "81502006",
-    "Hypopharynx"
+    "Hypopharynx",
+    false
   ],
   "ILEUM": [
     "SCT",
     "34516001",
-    "Ileum"
+    "Ileum",
+    false
   ],
   "ILIACA": [
     "SCT",
     "10293006",
-    "Iliac artery"
+    "Iliac artery",
+    true
   ],
   "ILIACV": [
     "SCT",
     "244411005",
-    "Iliac vein"
+    "Iliac vein",
+    true
   ],
   "ILIUM": [
     "SCT",
     "22356005",
-    "Ilium"
+    "Ilium",
+    true
   ],
   "INFMESA": [
     "SCT",
     "33795007",
-    "Inferior mesenteric artery"
+    "Inferior mesenteric artery",
+    false
   ],
   "INFVENACAVA": [
     "SCT",
     "64131007",
-    "Inferior vena cava"
+    "Inferior vena cava",
+    false
   ],
   "INGUINAL": [
     "SCT",
     "26893007",
-    "Inguinal region"
+    "Inguinal region",
+    false
   ],
   "INNOMINATEA": [
     "SCT",
     "12691009",
-    "Innominate artery"
+    "Innominate artery",
+    false
   ],
   "INNOMINATEV": [
     "SCT",
     "8887007",
-    "Innominate vein"
+    "Innominate vein",
+    false
   ],
   "IAC": [
     "SCT",
     "361078006",
-    "Internal Auditory Canal"
+    "Internal Auditory Canal",
+    true
   ],
   "ICA": [
     "SCT",
     "86117002",
-    "Internal carotid artery"
+    "Internal carotid artery",
+    true
   ],
   "INTILIACA": [
     "SCT",
     "90024005",
-    "Internal iliac artery"
+    "Internal iliac artery",
+    true
   ],
   "INTJUGULARV": [
     "SCT",
     "12123001",
-    "Internal jugular vein"
+    "Internal jugular vein",
+    false
   ],
   "INTMAMMARYA": [
     "SCT",
     "69327007",
-    "Internal mammary artery"
+    "Internal mammary artery",
+    true
   ],
   "INTRACRANIAL": [
     "SCT",
     "1101003",
-    "Intracranial"
+    "Intracranial",
+    false
   ],
   "JAW": [
     "SCT",
     "661005",
-    "Jaw region"
+    "Jaw region",
+    false
   ],
   "JEJUNUM": [
     "SCT",
     "21306003",
-    "Jejunum"
+    "Jejunum",
+    false
   ],
   "JOINT": [
     "SCT",
     "39352004",
-    "Joint"
+    "Joint",
+    false
   ],
   "KIDNEY": [
     "SCT",
     "64033007",
-    "Kidney"
+    "Kidney",
+    true
   ],
   "KNEE": [
     "SCT",
     "72696002",
-    "Knee"
+    "Knee",
+    true
   ],
   "LACRIMALA": [
     "SCT",
     "59749000",
-    "Lacrimal artery"
+    "Lacrimal artery",
+    true
   ],
   "LARGEINTESTINE": [
     "SCT",
     "14742008",
-    "Large intestine"
+    "Large intestine",
+    false
   ],
   "LARYNX": [
     "SCT",
     "4596009",
-    "Larynx"
+    "Larynx",
+    false
   ],
   "LATVENTRICLE": [
     "SCT",
     "66720007",
-    "Lateral Ventricle"
+    "Lateral Ventricle",
+    true
   ],
   "LATRIUM": [
     "SCT",
     "82471001",
-    "Left atrium"
+    "Left atrium",
+    false
   ],
   "LFEMORALA": [
     "SCT",
     "113270003",
-    "Left femoral artery"
+    "Left femoral artery",
+    false
   ],
   "LHEPATICV": [
     "SCT",
     "273202007",
-    "Left hepatic vein"
+    "Left hepatic vein",
+    false
   ],
   "LHYPOCHONDRIAC": [
     "SCT",
     "133945003",
-    "Left hypochondriac region"
+    "Left hypochondriac region",
+    false
   ],
   "LINGUINAL": [
     "SCT",
     "85119005",
-    "Left inguinal region"
+    "Left inguinal region",
+    false
   ],
   "LLQ": [
     "SCT",
     "68505006",
-    "Left lower quadrant of abdomen"
+    "Left lower quadrant of abdomen",
+    false
   ],
   "LLUMBAR": [
     "SCT",
     "1017210004",
-    "Left lumbar region"
+    "Left lumbar region",
+    false
   ],
   "LPORTALV": [
     "SCT",
     "70253006",
-    "Left portal vein"
+    "Left portal vein",
+    false
   ],
   "LPULMONARYA": [
     "SCT",
     "50408007",
-    "Left pulmonary artery"
+    "Left pulmonary artery",
+    false
   ],
   "LUQ": [
     "SCT",
     "86367003",
-    "Left upper quadrant of abdomen"
+    "Left upper quadrant of abdomen",
+    false
   ],
   "LVENTRICLE": [
     "SCT",
     "87878005",
-    "Left ventricle"
+    "Left ventricle",
+    false
   ],
   "LINGUALA": [
     "SCT",
     "113264009",
-    "Lingual artery"
+    "Lingual artery",
+    false
   ],
   "LIVER": [
     "SCT",
     "10200004",
-    "Liver"
+    "Liver",
+    false
   ],
   "LOWERLEG": [
     "SCT",
     "30021000",
-    "Lower leg"
+    "Lower leg",
+    true
   ],
   "LOWERLIMB": [
     "SCT",
     "61685007",
-    "Lower limb"
+    "Lower limb",
+    true
   ],
   "LOWERTRUNK": [
     "SCT",
     "63337009",
-    "Lower trunk"
+    "Lower trunk",
+    false
   ],
   "LUMBARA": [
     "SCT",
     "34635009",
-    "Lumbar artery"
+    "Lumbar artery",
+    true
   ],
   "LUMBAR": [
     "SCT",
     "52612000",
-    "Lumbar region"
+    "Lumbar region",
+    false
   ],
   "LSPINE": [
     "SCT",
     "122496007",
-    "Lumbar spine"
+    "Lumbar spine",
+    false
   ],
   "LSSPINE": [
     "SCT",
     "1217253001",
-    "Lumbo-sacral spine"
+    "Lumbo-sacral spine",
+    false
   ],
   "LUMEN": [
     "SCT",
     "91747007",
-    "Lumen of blood vessel"
+    "Lumen of blood vessel",
+    false
   ],
   "LUNG": [
     "SCT",
     "39607008",
-    "Lung"
+    "Lung",
+    true
   ],
   "MANDIBLE": [
     "SCT",
     "91609006",
-    "Mandible"
+    "Mandible",
+    false
   ],
   "MASTOID": [
     "SCT",
     "59066005",
-    "Mastoid bone"
+    "Mastoid bone",
+    true
   ],
   "MAXILLA": [
     "SCT",
     "70925003",
-    "Maxilla"
+    "Maxilla",
+    false
   ],
   "MEDIASTINUM": [
     "SCT",
     "72410000",
-    "Mediastinum"
+    "Mediastinum",
+    false
   ],
   "MESENTRICA": [
     "SCT",
     "86570000",
-    "Mesenteric artery"
+    "Mesenteric artery",
+    false
   ],
   "MESENTRICV": [
     "SCT",
     "128583004",
-    "Mesenteric vein"
+    "Mesenteric vein",
+    false
   ],
   "MCA": [
     "SCT",
     "17232002",
-    "Middle cerebral artery"
+    "Middle cerebral artery",
+    true
   ],
   "MIDHEPATICV": [
     "SCT",
     "273099000",
-    "Middle hepatic vein"
+    "Middle hepatic vein",
+    false
   ],
   "MORISONSPOUCH": [
     "SCT",
     "243977002",
-    "Morisons pouch"
+    "Morisons pouch",
+    false
   ],
   "MOUTH": [
     "SCT",
     "123851003",
-    "Mouth"
+    "Mouth",
+    false
   ],
   "NASOPHARYNX": [
     "SCT",
     "360955006",
-    "Nasopharynx"
+    "Nasopharynx",
+    false
   ],
   "NECK": [
     "SCT",
     "45048000",
-    "Neck"
+    "Neck",
+    false
   ],
   "NECKCHESTABDPELV": [
     "SCT",
     "416319003",
-    "Neck, Chest, Abdomen and Pelvis"
+    "Neck, Chest, Abdomen and Pelvis",
+    false
   ],
   "NECKCHESTABDOMEN": [
     "SCT",
     "416152001",
-    "Neck, Chest and Abdomen"
+    "Neck, Chest and Abdomen",
+    false
   ],
   "NECKCHEST": [
     "SCT",
     "417437006",
-    "Neck and Chest"
+    "Neck and Chest",
+    false
   ],
   "NOSE": [
     "SCT",
     "45206002",
-    "Nose"
+    "Nose",
+    false
   ],
   "OCCPITALA": [
     "SCT",
     "31145008",
-    "Occipital artery"
+    "Occipital artery",
+    true
   ],
   "OCCIPTALV": [
     "SCT",
     "32114007",
-    "Occipital vein"
+    "Occipital vein",
+    true
   ],
   "OPHTHALMICA": [
     "SCT",
     "53549008",
-    "Ophthalmic artery"
+    "Ophthalmic artery",
+    true
   ],
   "OPTICCANAL": [
     "SCT",
     "55024004",
-    "Optic canal"
+    "Optic canal",
+    true
   ],
   "ORBIT": [
     "SCT",
     "363654007",
-    "Orbital structure"
+    "Orbital structure",
+    true
   ],
   "OVARY": [
     "SCT",
     "15497006",
-    "Ovary"
+    "Ovary",
+    true
   ],
   "PANCREAS": [
     "SCT",
     "15776009",
-    "Pancreas"
+    "Pancreas",
+    false
   ],
   "PANCREATICDUCT": [
     "SCT",
     "69930009",
-    "Pancreatic duct"
+    "Pancreatic duct",
+    false
   ],
   "PANCBILEDUCT": [
     "SCT",
     "110621006",
-    "Pancreatic duct and bile duct systems"
+    "Pancreatic duct and bile duct systems",
+    false
   ],
   "PARASTERNAL": [
     "SCT",
     "91691001",
-    "Parasternal"
+    "Parasternal",
+    true
   ],
   "PARATHYROID": [
     "SCT",
     "111002",
-    "Parathyroid"
+    "Parathyroid",
+    true
   ],
   "PAROTID": [
     "SCT",
     "45289007",
-    "Parotid gland"
+    "Parotid gland",
+    true
   ],
   "PATELLA": [
     "SCT",
     "64234005",
-    "Patella"
+    "Patella",
+    true
   ],
   "PELVIS": [
     "SCT",
     "816092008",
-    "Pelvis"
+    "Pelvis",
+    false
   ],
   "PELVISLOWEXTREMT": [
     "SCT",
     "1231522001",
-    "Pelvis and lower extremities"
+    "Pelvis and lower extremities",
+    false
   ],
   "PENILEA": [
     "SCT",
     "282044005",
-    "Penile artery"
+    "Penile artery",
+    false
   ],
   "PENIS": [
     "SCT",
     "18911002",
-    "Penis"
+    "Penis",
+    false
   ],
   "PERINEUM": [
     "SCT",
     "38864007",
-    "Perineum"
+    "Perineum",
+    false
   ],
   "PERONEALA": [
     "SCT",
     "8821006",
-    "Peroneal artery"
+    "Peroneal artery",
+    true
   ],
   "PHANTOM": [
     "SCT",
     "706342009",
-    "Phantom"
+    "Phantom",
+    false
   ],
   "PHARYNX": [
     "SCT",
     "54066008",
-    "Pharynx"
+    "Pharynx",
+    false
   ],
   "PHARYNXLARYNX": [
     "SCT",
     "312535008",
-    "Pharynx and larynx"
+    "Pharynx and larynx",
+    false
   ],
   "PLACENTA": [
     "SCT",
     "78067005",
-    "Placenta"
+    "Placenta",
+    false
   ],
   "POPLITEALA": [
     "SCT",
     "43899006",
-    "Popliteal artery"
+    "Popliteal artery",
+    true
   ],
   "POPLITEALFOSSA": [
     "SCT",
     "32361000",
-    "Popliteal fossa"
+    "Popliteal fossa",
+    true
   ],
   "POPLITEALV": [
     "SCT",
     "56849005",
-    "Popliteal vein"
+    "Popliteal vein",
+    true
   ],
   "PORTALV": [
     "SCT",
     "32764006",
-    "Portal vein"
+    "Portal vein",
+    false
   ],
   "PCA": [
     "SCT",
     "70382005",
-    "Posterior cerebral artery"
+    "Posterior cerebral artery",
+    true
   ],
   "POSCOMMA": [
     "SCT",
     "43119007",
-    "Posterior communicating artery"
+    "Posterior communicating artery",
+    true
   ],
   "POSTIBIALA": [
     "SCT",
     "13363002",
-    "Posterior tibial artery"
+    "Posterior tibial artery",
+    true
   ],
   "PROFFEMA": [
     "SCT",
     "31677005",
-    "Profunda femoris artery"
+    "Profunda femoris artery",
+    true
   ],
   "PROFFEMV": [
     "SCT",
     "23438002",
-    "Profunda femoris vein"
+    "Profunda femoris vein",
+    true
   ],
   "PROSTATE": [
     "SCT",
     "41216001",
-    "Prostate"
+    "Prostate",
+    false
   ],
   "PULMONARYA": [
     "SCT",
     "81040000",
-    "Pulmonary artery"
+    "Pulmonary artery",
+    true
   ],
   "PULMONARYV": [
     "SCT",
     "122972007",
-    "Pulmonary vein"
+    "Pulmonary vein",
+    true
   ],
   "RADIALA": [
     "SCT",
     "45631007",
-    "Radial artery"
+    "Radial artery",
+    true
   ],
   "RADIUS": [
     "SCT",
     "62413002",
-    "Radius"
+    "Radius",
+    true
   ],
   "RADIUSULNA": [
     "SCT",
     "110535000",
-    "Radius and ulna"
+    "Radius and ulna",
+    true
   ],
   "CULDESAC": [
     "SCT",
     "53843000",
-    "Rectouterine pouch"
+    "Rectouterine pouch",
+    false
   ],
   "RECTUM": [
     "SCT",
     "34402009",
-    "Rectum"
+    "Rectum",
+    false
   ],
   "RENALA": [
     "SCT",
     "2841007",
-    "Renal artery"
+    "Renal artery",
+    true
   ],
   "RENALV": [
     "SCT",
     "56400007",
-    "Renal vein"
+    "Renal vein",
+    true
   ],
   "RETROPERITONEUM": [
     "SCT",
     "82849001",
-    "Retroperitoneum"
+    "Retroperitoneum",
+    false
   ],
   "RIB": [
     "SCT",
     "113197003",
-    "Rib"
+    "Rib",
+    true
   ],
   "RATRIUM": [
     "SCT",
     "73829009",
-    "Right atrium"
+    "Right atrium",
+    false
   ],
   "RFEMORALA": [
     "SCT",
     "69833005",
-    "Right femoral artery"
+    "Right femoral artery",
+    false
   ],
   "RHEPATICV": [
     "SCT",
     "272998002",
-    "Right hepatic vein"
+    "Right hepatic vein",
+    false
   ],
   "RHYPOCHONDRIAC": [
     "SCT",
     "133946002",
-    "Right hypochondriac region"
+    "Right hypochondriac region",
+    false
   ],
   "RINGUINAL": [
     "SCT",
     "37117007",
-    "Right inguinal region"
+    "Right inguinal region",
+    false
   ],
   "RLQ": [
     "SCT",
     "48544008",
-    "Right lower quadrant of abdomen"
+    "Right lower quadrant of abdomen",
+    false
   ],
   "RLUMBAR": [
     "SCT",
     "1017211000",
-    "Right lumbar region"
+    "Right lumbar region",
+    false
   ],
   "RPORTALV": [
     "SCT",
     "73931004",
-    "Right portal vein"
+    "Right portal vein",
+    false
   ],
   "RPULMONARYA": [
     "SCT",
     "78480002",
-    "Right pulmonary artery"
+    "Right pulmonary artery",
+    false
   ],
   "RUQ": [
     "SCT",
     "50519007",
-    "Right upper quadrant of abdomen"
+    "Right upper quadrant of abdomen",
+    false
   ],
   "RVENTRICLE": [
     "SCT",
     "53085002",
-    "Right ventricle"
+    "Right ventricle",
+    false
   ],
   "SIJOINT": [
     "SCT",
     "39723000",
-    "Sacroiliac joint"
+    "Sacroiliac joint",
+    true
   ],
   "SSPINE": [
     "SCT",
     "54735007",
-    "Sacrum"
+    "Sacrum",
+    false
   ],
   "SFJ": [
     "SCT",
     "128587003",
-    "Saphenofemoral junction"
+    "Saphenofemoral junction",
+    true
   ],
   "SAPHENOUSV": [
     "SCT",
     "362072009",
-    "Saphenous vein"
+    "Saphenous vein",
+    true
   ],
   "SCALP": [
     "SCT",
     "41695006",
-    "Scalp"
+    "Scalp",
+    false
   ],
   "SCAPULA": [
     "SCT",
     "79601000",
-    "Scapula"
+    "Scapula",
+    true
   ],
   "SCLERA": [
     "SCT",
     "18619003",
-    "Sclera"
+    "Sclera",
+    true
   ],
   "SCROTUM": [
     "SCT",
     "20233005",
-    "Scrotum"
+    "Scrotum",
+    false
   ],
   "SELLA": [
     "SCT",
     "42575006",
-    "Sella turcica"
+    "Sella turcica",
+    false
   ],
   "SEMVESICLE": [
     "SCT",
     "64739004",
-    "Seminal vesicle"
+    "Seminal vesicle",
+    true
   ],
   "SESAMOID": [
     "SCT",
     "58742003",
-    "Sesamoid bones of foot"
+    "Sesamoid bones of foot",
+    true
   ],
   "SHOULDER": [
     "SCT",
     "16982005",
-    "Shoulder"
+    "Shoulder",
+    true
   ],
   "SIGMOID": [
     "SCT",
     "60184004",
-    "Sigmoid colon"
+    "Sigmoid colon",
+    false
   ],
   "SKULL": [
     "SCT",
     "89546000",
-    "Skull"
+    "Skull",
+    false
   ],
   "SMALLINTESTINE": [
     "SCT",
     "30315005",
-    "Small intestine"
+    "Small intestine",
+    false
   ],
   "SPINALCORD": [
     "SCT",
     "2748008",
-    "Spinal cord"
+    "Spinal cord",
+    false
   ],
   "SPINE": [
     "SCT",
     "421060004",
-    "Spine"
+    "Spine",
+    false
   ],
   "SPLEEN": [
     "SCT",
     "78961009",
-    "Spleen"
+    "Spleen",
+    false
   ],
   "SPLENICA": [
     "SCT",
     "22083002",
-    "Splenic artery"
+    "Splenic artery",
+    false
   ],
   "SPLENICV": [
     "SCT",
     "35819009",
-    "Splenic vein"
+    "Splenic vein",
+    false
   ],
   "SCJOINT": [
     "SCT",
     "7844006",
-    "Sternoclavicular joint"
+    "Sternoclavicular joint",
+    true
   ],
   "STERNUM": [
     "SCT",
     "56873002",
-    "Sternum"
+    "Sternum",
+    false
   ],
   "STOMACH": [
     "SCT",
     "69695003",
-    "Stomach"
+    "Stomach",
+    false
   ],
   "SUBCLAVIANA": [
     "SCT",
     "36765005",
-    "Subclavian artery"
+    "Subclavian artery",
+    true
   ],
   "SUBCLAVIANV": [
     "SCT",
     "9454009",
-    "Subclavian vein"
+    "Subclavian vein",
+    true
   ],
   "SUBCOSTAL": [
     "SCT",
     "19695001",
-    "Subcostal"
+    "Subcostal",
+    true
   ],
   "SUBMANDIBULAR": [
     "SCT",
     "54019009",
-    "Submandibular gland"
+    "Submandibular gland",
+    true
   ],
   "SFA": [
     "SCT",
     "181349008",
-    "Superficial femoral artery"
+    "Superficial femoral artery",
+    true
   ],
   "SFV": [
     "SCT",
     "397364003",
-    "Superficial femoral vein"
+    "Superficial femoral vein",
+    true
   ],
   "LSUPPULMONARYV": [
     "SCT",
     "43863001",
-    "Superior left pulmonary vein"
+    "Superior left pulmonary vein",
+    false
   ],
   "SMA": [
     "SCT",
     "42258001",
-    "Superior mesenteric artery"
+    "Superior mesenteric artery",
+    false
   ],
   "RSUPPULMONARYV": [
     "SCT",
     "8629005",
-    "Superior right pulmonary vein"
+    "Superior right pulmonary vein",
+    false
   ],
   "SUPTHYROIDA": [
     "SCT",
     "72021004",
-    "Superior thyroid artery"
+    "Superior thyroid artery",
+    true
+
   ],
   "SVC": [
     "SCT",
     "48345005",
-    "Superior vena cava"
+    "Superior vena cava",
+    false
   ],
   "SUPRACLAVICULAR": [
     "SCT",
     "77621008",
-    "Supraclavicular region of neck"
+    "Supraclavicular region of neck",
+    false
   ],
   "SUPRAPUBIC": [
     "SCT",
     "11708003",
-    "Suprapubic region"
+    "Suprapubic region",
+    false
   ],
   "TMJ": [
     "SCT",
     "53620006",
-    "Temporomandibular joint"
+    "Temporomandibular joint",
+    true
   ],
   "TESTIS": [
     "SCT",
     "40689003",
-    "Testis"
+    "Testis",
+    true
   ],
   "THALAMUS": [
     "SCT",
     "42695009",
-    "Thalamus"
+    "Thalamus",
+    false
   ],
   "THIGH": [
     "SCT",
     "68367000",
-    "Thigh"
+    "Thigh",
+    true
   ],
   "3RDVENTRICLE": [
     "SCT",
     "49841001",
-    "Third ventricle"
+    "Third ventricle",
+    false
   ],
   "THORACICAORTA": [
     "SCT",
     "113262008",
-    "Thoracic aorta"
+    "Thoracic aorta",
+    false
   ],
   "TSPINE": [
     "SCT",
     "122495006",
-    "Thoracic spine"
+    "Thoracic spine",
+    false
   ],
   "TLSPINE": [
     "SCT",
     "1217256009",
-    "Thoraco-lumbar spine"
+    "Thoraco-lumbar spine",
+    false
   ],
   "THORAX": [
     "SCT",
     "816094009",
-    "Chest"
+    "Chest",
+    false
   ],
   "THUMB": [
     "SCT",
     "76505004",
-    "Thumb"
+    "Thumb",
+    true
   ],
   "THYMUS": [
     "SCT",
     "9875009",
-    "Thymus"
+    "Thymus",
+    true
   ],
   "THYROID": [
     "SCT",
     "69748006",
-    "Thyroid"
+    "Thyroid",
+    false
   ],
   "TIBIA": [
     "SCT",
     "12611008",
-    "Tibia"
+    "Tibia",
+    true
   ],
   "TIBIAFIBULA": [
     "SCT",
     "110536004",
-    "Tibia and fibula"
+    "Tibia and fibula",
+    true
   ],
   "TOE": [
     "SCT",
     "29707007",
-    "Toe"
+    "Toe",
+    true
   ],
   "TONGUE": [
     "SCT",
     "21974007",
-    "Tongue"
+    "Tongue",
+    false
   ],
   "TRACHEA": [
     "SCT",
     "44567001",
-    "Trachea"
+    "Trachea",
+    false
   ],
   "TRACHEABRONCHUS": [
     "SCT",
     "110726009",
-    "Trachea and bronchus"
+    "Trachea and bronchus",
+    false
   ],
   "TRANSVERSECOLON": [
     "SCT",
     "485005",
-    "Transverse colon"
+    "Transverse colon",
+    false
   ],
   "TRUNK": [
     "SCT",
     "22943007",
-    "Trunk"
+    "Trunk",
+    false
   ],
   "ULNA": [
     "SCT",
     "23416004",
-    "Ulna"
+    "Ulna",
+    true
   ],
   "ULNARA": [
     "SCT",
     "44984001",
-    "Ulnar artery"
+    "Ulnar artery",
+    true
   ],
   "UMBILICALA": [
     "SCT",
     "50536004",
-    "Umbilical artery"
+    "Umbilical artery",
+    false
   ],
   "UMBILICAL": [
     "SCT",
     "90290004",
-    "Umbilical region"
+    "Umbilical region",
+    false
   ],
   "UMBILICALV": [
     "SCT",
     "284639000",
-    "Umbilical vein"
+    "Umbilical vein",
+    false
   ],
   "UPPERARM": [
     "SCT",
     "40983000",
-    "Upper arm"
+    "Upper arm",
+    true
   ],
   "UPPERLIMB": [
     "SCT",
     "53120007",
-    "Upper limb"
+    "Upper limb",
+    true
   ],
   "UPPERTRUNK": [
     "SCT",
     "67734004",
-    "Upper trunk"
+    "Upper trunk",
+    false
   ],
   "UPRURINARYTRACT": [
     "SCT",
     "431491007",
-    "Upper urinary tract"
+    "Upper urinary tract",
+    false
   ],
   "URETER": [
     "SCT",
     "87953007",
-    "Ureter"
+    "Ureter",
+    true
   ],
   "URETHRA": [
     "SCT",
     "13648007",
-    "Urethra"
+    "Urethra",
+    false
   ],
   "UTERUS": [
     "SCT",
     "35039007",
-    "Uterus"
+    "Uterus",
+    false
   ],
   "VAGINA": [
     "SCT",
     "76784001",
-    "Vagina"
+    "Vagina",
+    false
   ],
   "VEIN": [
     "SCT",
     "29092000",
-    "Vein"
+    "Vein",
+    false
   ],
   "VERTEBRALA": [
     "SCT",
     "85234005",
-    "Vertebral artery"
+    "Vertebral artery",
+    true
   ],
   "VULVA": [
     "SCT",
     "45292006",
-    "Vulva"
+    "Vulva",
+    false
   ],
   "WRIST": [
     "SCT",
     "74670003",
-    "Wrist joint"
+    "Wrist joint",
+    true
   ],
   "ZYGOMA": [
     "SCT",
     "13881006",
-    "Zygoma"
+    "Zygoma",
+    true
   ]
 }
