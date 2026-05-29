@@ -1485,6 +1485,8 @@ class _LegacyConversionRunner:
 
                 self._mark_keyword_used("BodyPartExamined")
 
+        anatomic_region = destination.AnatomicRegionSequence[0]
+
         # Determine the required frame laterality. First check the modifier of
         # the primary anatomic structure and map following Part 3 Section 10.5
         # https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_10.5.html
@@ -1509,7 +1511,6 @@ class _LegacyConversionRunner:
 
         # Now check the anatomic region modifier
         if "FrameLaterality" not in destination:
-            anatomic_region = destination.AnatomicRegionSequence[0]
             if "AnatomicRegionModifierSequence" in anatomic_region:
                 modifier_seq = anatomic_region.AnatomicRegionModifierSequence[0]
                 modifier_val = modifier_seq.CodeValue
@@ -1534,7 +1535,29 @@ class _LegacyConversionRunner:
             else:
                 # No laterality information, just assume unpaired if an
                 # unpaired structure, else leave empty
-                destination.FrameLaterality = "" if is_paired else "U"
+                src_laterality = "" if is_paired else "U"
+
+            if src_laterality == "":
+                msg = (
+                    "Unable to deduce required frame laterality from the "
+                    "legacy datasets for paired examined body part "
+                    f"'{anatomic_region.CodeMeaning}'. "
+                )
+                if self._strict:
+                    msg += (
+                        "To leave 'FrameLaterality' empty in this situation, "
+                        "set 'strict' to False."
+                    )
+                    raise RuntimeError(msg)
+                else:
+                    msg += (
+                        "'FrameLaterality' will be left empty in the "
+                        "new legacy converted enhanced dataset."
+                    )
+                    logging.warning(msg)
+
+            destination.FrameLaterality = src_laterality
+
 
     def _frame_content_custom_logic(
         self,

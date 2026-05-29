@@ -1320,6 +1320,7 @@ def test_body_part_mapping(
         series_number=1,
         sop_instance_uid=UID(),
         instance_number=1,
+        strict=False,
     )
 
     sfgs = converted.SharedFunctionalGroupsSequence[0]
