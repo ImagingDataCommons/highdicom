@@ -423,6 +423,7 @@ class TestAlgorithmIdentification(unittest.TestCase):
         assert algo_id[-1].ConceptCodeSequence[0].CodeValue == \
             self._family.value
 
+
 class TestMeasurementStatisticalProperties(unittest.TestCase):
 
     def setUp(self):
