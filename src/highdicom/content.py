@@ -74,7 +74,8 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         name: str
             Name of the algorithm
         family: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
-            Kind of algorithm family
+            Kind of algorithm family. See :dcm:`CID 7162
+            <part16/sect_CID_7162.html>` for recommended values.
         version: str
             Version of the algorithm
         source: str, optional
