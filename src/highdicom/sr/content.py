@@ -230,9 +230,9 @@ class SourceImageForMeasurementGroup(ImageContentItem):
                 )
         super().__init__(
             name=CodedConcept(
-                value='260753009',
-                scheme_designator='SCT',
-                meaning='Source',
+                value='121112',
+                scheme_designator='DCM',
+                meaning='Source of Measurement',
             ),
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
