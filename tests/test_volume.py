@@ -1387,8 +1387,8 @@ def test_init_dtype(dtype):
         with pytest.raises(
             ValueError,
             match=(
-                "Argument 'array' must have a dtype of float, integer,"
-                " or bool, received"
+                "Array must have an integer, floating point,"
+                " or boolean dtype, received"
             )
         ):
             Volume.from_attributes(
@@ -1404,10 +1404,26 @@ def test_init_dtype(dtype):
 @pytest.mark.parametrize(
     'dtype',
     [
+        np.uint8,
+        np.uint16,
+        np.uint32,
+        np.uint64,
+        np.int8,
+        np.int16,
+        np.int32,
+        np.int64,
+        int,
+        np.float16,
+        np.float32,
+        np.float64,
+        float,
+        np.float128,
         np.complex64,
         complex,
         np.complex128,
         np.complex256,
+        np.bool_,
+        bool,
         str
     ]
 )
@@ -1421,11 +1437,18 @@ def test_reassign_dtype(dtype):
         coordinate_system='PATIENT',
     )
 
-    with pytest.raises(
-        ValueError,
-        match=(
-            "Array must have a dtype of float, integer,"
-            " or bool, received"
-        )
-    ):
+    if any([
+        np.issubdtype(dtype, t) for t in
+        [np.floating, np.integer, np.bool_]
+    ]):
         volume.array = np.zeros((10, 10, 10), dtype=dtype)
+
+    else:
+        with pytest.raises(
+            ValueError,
+            match=(
+                "Array must have an integer, floating point,"
+                " or boolean dtype, received"
+            )
+        ):
+            volume.array = np.zeros((10, 10, 10), dtype=dtype)

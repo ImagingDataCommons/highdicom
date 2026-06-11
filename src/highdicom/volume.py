@@ -2509,8 +2509,8 @@ class Volume(_VolumeBase):
             [np.floating, np.integer, np.bool_]
         ]):
             raise ValueError(
-                "Argument 'array' must have a dtype of float, integer,"
-                f" or bool, received '{array.dtype}'."
+                "Array must have an integer, floating point,"
+                f" or boolean dtype, received '{array.dtype}'."
             )
 
         if channels is None:
@@ -2871,7 +2871,7 @@ class Volume(_VolumeBase):
             [np.floating, np.integer, np.bool_]
         ]):
             raise ValueError(
-                "Array must have an integer, floating point, "
+                "Array must have an integer, floating point,"
                 f" or boolean dtype, received '{value.dtype}'."
             )
 
