@@ -1369,12 +1369,12 @@ def test_match_geometry_segmentation():
         str
     ]
 )
-def test_dtype_restriction(dtype):
+def test_init_dtype(dtype):
     if any([
         np.issubdtype(dtype, t) for t in
         [np.floating, np.integer, np.bool_]
     ]):
-        volume = Volume.from_attributes(
+        Volume.from_attributes(
             array=np.zeros((10, 10, 10), dtype=dtype),
             image_position=(0.0, 0.0, 0.0),
             image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
@@ -1382,22 +1382,6 @@ def test_dtype_restriction(dtype):
             spacing_between_slices=1.0,
             coordinate_system='PATIENT',
         )
-
-        for disallowed_dtype in [
-            np.complex64,
-            complex,
-            np.complex128,
-            np.complex256,
-            str
-        ]:
-            with pytest.raises(
-                ValueError,
-                match=(
-                    "Array must have a dtype of float, integer,"
-                    " or bool, received"
-                )
-            ):
-                volume.array = np.zeros((10, 10, 10), dtype=disallowed_dtype)
 
     else:
         with pytest.raises(
@@ -1407,7 +1391,7 @@ def test_dtype_restriction(dtype):
                 " or bool, received"
             )
         ):
-            volume = Volume.from_attributes(
+            Volume.from_attributes(
                 array=np.zeros((10, 10, 10), dtype=dtype),
                 image_position=(0.0, 0.0, 0.0),
                 image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
@@ -1415,3 +1399,33 @@ def test_dtype_restriction(dtype):
                 spacing_between_slices=1.0,
                 coordinate_system='PATIENT',
             )
+
+
+@pytest.mark.parametrize(
+    'dtype',
+    [
+        np.complex64,
+        complex,
+        np.complex128,
+        np.complex256,
+        str
+    ]
+)
+def test_reassign_dtype(dtype):
+    volume = Volume.from_attributes(
+        array=np.zeros((10, 10, 10), dtype=np.uint8),
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=1.0,
+        coordinate_system='PATIENT',
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "Array must have a dtype of float, integer,"
+            " or bool, received"
+        )
+    ):
+        volume.array = np.zeros((10, 10, 10), dtype=dtype)
