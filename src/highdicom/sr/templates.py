@@ -697,20 +697,26 @@ class AlgorithmIdentification(Template):
         self,
         name: str,
         version: str,
-        parameters: Sequence[str] | None = None
+        parameters: Sequence[str] | None = None,
+        family: Code | CodedConcept | None = None,
+        manufacturer: str | None = None,
     ) -> None:
         """
 
         Parameters
         ----------
         name: str
-            name of the algorithm
+            Name of the algorithm
         version: str
-            version of the algorithm
+            Version of the algorithm
         parameters: Union[Sequence[str], None], optional
-            parameters of the algorithm
+            Parameters of the algorithm
+        manufacturer: str | None, optional
+            Manufacturer of the algorithm
+        family: pydicom.sr.coding.Code | highdicom.sr.CodedConcept | None, optional
+            Algorithm family
 
-        """
+        """  # noqa: E501
         super().__init__()
         name_item = TextContentItem(
             name=CodedConcept(
@@ -732,6 +738,17 @@ class AlgorithmIdentification(Template):
             relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
         )
         self.append(version_item)
+        if manufacturer is not None:
+            manufacturer_item = TextContentItem(
+                name=CodedConcept(
+                    value='122405',
+                    meaning='Algorithm Manufacturer',
+                    scheme_designator='DCM'
+                ),
+                value=manufacturer,
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
+            )
+            self.append(manufacturer_item)
         if parameters is not None:
             for param in parameters:
                 parameter_item = TextContentItem(
@@ -744,6 +761,17 @@ class AlgorithmIdentification(Template):
                     relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
                 self.append(parameter_item)
+        if family is not None:
+            family_item = CodeContentItem(
+                name=CodedConcept(
+                    value='111000',
+                    meaning='Algorithm Family',
+                    scheme_designator='DCM'
+                ),
+                value=family,
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
+            )
+            self.append(family_item)
 
 
 class TrackingIdentifier(Template):
