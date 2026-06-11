@@ -4,6 +4,7 @@ import tempfile
 import zipfile
 import urllib
 import pytest
+import itertools
 
 from pathlib import Path
 from typing import Sequence
@@ -390,31 +391,37 @@ def test_roundtrip(vol: Volume):
     assert np.allclose(vol.get_affine('RAS'), nifti.affine, atol=1e-4)
     assert (vol.array == nifti.dataobj).all()
 
-    nib_roundtrip = Volume.from_nib(nifti)
+    nib_roundtrip = Volume.from_nibabel(nifti)
 
     assert np.allclose(vol.affine, nib_roundtrip.affine, atol=1e-4)
     assert (vol.array == nib_roundtrip.array).all()
 
 
 @pytest.mark.parametrize(
-    'dtype',
-    [
-        np.uint8,
-        np.uint16,
-        np.uint32,
-        np.uint64,
-        np.int8,
-        np.int16,
-        np.int32,
-        np.int64,
-        np.float16,
-        np.float32,
-        np.float64,
-        np.float128,
-        np.bool_
-    ]
+    'dtype,image_class',
+    itertools.product(
+        [
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.uint64,
+            np.int8,
+            np.int16,
+            np.int32,
+            np.int64,
+            np.float16,
+            np.float32,
+            np.float64,
+            np.float128,
+            np.bool_
+        ],
+        [
+            'Nifti1Image',
+            'Nifti2Image',
+        ]
+    )
 )
-def test_dtype_nib(dtype: np.dtype):
+def test_dtype_nifti(dtype: np.dtype, image_class: str):
     rng = np.random.default_rng()
     size = (10, 10, 10)
 
@@ -430,7 +437,9 @@ def test_dtype_nib(dtype: np.dtype):
     if dtype == np.bool_:
         volume.array = np.round(rng.random(size=size)).astype(dtype)
 
-        nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
         assert nib_roundtrip.dtype == np.uint8
         assert (nib_roundtrip.array == volume.array).all()
 
@@ -441,11 +450,14 @@ def test_dtype_nib(dtype: np.dtype):
         with pytest.warns(
             UserWarning,
             match=(
-                'NiBabel does not support float16 data.'
-                ' Safely casting to float32.'
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.float32}.'
             )
         ):
-            nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
+
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
 
         assert nib_roundtrip.dtype == np.float32
         assert (nib_roundtrip.array == volume.array).all()
@@ -458,40 +470,48 @@ def test_dtype_nib(dtype: np.dtype):
         with pytest.warns(
             UserWarning,
             match=(
-                'NiBabel does not support float128 data.'
-                ' Casting to float64, precision may be lost.'
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float64}, precision may be lost.'
             )
         ):
-            nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
 
         assert nib_roundtrip.dtype == np.float64
         assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
 
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(np.finfo(np.float64).max)
+        volume.array[(0, 0, 0)] = 1.1 * np.float128(f64.max)
         with pytest.raises(
             ValueError,
             match=(
-                'NiBabel does not support float128 data.'
-                ' Casting to float64 is not possible.'
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float64} is not possible.'
             )
         ):
-            nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
 
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(np.finfo(np.float64).min)
+        volume.array[(0, 0, 0)] = 1.1 * np.float128(f64.min)
         with pytest.raises(
             ValueError,
             match=(
-                'NiBabel does not support float128 data.'
-                ' Casting to float64 is not possible.'
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float64} is not possible.'
             )
         ):
-            nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
 
     elif np.issubdtype(dtype, np.integer):
         ib = np.iinfo(dtype)
         volume.array = rng.integers(ib.min, ib.max, size=size, dtype=dtype)
 
-        nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
         assert nib_roundtrip.dtype == volume.dtype
         assert (nib_roundtrip.array == volume.array).all()
 
@@ -500,7 +520,628 @@ def test_dtype_nib(dtype: np.dtype):
         array = rng.random(size).astype(dtype)
         volume.array = (2 * array - 1) * 0.9 * fb.max
 
-        nib_roundtrip = Volume.from_nibabel(volume.to_nibabel())
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
+        assert nib_roundtrip.dtype == volume.dtype
+        assert (nib_roundtrip.array == volume.array).all()
+
+
+@pytest.mark.parametrize(
+    'dtype,image_class',
+    itertools.product(
+        [
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.uint64,
+            np.int8,
+            np.int16,
+            np.int32,
+            np.int64,
+            np.float16,
+            np.float32,
+            np.float64,
+            np.float128,
+            np.bool_
+        ],
+        [
+            'MGHImage'
+        ]
+    )
+)
+def test_dtype_mgh(dtype: np.dtype, image_class: str):
+    rng = np.random.default_rng()
+    size = (10, 10, 10)
+
+    volume = Volume.from_attributes(
+        array=np.zeros(size),
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=1.0,
+        coordinate_system='PATIENT',
+    )
+
+    if dtype == np.bool_:
+        volume.array = np.round(rng.random(size=size)).astype(dtype)
+
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
+        assert nib_roundtrip.dtype == np.uint8
+        assert (nib_roundtrip.array == volume.array).all()
+
+    elif dtype == np.uint32:
+        ui32 = np.iinfo(np.uint32)
+        i32 = np.iinfo(np.int32)
+        volume.array = rng.integers(0, i32.max, size=size, dtype=dtype)
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.int32}.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.int32
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+        volume.array[(0, 0, 0)] = ui32.max
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.int32} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+    elif dtype == np.uint64:
+        ui64 = np.iinfo(np.uint64)
+        i32 = np.iinfo(np.int32)
+        volume.array = rng.integers(0, i32.max, size=size, dtype=dtype)
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.int32}.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.int32
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+        volume.array[(0, 0, 0)] = ui64.max
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.int32} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+    elif dtype == np.int8:
+        i8 = np.iinfo(np.int8)
+        volume.array = rng.integers(i8.min, i8.max, size=size, dtype=dtype)
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.int16}.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.int16
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+    elif dtype == np.int64:
+        i64 = np.iinfo(np.int64)
+        i32 = np.iinfo(np.int32)
+        volume.array = rng.integers(0, i32.max, size=size, dtype=dtype)
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.int32}.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.int32
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+        volume.array[(0, 0, 0)] = i64.max
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.int32} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+    elif dtype == np.float16:
+        f16 = np.finfo(np.float16)
+        volume.array = rng.uniform(f16.min, f16.max, size=size).astype(dtype)
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.float32}.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.float32
+        assert (nib_roundtrip.array == volume.array).all()
+
+    elif dtype == np.float64:
+        f32 = np.finfo(np.float32)
+        array = rng.random(size).astype(dtype)
+        volume.array = (2 * array - 1) * 0.9 * f32.max
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float32}, precision may be lost.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.float32
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+        volume.array[(0, 0, 0)] = 1.1 * np.float64(f32.max)
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float32} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        volume.array[(0, 0, 0)] = 1.1 * np.float64(f32.min)
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float32} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+    elif dtype == np.float128:
+        f32 = np.finfo(np.float32)
+        array = rng.random(size).astype(dtype)
+        volume.array = (2 * array - 1) * 0.9 * f32.max
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float32}, precision may be lost.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.float32
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+        volume.array[(0, 0, 0)] = 1.1 * np.float128(f32.max)
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float32} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        volume.array[(0, 0, 0)] = 1.1 * np.float128(f32.min)
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float32} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+    elif np.issubdtype(dtype, np.integer):
+        ib = np.iinfo(dtype)
+        volume.array = rng.integers(ib.min, ib.max, size=size, dtype=dtype)
+
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
+        assert nib_roundtrip.dtype == volume.dtype
+        assert (nib_roundtrip.array == volume.array).all()
+
+    else:
+        fb = np.finfo(dtype)
+        array = rng.random(size).astype(dtype)
+        volume.array = (2 * array - 1) * 0.9 * fb.max
+
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
+        assert nib_roundtrip.dtype == volume.dtype
+        assert (nib_roundtrip.array == volume.array).all()
+
+
+@pytest.mark.parametrize(
+    'dtype,image_class',
+    itertools.product(
+        [
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.uint64,
+            np.int8,
+            np.int16,
+            np.int32,
+            np.int64,
+            np.float16,
+            np.float32,
+            np.float64,
+            np.float128,
+            np.bool_
+        ],
+        [
+            'Minc1Image',
+            'Minc2Image',
+        ]
+    )
+)
+def test_dtype_minc(dtype: np.dtype, image_class: str):
+    rng = np.random.default_rng()
+    size = (10, 10, 10)
+
+    volume = Volume.from_attributes(
+        array=np.zeros(size),
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=1.0,
+        coordinate_system='PATIENT',
+    )
+
+    if dtype == np.bool_:
+        volume.array = np.round(rng.random(size=size)).astype(dtype)
+
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
+        assert nib_roundtrip.dtype == np.uint8
+        assert (nib_roundtrip.array == volume.array).all()
+
+    elif np.issubdtype(dtype, np.integer):
+        ib = np.iinfo(dtype)
+        volume.array = rng.integers(ib.min, ib.max, size=size, dtype=dtype)
+
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
+        assert nib_roundtrip.dtype == volume.dtype
+        assert (nib_roundtrip.array == volume.array).all()
+
+    else:
+        fb = np.finfo(dtype)
+        array = rng.random(size).astype(dtype)
+        volume.array = (2 * array - 1) * 0.9 * fb.max
+
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
+        assert nib_roundtrip.dtype == volume.dtype
+        assert (nib_roundtrip.array == volume.array).all()
+
+
+@pytest.mark.parametrize(
+    'dtype,image_class',
+    itertools.product(
+        [
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.uint64,
+            np.int8,
+            np.int16,
+            np.int32,
+            np.int64,
+            np.float16,
+            np.float32,
+            np.float64,
+            np.float128,
+            np.bool_
+        ],
+        [
+            'AnalyzeImage'
+        ]
+    )
+)
+def test_dtype_analyze(dtype: np.dtype, image_class: str):
+    rng = np.random.default_rng()
+    size = (10, 10, 10)
+
+    volume = Volume.from_attributes(
+        array=np.zeros(size),
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=1.0,
+        coordinate_system='PATIENT',
+    )
+
+    if dtype == np.bool_:
+        volume.array = np.round(rng.random(size=size)).astype(dtype)
+
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
+        assert nib_roundtrip.dtype == np.uint8
+        assert (nib_roundtrip.array == volume.array).all()
+
+    elif dtype == np.uint16:
+        ui16 = np.iinfo(np.uint16)
+        i16 = np.iinfo(np.int16)
+        volume.array = rng.integers(0, i16.max, size=size, dtype=dtype)
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.int16}.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.int16
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+        volume.array[(0, 0, 0)] = ui16.max
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.int16} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+    elif dtype == np.uint32:
+        ui32 = np.iinfo(np.uint32)
+        i32 = np.iinfo(np.int32)
+        volume.array = rng.integers(0, i32.max, size=size, dtype=dtype)
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.int32}.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.int32
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+        volume.array[(0, 0, 0)] = ui32.max
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.int32} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+    elif dtype == np.uint64:
+        ui64 = np.iinfo(np.uint64)
+        i32 = np.iinfo(np.int32)
+        volume.array = rng.integers(0, i32.max, size=size, dtype=dtype)
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.int32}.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.int32
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+        volume.array[(0, 0, 0)] = ui64.max
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.int32} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+    elif dtype == np.int8:
+        i8 = np.iinfo(np.int8)
+        volume.array = rng.integers(i8.min, i8.max, size=size, dtype=dtype)
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.int16}.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.int16
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+    elif dtype == np.int64:
+        i64 = np.iinfo(np.int64)
+        i32 = np.iinfo(np.int32)
+        volume.array = rng.integers(0, i32.max, size=size, dtype=dtype)
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.int32}.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.int32
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+        volume.array[(0, 0, 0)] = i64.max
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.int32} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+    elif dtype == np.float16:
+        f16 = np.finfo(np.float16)
+        volume.array = rng.uniform(f16.min, f16.max, size=size).astype(dtype)
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Safely casting to {np.float32}.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.float32
+        assert (nib_roundtrip.array == volume.array).all()
+
+    elif dtype == np.float128:
+        f64 = np.finfo(np.float64)
+        array = rng.random(size).astype(dtype)
+        volume.array = (2 * array - 1) * 0.9 * f64.max
+
+        with pytest.warns(
+            UserWarning,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float64}, precision may be lost.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+        assert nib_roundtrip.dtype == np.float64
+        assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
+
+        volume.array[(0, 0, 0)] = 1.1 * np.float128(f64.max)
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float64} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+        volume.array[(0, 0, 0)] = 1.1 * np.float128(f64.min)
+        with pytest.raises(
+            ValueError,
+            match=(
+                f'NiBabel\'s {getattr(nib, image_class)} class does not support'
+                f' {dtype}. Casting to {np.float64} is not possible.'
+            )
+        ):
+            nib_roundtrip = Volume.from_nibabel(
+                volume.to_nibabel(image_class=image_class)
+            )
+
+    elif np.issubdtype(dtype, np.integer):
+        ib = np.iinfo(dtype)
+        volume.array = rng.integers(ib.min, ib.max, size=size, dtype=dtype)
+
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
+        assert nib_roundtrip.dtype == volume.dtype
+        assert (nib_roundtrip.array == volume.array).all()
+
+    else:
+        fb = np.finfo(dtype)
+        array = rng.random(size).astype(dtype)
+        volume.array = (2 * array - 1) * 0.9 * fb.max
+
+        nib_roundtrip = Volume.from_nibabel(
+            volume.to_nibabel(image_class=image_class)
+        )
         assert nib_roundtrip.dtype == volume.dtype
         assert (nib_roundtrip.array == volume.array).all()
 
