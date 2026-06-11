@@ -1724,6 +1724,19 @@ class TestSegmentation:
         assert not hasattr(instance, 'ExtendedOffsetTable')
         assert not hasattr(instance, 'ExtendedOffsetTableLengths')
 
+        # Segment descriptions include background
+        assert (
+            len(instance.SegmentSequence) ==
+            len(self._segment_descriptions) + 1
+        )
+
+        # Background segment has no algorithm identification
+        bg_desc = instance.SegmentSequence[0]
+        assert not hasattr(
+            bg_desc,
+            'SegmentationAlgorithmIdentificationSequence'
+        )
+
     def test_construction_9(self):
         # A label with a palette color LUT
         instance = Segmentation(
