@@ -3235,12 +3235,24 @@ class MeasurementsAndQualitativeEvaluations(
     def source_images(self) -> list[SourceImageForMeasurementGroup]:
         """List[highdicom.sr.SourceImageForMeasurementGroup]: source images"""
         root_item = self[0]
-        matches = find_content_items(
-            root_item,
-            name=_SOURCE,
-            value_type=ValueTypeValues.IMAGE,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
+
+        # Allowable codes for source images. Per the invocation of TID1501 with
+        # ImagePurpose=CID7551, this should probably be DCM "Source of
+        # Measurement". However, highdicom previously used SCT "Source"
+        # following the note for row 10 of TID1501. So we include both variants
+        # here
+        source_codes = [_SOURCE, codes.DCM.SourceOfMeasurement]
+
+        matches = []
+        for name in source_codes:
+            matches.extend(
+                find_content_items(
+                    root_item,
+                    name=name,
+                    value_type=ValueTypeValues.IMAGE,
+                    relationship_type=RelationshipTypeValues.CONTAINS
+                )
+            )
         if len(matches) > 0:
             return [
                 SourceImageForMeasurementGroup.from_dataset(m) for m in matches
@@ -5123,12 +5135,20 @@ class MeasurementReport(Template):
                 (referenced_sop_instance_uid is not None) or
                 (referenced_sop_class_uid is not None)
             ):
-                matches_uids = _contains_image_items(
-                    group_item,
-                    name=_SOURCE,
-                    referenced_sop_class_uid=referenced_sop_class_uid,
-                    referenced_sop_instance_uid=referenced_sop_instance_uid,
-                    relationship_type=RelationshipTypeValues.CONTAINS
+                # Allowable codes for source images. Per the invocation of
+                # TID1501 with ImagePurpose=CID7551, this should probably be
+                # DCM "Source of Measurement". However, highdicom previously
+                # used SCT "Source" following the note for row 10 of TID1501.
+                # So we include both variants here
+                source_codes = [_SOURCE, codes.DCM.SourceOfMeasurement]
+                matches_uids = any(
+                    _contains_image_items(
+                        group_item,
+                        name=name,
+                        referenced_sop_class_uid=referenced_sop_class_uid,
+                        referenced_sop_instance_uid=referenced_sop_instance_uid,
+                        relationship_type=RelationshipTypeValues.CONTAINS
+                    ) for name in source_codes
                 )
                 matches.append(matches_uids)
 
