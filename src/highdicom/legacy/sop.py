@@ -2886,17 +2886,21 @@ class LegacyConvertedEnhancedMRImage(_CommonLegacyConvertedEnhancedImage):
     _ENHANCED_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.4.4"
 
 
-def lcectimread(
+def lceread(
     fp: str | bytes | PathLike | BinaryIO,
     lazy_frame_retrieval: bool = False
-) -> LegacyConvertedEnhancedCTImage:
-    """Read an LegacyConvertedEnhancedCTImage from DICOM file.
+) -> (
+    LegacyConvertedEnhancedCTImage |
+    LegacyConvertedEnhancedMRImage |
+    LegacyConvertedEnhancedPETImage
+):
+    """Read a Legacy Converted Enhanced image from a DICOM file.
 
     Parameters
     ----------
     fp: Union[str, bytes, os.PathLike]
         Any file-like object representing a DICOM file containing an
-        Legacy Converted Enhanced CT Image.
+        Legacy Converted Enhanced CT, MR, or PET Image.
     lazy_frame_retrieval: bool
         If True, the returned image will retrieve frames from the file as
         requested, rather than loading in the entire object to memory
@@ -2905,69 +2909,30 @@ def lcectimread(
 
     Returns
     -------
-    highdicom.legacy.LegacyConvertedEnhancedCTImage:
+    highdicom.legacy.LegacyConvertedEnhancedCTImage | highdicom.legacy.LegacyConvertedEnhancedMRImage | highdicom.legacy.LegacyConvertedEnhancedPETImage:
         Image read from the file.
 
-    """
-    return LegacyConvertedEnhancedCTImage.from_file(
+    """  # noqa: E501
+    image = Image.from_file(
         fp,
         lazy_frame_retrieval=lazy_frame_retrieval
     )
 
+    try:
+        lce_class = {
+            "1.2.840.10008.5.1.4.1.1.2.2": LegacyConvertedEnhancedCTImage,
+            "1.2.840.10008.5.1.4.1.1.4.4": LegacyConvertedEnhancedMRImage,
+            "1.2.840.10008.5.1.4.1.1.128.1": LegacyConvertedEnhancedPETImage,
+        }[image.SOPClassUID]
+    except KeyError:
+        raise ValueError("Dataset is not a Legacy Concerted Enhanced Image.")
 
-def lcemrimread(
-    fp: str | bytes | PathLike | BinaryIO,
-    lazy_frame_retrieval: bool = False
-) -> LegacyConvertedEnhancedMRImage:
-    """Read an LegacyConvertedEnhancedMRImage from DICOM file.
-
-    Parameters
-    ----------
-    fp: Union[str, bytes, os.PathLike]
-        Any file-like object representing a DICOM file containing an
-        Legacy Converted Enhanced MR Image.
-    lazy_frame_retrieval: bool
-        If True, the returned image will retrieve frames from the file as
-        requested, rather than loading in the entire object to memory
-        initially. This may be a good idea if file reading is slow and you are
-        likely to need only a subset of the frames in the image.
-
-    Returns
-    -------
-    highdicom.legacy.LegacyConvertedEnhancedMRImage:
-        Image read from the file.
-
-    """
-    return LegacyConvertedEnhancedMRImage.from_file(
-        fp,
-        lazy_frame_retrieval=lazy_frame_retrieval
-    )
-
-
-def lcepetimread(
-    fp: str | bytes | PathLike | BinaryIO,
-    lazy_frame_retrieval: bool = False
-) -> LegacyConvertedEnhancedPETImage:
-    """Read an LegacyConvertedEnhancedPETImage from DICOM file.
-
-    Parameters
-    ----------
-    fp: Union[str, bytes, os.PathLike]
-        Any file-like object representing a DICOM file containing an
-        Legacy Converted Enhanced PET Image.
-    lazy_frame_retrieval: bool
-        If True, the returned image will retrieve frames from the file as
-        requested, rather than loading in the entire object to memory
-        initially. This may be a good idea if file reading is slow and you are
-        likely to need only a subset of the frames in the image.
-
-    Returns
-    -------
-    highdicom.legacy.LegacyConvertedEnhancedPETImage:
-        Image read from the file.
-
-    """
-    return LegacyConvertedEnhancedPETImage.from_file(
-        fp,
-        lazy_frame_retrieval=lazy_frame_retrieval
+    lce_image = lce_class.from_dataset(image, copy=False)
+    return cast(
+        (
+            LegacyConvertedEnhancedCTImage |
+            LegacyConvertedEnhancedMRImage |
+            LegacyConvertedEnhancedPETImage
+        ),
+        lce_image
     )

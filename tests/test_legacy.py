@@ -32,9 +32,7 @@ from highdicom.legacy import (
     LegacyConvertedEnhancedCTImage,
     LegacyConvertedEnhancedMRImage,
     LegacyConvertedEnhancedPETImage,
-    lcectimread,
-    lcemrimread,
-    lcepetimread,
+    lceread,
 )
 from highdicom import UID
 
@@ -2159,16 +2157,10 @@ def test_read_function(modality: Modality, lazy: bool) -> None:
         series_description=series_description,
     )
 
-    read_fn = {
-        Modality.PT: lcepetimread,
-        Modality.CT: lcectimread,
-        Modality.MR: lcemrimread,
-    }[modality]
-
     with BytesIO() as fp:
         converted.save_as(fp)
         fp.seek(0)
-        reread = read_fn(fp, lazy_frame_retrieval=lazy)
+        reread = lceread(fp, lazy_frame_retrieval=lazy)
 
     assert isinstance(reread, LegacyConvertedClass)
     assert ('PixelData' in reread) == (not lazy)

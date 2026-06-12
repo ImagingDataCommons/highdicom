@@ -5,9 +5,7 @@ from highdicom.legacy.sop import (
     LegacyConvertedEnhancedCTImage,
     LegacyConvertedEnhancedMRImage,
     LegacyConvertedEnhancedPETImage,
-    lcectimread,
-    lcepetimread,
-    lcemrimread,
+    lceread,
 )
 
 SOP_CLASS_UIDS = {
@@ -20,7 +18,5 @@ __all__ = [
     'LegacyConvertedEnhancedCTImage',
     'LegacyConvertedEnhancedMRImage',
     'LegacyConvertedEnhancedPETImage',
-    'lcectimread',
-    'lcepetimread',
-    'lcemrimread',
+    'lceread',
 ]
