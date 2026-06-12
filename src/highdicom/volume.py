@@ -4133,7 +4133,7 @@ class Volume(_VolumeBase):
         Raises
         ------
         ValueError
-            When the volume is not 3D (multiple channels are unsupported).
+            When the input image is not 3D (multiple channels are unsupported).
 
         """
         array = np.asarray(nib_im.dataobj)
