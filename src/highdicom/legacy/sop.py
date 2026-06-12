@@ -98,6 +98,8 @@ _CONSISTENT_KEYWORDS = [
     "PlanarConfiguration",
     "SamplesPerPixel",
     "SpecificCharacterSet",
+    "RescaleSlope",
+    "RescaleIntercept",
 
     # Opinionated requirements
     "PatientID",
@@ -227,13 +229,26 @@ def _transcode_frame(
         transfer_syntax_uid.
 
     """
+    pixel_array = dataset.pixel_array
+    pixel_representation = dataset.get("PixelRepresentation", 0)
+
+    if dataset.PhotometricInterpretation == "MONOCHROME1":
+        # Need to do conversion to MONOCHROME2
+        if pixel_representation == 0:
+            inversion_offset = 2 ** dataset.BitsStored - 1
+        else:
+            # pixel_representation == 1 (signed integers)
+            inversion_offset = -1
+
+        pixel_array = inversion_offset - pixel_array
+
     return encode_frame(
-        array=dataset.pixel_array,
+        array=pixel_array,
         transfer_syntax_uid=transfer_syntax_uid,
         bits_allocated=dataset.BitsAllocated,
         bits_stored=dataset.BitsStored,
         photometric_interpretation=photometric_interpretation,
-        pixel_representation=dataset.get("PixelRepresentation", 0),
+        pixel_representation=pixel_representation,
         planar_configuration=dataset.get("PlanarConfiguration"),
     )
 
@@ -393,15 +408,38 @@ class _LegacyConversionRunner:
         )
         self._check_attribute_consistency(require_volume)
 
-        incoming_pi = (
-            self._legacy_datasets[0].PhotometricInterpretation
-        )
-
+        # If pixel data inversion is needed due to monochrome 1/2 conversion,
+        # calculate the offset needed during inversion. To convert the value,
+        # subtract pixel values from this value. None if no monochrome 1/2
+        # conversion is needed
+        incoming_pi = self._legacy_datasets[0].PhotometricInterpretation
+        self._pixel_inversion_offset: int | None = None
         if incoming_pi == "MONOCHROME1":
-            raise ValueError(
-                "Conversion of images with Photometric Interpretation "
-                "'MONOCHROME1' is not supported."
+            # It is not clear how a "non-trivial" rescale slope and intercept
+            # should be handled where there is a monochrome 1 to 2 conversion,
+            # so just disallow this. This could be loosened in the future if
+            # suitable logic can be found
+            if (
+                self._legacy_datasets[0].get("RescaleIntercept", 0) != 0 or
+                self._legacy_datasets[0].get("RescaleSlope", 1) != 1
+            ):
+                raise ValueError(
+                    "This dataset requires conversion from MONOCHROME1 to "
+                    "MONOCHROME2, but contains a non-trivial RescaleSlope "
+                    "or RescaleIntercept that cannot be converted."
+                )
+
+            # Need to do conversion to MONOCHROME2
+            bits_stored = self._legacy_datasets[0].BitsStored
+            pixel_representation = self._legacy_datasets[0].get(
+                "PixelRepresentation", 0
             )
+
+            if pixel_representation == 0:
+                self._pixel_inversion_offset = 2 ** bits_stored - 1
+            else:
+                # pixel_representation == 1 (signed integers)
+                self._pixel_inversion_offset = -1
 
         # List of attributes that should never be placed into the
         # UnassignedPerFrameConvertedAttributesSequence or
@@ -581,7 +619,7 @@ class _LegacyConversionRunner:
         # required in the legacy datasets. Need to set a default value to use
         # in this case. Ideally we would not need to decode pixel data to do
         # this, so just assume values take the full allocated range. Do not
-        # apply these default in MR, because there it is better to omit the
+        # apply these defaults in MR, because there it is better to omit the
         # attributes
         default_window_width = None
         default_window_center = None
@@ -723,7 +761,9 @@ class _LegacyConversionRunner:
             ],
             optional_attributes=[
                 _AttributeConfig("WindowCenterWidthExplanation"),
+                _AttributeConfig("VOILUTFunction"),
             ],
+            custom_logic_callback=self._frame_voi_lut_custom_logic,
         )
         # Pixel Value Transformation is technically optional for MR, but we
         # will populate with 0/1 rescale anyway for consistency
@@ -1358,6 +1398,35 @@ class _LegacyConversionRunner:
             self._destination.LossyImageCompressionRatio = avg_ratio_str
             self._mark_keyword_used("LossyImageCompressionRatio")
 
+    def _frame_voi_lut_custom_logic(
+        self,
+        source: Dataset,
+        destination: Dataset
+    ) -> None:
+        """Custom logic for the FrameVOILUTSequence.
+
+        Needed to handle adjusting the window for MONOCHROME1 to MONOCHROME2
+        conversion.
+
+        """
+        if (
+            self._pixel_inversion_offset is not None and
+            "WindowCenter" in destination
+        ):
+            # Add a further 1 here to account for the fact that the definition
+            # of window is asymmetric about the center
+            destination.WindowCenter = (
+                self._pixel_inversion_offset - destination.WindowCenter
+            )
+
+            if (
+                "VOILUTFunction" not in destination or
+                destination.VOILUTFunction == "LINEAR"
+            ):
+                # The LINEAR function (the default) is asymmetric about its
+                # center. Add one to account for this
+                destination.WindowCenter += 1
+
     def _pixel_value_transformation_custom_logic(
         self,
         source: Dataset,
@@ -1557,7 +1626,6 @@ class _LegacyConversionRunner:
                     logging.warning(msg)
 
             destination.FrameLaterality = src_laterality
-
 
     def _frame_content_custom_logic(
         self,
@@ -1871,10 +1939,12 @@ class _LegacyConversionRunner:
     def _add_largest_smallest_pixel_value(self) -> None:
         """Adds the attributes for largest and smallest pixel value.
 
-        These must be aggregated using min/max across the series.
+        These must be aggregated using min/max across the series and inverted
+        when converted MONOCHROME1 to MONOCHROME2.
 
         """
         kw = "LargestImagePixelValue"
+        lval = None
         if kw in self._keyword_shared_dict:
             lval = float_info.min
             for frame in self._legacy_datasets:
@@ -1883,20 +1953,38 @@ class _LegacyConversionRunner:
                     lval = max(lval, _read_ambiguous_vr(frame, kw))
 
             if lval > float_info.min:
-                setattr(self._destination, kw, int(lval))
+                lval = int(lval)
                 self._mark_keyword_used(kw)
 
         kw = "SmallestImagePixelValue"
+        sval = None
         if kw in self._keyword_shared_dict:
-            lval = float_info.max
+            sval = float_info.max
             for frame in self._legacy_datasets:
                 if kw in frame:
                     # NB need to deal with potential ambiguous VR problems
-                    lval = min(lval, _read_ambiguous_vr(frame, kw))
+                    sval = min(sval, _read_ambiguous_vr(frame, kw))
 
-            if lval < float_info.max:
-                setattr(self._destination, kw, int(lval))
+            if sval < float_info.max:
+                sval = int(sval)
                 self._mark_keyword_used(kw)
+
+        # If converted from MONOCHROME1 to MONOCHROME2 need to both swap the
+        # values and invert them
+        if self._pixel_inversion_offset is not None:
+            if lval is not None:
+                self._destination.SmallestImagePixelValue = (
+                    self._pixel_inversion_offset - lval
+                )
+            if sval is not None:
+                self._destination.LargestImagePixelValue = (
+                    self._pixel_inversion_offset - sval
+                )
+        else:
+            if lval is not None:
+                self._destination.LargestImagePixelValue = lval
+            if sval is not None:
+                self._destination.SmallestImagePixelValue = sval
 
     def _add_common_instance_reference(self) -> None:
         """Add the Common Instance Reference Module."""
@@ -2025,14 +2113,18 @@ class _LegacyConversionRunner:
             )
 
         if dst_tx_uid == src_tx_uid:
-            outgoing_pi = PhotometricInterpretationValues(
-                self._legacy_datasets[0].PhotometricInterpretation
-            )
+            if self._pixel_inversion_offset is not None:
+                outgoing_pi = PhotometricInterpretationValues.MONOCHROME2
+            else:
+                outgoing_pi = PhotometricInterpretationValues(
+                    self._legacy_datasets[0].PhotometricInterpretation
+                )
         else:
             # Deduce the PhotometricInterpretation for the converted image
             samples_per_pixel = self._legacy_datasets[0].SamplesPerPixel
             if samples_per_pixel == 1:
-                # Monochrome 1 is disallowed earlier
+                # Monochrome 1 is disallowed. Conversion to monochrome2 is
+                # required
                 outgoing_pi = PhotometricInterpretationValues.MONOCHROME2
             else:
                 # Photometric interpretation depends on transfer syntax
@@ -2096,11 +2188,17 @@ class _LegacyConversionRunner:
             self._destination.LossyImageCompressionRatio = compression_ratio
 
         if (
-            (dst_tx_uid != src_tx_uid) and
+            # Require monochrome conversion
+            self._pixel_inversion_offset is not None or
             (
-                src_tx_uid.is_encapsulated or
-                dst_tx_uid.is_encapsulated or
-                not src_tx_uid.is_little_endian
+                # Changing transfer syntax requires compression, decompression,
+                # and/or endianess conversion
+                (dst_tx_uid != src_tx_uid) and
+                (
+                    src_tx_uid.is_encapsulated or
+                    dst_tx_uid.is_encapsulated or
+                    not src_tx_uid.is_little_endian
+                )
             )
         ):
             if using_multiprocessing:
@@ -2215,6 +2313,11 @@ class _LegacyConversionRunner:
             if kw in self._legacy_datasets[0]:
                 # Read the value dealing with possible ambiguous VR issues
                 val = _read_ambiguous_vr(self._legacy_datasets[0], kw)
+
+                # These values change if monochrome1/2 conversion is required
+                if self._pixel_inversion_offset is not None:
+                    val = self._pixel_inversion_offset - val
+
                 setattr(self._destination, kw, val)
 
 

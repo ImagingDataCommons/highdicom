@@ -27,6 +27,7 @@ from pydicom.uid import (
     EnhancedMRImageStorage,
 )
 from pydicom.valuerep import DA, DSfloat, DT, TM
+from highdicom.image import Image
 from highdicom.legacy import (
     LegacyConvertedEnhancedCTImage,
     LegacyConvertedEnhancedMRImage,
@@ -146,8 +147,8 @@ class DicomGenerator:
                 slice_thickness,
                 auto_format=True
             )
-            tmp_dataset.WindowCenter = 1
-            tmp_dataset.WindowWidth = 2
+            tmp_dataset.WindowCenter = 40
+            tmp_dataset.WindowWidth = 400
             tmp_dataset.AcquisitionNumber = i
             tmp_dataset.InstanceNumber = i
             tmp_dataset.SeriesNumber = 1
@@ -360,8 +361,8 @@ def test_conversion(
 
     # Frame VOI LUT
     fr_voi_lut_seq = sfgs.FrameVOILUTSequence[0]
-    assert (fr_voi_lut_seq.WindowWidth == 2)
-    assert (fr_voi_lut_seq.WindowCenter == 1)
+    assert (fr_voi_lut_seq.WindowWidth == 400)
+    assert (fr_voi_lut_seq.WindowCenter == 40)
 
     # Frame Type
     fr_type_seq = getattr(sfgs, frame_type_seq_kw)[0]
@@ -908,6 +909,102 @@ def test_from_big_endian():
     # Pixel data should have been converted back to little endian
     for f, ds in enumerate(legacy_datasets):
         assert np.array_equal(converted.pixel_array[f], ds.pixel_array)
+
+
+@pytest.mark.parametrize('pixel_representation', [0, 1])
+@pytest.mark.parametrize(
+    'source_syntax,destination_syntax',
+    [
+        (None, None),
+        (RLELossless, None),
+        (RLELossless, ExplicitVRLittleEndian),
+        (None, RLELossless),
+        (JPEGLSLossless, RLELossless),
+    ]
+)
+def test_monochrome1_conversion(
+    pixel_representation: int,
+    source_syntax: str | None,
+    destination_syntax: str | None,
+):
+    """Test MONOCHROME1 legacy images become MONOCHROME2."""
+    data_generator = DicomGenerator(5, row=32, col=32)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.CT, 1, True, True
+    )
+
+    for ds in legacy_datasets:
+        ds = Image.from_dataset(ds, copy=False)
+        ds.PhotometricInterpretation = "MONOCHROME1"
+
+        if source_syntax is not None:
+            ds.compress(source_syntax)
+
+        # Monochrome conversion cannot handle a "non-trivial" rescale
+        # intercept/slope, so override this
+        ds.RescaleIntercept = 0
+        ds.RescaleSlope = 1
+
+        ds.PixelPaddingValue = 0
+        ds.PixelPaddingRangeLimit = 10
+        ds.SmallestImagePixelValue = 3
+        ds.LargestImagePixelValue = 30000
+
+        ds.PixelRepresentation = pixel_representation
+
+    converted = LegacyConvertedEnhancedCTImage(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        transfer_syntax_uid=destination_syntax,
+    )
+
+    converted = Image.from_dataset(
+        write_and_read_dataset(converted),
+        copy=False
+    )
+
+    # Converted should be MONOCHROME2
+    assert converted.PhotometricInterpretation == "MONOCHROME2"
+
+    if pixel_representation == 1:
+        inversion_offset = -1
+    else:
+        inversion_offset = 2 ** legacy_datasets[0].BitsStored - 1
+
+    # Check pixel-value related attributes that should have been inverted
+    assert converted.PixelPaddingValue == inversion_offset
+    assert converted.PixelPaddingRangeLimit == inversion_offset - 10
+    assert (
+        converted
+        .SharedFunctionalGroupsSequence[0]
+        .FrameVOILUTSequence[0]
+        .WindowCenter == inversion_offset - legacy_datasets[0].WindowCenter + 1
+    )
+    assert converted.SmallestImagePixelValue == inversion_offset - 30000
+    assert converted.LargestImagePixelValue == inversion_offset - 3
+
+    # Pixel data should have been inverted
+    for f, ds in enumerate(legacy_datasets):
+        # Raw arrays should be inverted
+        assert np.array_equal(
+            converted.pixel_array[f],
+            inversion_offset - ds.pixel_array
+        )
+
+        # After pixel transforms, arrays should match
+        assert np.array_equal(
+            converted.get_frame(f, as_index=True),
+            ds.get_frame(1)
+        )
+        # Also after pixel trasforms with the VOI LUT (may be small precision
+        # errors)
+        assert np.allclose(
+            converted.get_frame(f, as_index=True, apply_voi_transform=True),
+            ds.get_frame(1, apply_voi_transform=True)
+        )
 
 
 @pytest.mark.parametrize(
