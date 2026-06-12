@@ -160,9 +160,9 @@ In multiframe objects such as Legacy Converted Enhanced images, an attribute
 called the Dimension Index Sequence describes how the frames are sorted along
 one or more dimensions.
 
-Under the default behavior, highdicom attempts to choose a suitable dimension
-index automatically based on the legacy images. The current logic is as follows
-(we may generalize in the future to more specific schemes):
+Under the default behavior, highdicom attempts to choose suitable sorting
+dimensions automatically based on the legacy images. The current logic is as
+follows (we may generalize in the future to more complex schemes):
 
 1. Attempt to sort frames spatially as a regularly-spaced volume. This may fail
    because the spacings are not regular, orientations do not match, and/or there
@@ -178,10 +178,10 @@ The ``include_dimension_index`` parameter allows you to control this process.
 The default value is ``None`` and results in the above behavior. If instead,
 you pass ``include_dimension_index=True``, an exception will be raised if steps
 1 and 2 fail rather than skipping the Dimension Index Sequence. A value of
-  ``False`` means that no attempt will be made to sort the frames or include a
-  Dimension Index Sequence, they will simply be stored in the order you passed
-  them. Your alternative sorting scheme will *not* be stored in the Dimension
-  Index Sequence (this capability may be added in the future).
+``False`` means that no attempt will be made to sort the frames, they will
+simply be stored in the order you passed them. Your alternative sorting
+scheme will *not* be stored in the Dimension Index Sequence (this capability
+may be added in the future).
 
 For example, to sort by ``KVP`` and then ``SliceLocation``:
 
