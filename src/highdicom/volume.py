@@ -4128,7 +4128,7 @@ class Volume(_VolumeBase):
         Returns
         -------
         highdicom.Volume:
-            Volume constructed from the `itk.Image`.
+            Volume constructed from the Nibabel image.
 
         Raises
         ------
