@@ -2628,6 +2628,14 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             Additional keyword arguments that will be passed to the constructor
             of :class:`highdicom.base.SOPClass`.
 
+        Note
+        ----
+        Currently, highdicom places attributes without a specific location in
+        the Legacy Converted Enhanced image into the Unassigned PerFrame/Shared
+        Converted Attributes Sequence. However, future versions of highdicom
+        may attempt to move certain attributes into the locations used with the
+        corresponding Enhanced Image IODs.
+
         """  # noqa: E501
         try:
             ref_ds = legacy_datasets[0]
