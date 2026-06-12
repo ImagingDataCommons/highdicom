@@ -4104,7 +4104,7 @@ class Volume(_VolumeBase):
     @classmethod
     def from_nibabel(
         cls,
-        nib_im: 'nibabel.spatialimages.SpatialImage',  # noqa: F821
+        nibabel_image: 'nibabel.spatialimages.SpatialImage',  # noqa: F821
         coordinate_system: CoordinateSystemNames | str = 'PATIENT',
         frame_of_reference_uid: str | None = None
     ) -> Self:
