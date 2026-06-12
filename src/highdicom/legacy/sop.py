@@ -259,14 +259,14 @@ class _AttributeConfig:
 
     Parameters
     ----------
-    dest_kw: str | None
-        Keyword where the attribute will be placed. If explicitly set to None,
+    dest_kw: str
+        Keyword where the attribute will be placed.
     src_kws: list[str] | None, optional
         List of source keywords to search for the value to place into the
         destination keyword. If None, the dest_kw is used as the (only) source
         keyword. If a list is provided, the keywords are searched in order
         until a value is found to place into the destination. In this case, the
-        dest_kw is not used unless explicitly specified.
+        ``dest_kw`` is not used as a source keyword unless explicitly specified.
     default_val: Any | None
         Default value to use if attribute is not found in the source dataset.
     defer_copy: bool
