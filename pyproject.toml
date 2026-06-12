@@ -50,7 +50,7 @@ libjpeg = [
 ]
 itk = ["itk>=5.4.0"]
 sitk = ["SimpleITK>=2.2.1"]
-nib = ["nibabel>=4.0.0"]
+nibabel = ["nibabel>=4.0.0"]
 
 [dependency-groups]
 test = [
