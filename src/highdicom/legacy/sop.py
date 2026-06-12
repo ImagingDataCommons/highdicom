@@ -11,19 +11,19 @@ from sys import float_info
 from typing import (
     Any,
     BinaryIO,
-    Union,
     Callable,
     Generator,
     Sequence,
     Tuple,
     cast,
 )
-from pydicom.multival import MultiValue
 from typing_extensions import Self
 
+import numpy as np
 from pydicom.datadict import keyword_for_tag
 from pydicom.dataset import Dataset
 from pydicom.encaps import encapsulate, encapsulate_extended, get_frame
+from pydicom.multival import MultiValue
 from pydicom.tag import BaseTag
 from pydicom.uid import (
     LegacyConvertedEnhancedCTImageStorage,
@@ -46,6 +46,7 @@ from highdicom.enum import PhotometricInterpretationValues
 from highdicom.frame import encode_frame, get_lossy_compression_attributes
 from highdicom.image import Image, _Image
 from highdicom.spatial import get_series_volume_positions
+from highdicom.uid import UID as hd_UID
 
 from highdicom._standard_utils import (
     AttributeTypeValues,
@@ -253,6 +254,40 @@ def _transcode_frame(
     )
 
 
+def _get_dimension_index_sequence_item(
+    dimension_index_pointer: int,
+    functional_group_pointer: int,
+    dimension_description_label: str,
+    dimension_organization_uid: str
+) -> Dataset:
+    """Get an item of the Dimension Index Sequence.
+
+    Parameters
+    ----------
+    dimension_index_pointer: int
+        Tag of the dimension index pointer.
+    functional_group_pointer: int
+        Tag of the functional group pointer.
+    dimension_description_label: str
+        Free-text label
+    dimension_organization_uid: str
+        UID for the dimension organization
+
+    Returns
+    -------
+    pydicom.Dataset:
+        Populated item of the DimensionIndexSequence
+
+    """
+    index_ds = Dataset()
+    index_ds.DimensionIndexPointer = dimension_index_pointer
+    index_ds.FunctionalGroupPointer = functional_group_pointer
+    index_ds.DimensionDescriptionLabel = dimension_description_label
+    index_ds.DimensionOrganizationUID = dimension_organization_uid
+
+    return index_ds
+
+
 @dataclass
 class _AttributeConfig:
     """Configuration for how to copy an attribute to the converted instance.
@@ -292,34 +327,6 @@ class _AttributeConfig:
         return [self.dest_kw]
 
 
-def _default_sort_key(ds: Dataset) -> Tuple[Union[int, str, UID], ...]:
-    """The default sort key to sort single frames before conversion.
-
-    Parameters
-    ----------
-    ds: pydicom.Dataset
-        input Dataset to be sorted.
-
-    Returns
-    -------
-    tuple: Tuple[Union[int, str, UID]]
-        a sort key of three elements.
-            1st priority: SeriesNumber
-            2nd priority: InstanceNumber
-            3rd priority: SOPInstanceUID
-
-    """
-    out: tuple = tuple()
-    if "SeriesNumber" in ds:
-        out += (ds.SeriesNumber,)
-    if "InstanceNumber" in ds:
-        out += (ds.InstanceNumber,)
-    if "SOPInstanceUID" in ds:
-        out += (ds.SOPInstanceUID,)
-
-    return out
-
-
 class _LegacyConversionRunner:
     """Utility class for running a conversion process.
 
@@ -335,7 +342,7 @@ class _LegacyConversionRunner:
         transfer_syntax_uid: str,
         use_extended_offset_table: bool = False,
         require_volume: bool = False,
-        sort: bool = True,
+        include_dimension_index: bool | None = None,
         strict: bool = False,
         skip_private_attributes: bool = False,
         workers: int | Executor = 0,
@@ -366,11 +373,33 @@ class _LegacyConversionRunner:
         require_volume: bool, optional
             Raise an error if the legacy datasets do not form a regularly-spaced
             volume.
-        sort: bool, optional
-            Whether to sort datasets before placing them into the legacy
-            instance. If True, datasets will be sorted using the default sort
-            key. If False, frames of the new instance will be in the same order
-            as the list of legacy instances were passed.
+        include_dimension_index: bool | None = None, optional
+            Whether to include a dimension index within the
+            DimensionIndexSequence in the new converted dataset. A dimension
+            index describes how the frames are ordered within the instance.
+            Including a dimension index also entails sorting the legacy
+            datasets according to the index dimension before conversion.
+            Including a dimension index is optional according to the standard,
+            but generally desirable to help receivers understand the layout of
+            the frames.
+
+            When including a dimension index, highdicom will attempt to infer
+            suitable dimension indices from the legacy datasets and sort the
+            instances accordingly. It will first attempt to use the
+            ImagePositionPatient attribute and ImageOrientationPatient to sort
+            the slices as a regularly-spaced volume. If this fails, it will
+            fall back to sorting by SeriesNumber and InstanceNumber. A further
+            parameter to customize this behavior may be added in a future
+            release.
+
+            If this parameter is set to ``True``, highdicom will attempt to
+            include a dimension index and raise an exception if it fails to
+            find a suitable index. If ``None``, the default behavior, it will
+            attempt to include a dimension index, but skip it if this process
+            fails and fall back to encoding the frames in the order they were
+            passed with no index. If ``False``, no attempt will be made to sort
+            the datasets, they will be encoded in the order they are passed
+            without including a dimension index.
         strict: bool, optional
             Whether to use strict requirements on the new converted dataset. If
             True and any attributes required to create a standard-compliant
@@ -385,15 +414,8 @@ class _LegacyConversionRunner:
             compression, if compression or transcoding is needed.
 
         """
-        if sort:
-            self._legacy_datasets = sorted(
-                list(legacy_datasets),
-                key=_default_sort_key
-            )
-        else:
-            self._legacy_datasets = list(legacy_datasets)
-
         self._destination = destination
+        self._legacy_datasets = list(legacy_datasets)
         self._transfer_syntax_uid = transfer_syntax_uid
         self._workers = workers
         self._strict = strict
@@ -402,11 +424,14 @@ class _LegacyConversionRunner:
         self._keyword_shared_dict: dict[str, bool] = {}
         self._unused_keywords: set[str] = set()
         self._private_tag_shared_dict: dict[BaseTag, bool]
+        self._dimension_index_values: list[list[int]] | None = None
 
         (self._keyword_shared_dict, self._private_tag_shared_dict) = (
             self._find_shared_and_perframe_attributes()
         )
         self._check_attribute_consistency(require_volume)
+
+        self._find_dimension_index(include_dimension_index, require_volume)
 
         # If pixel data inversion is needed due to monochrome 1/2 conversion,
         # calculate the offset needed during inversion. To convert the value,
@@ -802,8 +827,8 @@ class _LegacyConversionRunner:
 
         # Miscellaneous other tasks
         self._add_series_description()
+        self._add_dimension_index_values()
         self._add_image_type()
-        self._add_stack_info_frame_content(require_volume)
         self._add_largest_smallest_pixel_value()
         self._add_common_instance_reference()
         self._add_unassigned_attributes()
@@ -954,6 +979,158 @@ class _LegacyConversionRunner:
                 "Duplicate SOP Instance UIDs found in input datasets."
             )
 
+    def _find_dimension_index(
+        self,
+        include_dimension_index: bool | None,
+        require_volume: bool,
+    ) -> None:
+        """Find a dimension index and sort datasets according to it.
+
+        Currently, this tries to sort spatially, and if this fails falls back
+        to SeriesNumber and InstanceNumber. There is scope to make this more
+        general in the future.
+
+        Parameters
+        ----------
+        include_dimension_index: bool | None
+            Whether to include a dimension index.
+        require_volume: bool
+            Whether to require that the converted dataset be a simple volume
+
+        """
+        self._volume_spacing, position_indices = get_series_volume_positions(
+            self._legacy_datasets,
+        )
+
+        if require_volume and self._volume_spacing is None:
+            raise ValueError(
+                "Legacy datasets are not a regularly-spaced set of frames."
+            )
+
+        if (
+            include_dimension_index is not None and
+            not include_dimension_index
+        ):
+            return
+
+        dimension_index_datasets = []
+        dim_org_uid = hd_UID()
+
+        if self._volume_spacing is not None and position_indices is not None:
+            # This is a volume, so we will use ImagePositionPatient the
+            # dimension index
+
+            # Sort the dataset spatially using the pre-calculated index
+            self._legacy_datasets = [
+                self._legacy_datasets[i] for i in position_indices
+            ]
+            self._dimension_index_values = [
+                [i] for i in range(1, len(self._legacy_datasets) + 1)
+            ]
+
+            dimension_index_datasets.append(
+                _get_dimension_index_sequence_item(
+                    0x0020_0032,  # ImagePositionPatient
+                    0x0020_9113,  # PlanePositionSequence
+                    "Image Position Patient",
+                    dim_org_uid
+                )
+            )
+            self._destination.DimensionOrganizationType = "3D"
+        else:
+            # Datasets are not a volume, try sorting by instance number and
+            # series number
+            multiple_series = not self._keyword_shared_dict["SeriesInstanceUID"]
+            have_instance_number = all(
+                hasattr(ds, "InstanceNumber") for ds in self._legacy_datasets
+            )
+            have_series_number = all(
+                hasattr(ds, "SeriesNumber") for ds in self._legacy_datasets
+            )
+
+            if multiple_series:
+                if have_instance_number and have_series_number:
+                    values = np.array(
+                        [
+                            [int(ds.SeriesNumber), int(ds.InstanceNumber)]
+                            for ds in self._legacy_datasets
+                        ]
+                    )
+                    _, sort_index = np.unique(values, axis=0, return_index=True)
+
+                    # Only use as a dimension index if combinations of series
+                    # number and instance number are unique
+                    if len(sort_index) == len(values):
+                        self._legacy_datasets = [
+                            self._legacy_datasets[i] for i in sort_index
+                        ]
+
+                        _, series_ind = np.unique(
+                            values[:, 0],
+                            return_inverse=True,
+                        )
+                        _, ins_ind = np.unique(
+                            values[:, 1],
+                            return_inverse=True,
+                        )
+
+                        dim_val_arr = np.stack(
+                            [series_ind[sort_index], ins_ind[sort_index]],
+                            axis=-1
+                        ) + 1
+
+                        self._dimension_index_values = dim_val_arr.tolist()
+
+                        dimension_index_datasets.append(
+                            _get_dimension_index_sequence_item(
+                                0x0020_0011,  # SeriesNumber
+                                0x0020_9171,  # UnassignedPerFrame...
+                                "Series Number of converted legacy instance",
+                                dim_org_uid
+                            )
+                        )
+                        dimension_index_datasets.append(
+                            _get_dimension_index_sequence_item(
+                                0x0020_0013,  # InstanceNumber
+                                0x0020_9171,  # UnassignedPerFrame...
+                                "Instance Number of converted legacy instance",
+                                dim_org_uid
+                            )
+                        )
+            else:
+                if have_instance_number:
+                    self._legacy_datasets = sorted(
+                        self._legacy_datasets,
+                        key=lambda ds: int(ds.InstanceNumber)
+                    )
+                    self._dimension_index_values = [
+                        [i] for i in range(1, len(self._legacy_datasets) + 1)
+                    ]
+
+                    dimension_index_datasets.append(
+                        _get_dimension_index_sequence_item(
+                            0x0020_0013,  # InstanceNumber
+                            0x0020_9171,  # UnassignedPerFrame...
+                            "Instance Number of converted legacy instance",
+                            dim_org_uid
+                        )
+                    )
+
+        if self._dimension_index_values is None:
+            if (
+                include_dimension_index is not None and
+                include_dimension_index
+            ):
+                raise RuntimeError(
+                    "Cannot determine a suitable dimension index to sort "
+                    "the legacy instances frames."
+                )
+        else:
+            self._destination.DimensionIndexSequence = dimension_index_datasets
+            dim_org_ds = Dataset()
+            dim_org_ds.DimensionOrganizationUID = dim_org_uid
+            self._destination.DimensionOrganizationSequence = [dim_org_ds]
+
     def _mark_keyword_used(self, kw: str) -> None:
         """Record that a keyword in the source files has been used.
 
@@ -999,11 +1176,6 @@ class _LegacyConversionRunner:
             skip_attributes = []
         if attribute_configs is None:
             attribute_configs = []
-
-        # Remove all the skipped attributes so they don't end up in unassigned
-        # converted attributes
-        for kw in skip_attributes:
-            self._mark_keyword_used(kw)
 
         ref_dataset = self._legacy_datasets[0]
         module_tree = construct_module_tree(module_name)
@@ -1711,44 +1883,35 @@ class _LegacyConversionRunner:
 
                 self._destination.SeriesDescription = desc
 
-    def _add_stack_info_frame_content(self, require_volume: bool) -> None:
-        """Adds stack info to the FrameContentSequence dicom attribute.
-
-        Parameters
-        ----------
-        require_volume: bool
-            Whether to require that the frames represent a regularly-spaced
-            volume.
-
-        """
-        spacing, position_indices = get_series_volume_positions(
-            self._legacy_datasets,
-        )
-
-        if spacing is not None and position_indices is not None:
-            stack_id = "1"
-
-            for pffg, pos in zip(
+    def _add_dimension_index_values(self) -> None:
+        """Add the dimension index values, if any, to functional groups."""
+        if self._dimension_index_values is not None:
+            for dim_ind_vals, pffg in zip(
+                self._dimension_index_values,
                 self._destination.PerFrameFunctionalGroupsSequence,
-                position_indices
+                strict=True,
             ):
                 if "FrameContentSequence" not in pffg:
                     pffg.FrameContentSequence = [Dataset()]
 
-                pffg.FrameContentSequence[0].StackID = str(stack_id)
-                pffg.FrameContentSequence[0].InStackPositionNumber = (
-                    int(pos) + 1
-                )
+                (
+                    pffg.FrameContentSequence[0]
+                    .DimensionIndexValues
+                ) = dim_ind_vals
 
+                # Also add volume position in the stack postion number
+                if self._volume_spacing is not None:
+                    pffg.FrameContentSequence[0].StackID = "1"
+                    pffg.FrameContentSequence[0].InStackPositionNumber = (
+                        dim_ind_vals[0]
+                    )
+
+        if self._volume_spacing is not None:
             sfgs = self._destination.SharedFunctionalGroupsSequence[0]
             if "PixelMeasuresSequence" in sfgs:
                 (
                     sfgs.PixelMeasuresSequence[0].SpacingBetweenSlices
-                ) = format_number_as_ds(spacing)
-        elif require_volume:
-            raise ValueError(
-                "Legacy datasets are not a regularly-spaced set of frames."
-            )
+                ) = format_number_as_ds(self._volume_spacing)
 
     def _copy_existing_sequence_to_functional_groups(
         self,
@@ -2360,11 +2523,11 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         transfer_syntax_uid: str | None = None,
         use_extended_offset_table: bool = False,
         require_volume: bool = False,
-        sort: bool = True,
         strict: bool = False,
         skip_private_attributes: bool = False,
         contributing_equipment: Sequence[ContributingEquipment] | None = None,
         workers: int | Executor = 0,
+        include_dimension_index: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -2397,20 +2560,40 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             they may be less widely supported than basic offset tables. This
             parameter is ignored if using a native (uncompressed) transfer
             syntax. The default value may change in a future release.
+        include_dimension_index: bool | None = None, optional
+            Whether to include a dimension index within the
+            DimensionIndexSequence in the new converted dataset. A dimension
+            index describes how the frames are ordered within the instance.
+            Including a dimension index also entails sorting the legacy
+            datasets according to the index dimension before conversion.
+            Including a dimension index is optional according to the standard,
+            but generally desirable to help receivers understand the layout of
+            the frames.
+
+            When including a dimension index, highdicom will attempt to infer
+            suitable dimension indices from the legacy datasets and sort the
+            instances accordingly. It will first attempt to use the
+            ImagePositionPatient attribute and ImageOrientationPatient to sort
+            the slices as a regularly-spaced volume. If this fails, it will
+            fall back to sorting by SeriesNumber and InstanceNumber. A further
+            parameter to customize this behavior may be added in a future
+            release.
+
+            If this parameter is set to ``True``, highdicom will attempt to
+            include a dimension index and raise an exception if it fails to
+            find a suitable index. If ``None``, the default behavior, it will
+            attempt to include a dimension index, but skip it if this process
+            fails and fall back to encoding the frames in the order they were
+            passed with no index. If ``False``, no attempt will be made to sort
+            the datasets, they will be encoded in the order they are passed
+            without including a dimension index.
         require_volume: bool, optional
-            If Tue, raise an error if the legacy datasets represent a set of
+            If True, raise an error if the legacy datasets represent a set of
             parallel, regularly-spaced frames from the same series. This
             is not a requirement for the conversion to be valid according to
             the standard, but users may wish to additionally impose this
             stricter requirement to ensure the resulting files are easier
             to work with.
-        sort: bool, optional
-            Sort the legacy datasets before placing them into the new instance
-            as frames. If False, frames are placed in the same order legacy
-            datasets were passed. When True, sorting is performed first by
-            Series Number, then Instance Number, then SOP Instance UID. To use
-            an alternative sort order, pre-sort the legacy datasets, and pass
-            ``sort=False``.
         strict: bool, optional
             Whether to use strict requirements on the new converted dataset. If
             True and any attributes required to create a standard-compliant
@@ -2531,7 +2714,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             workers=workers,
             transfer_syntax_uid=transfer_syntax_uid,
             use_extended_offset_table=use_extended_offset_table,
-            sort=sort,
+            include_dimension_index=include_dimension_index,
             skip_private_attributes=skip_private_attributes,
             strict=strict,
             require_volume=require_volume,

@@ -149,8 +149,8 @@ class DicomGenerator:
             )
             tmp_dataset.WindowCenter = 40
             tmp_dataset.WindowWidth = 400
-            tmp_dataset.AcquisitionNumber = i
-            tmp_dataset.InstanceNumber = i
+            tmp_dataset.AcquisitionNumber = i + 1
+            tmp_dataset.InstanceNumber = i + 1
             tmp_dataset.SeriesNumber = 1
             tmp_dataset.ImageOrientationPatient = orientation_mat
             tmp_dataset.ImagePositionPatient = [
@@ -396,9 +396,10 @@ def test_conversion(
 
     for i, (src, pffg) in enumerate(
         zip(
-            legacy_datasets,
+            reversed(legacy_datasets),  # due to choice of orientation
             converted.PerFrameFunctionalGroupsSequence,
-        )
+        ),
+        start=1
     ):
         # Frame Content (always per-frame)
         frm_content_seq = pffg.FrameContentSequence[0]
@@ -418,8 +419,7 @@ def test_conversion(
 
         # Due to choice of orientation, these are reversed
         assert (
-            frm_content_seq.InStackPositionNumber ==
-            number_of_frames - i
+            frm_content_seq.InStackPositionNumber == i
         )
 
         conv_src_seq = pffg.ConversionSourceAttributesSequence[0]
@@ -461,6 +461,18 @@ def test_conversion(
         not in converted
     )
 
+    dim_ind_seq = converted.DimensionIndexSequence
+    assert len(dim_ind_seq) == 1
+    assert (
+        dim_ind_seq[0].DimensionIndexPointer ==
+        tag_for_keyword("ImagePositionPatient")
+    )
+    assert (
+        dim_ind_seq[0].FunctionalGroupPointer ==
+        tag_for_keyword("PlanePositionSequence")
+    )
+    assert converted.DimensionOrganizationType == "3D"
+
 
 @pytest.mark.parametrize(
     'keyword',
@@ -500,13 +512,31 @@ def test_require_volume_spacings():
     legacy_datasets[0].ImagePositionPatient = [100.0, 0.0, 0.0]
 
     # Usually conversion process should succeed
-    LegacyConvertedEnhancedCTImage(
+    converted = LegacyConvertedEnhancedCTImage(
         legacy_datasets,
         series_instance_uid=UID(),
         series_number=1,
         sop_instance_uid=UID(),
         instance_number=1,
     )
+
+    dim_ind_seq = converted.DimensionIndexSequence
+    assert len(dim_ind_seq) == 1
+    assert (
+        dim_ind_seq[0].DimensionIndexPointer ==
+        tag_for_keyword("InstanceNumber")
+    )
+    assert (
+        dim_ind_seq[0].FunctionalGroupPointer ==
+        tag_for_keyword("UnassignedPerFrameConvertedAttributesSequence")
+    )
+    assert not hasattr(converted, "DimensionOrganizationType")
+
+    for i, pffg in enumerate(
+        converted.PerFrameFunctionalGroupsSequence,
+        start=1
+    ):
+        assert pffg.FrameContentSequence[0].DimensionIndexValues == i
 
     # Conversion process should fail with require_volume=True
     msg = (
@@ -536,13 +566,31 @@ def test_require_volume_orientation():
     ]
 
     # Usually conversion process should succeed
-    LegacyConvertedEnhancedCTImage(
+    converted = LegacyConvertedEnhancedCTImage(
         legacy_datasets,
         series_instance_uid=UID(),
         series_number=1,
         sop_instance_uid=UID(),
         instance_number=1,
     )
+
+    dim_ind_seq = converted.DimensionIndexSequence
+    assert len(dim_ind_seq) == 1
+    assert (
+        dim_ind_seq[0].DimensionIndexPointer ==
+        tag_for_keyword("InstanceNumber")
+    )
+    assert (
+        dim_ind_seq[0].FunctionalGroupPointer ==
+        tag_for_keyword("UnassignedPerFrameConvertedAttributesSequence")
+    )
+    assert not hasattr(converted, "DimensionOrganizationType")
+
+    for i, pffg in enumerate(
+        converted.PerFrameFunctionalGroupsSequence,
+        start=1
+    ):
+        assert pffg.FrameContentSequence[0].DimensionIndexValues == i
 
     # Conversion process should fail with require_volume=True
     msg = (
@@ -954,7 +1002,7 @@ def test_from_big_endian():
     assert converted.file_meta.TransferSyntaxUID == ExplicitVRLittleEndian
 
     # Pixel data should have been converted back to little endian
-    for f, ds in enumerate(legacy_datasets):
+    for f, ds in enumerate(reversed(legacy_datasets)):
         assert np.array_equal(converted.pixel_array[f], ds.pixel_array)
 
 
@@ -1034,7 +1082,7 @@ def test_monochrome1_conversion(
     assert converted.LargestImagePixelValue == inversion_offset - 3
 
     # Pixel data should have been inverted
-    for f, ds in enumerate(legacy_datasets):
+    for f, ds in enumerate(reversed(legacy_datasets)):
         # Raw arrays should be inverted
         assert np.array_equal(
             converted.pixel_array[f],
@@ -1057,8 +1105,6 @@ def test_monochrome1_conversion(
 @pytest.mark.parametrize(
     ['missing_keyword', 'sequence_name'],
     [
-        ('ImageOrientationPatient', 'PlaneOrientationSequence'),
-        ('ImagePositionPatient', 'PlanePositionSequence'),
         ('PixelSpacing', 'PixelMeasuresSequence'),
         ('SliceThickness', 'PixelMeasuresSequence'),
     ],
@@ -1140,7 +1186,7 @@ def test_private_attributes():
     assert unassigned_shared_seq[0x0045_1006].value == 'OUT OF GANTRY'
     assert unassigned_shared_seq[0x0045_0010].value == 'GEMS_HELIOS_01'
 
-    assert unassigned_perframe_seq[0x0019_1024].value == 131.0
+    assert unassigned_perframe_seq[0x0019_1024].value == 134.0
     assert unassigned_perframe_seq[0x0019_0010].value == 'GEMS_ACQU_01'
 
 
@@ -1361,21 +1407,67 @@ def test_mixed_series(modality: Modality):
     )
     legacy_datasets_2 = data_generator.generate_mixed_framesets(
         modality, 1, True, True
-    )
+    )[:3]
 
-    # Ensure the same frame of reference UID
+    # Ensure the same frame of reference UID and different series number
     for ds in legacy_datasets_2:
         ds.FrameOfReferenceUID = legacy_datasets_1[0].FrameOfReferenceUID
+        ds.SeriesNumber = 7
 
-    all_dataset = legacy_datasets_1 + legacy_datasets_2
+    # Pass in a jumbled way
+    all_datasets_jumbled = (
+        legacy_datasets_1[:3] +
+        list(reversed(legacy_datasets_2)) +
+        legacy_datasets_1[3:]
+    )
+    all_datasets = legacy_datasets_1 + legacy_datasets_2
 
-    LegacyConvertedClass(
-        legacy_datasets=all_dataset,
+    converted = LegacyConvertedClass(
+        legacy_datasets=all_datasets_jumbled,
         series_instance_uid=UID(),
         series_number=1,
         sop_instance_uid=UID(),
         instance_number=1,
     )
+
+    # Datasets should be stored sorted by series then by instance, as in the
+    # original unjumbled list
+    expected_pixels = np.stack(
+        [ds.pixel_array for ds in all_datasets]
+    )
+    assert np.array_equal(converted.pixel_array, expected_pixels)
+
+    all_dim_ind_vals = []
+    for series_index, series in enumerate(
+        [legacy_datasets_1, legacy_datasets_2],
+        start=1
+    ):
+        for instance_index in range(1, len(series) + 1):
+            all_dim_ind_vals.append([series_index, instance_index])
+
+    for ds, pffg, expected_dim_vals in zip(
+        all_datasets,
+        converted.PerFrameFunctionalGroupsSequence,
+        all_dim_ind_vals,
+        strict=True,
+    ):
+        assert (
+            ds.SOPInstanceUID ==
+            pffg.ConversionSourceAttributesSequence[0].ReferencedSOPInstanceUID
+        )
+        assert (
+            pffg.FrameContentSequence[0].DimensionIndexValues ==
+            list(expected_dim_vals)
+        )
+
+    assert len(converted.DimensionIndexSequence) == 2
+    d1 = converted.DimensionIndexSequence[0]
+    d2 = converted.DimensionIndexSequence[1]
+
+    assert d1.DimensionIndexPointer == tag_for_keyword("SeriesNumber")
+    assert d2.DimensionIndexPointer == tag_for_keyword("InstanceNumber")
+
+    assert not hasattr(converted, "DimensionOrganizationType")
 
 
 def test_unsorted():
@@ -1389,37 +1481,42 @@ def test_unsorted():
     reversed_legacy_datasets = legacy_datasets[::-1]
 
     converted_sorted = LegacyConvertedEnhancedPETImage(
-        legacy_datasets=reversed_legacy_datasets,
+        legacy_datasets=legacy_datasets,
         series_instance_uid=UID(),
         series_number=1,
         sop_instance_uid=UID(),
         instance_number=1,
-        sort=True,
     )
 
-    # Frames should be sorted by instance number
-    for ds, pffg in zip(
-        legacy_datasets,
-        converted_sorted.PerFrameFunctionalGroupsSequence,
+    # Frames should be sorted by image position
+    for i, (ds, pffg) in enumerate(
+        zip(
+            reversed_legacy_datasets,
+            converted_sorted.PerFrameFunctionalGroupsSequence,
+        ),
+        start=1
     ):
         frame_source_uid = (
             pffg.ConversionSourceAttributesSequence[0]
             .ReferencedSOPInstanceUID
         )
         assert frame_source_uid == ds.SOPInstanceUID
+        assert pffg.FrameContentSequence[0].DimensionIndexValues == i
 
     converted_unsorted = LegacyConvertedEnhancedPETImage(
-        legacy_datasets=reversed_legacy_datasets,
+        legacy_datasets=legacy_datasets,
         series_instance_uid=UID(),
         series_number=1,
         sop_instance_uid=UID(),
         instance_number=1,
-        sort=False,
+        include_dimension_index=False,
     )
+
+    assert not hasattr(converted_unsorted, "DimensionIndexSequence")
 
     # Frames should be in same order they were passed
     for ds, pffg in zip(
-        reversed_legacy_datasets,
+        legacy_datasets,
         converted_unsorted.PerFrameFunctionalGroupsSequence,
     ):
         frame_source_uid = (
@@ -1427,6 +1524,10 @@ def test_unsorted():
             .ReferencedSOPInstanceUID
         )
         assert frame_source_uid == ds.SOPInstanceUID
+        assert not hasattr(
+            pffg.FrameContentSequence[0],
+            "DimensionIndexValues"
+        )
 
 
 @pytest.mark.parametrize(
@@ -1748,7 +1849,7 @@ def test_encapsulated(transfer_syntax_uid: UID):
     )
 
     expected_pixels = np.stack(
-        [ds.pixel_array for ds in legacy_datasets]
+        [ds.pixel_array for ds in reversed(legacy_datasets)]
     )
     assert np.array_equal(converted.pixel_array, expected_pixels)
 
@@ -1772,7 +1873,7 @@ def test_transcode(workers: int):
     )
 
     expected_pixels = np.stack(
-        [ds.pixel_array for ds in legacy_datasets]
+        [ds.pixel_array for ds in reversed(legacy_datasets)]
     )
     assert np.array_equal(converted.pixel_array, expected_pixels)
 
@@ -1815,7 +1916,7 @@ def test_encode_rgb(
     )
 
     expected_pixels = np.stack(
-        [ds.pixel_array for ds in legacy_datasets]
+        [ds.pixel_array for ds in reversed(legacy_datasets)]
     )
     if transfer_syntax_uid in (JPEG2000, JPEGBaseline8Bit):
         # Lossy transfer syntax: don't expect equality
@@ -1890,7 +1991,7 @@ def test_transcode_rgb(
     )
 
     expected_pixels = np.stack(
-        [ds.pixel_array for ds in legacy_datasets]
+        [ds.pixel_array for ds in reversed(legacy_datasets)]
     )
     if transfer_syntax_uid in (JPEG2000, JPEGBaseline8Bit):
         # Lossy transfer syntax: don't expect equality
@@ -1955,7 +2056,7 @@ def test_transcode_custom_workers():
         )
 
     expected_pixels = np.stack(
-        [ds.pixel_array for ds in legacy_datasets]
+        [ds.pixel_array for ds in reversed(legacy_datasets)]
     )
     assert np.array_equal(converted.pixel_array, expected_pixels)
 
@@ -1988,7 +2089,7 @@ def test_from_dataset(modality: Modality) -> None:
 
     assert isinstance(reread, LegacyConvertedClass)
     expected_pixels = np.stack(
-        [ds.pixel_array for ds in legacy_datasets]
+        [ds.pixel_array for ds in reversed(legacy_datasets)]
     )
     assert np.array_equal(converted.pixel_array, expected_pixels)
 
