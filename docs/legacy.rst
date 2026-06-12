@@ -153,18 +153,35 @@ situations, you may wish to include images from multiple series in one
 multiframe file. This is allowed if certain conditions are met, such as images
 having the same size, pixel representation, photometric interpretation, etc.
 
-Sorting Frames
---------------
+Sorting Frames and Dimension Indices
+------------------------------------
 
-Highdicom automatically sorts the legacy datasets before placing them into the
-multiframe instance. The default behavior sorts first by the "SeriesNumber"
-attribute (for cases with multiple series), then by the "InstanceNumber"
-attribute, then by the "SOPInstanceUID" attribute (to give a predictable sort
-order in cases where instance number is not present). If you prefer an
-alternative sorting scheme, you can disable the default sorting by passing
-``sort=False`` and then pass the datasets in whatever order you prefer. There
-is no strict requirement that frames be sorted, but it would be best practice
-to use some sort of logical sorting scheme.
+In multiframe objects such as Legacy Converted Enhanced images, an attribute
+called the Dimension Index Sequence describes how the frames are sorted along
+one or more dimensions.
+
+Under the default behavior, highdicom attempts to choose a suitable dimension
+index automatically based on the legacy images. The current logic is as follows
+(we may generalize in the future to more specific schemes):
+
+1. Attempt to sort frames spatially as a regularly-spaced volume. This may fail
+   because the spacings are not regular, orientations do not match, and/or there
+   are multiple frames at each image position.
+2. If step 1 fails, attempt to sort by Instance Number of the legacy series,
+   or, if there are multiple series, by Series Number then by Instance Number
+   as two dimension indices.
+3. If this fails (because series and/or instance numbers are missing), store
+   frames in the order they were passed and do not include a Dimension Index 
+   Sequence (it is optional).
+
+The ``include_dimension_index`` parameter allows you to control this process.
+The default value is ``None`` and results in the above behavior. If instead,
+you pass ``include_dimension_index=True``, an exception will be raised if steps
+1 and 2 fail rather than skipping the Dimension Index Sequence. A value of
+  ``False`` means that no attempt will be made to sort the frames or include a
+  Dimension Index Sequence, they will simply be stored in the order you passed
+  them. Your alternative sorting scheme will *not* be stored in the Dimension
+  Index Sequence (this capability may be added in the future).
 
 For example, to sort by ``KVP`` and then ``SliceLocation``:
 
@@ -198,50 +215,11 @@ For example, to sort by ``KVP`` and then ``SliceLocation``:
       series_instance_uid=hd.UID(),
       sop_instance_uid=hd.UID(),
       series_description="Enhanced Test Files",
-      sort=False,  # disable default sorting
+      include_dimension_index=False,  # disable default sorting
   )
 
   # Save out the new multiframe conversion
   multiframe.save_as("legacy_converted_ct.dcm")
-
-Alternatively, you could use highdicom's
-:func:`highdicom.spatial.sort_datasets` function to sort the datasets based
-purely on spatial location:
-
-.. code-block:: python
-
-  import highdicom as hd
-  from pydicom import dcmread
-  from pydicom.data import get_testdata_file
-
-
-  # Use this series of files from the pydicom test data
-  legacy_ct_files = [
-      get_testdata_file('dicomdirtests/77654033/CT2/17136'),
-      get_testdata_file('dicomdirtests/77654033/CT2/17196'),
-      get_testdata_file('dicomdirtests/77654033/CT2/17166'),
-  ]
-
-  # Read in the files
-  ct_series = [dcmread(f) for f in legacy_ct_files]
-
-  # Sort frames spatially
-  ct_series = hd.spatial.sort_datasets(ct_series)
-
-  # Create multiframe instance with custom sort key
-  multiframe = hd.legacy.LegacyConvertedEnhancedCTImage(
-      ct_series,
-      series_number=1,
-      instance_number=1,
-      series_instance_uid=hd.UID(),
-      sop_instance_uid=hd.UID(),
-      series_description="Enhanced Test Files",
-      sort=False,  # disable default sorting
-  )
-
-  # Save out the new multiframe conversion
-  multiframe.save_as("legacy_converted_ct.dcm")
-
 
 Requiring Volumes
 -----------------
