@@ -802,6 +802,53 @@ def test_aggregated_image_type():
         assert hasattr(pffg, frame_type_seq_kw)
 
 
+def test_no_image_type():
+    """Test behavior with missing ImageType in legacy datasets.
+
+    """
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.CT, 1, True, True
+    )
+
+    # Remove the image type
+    for ds in legacy_datasets:
+        delattr(ds, 'ImageType')
+
+    converted = LegacyConvertedEnhancedCTImage(
+        legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        strict=False,
+    )
+
+    # Top-level ImageType should be empty
+    assert converted.ImageType is None
+
+    # Frame type should be empty in the functional groups
+    sfgs = converted.SharedFunctionalGroupsSequence[0]
+    frame_type_seq = sfgs.CTImageFrameTypeSequence[0]
+    assert frame_type_seq.FrameType is None
+
+    # Should fail in strict mode
+    msg = (
+        "Cannot determine value for required attribute 'FrameType' "
+        "in the 'CTImageFrameTypeSequence'. To omit the attribute "
+        "in this situation, set the 'strict' parameter to False."
+    )
+    with pytest.raises(AttributeError, match=msg):
+        LegacyConvertedEnhancedCTImage(
+            legacy_datasets,
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            strict=True,
+        )
+
+
 def test_default_series_description():
     """Test that the default series description is added."""
     data_generator = DicomGenerator(5)
@@ -1022,7 +1069,7 @@ def test_missing_required_attribute_for_mandatory_group(
     sequence_name: str,
 ):
     """Missing required attribute for mandatory functional group should raise
-    an error.
+    an error with strict=True.
 
     """
     LegacyConvertedClass = MODALITY_CLASS_MAP[modality]
@@ -1045,6 +1092,7 @@ def test_missing_required_attribute_for_mandatory_group(
             series_number=1,
             sop_instance_uid=UID(),
             instance_number=1,
+            strict=True,
         )
 
     # Check it works okay with strict = False

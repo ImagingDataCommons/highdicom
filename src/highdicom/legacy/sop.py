@@ -336,7 +336,7 @@ class _LegacyConversionRunner:
         use_extended_offset_table: bool = False,
         require_volume: bool = False,
         sort: bool = True,
-        strict: bool = True,
+        strict: bool = False,
         skip_private_attributes: bool = False,
         workers: int | Executor = 0,
     ) -> None:
@@ -1463,7 +1463,7 @@ class _LegacyConversionRunner:
     ) -> None:
         """Custom logic for the {CTImage/MRImage/PET} FrameTypeSequence.
 
-        This is needed to handle the frame type attibute.
+        This is needed to handle the frame type attribute.
 
         Parameters
         ----------
@@ -1473,6 +1473,25 @@ class _LegacyConversionRunner:
             Dataset to copy to.
 
         """
+        if "ImageType" not in source:
+            msg = (
+                "Legacy instances contain no ImageType attribute but it is "
+                "required for FrameType. "
+            )
+            if self._strict:
+                msg += (
+                    "To leave 'FrameType' empty in this situation, "
+                    "set 'strict' to False."
+                )
+                raise AttributeError(msg)
+            else:
+                msg += (
+                    "FrameType will therefore be left empty in the converted "
+                    "dataset."
+                )
+                destination.FrameType = None
+                return
+
         frame_type = source.ImageType
         dest_kw = "FrameType"
         lng = len(frame_type)
@@ -2342,7 +2361,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         use_extended_offset_table: bool = False,
         require_volume: bool = False,
         sort: bool = True,
-        strict: bool = True,
+        strict: bool = False,
         skip_private_attributes: bool = False,
         contributing_equipment: Sequence[ContributingEquipment] | None = None,
         workers: int | Executor = 0,
