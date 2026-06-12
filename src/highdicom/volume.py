@@ -3937,7 +3937,7 @@ class Volume(_VolumeBase):
         The Volume is converted to one of several 3D Image classes (
         ``nibabel.Nifti1Image``, ``nibabel.Nifti2Image``, ``nibabel.MGHImage``,
         ``nibabel.Minc1Image``, ``nibabel.Minc2Image``, ``nibabel.AnalyzeImage``
-        ), defaulting to ``nibabel.Nifti1Image``. If its array'current datatype
+        ), defaulting to ``nibabel.Nifti1Image``. If its array's current datatype
         is not supported by a given class, it is safely cast to a compatible
         type where possible. If impossible to cast safely, a ``ValueError`` is
         raised. Casting is performed on the following data types for each image
