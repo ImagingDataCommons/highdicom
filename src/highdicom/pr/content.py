@@ -846,6 +846,7 @@ def _add_presentation_state_identification_attributes(
             content_creator_identification
         )
 
+
 def _add_presentation_state_relationship_attributes(
     dataset: Dataset,
     referenced_images: Sequence[Dataset]
