@@ -541,8 +541,8 @@ class ParametricMap(Image):
             item: Dataset,
             mappings: Sequence[RealWorldValueMapping],
         ):
-            # Mappings may contain multiple mappings. Directly add the whole
-            # list as a sequence
+            # Mappings asequence may contain multiple mappings. Directly add
+            # the whole list as a sequence
             item.add(
                 DataElement(
                     0x0040_9096,  # RealWorldValueMappingSequence

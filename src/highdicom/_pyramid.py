@@ -1,5 +1,4 @@
 """Tools for constructing multi-resolution pyramids."""
-from typing import Any
 from collections.abc import Generator, Sequence
 
 import numpy as np
@@ -99,7 +98,7 @@ def iter_derived_pyramid_levels(
 
     Yields
     ------
-    source_image: 
+    source_image:
         Dataset to use as the source image at this level. This will be one of
         the inputs provided to ``source_images``.
     pixel_array: numpy.ndarray

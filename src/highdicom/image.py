@@ -530,7 +530,7 @@ class _CombinedPixelTransform:
                 'BitsStored' not in image
             ):
                 if image.BitsAllocated == 32:
-                    self.input_dtype = np.dtype(np.float32)
+                    self.input_dtype: np.dtype = np.dtype(np.float32)
                     self.pixel_keyword = PixelDataKeywords.FLOAT_PIXEL_DATA
                 elif image.BitsAllocated == 64:
                     self.input_dtype = np.dtype(np.float64)
@@ -1770,13 +1770,34 @@ class _Image(SOPClass):
 
         Parameters
         ----------
-        channel_dimension_index: highdicom.ChannelDescriptor | None
+        channel_values: Sequence[Any] | None, optional
+            If channels are to be included in the new image, the values of the
+            channel dimension for each channel. The length of this list defines
+            the number of channels. The value can be any type, and is added to
+            the relevant functional group using ``add_channel_callback``.
+        add_channel_callback: Callable[[Dataset, Any], Dataset] | None, optional
+            Callback used to add channel information to the functional groups.
+            Accepts the dataset (item of the shared or per-frame functional
+            groups sequence) to which the channel information should be added
+            and the value to add, and returns the updated dataset. Required if
+            channel_values is not None, and may not be passed otherwise.
+        channel_dimension_index: highdicom.ChannelDescriptor | None, optional
             If there is a channel dimension and it should be included in the
             dimension index sequence, provide the descriptor of the relevant
             attribute here. Otherwise, pass ``None``. It is not required that
             the channel, if present, be included in the DimensionIndexSequence.
+        preprocess_channel_callback: Callable[[np.ndarray, Any, int], np.ndarray]
+            Callback used to process pixel data to store as a particular
+            channel. This callback should accept the pixel data corresponding
+            to a single plane, the channel value, and the channel index, and
+            return pixel data for the channel. If omitted, a simple index
+            operation down the last dimension is performed using the channel
+            index, and the channel value is ignored. The only use case for this
+            currently is extracting a single segment corresponding to the
+            segment value from a segmentation frame when creating a binary
+            segmentation from a label map input.
 
-        """
+        """  # noqa: E501
         uniqueness_criteria = {
             (
                 image.StudyInstanceUID,
@@ -2201,6 +2222,7 @@ class _Image(SOPClass):
         # workers, we will accumulate a list of encoded frames to encapsulate
         # at the end
         frames: list[bytes] | list[np.ndarray] = []
+        frame_futures: list[Future] = []
 
         # In the case of native encoding when the number pixels in a frame is
         # not a multiple of 8. This array carries "leftover" pixels that
@@ -2214,7 +2236,6 @@ class _Image(SOPClass):
                 # In the case of encapsulated transfer syntaxes with multiple
                 # workers, we will accumulate a list of encoded frames to
                 # encapsulate at the end
-                frame_futures: list[Future] = []
 
                 # Use the existing executor or create one
                 if isinstance(workers, Executor):
@@ -2252,9 +2273,24 @@ class _Image(SOPClass):
         # sequence at the end
         pffg_sequence: list[Dataset] = []
 
+        # Two different default callbacks, which to use depends on the situation
+        def preprocess_channel_identity(
+            arr: np.ndarray,
+            _: Any,  # value (unused)
+            __: int,  # index (unused)
+        ):
+            return arr
+
+        def preprocess_channel_index(
+            arr: np.ndarray,
+            _: Any,
+            ind: int
+        ):
+            return arr[:, :, ind]
+
         if channel_values is None:
             if self._coordinate_system is None:
-                # If there are no channels nor any spatial indoces, we need to
+                # If there are no channels nor any spatial indices, we need to
                 # create some dimension to index down
                 channel_values = ["Frame"]
 
@@ -2273,13 +2309,7 @@ class _Image(SOPClass):
                     return pffg_item
 
                 add_channel_callback = _add_frame_label
-
-                def preprocess_channel_callback(
-                    arr: np.ndarray,
-                    _: Any,  # value (unused0)
-                    __: int,  # index (unused)
-                ):
-                    return arr
+                preprocess_channel_callback = preprocess_channel_identity
 
                 channel_is_indexed = True
             else:
@@ -2290,19 +2320,17 @@ class _Image(SOPClass):
         if preprocess_channel_callback is None:
             # Default channel callback just indexes down the final dimension
             if pixel_array.ndim == 4:
-                def preprocess_channel_callback(
-                    arr: np.ndarray,
-                    _: Any,
-                    ind: int
+                preprocess_channel_callback = preprocess_channel_index
+                if (
+                    channel_values is None or
+                    len(channel_values) != pixel_array.shape[3]
                 ):
-                    return arr[:, :, ind]
+                    raise ValueError(
+                        "Number of channel values must match final "
+                        "dimension of the pixel array."
+                    )
             else:
-                def preprocess_channel_callback(
-                    arr: np.ndarray,
-                    _: Any,
-                    __: int,
-                ):
-                    return arr
+                preprocess_channel_callback = preprocess_channel_identity
 
         # Main frame loop: encode frames and create per-frame functional groups
         for channel_index, channel_value in enumerate(channel_values):
@@ -2699,7 +2727,7 @@ class _Image(SOPClass):
         further_source_images: Sequence[Dataset],
         tile_pixel_array: bool,
         tile_size: Sequence[int] | None,
-        frame_shape: Sequence[int],
+        frame_shape: tuple[int, int],
         number_of_planes: int,
         dimension_organization_type: DimensionOrganizationTypeValues,
         volume_geometry: VolumeGeometry | None,
@@ -2741,7 +2769,7 @@ class _Image(SOPClass):
             the constructor.
         tile_size: Sequence[int] | None
             The tile size when using automatic tiling.
-        frame_shape: Sequence[int]
+        frame_shape: tuple[int, int]
             Sequence of integers giving the row, column shape of the provided
             pixel array.
         number_of_planes: int
@@ -3499,7 +3527,7 @@ class _Image(SOPClass):
         plane_orientation: PlaneOrientationSequence,
         pixel_measures: PixelMeasuresSequence,
         src_img: Dataset,
-        frame_shape: Sequence[int],
+        frame_shape: tuple[int, int],
         orientation_is_copied: bool,
         measures_is_copied: bool,
         tile_size: Sequence[int],
@@ -3526,7 +3554,7 @@ class _Image(SOPClass):
             Pixel measures sequence for the new image.
         src_img: Dataset
             Source image multiframe dataset.
-        frame_shape: Sequence[int]
+        frame_shape: tuple[int, int]
             Frame shape of the pixel array.
         orientation_is_copied: bool
             Whether the orientation was copied from the source image.
@@ -3672,7 +3700,7 @@ class _Image(SOPClass):
             dimension_organization_type !=
             DimensionOrganizationTypeValues.TILED_FULL
         ):
-            plane_positions = [
+            output_plane_positions = [
                 PlanePositionSequence(
                     CoordinateSystemNames.SLIDE,
                     image_position=coords,
@@ -3682,7 +3710,7 @@ class _Image(SOPClass):
             ]
         else:
             # Unneeded
-            plane_positions = [None]
+            output_plane_positions = [None]
 
         tile_positions_list, plane_positions_list = zip(*raw_plane_positions)
 
@@ -3705,7 +3733,7 @@ class _Image(SOPClass):
         )
 
         return (
-            plane_positions,
+            output_plane_positions,
             plane_position_values,
             plane_tile_positions,
             plane_sort_index,
@@ -5301,11 +5329,11 @@ class _Image(SOPClass):
         if self._is_tiled_full:
             # With TILED_FULL, there is no PerFrameFunctionalGroupsSequence,
             # so we have to deduce the per-frame information
-            row_tag = tag_for_keyword('RowPositionInTotalImagePixelMatrix')
-            col_tag = tag_for_keyword('ColumnPositionInTotalImagePixelMatrix')
-            x_tag = tag_for_keyword('XOffsetInSlideCoordinateSystem')
-            y_tag = tag_for_keyword('YOffsetInSlideCoordinateSystem')
-            z_tag = tag_for_keyword('ZOffsetInSlideCoordinateSystem')
+            row_tag = 0x0048_021F  # RowPositionInTotalImagePixelMatrix
+            col_tag = 0x0048_021E  # ColumnPositionInTotalImagePixelMatrix
+            x_tag = 0x0040_072A  # XOffsetInSlideCoordinateSystem
+            y_tag = 0x0040_073A  # YOffsetInSlideCoordinateSystem
+            z_tag = 0x0040_074A  # ZOffsetInSlideCoordinateSystem
             tiled_full_dim_indices = {row_tag, col_tag}
             (
                 channel_numbers,
@@ -5315,18 +5343,18 @@ class _Image(SOPClass):
                 dim_values[x_tag],
                 dim_values[y_tag],
                 dim_values[z_tag],
-            ) = zip(*iter_tiled_full_frame_data(self))
+            ) = (list(x) for x in zip(*iter_tiled_full_frame_data(self)))
 
             if (
                 hasattr(self, 'SegmentSequence') and
                 self.SegmentationType != 'LABELMAP'
             ):
-                segment_tag = tag_for_keyword('ReferencedSegmentNumber')
+                segment_tag = 0x0062_000B  # ReferencedSegmentNumber
                 dim_values[segment_tag] = channel_numbers
                 if len(self.SegmentSequence) > 1:
                     tiled_full_dim_indices |= {segment_tag}
             elif hasattr(self, 'OpticalPathSequence'):
-                op_tag = tag_for_keyword('OpticalPathIdentifier')
+                op_tag = 0x0048_0106  # OpticalPathIdentifier
                 dim_values[op_tag] = channel_numbers
                 if len(self.OpticalPathSequence) > 1:
                     tiled_full_dim_indices |= {op_tag}
@@ -7179,7 +7207,7 @@ class _Image(SOPClass):
     def _prepare_channel_tables(
         self,
         norm_channel_indices_list: list[dict[tuple[str, str], Any]],
-        remap_channel_indices: Sequence[int] | None = None,
+        remap_channel_indices: Sequence[Sequence[int]] | None = None,
     ) -> tuple[list[str], list[str], list[_SQLTableDefinition]]:
         """Prepare query elements for a query involving output channels.
 
@@ -7196,7 +7224,7 @@ class _Image(SOPClass):
             must be distinct. Note that each item in the list may contain
             multiple items, provided that the number of items in each value
             matches within a single dictionary.
-        remap_channel_indices: Sequence[int] | None, optional
+        remap_channel_indices: Sequence[Sequence[int]] | None, optional
             Use these values to remap the channel indices returned in the
             output iterator. The ith item applies to output channel i, and
             within that list index ``j`` is mapped to
@@ -7239,12 +7267,13 @@ class _Image(SOPClass):
                 remap_channel_indices is not None and
                 remap_channel_indices[i] is not None
             ):
-                if isinstance(remap_channel_indices[i], np.ndarray):
+                rci = remap_channel_indices[i]
+                if isinstance(rci, np.ndarray):
                     # Need to call tolist to ensure elements end up as standard
                     # python types
-                    output_channel_indices = remap_channel_indices[i].tolist()
+                    output_channel_indices: Iterable[int] = rci.tolist()
                 else:
-                    output_channel_indices = remap_channel_indices[i]
+                    output_channel_indices = rci
             else:
                 output_channel_indices = range(num_channels)
 
@@ -7420,6 +7449,7 @@ class _Image(SOPClass):
             allow_missing_combinations = True
 
         all_columns = []
+        norm_stack_indices: dict[tuple[str, str], Any] | None = None
         if stack_indices is not None:
             norm_stack_indices = self._normalize_dimension_queries(
                 stack_indices,
@@ -7478,6 +7508,12 @@ class _Image(SOPClass):
         )
 
         if stack_table_def is None:
+            # Due to earlier logic
+            norm_stack_indices = cast(
+                dict[tuple[str, str], Any],
+                norm_stack_indices
+            )
+
             # Create temporary table of desired dimension indices
             stack_table_name = 'TemporaryStackTable'
 
@@ -7815,8 +7851,8 @@ class _Image(SOPClass):
         filters_use_indices: bool = False,
         allow_missing_values: bool = False,
         allow_missing_combinations: bool = False,
-    ) -> tuple[
-            Generator[
+    ) -> Generator[
+            tuple[
                 Iterator[
                     tuple[
                         int,
@@ -7825,10 +7861,10 @@ class _Image(SOPClass):
                         tuple[int, ...]
                     ]
                 ],
-                None,
-                None,
+                tuple[int, int],
             ],
-            tuple[int, int]
+            None,
+            None,
         ]:
         """Iterate over segmentation frame indices for a given region of the
         image's total pixel matrix.
@@ -8144,12 +8180,14 @@ class _Image(SOPClass):
         """
         if lazy_frame_retrieval:
             if isinstance(fp, bytes):
-                fp = DicomBytesIO(fp)
+                fp_: DicomIO | str | PathLike = DicomBytesIO(fp)
             elif not isinstance(fp, (str, PathLike, DicomIO)):
                 # General BinaryIO object, wrap in DicomIO
-                fp = DicomIO(fp)
+                fp_ = DicomIO(fp)
+            else:
+                fp_ = fp
 
-            reader = ImageFileReader(fp)
+            reader = ImageFileReader(fp_)
             metadata = reader._change_metadata_ownership()
             image = cls.from_dataset(metadata, copy=False)
             image._file_reader = reader
@@ -8963,6 +9001,8 @@ def get_volume_from_series(
         if slice_spacing is None:
             raise ValueError('Series is not a regularly-spaced volume.')
 
+        vol_positions = cast(list[int], vol_positions)
+
         sorted_datasets = [
             series_datasets[vol_positions.index(i)]
             for i in range(len(series_datasets))
@@ -8995,6 +9035,9 @@ def get_volume_from_series(
         channels = {RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B']}
 
     coordinate_system = get_image_coordinate_system(series_datasets[0])
+
+    if coordinate_system is None:
+        raise ValueError("Cannot infer coordinate system from the image.")
 
     first_ds = sorted_datasets[0]
 
