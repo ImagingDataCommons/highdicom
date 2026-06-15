@@ -842,14 +842,9 @@ def _add_presentation_state_identification_attributes(
                 'Argument "content_creator_identification" must be of type '
                 'ContentCreatorIdentificationCodeSequence.'
             )
-        dataset.ContentCreatorIdentificationCodeSequence = \
+        dataset.ContentCreatorIdentificationCodeSequence = (
             content_creator_identification
-
-    # Not technically part of PR IODs, but we include anyway
-    now = datetime.datetime.now()
-    dataset.ContentDate = DA(now.date())
-    dataset.ContentTime = TM(now.time())
-
+        )
 
 def _add_presentation_state_relationship_attributes(
     dataset: Dataset,

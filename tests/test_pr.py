@@ -1114,6 +1114,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert hasattr(pr, 'RescaleType')
         assert pr.RescaleIntercept == self._ct_series[0].RescaleIntercept
         assert pr.RescaleSlope == self._ct_series[0].RescaleSlope
+        assert 'ContentDate' not in pr
 
     def test_construction_with_modality_rescale(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1158,6 +1159,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert gsps.RescaleIntercept == 1024
         assert gsps.RescaleType == 'HU'
         assert not hasattr(gsps, 'ModalityLUTSequence')
+        assert 'ContentDate' not in gsps
 
     def test_construction_with_modality_lut(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1200,6 +1202,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert not hasattr(gsps, 'RescaleIntercept')
         assert not hasattr(gsps, 'RescaleType')
         assert len(gsps.ModalityLUTSequence) == 1
+        assert 'ContentDate' not in gsps
 
     def test_construction_with_copy_modality_lut(self):
         gsps = GrayscaleSoftcopyPresentationState(
