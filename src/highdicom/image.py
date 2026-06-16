@@ -8527,8 +8527,7 @@ class Image(_Image):
             ]
             if not self._do_columns_identify_unique_frames(columns):
                 raise RuntimeError(
-                    'Volume positions do not uniquely identify frames of the '
-                    'image.'
+                    'Multiple frames found at one or more plane positions.'
                 )
 
             (

@@ -1346,9 +1346,11 @@ class TestParametricMap():
             write_and_read_dataset(instance)
         )
 
-        vol = instance.get_volume()
-        assert vol.geometry_equal(self._ct_volume)
-        assert np.array_equal(vol.array, array)
+        # Get volume will not currently work with multiple channels. This will
+        # hopefully be implemented in a future release
+        msg = 'Multiple frames found at one or more plane positions.'
+        with pytest.raises(RuntimeError, match=msg):
+            instance.get_volume()
 
     def test_from_volume_non_aligned(self):
         # Creating a parametric map from a volume that is not aligned with the
