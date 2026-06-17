@@ -60,21 +60,6 @@ class TestRealWorldValueMapping():
                 lut_explanation=lut_explanation,
                 unit=unit,
                 value_range=value_range,
-            )
-        with pytest.raises(TypeError):
-            RealWorldValueMapping(
-                lut_label=lut_label,
-                lut_explanation=lut_explanation,
-                unit=unit,
-                value_range=value_range,
-                slope=slope
-            )
-        with pytest.raises(TypeError):
-            RealWorldValueMapping(
-                lut_label=lut_label,
-                lut_explanation=lut_explanation,
-                unit=unit,
-                value_range=value_range,
                 slope=slope,
                 intercept=intercept,
                 lut_data=lut_data
@@ -153,6 +138,58 @@ class TestRealWorldValueMapping():
                 [300, 300, 300],
             ],
         )
+
+        out = m.apply(array)
+        assert np.array_equal(out, expected)
+        assert out.dtype == np.float64
+
+    def test_construction_integer_linear_relationship_identity(self):
+        lut_label = '1'
+        lut_explanation = 'Feature 1'
+        unit = codes.UCUM.NoUnits
+        value_range = (0, 255)
+        intercept = 200
+        slope = 10
+        quantity_definition = Code('130402', 'DCM', 'Class activation')
+        m = RealWorldValueMapping(
+            lut_label=lut_label,
+            lut_explanation=lut_explanation,
+            unit=unit,
+            value_range=value_range,
+            quantity_definition=quantity_definition
+        )
+        assert m.LUTLabel == lut_label
+        assert m.LUTExplanation == lut_explanation
+        assert isinstance(m.RealWorldValueSlope, float)
+        assert m.RealWorldValueSlope == 1.0
+        assert isinstance(m.RealWorldValueIntercept, float)
+        assert m.RealWorldValueIntercept == 0.0
+        assert m.MeasurementUnitsCodeSequence[0] == unit
+        assert isinstance(m.RealWorldValueFirstValueMapped, int)
+        assert m.RealWorldValueFirstValueMapped == value_range[0]
+        assert isinstance(m.RealWorldValueLastValueMapped, int)
+        assert m.RealWorldValueLastValueMapped == value_range[1]
+        with pytest.raises(AttributeError):
+            m.DoubleFloatRealWorldValueFirstValueMapped  # noqa: B018
+        with pytest.raises(AttributeError):
+            m.DoubleFloatRealWorldValueLastValueMapped  # noqa: B018
+        with pytest.raises(AttributeError):
+            m.RealWorldValueLUTData  # noqa: B018
+        assert len(m.QuantityDefinitionSequence) == 1
+        quantity_item = m.QuantityDefinitionSequence[0]
+        assert quantity_item.name == codes.SCT.Quantity
+        assert quantity_item.value == quantity_definition
+        assert not m.has_lut()
+        assert m.value_range == value_range
+
+        array = np.array(
+            [
+                [0, 0, 0],
+                [5, 5, 5],
+                [10, 10, 10],
+            ],
+        )
+        expected = array
 
         out = m.apply(array)
         assert np.array_equal(out, expected)

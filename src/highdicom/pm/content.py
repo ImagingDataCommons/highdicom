@@ -54,16 +54,18 @@ class RealWorldValueMapping(Dataset):
             ``(0, 1)`` to specify a range of floating-point values.
         slope: Union[int, float, None], optional
             Slope of the linear mapping function applied to values in
-            ``value_range``.
+            ``value_range``. If not specified and ``lut_data`` is not provided,
+            a slope of 1 will be assumed.
         intercept: Union[int, float, None], optional
             Intercept of the linear mapping function applied to values in
-            ``value_range``.
+            ``value_range``. If not specified and ``lut_data`` is not provided,
+            an intercept of 0 will be assumed.
         lut_data: Union[Sequence[int], Sequence[float], None], optional
             Sequence of values to serve as a lookup table for mapping stored
             values into real-world values in case of a non-linear relationship.
             The sequence should contain an entry for each value in the specified
             ``value_range`` such that
-            ``len(sequence) == value_range[1] - value_range[0] + 1``.
+            ``len(lut_data) == value_range[1] - value_range[0] + 1``.
             For example, in case of a value range of ``(0, 255)``, the sequence
             shall have ``256`` entries - one for each value in the given range.
         quantity_definition: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
@@ -73,13 +75,14 @@ class RealWorldValueMapping(Dataset):
 
         Note
         ----
-        Either ``slope`` and ``intercept`` or ``lut_data`` must be specified.
-        Specify ``slope` and ``intercept``` if the mapping can be described by a
-        linear function. Specify ``lut_data`` if the relationship between stored
-        and real-world values is non-linear. Note, however, that a non-linear
-        relationship can only be described for values that are stored as
-        integers. Values stored as floating-point numbers must map linearly to
-        real-world values.
+        Either ``slope`` and ``intercept`` or ``lut_data``, or none of the
+        three parameters must be specified. Specify ``slope` and ``intercept```
+        if the mapping can be described by a linear function, or leave
+        unspecified to use an identify relationship (slope of 1, intercept of 0).
+        Specify ``lut_data`` if the relationship between stored and real-world
+        values is non-linear. Note, however, that a non-linear relationship can
+        only be described for values that are stored as integers. Values stored
+        as floating-point numbers must map linearly to real-world values.
 
         """  # noqa: E501
         super().__init__()
@@ -111,11 +114,10 @@ class RealWorldValueMapping(Dataset):
                 )
             self.RealWorldValueLUTData = [float(v) for v in lut_data]
         else:
-            if slope is None or intercept is None:
-                raise TypeError(
-                    'Slope and intercept must not be provided if LUT data is '
-                    'provided.'
-                )
+            if slope is None:
+                slope = 1
+            if intercept is None:
+                intercept = 0
             self.RealWorldValueSlope = float(slope)
             self.RealWorldValueIntercept = float(intercept)
 
