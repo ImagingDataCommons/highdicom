@@ -2588,12 +2588,12 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             the datasets, they will be encoded in the order they are passed
             without including a dimension index.
         require_volume: bool, optional
-            If True, raise an error if the legacy datasets represent a set of
-            parallel, regularly-spaced frames from the same series. This
+            If True, raise an error if the legacy datasets do not represent a
+            set of parallel, regularly-spaced frames from the same series. This
             is not a requirement for the conversion to be valid according to
             the standard, but users may wish to additionally impose this
-            stricter requirement to ensure the resulting files are easier
-            to work with.
+            stricter requirement to ensure the resulting files are easier to
+            work with.
         strict: bool, optional
             Whether to use strict requirements on the new converted dataset. If
             True and any attributes required to create a standard-compliant
@@ -2925,7 +2925,7 @@ def lceread(
             "1.2.840.10008.5.1.4.1.1.128.1": LegacyConvertedEnhancedPETImage,
         }[image.SOPClassUID]
     except KeyError:
-        raise ValueError("Dataset is not a Legacy Concerted Enhanced Image.")
+        raise ValueError("Dataset is not a Legacy Converted Enhanced Image.")
 
     lce_image = lce_class.from_dataset(image, copy=False)
     return cast(
