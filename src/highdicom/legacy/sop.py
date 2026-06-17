@@ -99,8 +99,6 @@ _CONSISTENT_KEYWORDS = [
     "PlanarConfiguration",
     "SamplesPerPixel",
     "SpecificCharacterSet",
-    "RescaleSlope",
-    "RescaleIntercept",
 
     # Opinionated requirements
     "PatientID",
@@ -444,13 +442,14 @@ class _LegacyConversionRunner:
             # should be handled where there is a monochrome 1 to 2 conversion,
             # so just disallow this. This could be loosened in the future if
             # suitable logic can be found
-            if (
-                self._legacy_datasets[0].get("RescaleIntercept", 0) != 0 or
-                self._legacy_datasets[0].get("RescaleSlope", 1) != 1
+            if any(
+                ds.get("RescaleIntercept", 0) != 0 or
+                ds.get("RescaleSlope", 1) != 1
+                for ds in self._legacy_datasets
             ):
                 raise ValueError(
-                    "This dataset requires conversion from MONOCHROME1 to "
-                    "MONOCHROME2, but contains a non-trivial RescaleSlope "
+                    "These datasets require conversion from MONOCHROME1 to "
+                    "MONOCHROME2, but contain a non-trivial RescaleSlope "
                     "or RescaleIntercept that cannot be converted."
                 )
 

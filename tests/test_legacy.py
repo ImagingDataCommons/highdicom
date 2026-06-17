@@ -1375,6 +1375,31 @@ def test_mixed_instances(
         )
 
 
+def test_mixed_modality_rescale():
+    """Different modality rescale values per instance should be supported."""
+    data_generator = DicomGenerator(5)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.PT, 1, True, True
+    )
+
+    legacy_datasets[0].RescaleIntercept = -1000
+    legacy_datasets[1].RescaleSlope = 3.3
+
+    converted = LegacyConvertedEnhancedPETImage(
+        legacy_datasets=legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    sfgs = converted.SharedFunctionalGroupsSequence[0]
+    assert "PixelValueTransformationSequence" not in sfgs
+
+    for pffg in converted.PerFrameFunctionalGroupsSequence:
+        assert "PixelValueTransformationSequence" in pffg
+
+
 def test_mixed_transfer_syntax(modality: Modality):
     LegacyConvertedClass = MODALITY_CLASS_MAP[modality]
     data_generator = DicomGenerator(5)
