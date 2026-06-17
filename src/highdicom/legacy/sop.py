@@ -2549,8 +2549,13 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             UID of transfer syntax that should be used for encoding of data
             elements. If ``None`` (the default), the transfer syntax of the
             legacy datasets will be used and the frames will not be re-encoded.
-            The following compressed transfer syntaxes are supported: JPEG 2000
-            Lossless (``"1.2.840.10008.1.2.4.90"``) and JPEG-LS Lossless
+            The following compressed transfer syntaxes are supported:
+            ExplicitVRLittleEndian (``"1.2.840.10008.1.2.1"``),
+            ImplicitVRLittleEndian (``"1.2.840.10008.1.2"``), and RLE Lossless
+            (``"1.2.840.10008.1.2.5"``). For unsigned pixel data
+            (*PixelRepresentation* is 0), further supported transfer syntaxes
+            are JPEG 2000 (``"1.2.840.10008.1.2.4.91"``) , JPEG 2000 Lossless
+            (``"1.2.840.10008.1.2.4.90"``), and JPEG-LS Lossless
             (``"1.2.840.10008.1.2.4.80"``).
         use_extended_offset_table: bool, optional
             Include an extended offset table instead of a basic offset table

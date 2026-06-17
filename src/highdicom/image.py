@@ -2680,6 +2680,11 @@ class _Image(SOPClass):
         the modality transform, VOI transforms, palette color LUTs, or ICC
         profile, has been applied.
 
+        Frames are decoded lazily as requested (and furthermore, retrieved
+        lazily from file if the image was read with
+        ``lazy_frame_retrieval=True``). As result, for a small number of
+        frames, this will be far faster than using ``.pixel_array``.
+
         To get frames with pixel transforms applied (as is appropriate for
         most applications), use :func:`highdicom.Image.get_frame`
         instead.
@@ -2736,6 +2741,11 @@ class _Image(SOPClass):
         as_indices: bool = False,
     ):
         """Get a stack of frames of stored values.
+
+        Frames are decoded lazily as requested (and furthermore, retrieved
+        lazily from file if the image was read with
+        ``lazy_frame_retrieval=True``). As result, for a small number of
+        frames, this will be far faster than using ``.pixel_array``.
 
         Parameters
         ----------
