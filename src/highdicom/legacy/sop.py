@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 import logging
 from os import PathLike
-from sys import float_info
 from typing import (
     Any,
     BinaryIO,
@@ -2127,26 +2126,28 @@ class _LegacyConversionRunner:
         kw = "LargestImagePixelValue"
         lval = None
         if kw in self._keyword_shared_dict:
-            lval = float_info.min
+            int_min = -2 ** 16
+            lval = int_min
             for frame in self._legacy_datasets:
                 if kw in frame:
                     # NB need to deal with potential ambiguous VR problems
                     lval = max(lval, _read_ambiguous_vr(frame, kw))
 
-            if lval > float_info.min:
+            if lval > int_min:
                 lval = int(lval)
                 self._mark_keyword_used(kw)
 
         kw = "SmallestImagePixelValue"
         sval = None
         if kw in self._keyword_shared_dict:
-            sval = float_info.max
+            int_max = 2 ** 16
+            sval = int_max
             for frame in self._legacy_datasets:
                 if kw in frame:
                     # NB need to deal with potential ambiguous VR problems
                     sval = min(sval, _read_ambiguous_vr(frame, kw))
 
-            if sval < float_info.max:
+            if sval < int_max:
                 sval = int(sval)
                 self._mark_keyword_used(kw)
 
