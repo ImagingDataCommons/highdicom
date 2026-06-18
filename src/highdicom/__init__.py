@@ -61,7 +61,6 @@ from highdicom.enum import (
 )
 from highdicom import frame
 from highdicom.image import (
-    DimensionIndexSequence,
     Image,
     imread,
     get_volume_from_series,

@@ -31,7 +31,7 @@ from highdicom import (
     PaletteColorLUT,
     PaletteColorLUTTransformation,
 )
-from highdicom.image import DimensionIndexSequence
+from highdicom.image import _DimensionIndexSequence
 from highdicom.base_content import ContributingEquipment
 from highdicom.color import CIELabColor
 from highdicom.content import (
@@ -838,7 +838,7 @@ class TestSegmentation:
             else:
                 orientation = src.ImageOrientationPatient
 
-        dim_index = DimensionIndexSequence(
+        dim_index = _DimensionIndexSequence(
             coordinate_system,
             'segmentation-multi-frame-functional-groups'
         )
@@ -4608,7 +4608,7 @@ class TestSegmentation:
             )
 
     def test_get_plane_positions_of_image_patient(self):
-        seq = DimensionIndexSequence(
+        seq = _DimensionIndexSequence(
             coordinate_system='PATIENT',
             functional_groups_module=(
                 'segmentation-multi-frame-functional-groups'
@@ -4619,7 +4619,7 @@ class TestSegmentation:
             assert isinstance(position, PlanePositionSequence)
 
     def test_get_plane_positions_of_image_slide(self):
-        seq = DimensionIndexSequence(
+        seq = _DimensionIndexSequence(
             coordinate_system='SLIDE',
             functional_groups_module=(
                 'segmentation-multi-frame-functional-groups'
@@ -4630,7 +4630,7 @@ class TestSegmentation:
             assert isinstance(position, PlanePositionSequence)
 
     def test_get_plane_positions_of_series(self):
-        seq = DimensionIndexSequence(
+        seq = _DimensionIndexSequence(
             coordinate_system='PATIENT',
             functional_groups_module=(
                 'segmentation-multi-frame-functional-groups'

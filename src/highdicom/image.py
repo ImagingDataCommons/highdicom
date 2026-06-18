@@ -1189,7 +1189,7 @@ class _SQLTableDefinition:
         self.column_data = sanitized_column_data
 
 
-class DimensionIndexSequence(DataElementSequence):
+class _DimensionIndexSequence(DataElementSequence):
 
     """Sequence of data elements describing dimension indices for the patient
     or slide coordinate system based on the Dimension Index functional
@@ -2012,7 +2012,7 @@ class _Image(SOPClass):
             # there are no functional groups for the index to point to
             dim_org_uid = UID()
         else:
-            self.DimensionIndexSequence = DimensionIndexSequence(
+            self.DimensionIndexSequence = _DimensionIndexSequence(
                 coordinate_system=self._coordinate_system,
                 functional_groups_module=functional_groups_module,
                 channel_dimensions=(

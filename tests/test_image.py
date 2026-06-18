@@ -12,7 +12,6 @@ import pytest
 import re
 
 from highdicom import (
-    DimensionIndexSequence,
     Image,
     Volume,
     imread,
@@ -26,6 +25,7 @@ from highdicom.content import (
 )
 from highdicom.image import (
     _CombinedPixelTransform,
+    _DimensionIndexSequence,
 )
 from highdicom.pixels import (
     apply_voi_window,
@@ -43,7 +43,7 @@ from tests.utils import find_readable_images
 class TestDimensionIndexSequence():
 
     def test_construction_1(self):
-        seq = DimensionIndexSequence(
+        seq = _DimensionIndexSequence(
             coordinate_system='PATIENT',
             functional_groups_module=(
                 'segmentation-multi-frame-functional-groups'
@@ -54,7 +54,7 @@ class TestDimensionIndexSequence():
         assert seq[0].FunctionalGroupPointer == 0x00209113
 
     def test_construction_2(self):
-        seq = DimensionIndexSequence(
+        seq = _DimensionIndexSequence(
             coordinate_system='PATIENT',
             functional_groups_module=(
                 'segmentation-multi-frame-functional-groups'
@@ -68,7 +68,7 @@ class TestDimensionIndexSequence():
         assert seq[1].FunctionalGroupPointer == 0x00209113
 
     def test_construction_3(self):
-        seq = DimensionIndexSequence(
+        seq = _DimensionIndexSequence(
             coordinate_system='SLIDE',
             functional_groups_module=(
                 'segmentation-multi-frame-functional-groups'
@@ -81,7 +81,7 @@ class TestDimensionIndexSequence():
         assert seq[1].FunctionalGroupPointer == 0x0048021A
 
     def test_construction_4(self):
-        seq = DimensionIndexSequence(
+        seq = _DimensionIndexSequence(
             coordinate_system='SLIDE',
             functional_groups_module=(
                 'segmentation-multi-frame-functional-groups'

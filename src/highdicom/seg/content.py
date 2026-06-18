@@ -15,7 +15,7 @@ from highdicom.content import (
 from highdicom.enum import (
     CoordinateSystemNames,
 )
-from highdicom.image import DimensionIndexSequence as BaseDimensionIndexSequence
+from highdicom.image import _DimensionIndexSequence
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
 from highdicom.sr.coding import CodedConcept
 from highdicom._module_utils import (
@@ -315,7 +315,7 @@ class SegmentDescription(Dataset):
         return list(self.PrimaryAnatomicStructureSequence)
 
 
-class DimensionIndexSequence(BaseDimensionIndexSequence):
+class DimensionIndexSequence(_DimensionIndexSequence):
 
     """Sequence of data elements describing dimension indices for the patient
     or slide coordinate system based on the Dimension Index functional
@@ -328,9 +328,7 @@ class DimensionIndexSequence(BaseDimensionIndexSequence):
     Note
     ----
     This class is deprecated and will be removed in a future version of
-    highdicom. User code should generally avoid this class, and if necessary,
-    the more general :class:`highdicom.DimensionIndexSequence` should be used
-    instead.
+    highdicom. User code should generally avoid this class.
 
     """
 
