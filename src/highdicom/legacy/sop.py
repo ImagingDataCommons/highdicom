@@ -1930,19 +1930,24 @@ class _LegacyConversionRunner:
         """
         if keyword in self._keyword_shared_dict:
             if self._keyword_shared_dict[keyword]:
-                # Reference are shared
+                # References are shared
                 setattr(
                     self._destination.SharedFunctionalGroupsSequence[0],
                     keyword,
                     deepcopy(getattr(self._legacy_datasets[0], keyword)),
                 )
             else:
-                # Refernces are per-frame
+                # References are per-frame
                 for src, pffg in zip(
                     self._legacy_datasets,
                     self._destination.PerFrameFunctionalGroupsSequence,
                 ):
-                    setattr(pffg, keyword, deepcopy(getattr(src, keyword)))
+                    if keyword in src:
+                        setattr(
+                            pffg,
+                            keyword,
+                            deepcopy(getattr(src, keyword))
+                        )
 
             self._mark_keyword_used(keyword)
 
