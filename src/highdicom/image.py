@@ -623,14 +623,15 @@ class _CombinedPixelTransform:
                         else:
                             sub_ds = ds
 
-                        if (
-                            'RescaleSlope' in sub_ds or
-                            'RescaleIntercept' in sub_ds
-                        ):
+                        rescale_slope = sub_ds.get('RescaleSlope', None)
+                        rescale_intercept = sub_ds.get('RescaleIntercept', None)
+
+                        if rescale_slope or rescale_intercept:
                             modality_slope_intercept = (
-                                float(sub_ds.get('RescaleSlope', 1.0)),
-                                float(sub_ds.get('RescaleIntercept', 0.0))
+                                float(rescale_slope or 1.0),
+                                float(rescale_intercept or 0.0)
                             )
+
                             self.applies_to_all_frames = (
                                 self.applies_to_all_frames and is_shared
                             )

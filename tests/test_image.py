@@ -1017,6 +1017,31 @@ def test_combined_transform_pmap_rwvm_lut():
         tf = _CombinedPixelTransform(pmap, output_dtype=np.float32)
 
 
+def test_empty_rescale_slope_intercept_behaves_as_missing():
+    # Construct a CT image with None RescaleSlope/RescaleIntercept
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    f = data_dir / 'test_files/ct_image.dcm'
+
+    # try all combinations of missing and None: None is treated as missing
+    for intercept_none in [False, True]:
+        for slope_none in [False, True]:
+            dataset = pydicom.dcmread(f)
+
+            del dataset.RescaleIntercept
+            del dataset.RescaleSlope
+
+            if intercept_none:
+                dataset.RescaleIntercept = None
+
+            if slope_none:
+                dataset.RescaleSlope = None
+
+            # parsing succeeds and defaults to no effective slope intercept
+            tf = _CombinedPixelTransform(dataset)
+            assert tf._effective_slope_intercept is None
+
+
 def test_get_volume_multiframe_ct():
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
     volume = im.get_volume()
