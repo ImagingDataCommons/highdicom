@@ -1020,7 +1020,7 @@ class _LegacyConversionRunner:
 
             # Sort the dataset spatially using the pre-calculated index
             self._legacy_datasets = [
-                self._legacy_datasets[i] for i in position_indices
+                self._legacy_datasets[i] for i in np.argsort(position_indices)
             ]
             self._dimension_index_values = [
                 [i] for i in range(1, len(self._legacy_datasets) + 1)
