@@ -29,12 +29,15 @@ from highdicom.volume import ChannelDescriptor, Volume
 from pydicom import Dataset
 from pydicom.dataelem import DataElement
 from pydicom.uid import (
-    UID,
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
+    JPEG2000,
     JPEG2000Lossless,
+    JPEGBaseline8Bit,
     JPEGLSLossless,
+    JPEGLSNearLossless,
     RLELossless,
+    UID,
 )
 from typing_extensions import Self
 
@@ -42,6 +45,8 @@ from typing_extensions import Self
 class ParametricMap(Image):
 
     """SOP class for a Parametric Map.
+
+    See :ref:`pm` for an in-depth explanation of Parametric Maps.
 
     Note
     ----
@@ -292,8 +297,11 @@ class ParametricMap(Image):
             # compression codecs for floating-point data types.
             supported_transfer_syntaxes.update(
                 {
+                    JPEG2000,
                     JPEG2000Lossless,
+                    JPEGBaseline8Bit,
                     JPEGLSLossless,
+                    JPEGLSNearLossless,
                     RLELossless,
                 }
             )

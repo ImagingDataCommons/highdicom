@@ -101,7 +101,53 @@ linear relationship between stored values and real-world values:
 Pixel Data
 ----------
 
+The array to be encoded in the parametric map is passed to the constructor of
+the :class:`highdicom.pm.ParametricMap` as a ``np.ndarray`` via the ``pixel_array``
+parameter. There are several possible variations here.
+
+Firstly, the data type of the array will control the way the pixels are stored
+in the resulting DICOM object. It should be either:
+
+- 8- or 16-bit unsigned integer (``np.uint8`` or ``np.uint16``)
+- 32- or 64-bit floating point (``np.float32`` or ``np.float64``)
+
+The dimensionality of the array should be either:
+
+- A 2D array, giving either:
+  - A single 2D frame giving a parametric map of a single 2D input image, or
+  - If ``tile_pixel_array=True`` a 2D total pixel matrix that will be encoded
+    in a tiled arrangement within the resulting DICOM object
+- A 3D array, giving multiple 2D parametric map frames of either a series of
+  input image or of a single multiframe image. Frames are stacked down the
+  first dimension (index 0)
+- A 4D array which is interpreted the same way as the 3D, but with an
+  additional final dimension that corresponds to multiple real world value
+  mappings passed to the ``real_world_value_mappings`` parameter.
+- A :class:`highdicom.Volume` with either no channels, or a single channel
+  dimension
+
 Compression
 -----------
 
+When the pixel array is passed as an unsigned integer data type, it is possible
+to specify a ``transfer_syntax_uid`` to use to compress the pixels. Options
+include ``JPEGBaseline8Bit``,  ``JPEG2000``, ``JPEG2000Lossless``,
+``JPEGLSLossless``, ``JPEGLSNearLossless``, and ``RLELossless``.
 
+When the image has a large number of frames, compression can become slow. The
+``workers`` argument allows you to specify a number of sub-process to use to
+parallelize the process of encoding frames.
+
+Compression is not available when using floating point pixels.
+
+Reading Existing Parametric Maps
+--------------------------------
+
+Existing parametic maps can be read from a file using the
+:func:`highdicom.pm.pmread`. Since :class:`highdicom.pm.ParametricMap` is a
+sub-class of :class:`highdicom.Image`, you can use methods such as
+:meth:`highdicom.pm.ParametricMap.get_volume`,
+:meth:`highdicom.pm.ParametricMap.get_total_pixel_matrix`. The
+:func:`highdicom.pm.pmread` also accepts a `lazy_frame_retrieval` parameter,
+allowing frames to be retrieved and decoded only as required. See :ref:`images`
+for further information.

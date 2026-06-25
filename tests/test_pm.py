@@ -8,8 +8,12 @@ from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.uid import (
+    JPEG2000,
     JPEG2000Lossless,
+    JPEGBaseline8Bit,
     JPEGLSLossless,
+    JPEGLSNearLossless,
+    RLELossless,
 )
 
 from highdicom import (
@@ -759,8 +763,29 @@ class TestParametricMap():
         assert not hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert not hasattr(instance, 'BluePaletteColorLookupTableData')
 
-    def test_multi_frame_sm_image_ushort_encapsulated_jpeg2000(self):
-        pytest.importorskip("openjpeg")
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            JPEGLSLossless,
+            JPEGLSNearLossless,
+            JPEG2000,
+            JPEG2000Lossless,
+            JPEGBaseline8Bit,
+            RLELossless,
+        ]
+    )
+    def transfer_syntax_uid_8bit(request):
+        return request.param
+
+    def test_multi_frame_sm_image_uint8_encapsulated(
+        self, 
+        transfer_syntax_uid_8bit: str,
+    ):
+        if transfer_syntax_uid_8bit in (
+            JPEG2000Lossless,
+            JPEG2000,
+        ):
+            pytest.importorskip("openjpeg")
         pixel_array = np.random.randint(
             low=0,
             high=2**8,
@@ -799,10 +824,22 @@ class TestParametricMap():
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[real_world_value_mapping],
             voi_lut_transformations=voi_transformations,
-            transfer_syntax_uid=JPEG2000Lossless
+            transfer_syntax_uid=transfer_syntax_uid_8bit,
         )
         assert pmap.BitsAllocated == 8
-        assert np.array_equal(pmap.pixel_array, pixel_array)
+        if transfer_syntax_uid_8bit in (
+            JPEG2000Lossless,
+            JPEGLSLossless,
+            RLELossless
+        ):
+            assert np.array_equal(pmap.pixel_array, pixel_array)
+        elif transfer_syntax_uid_8bit in (
+            JPEG2000,
+            JPEGLSNearLossless,
+        ):
+            # NB JPEG Baseline very bad at compressing random data so don't
+            # test for equality
+            assert np.allclose(pmap.pixel_array, pixel_array, atol=5)
 
     def test_multi_frame_sm_image_ushort_encapsulated_jpegls(self):
         pytest.importorskip("libjpeg")
