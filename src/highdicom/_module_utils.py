@@ -69,8 +69,8 @@ def check_required_attributes(
         If any of the required (type 1 or 2) attributes are not present
         in the dataset for the given module.
 
-    Notes
-    -----
+    Note
+    ----
     This function merely checks for the presence of required attributes.
     It does not check whether the data elements are empty or not, whether
     there are additional, invalid attributes, or whether the values of the

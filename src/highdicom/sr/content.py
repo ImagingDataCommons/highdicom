@@ -1716,8 +1716,8 @@ class ReferencedSegmentationFrame(ContentSequence):
         highdicom.sr.ReferencedSegment
             Content item representing a reference to the segment
 
-        Notes
-        -----
+        Note
+        ----
         This method will attempt to deduce source image information
         from information provided in the segmentation instance. If
         available, it will use information specific to the segment
@@ -2108,8 +2108,8 @@ class ReferencedSegment(ContentSequence):
         highdicom.sr.ReferencedSegment
             Content item representing a reference to the segment
 
-        Notes
-        -----
+        Note
+        ----
         This method will attempt to deduce source image information from
         information provided in the segmentation instance. If available, it
         will used information specific to the segment and frame numbers (if

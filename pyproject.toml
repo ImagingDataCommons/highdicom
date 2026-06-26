@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -16,11 +16,11 @@ maintainers = [
     { name = "Markus D. Herrmann" },
     { name = "Christopher P. Bridge" },
 ]
-license = { text = "LICENSE" }
+license = "MIT"
+license-files = [ "LICENSE" ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
@@ -29,6 +29,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Multimedia :: Graphics",
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
@@ -46,6 +47,8 @@ libjpeg = [
     "pylibjpeg-openjpeg>=2.0.0",
     "pylibjpeg>=2.0",
 ]
+
+[dependency-groups]
 test = [
     "mypy==1.15.0",
     "pytest==8.3.5",
@@ -53,11 +56,11 @@ test = [
     "pytest-flake8==1.3.0",
 ]
 docs = [
-    "sphinx-autodoc-typehints==1.17.0",
-    "sphinx-pyreverse==0.0.17",
-    "sphinx-rtd-theme==1.0.0",
-    "sphinxcontrib-autoprogram==0.1.7",
-    "sphinxcontrib-websupport==1.2.4",
+    "sphinx-autodoc-typehints==3.9.9",
+    "sphinx-pyreverse==0.0.18",
+    "sphinx-rtd-theme==3.1.0",
+    "sphinxcontrib-autoprogram==0.1.9",
+    "sphinxcontrib-websupport==2.0.0",
 ]
 
 [project.urls]

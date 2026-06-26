@@ -9,7 +9,7 @@
 
 `highdicom` is a pure Python package built on top of `pydicom` to provide a higher-level application programming interface (API) for working with DICOM files. Its focus is on common operations required for machine learning, computer vision, and other similar computational analyses. Broadly speaking, the package helps with three types of task:
 
-1. Reading existing DICOM image files of a wide variety of modalities (covering radiology, pathology, and more) and selecting and formatting its frames for computational analysis. This includes considerations such as spatial arrangements of frames, and application of pixel transforms, which are not handled by `pydicom`.
+1. Reading existing DICOM image files of a wide variety of modalities (covering radiology, pathology, and more) and selecting and formatting their frames for computational analysis. This includes considerations such as spatial arrangements of frames and application of pixel transforms, which are not handled by `pydicom`.
 2. Storing image-derived information, for example from computational analyses or human annotation, in derived DICOM objects for communication and storage. This includes:
     * Annotations
     * Parametric Map images
@@ -40,10 +40,11 @@ If you use highdicom in your research, please cite the above article.
 
 The developers gratefully acknowledge their support:
 * The [Alliance for Digital Pathology](https://digitalpathologyalliance.org/)
-* The [MGH & BWH Center for Clinical Data Science](https://www.ccds.io/)
+* The MGH & BWH Center for Clinical Data Science, now [MGB AI](https://www.massgeneralbrigham.org/en/research-and-innovation/centers-and-programs/artificial-intelligence)
 * [Quantitative Image Informatics for Cancer Research (QIICR)](https://qiicr.org/)
 * [Radiomics](https://www.radiomics.io/)
+* The NCI [Imaging Data Commons](https://imaging.datacommons.cancer.gov)
+* The [APOLLO Network](https://www.cancer.gov/about-nci/organization/cbiit/projects/apollo)
 
 This software is maintained in part by the [NCI Imaging Data Commons](https://imaging.datacommons.cancer.gov/) project,
-which has been funded in whole or in part with Federal funds from the NCI, NIH, under task order no. HHSN26110071
-under contract no. HHSN261201500003l.
+which has been funded in whole or in part with Federal funds from the National Cancer Institute, National Institutes of Health, Department of Health and Human Services, under task order no. HHSN26110071 under contract no. HHSN261201500003l. The statements do not necessarily reflect the views or policies of the Department of Health and Human Services, nor does mention of trade names, commercial products, or organizations imply endorsement by the U.S. Government.

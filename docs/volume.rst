@@ -81,7 +81,7 @@ to "LPS" convention for you.
 
 The top-left 3x3 matrix of the affine matrix consists of three orthogonal
 column vectors that give the vector travelled when incrementing the voxel
-indices in each o the three dimensions. The top three elements of the last
+indices in each of the three dimensions. The top three elements of the last
 column give the position of the voxel at index ``(0, 0, 0)``. The bottom row is
 always ``[0., 0., 0., 1.]``. The :meth:`highdicom.Volume.from_components()`
 method allows you to construct a volume by specifying these components of the
@@ -630,7 +630,7 @@ spatial metadata in the output object is correct.
     brain_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='brain',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Brain,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.AUTOMATIC,
         algorithm_identification=algorithm_identification,
