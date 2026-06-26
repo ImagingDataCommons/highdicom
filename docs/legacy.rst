@@ -64,7 +64,6 @@ would go beyond the character limit for series descriptions (64 characters).
 .. code-block:: python
 
   import highdicom as hd
-  from pydicom import dcmread
   from pydicom.data import get_testdata_file
 
 
@@ -76,7 +75,7 @@ would go beyond the character limit for series descriptions (64 characters).
   ]
 
   # Read in the files
-  ct_series = [dcmread(f) for f in legacy_ct_files]
+  ct_series = [hd.imread(f) for f in legacy_ct_files]
 
   # Use the class constructor to perform the conversion
   multiframe = hd.legacy.LegacyConvertedEnhancedCTImage(
@@ -112,7 +111,6 @@ wherever you use multiprocessing in Python).
 .. code-block:: python
 
   import highdicom as hd
-  from pydicom import dcmread
   from pydicom.uid import RLELossless
   from pydicom.data import get_testdata_file
 
@@ -126,7 +124,7 @@ wherever you use multiprocessing in Python).
       ]
 
       # Read in the files
-      ct_series = [dcmread(f) for f in legacy_ct_files]
+      ct_series = [hd.imread(f) for f in legacy_ct_files]
 
       # Create multiframe instance using lossless RLE compression
       multiframe = hd.legacy.LegacyConvertedEnhancedCTImage(
@@ -188,7 +186,6 @@ For example, to sort by ``KVP`` and then ``SliceLocation``:
 .. code-block:: python
 
   import highdicom as hd
-  from pydicom import dcmread
   from pydicom.data import get_testdata_file
 
 
@@ -200,7 +197,7 @@ For example, to sort by ``KVP`` and then ``SliceLocation``:
   ]
 
   # Read in the files
-  ct_series = [dcmread(f) for f in legacy_ct_files]
+  ct_series = [hd.imread(f) for f in legacy_ct_files]
 
   # Sort using KVP and slice location
   ct_series = sorted(
@@ -229,3 +226,132 @@ convert series that consist of parallel, regularly-spaced frames (i.e. those
 that could be used to form a :class:`highdicom.Volume`). This is optional,
 Legacy Converted Enhanced images that are not volumes are still entirely valid
 according to the DICOM standard.
+
+"Real-World" Examples Using Imaging Data Commons Data
+-----------------------------------------------------
+
+Below, we give three examples of converted "real-world" legacy CT/MR/PET series
+into the corresponding Legacy Converted Enhanced Image. These examples use
+publicly accessible data from the Imaging Data Commons (`IDC`_) project, so you
+should be able to run these code snippets directly to retrieve the input data.
+The `idc-index`_ package handles IDC data retrieval, and will need to be
+installed separately (``pip install idc-index``).
+
+Abdominal CT example:
+
+.. code-block:: python
+
+  from pathlib import Path
+  import highdicom as hd
+  from idc_index import IDCClient
+
+
+  # IDC client handles searching and retrieving data from IDC
+  client = IDCClient()
+
+  out_dir = Path("legacy_converted_ct_example")
+  out_dir.mkdir(exist_ok=True)
+
+  # Download an example IDC series from the CT Lymph Nodes collection
+  series_instance_uid = "61.7.25419986912125540694734407149616506667"
+
+  client.download_dicom_series(
+      seriesInstanceUID=series_instance_uid,
+      downloadDir=out_dir,
+      dirTemplate="",  # flat files within output directory
+  )
+
+  # Read in the downloaded datasets
+  series_datasets = [hd.imread(p) for p in out_dir.iterdir()]
+
+  # Create a legacy converted enhanced image from the source series
+  converted = hd.legacy.LegacyConvertedEnhancedCTImage(
+      series_datasets,
+      series_instance_uid=hd.UID(),
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      series_number=1,
+      series_description="Legacy Converted Series",
+  )
+  converted.save_as(out_dir / "legacy_converted.dcm")
+
+
+Prostate MR example:
+
+.. code-block:: python
+
+  from pathlib import Path
+  import highdicom as hd
+  from idc_index import IDCClient
+
+
+  # IDC client handles searching and retrieving data from IDC
+  client = IDCClient()
+
+  out_dir = Path("legacy_converted_mr_example")
+  out_dir.mkdir(exist_ok=True)
+
+  # Download an example IDC series from the prostatex collection
+  series_instance_uid = "1.3.6.1.4.1.14519.5.2.1.7311.5101.307298210480410901566814165931"
+
+  client.download_dicom_series(
+      seriesInstanceUID=series_instance_uid,
+      downloadDir=out_dir,
+      dirTemplate="",  # flat files within output directory
+  )
+
+  # Read in the downloaded datasets
+  series_datasets = [hd.imread(p) for p in out_dir.iterdir()]
+
+  # Create a legacy converted enhanced image from the source series
+  converted = hd.legacy.LegacyConvertedEnhancedMRImage(
+      series_datasets,
+      series_instance_uid=hd.UID(),
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      series_number=1,
+      series_description="Legacy Converted Series",
+  )
+  converted.save_as(out_dir / "legacy_converted.dcm")
+
+Whole body PET example:
+
+.. code-block:: python
+
+  from pathlib import Path
+  import highdicom as hd
+  from idc_index import IDCClient
+
+
+  # IDC client handles searching and retrieving data from IDC
+  client = IDCClient()
+
+  out_dir = Path("legacy_converted_pet_example")
+  out_dir.mkdir(exist_ok=True)
+
+  # Download an example IDC series from the ACRIN 6698 collection
+  series_instance_uid = "1.3.6.1.4.1.14519.5.2.1.315077523559674293758223337866925186907"
+
+  client.download_dicom_series(
+      seriesInstanceUID=series_instance_uid,
+      downloadDir=out_dir,
+      dirTemplate="",  # flat files within output directory
+  )
+
+  # Read in the downloaded datasets
+  series_datasets = [hd.imread(p) for p in out_dir.iterdir()]
+
+  # Create a legacy converted enhanced image from the source series
+  converted = hd.legacy.LegacyConvertedEnhancedPETImage(
+      series_datasets,
+      series_instance_uid=hd.UID(),
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      series_number=1,
+      series_description="Legacy Converted Series",
+  )
+  converted.save_as(out_dir / "legacy_converted.dcm")
+
+
+.. _IDC: https://portal.imaging.datacommons.cancer.gov/
+.. _idc-index: https://github.com/ImagingDataCommons/idc-index
