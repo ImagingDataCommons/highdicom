@@ -223,6 +223,9 @@ class TestKeyObjectSelectionDocument(unittest.TestCase):
             fp.seek(0)
             document_reread = dcmread(fp)
 
+        # Remove reference to buffer to prevent warnings about closed file
+        document_reread.buffer = None
+
         test_document = KeyObjectSelectionDocument.from_dataset(document_reread)
         assert isinstance(test_document, KeyObjectSelectionDocument)
         assert isinstance(test_document.content, KeyObjectSelection)

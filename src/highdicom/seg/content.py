@@ -29,7 +29,7 @@ from highdicom.spatial import (
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.utils import compute_plane_position_slide_per_frame
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     check_required_attributes,
     is_multiframe_image,
 )

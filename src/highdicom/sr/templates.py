@@ -52,7 +52,7 @@ from highdicom.sr.value_types import (
     UIDRefContentItem,
 )
 
-from highdicom._module_utils import does_iod_have_pixel_data
+from highdicom._standard_utils import does_iod_have_pixel_data
 # Codes missing from pydicom
 DEFAULT_LANGUAGE = CodedConcept(
     value='en-US',

@@ -227,7 +227,7 @@ volume.
     ]
     ct_series = [pydicom.dcmread(f) for f in ct_files]
 
-    vol = get_volume_from_series(ct_series)
+    vol = hd.get_volume_from_series(ct_series)
 
 Array Manipulation
 ------------------

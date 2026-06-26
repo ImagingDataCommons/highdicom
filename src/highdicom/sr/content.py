@@ -34,7 +34,7 @@ from highdicom.sr.value_types import (
     Scoord3DContentItem,
     UIDRefContentItem,
 )
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     is_multiframe_image,
     is_attribute_in_iod,
 )

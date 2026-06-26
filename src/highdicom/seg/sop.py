@@ -32,7 +32,7 @@ from pydicom.sr.codedict import codes
 from pydicom.valuerep import PersonName, format_number_as_ds
 from pydicom.sr.coding import Code
 
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     ModuleUsageValues,
     get_module_usage,
     is_multiframe_image,

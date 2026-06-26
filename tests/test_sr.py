@@ -4393,6 +4393,9 @@ class TestComprehensiveSR(unittest.TestCase):
             buf.seek(0)
             sr_instance = srread(buf)
 
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
+
         assert isinstance(sr_instance, ComprehensiveSR)
 
     def test_srread_from_bytes(self):
@@ -4414,6 +4417,9 @@ class TestComprehensiveSR(unittest.TestCase):
             report.save_as(buf)
             # Read from bytes
             sr_instance = srread(buf.getvalue())
+
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
 
         assert isinstance(sr_instance, ComprehensiveSR)
 
@@ -4924,6 +4930,10 @@ class TestGetPlanarMeasurementGroups:
             buf.seek(0)
             sr_from_file_copy = dcmread(buf)
 
+        # Remove the buffer to prevent warning about closed file
+        sr_from_file.buffer = None
+        sr_from_file_copy.buffer = None
+
         self._sr = Comprehensive3DSR.from_dataset(sr_from_file)
         self._content = self._sr.content
 
@@ -5321,6 +5331,10 @@ class TestGetVolumetricMeasurementGroups:
             buf.seek(0)
             sr_from_file_copy = dcmread(buf)
 
+        # Remove the buffer to prevent warning about closed file
+        sr_from_file.buffer = None
+        sr_from_file_copy.buffer = None
+
         # Two versions of the file, one with template IDs, one without
         self._sr = Comprehensive3DSR.from_dataset(sr_from_file)
         self._content = self._sr.content
@@ -5558,6 +5572,9 @@ class TestGetVolumetricMeasurementGroups:
             buf.seek(0)
             sr_instance = srread(buf)
 
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
+
         assert isinstance(sr_instance, Comprehensive3DSR)
 
     def test_missing_template_id_single_image_region(self):
@@ -5602,6 +5619,10 @@ class TestGetVolumetricMeasurementGroups:
             sr_instance = srread(buf)
             buf.seek(0)
             sr_instance_copy = srread(buf)
+
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
+        sr_instance_copy.buffer = None
 
         _delete_template_ids(sr_instance_copy)
 

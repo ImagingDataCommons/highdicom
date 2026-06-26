@@ -7,7 +7,7 @@ from pydicom.filereader import dcmread
 from pydicom import uid
 
 
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     does_iod_have_pixel_data,
 )
 
@@ -22,13 +22,20 @@ def write_and_read_dataset(dataset: Dataset):
     else:
         little_endian = True
         implicit_vr = True
+
     with BytesIO() as fp:
         clone.save_as(
             fp,
             implicit_vr=implicit_vr,
             little_endian=little_endian,
         )
-        return dcmread(fp, force=True)
+        out = dcmread(fp, force=True)
+
+    # Remove the reference to the closed buffer, otherwise this will
+    # cause annoying warnings
+    out.buffer = None
+
+    return out
 
 
 def find_readable_images() -> list[tuple[str, str | None]]:

@@ -3,4 +3,355 @@
 Legacy Converted Enhanced Images
 ================================
 
-This page is under construction, and more detail will be added soon.
+Many medical images, including CT, MRI, and PET, consist of sets of 2D frames.
+When the DICOM standard was originally developed, such series were typically
+stored with each individual 2D frame in a separate DICOM instance (and
+therefore a separate DICOM file) to reduce file size. Many users will be
+familiar with MRI, PET, and CT images stored in this way using the CT Image
+("1.2.840.10008.5.1.4.1.1.2"), MR Image ("1.2.840.10008.5.1.4.1.1.4"), and
+Positron Emission Tomography Image ("1.2.840.10008.5.1.4.1.1.128") SOP Classes,
+often with tens or hundreds of separate files needed to store a single series.
+
+More recently, new additions to the standard prefer a "multiframe" arrangement
+where multiple 2D images are stored as individual frames within a single DICOM
+instance. Newer modalities, such as optical coherence tomography, whole slide
+microscopy images, or digital breast tomosynthesis (DBT) images, were
+implemented using these "multiframe" formats from the outset. Furthermore,
+"enhanced" multiframe versions of the older modalities (PET, CT, MRI) were also
+defined to allow storage of these modalities in a multiframe format, leading to
+the Enhanced PET Image, Enhanced CT Image, and Enhanced MR Image SOP Classes.
+However, adoption of these Enhanced SOP Classes by manufacturers for
+established modalities has been slow: most PET, CT, and MR images you see still
+use the original "legacy" SOP Classes.
+
+Because the multiframe formats are generally easier to store and work with, a
+common requirement is to convert old legacy (single-frame) series of images to
+the corresponding new multiframe/enhanced format. Unfortunately, this is not
+typically possible. The new enhanced formats made a number of other changes in
+addition to the number of frames in an instance, and there is not usually
+enough information in the legacy instances to populate all the required
+attributes correctly.
+
+To get around this problem, a further set of "Legacy Converted Enhanced" SOP
+Classes was created. These share many characteristics with the new Enhanced
+images, but are designed such that it is possible to convert existing legacy
+series to them. They also provide a mechanism to explicitly encode references
+to the original source images.
+
+Highdicom provides Python classes for these legacy converted enhanced images,
+enabling their construction from existing legacy (single-frame) instances:
+
+- :class:`highdicom.legacy.LegacyConvertedEnhancedMRImage` for MR images stored
+  in the legacy "MR Image Storage" SOP Class.
+- :class:`highdicom.legacy.LegacyConvertedEnhancedCTImage` for CT images stored
+  in the legacy "CT Image Storage" SOPClass.
+- :class:`highdicom.legacy.LegacyConvertedEnhancedPETImage` for PET images
+  stored in the legacy "Positron Emission Tomography" SOPClass.
+
+
+Basic Conversion
+----------------
+
+Basic conversion of legacy to enhanced format is very straightforward. You just
+pass the legacy instances as a list (order is unimportant using the default
+parameters) and specify UIDs, an instance number, and a series number for the
+new instance. Generally it is recommended to choose a series description too,
+but if you don't, the original series description of the legacy series will be
+used with "(enhanced conversion)" added as a suffix unless adding that suffix
+would go beyond the character limit for series descriptions (64 characters).
+
+
+.. code-block:: python
+
+  import highdicom as hd
+  from pydicom.data import get_testdata_file
+
+
+  # Use this series of files from the pydicom test data
+  legacy_ct_files = [
+      get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+      get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+      get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+  ]
+
+  # Read in the files
+  ct_series = [hd.imread(f) for f in legacy_ct_files]
+
+  # Use the class constructor to perform the conversion
+  multiframe = hd.legacy.LegacyConvertedEnhancedCTImage(
+      ct_series,
+      series_number=1,
+      instance_number=1,
+      series_instance_uid=hd.UID(),
+      sop_instance_uid=hd.UID(),
+      series_description="Enhanced Test Files",
+  )
+
+  # Save out the new multiframe conversion
+  multiframe.save_as("legacy_converted_ct.dcm")
+
+
+Encoding, Decoding, and Transcoding
+-----------------------------------
+
+By default, the new instance will keep the transfer syntax of the legacy
+datasets. If the legacy datasets are compressed, highdicom will simply re-use
+the existing compressed pixel data without decoding it and combine the
+compressed frames together. This is both more efficient and avoids any possible
+further information loss due to re-encoding.
+
+Alternatively, you can opt to choose a new transfer syntax for the new
+instance, in which case highdicom will decode and/or (re-)encode the pixel data
+(as necessary) from the legacy instances. Since this can be slow, you can
+optionally specify a non-zero number of sub-processes to perform this operation
+using the ``workers`` parameter. When using multiple workers, you must place
+your code within a ``if __name__ == "__main__":`` guard (this is a requirement
+wherever you use multiprocessing in Python).
+
+.. code-block:: python
+
+  import highdicom as hd
+  from pydicom.uid import RLELossless
+  from pydicom.data import get_testdata_file
+
+
+  if __name__ == "__main__":
+      # Use this series of files from the pydicom test data
+      legacy_ct_files = [
+          get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+          get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+          get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+      ]
+
+      # Read in the files
+      ct_series = [hd.imread(f) for f in legacy_ct_files]
+
+      # Create multiframe instance using lossless RLE compression
+      multiframe = hd.legacy.LegacyConvertedEnhancedCTImage(
+          ct_series,
+          series_number=1,
+          instance_number=1,
+          series_instance_uid=hd.UID(),
+          sop_instance_uid=hd.UID(),
+          series_description="Enhanced Test Files",
+          transfer_syntax_uid=RLELossless,
+          workers=8,  # 8 conversion sub-processes
+      )
+
+      # Save out the new multiframe conversion
+      multiframe.save_as("legacy_converted_ct.dcm")
+
+
+Including Multiple Series
+-------------------------
+
+Although a Legacy Converted Enhanced image most often consists of legacy
+datasets from a single series, this is not actually a limitation. In some
+situations, you may wish to include images from multiple series in one
+multiframe file. This is allowed if certain conditions are met, such as images
+having the same size, pixel representation, photometric interpretation, etc.
+
+Sorting Frames and Dimension Indices
+------------------------------------
+
+In multiframe objects such as Legacy Converted Enhanced images, an attribute
+called the Dimension Index Sequence describes how the frames are sorted along
+one or more dimensions.
+
+Under the default behavior, highdicom attempts to choose suitable sorting
+dimensions automatically based on the legacy images. The current logic is as
+follows (we may generalize in the future to more complex schemes):
+
+1. Attempt to sort frames spatially as a regularly-spaced volume. This may fail
+   because the spacings are not regular, orientations do not match, and/or there
+   are multiple frames at each image position.
+2. If step 1 fails, attempt to sort by Instance Number of the legacy series,
+   or, if there are multiple series, by Series Number then by Instance Number
+   as two dimension indices.
+3. If this fails (because series and/or instance numbers are missing), store
+   frames in the order they were passed and do not include a Dimension Index 
+   Sequence (it is optional).
+
+The ``include_dimension_index`` parameter allows you to control this process.
+The default value is ``None`` and results in the above behavior. If instead,
+you pass ``include_dimension_index=True``, an exception will be raised if steps
+1 and 2 fail rather than skipping the Dimension Index Sequence. A value of
+``False`` means that no attempt will be made to sort the frames, they will
+simply be stored in the order you passed them. Your alternative sorting
+scheme will *not* be stored in the Dimension Index Sequence (this capability
+may be added in the future).
+
+For example, to sort by ``KVP`` and then ``SliceLocation``:
+
+.. code-block:: python
+
+  import highdicom as hd
+  from pydicom.data import get_testdata_file
+
+
+  # Use this series of files from the pydicom test data
+  legacy_ct_files = [
+      get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+      get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+      get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+  ]
+
+  # Read in the files
+  ct_series = [hd.imread(f) for f in legacy_ct_files]
+
+  # Sort using KVP and slice location
+  ct_series = sorted(
+      ct_series, key=lambda dcm: (dcm.KVP, dcm.SliceLocation)
+  )
+
+  # Create multiframe instance with custom sort key
+  multiframe = hd.legacy.LegacyConvertedEnhancedCTImage(
+      ct_series,
+      series_number=1,
+      instance_number=1,
+      series_instance_uid=hd.UID(),
+      sop_instance_uid=hd.UID(),
+      series_description="Enhanced Test Files",
+      include_dimension_index=False,  # disable default sorting
+  )
+
+  # Save out the new multiframe conversion
+  multiframe.save_as("legacy_converted_ct.dcm")
+
+Requiring Volumes
+-----------------
+
+The ``require_volume`` option allows you to specify that highdicom should only
+convert series that consist of parallel, regularly-spaced frames (i.e. those
+that could be used to form a :class:`highdicom.Volume`). This is optional,
+Legacy Converted Enhanced images that are not volumes are still entirely valid
+according to the DICOM standard.
+
+"Real-World" Examples Using Imaging Data Commons Data
+-----------------------------------------------------
+
+Below, we give three examples of converted "real-world" legacy CT/MR/PET series
+into the corresponding Legacy Converted Enhanced Image. These examples use
+publicly accessible data from the Imaging Data Commons (`IDC`_) project, so you
+should be able to run these code snippets directly to retrieve the input data.
+The `idc-index`_ package handles IDC data retrieval, and will need to be
+installed separately (``pip install idc-index``).
+
+Abdominal CT example:
+
+.. code-block:: python
+
+  from pathlib import Path
+  import highdicom as hd
+  from idc_index import IDCClient
+
+
+  # IDC client handles searching and retrieving data from IDC
+  client = IDCClient()
+
+  out_dir = Path("legacy_converted_ct_example")
+  out_dir.mkdir(exist_ok=True)
+
+  # Download an example IDC series from the CT Lymph Nodes collection
+  series_instance_uid = "61.7.25419986912125540694734407149616506667"
+
+  client.download_dicom_series(
+      seriesInstanceUID=series_instance_uid,
+      downloadDir=out_dir,
+      dirTemplate="",  # flat files within output directory
+  )
+
+  # Read in the downloaded datasets
+  series_datasets = [hd.imread(p) for p in out_dir.iterdir()]
+
+  # Create a legacy converted enhanced image from the source series
+  converted = hd.legacy.LegacyConvertedEnhancedCTImage(
+      series_datasets,
+      series_instance_uid=hd.UID(),
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      series_number=1,
+      series_description="Legacy Converted Series",
+  )
+  converted.save_as(out_dir / "legacy_converted.dcm")
+
+
+Prostate MR example:
+
+.. code-block:: python
+
+  from pathlib import Path
+  import highdicom as hd
+  from idc_index import IDCClient
+
+
+  # IDC client handles searching and retrieving data from IDC
+  client = IDCClient()
+
+  out_dir = Path("legacy_converted_mr_example")
+  out_dir.mkdir(exist_ok=True)
+
+  # Download an example IDC series from the prostatex collection
+  series_instance_uid = "1.3.6.1.4.1.14519.5.2.1.7311.5101.307298210480410901566814165931"
+
+  client.download_dicom_series(
+      seriesInstanceUID=series_instance_uid,
+      downloadDir=out_dir,
+      dirTemplate="",  # flat files within output directory
+  )
+
+  # Read in the downloaded datasets
+  series_datasets = [hd.imread(p) for p in out_dir.iterdir()]
+
+  # Create a legacy converted enhanced image from the source series
+  converted = hd.legacy.LegacyConvertedEnhancedMRImage(
+      series_datasets,
+      series_instance_uid=hd.UID(),
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      series_number=1,
+      series_description="Legacy Converted Series",
+  )
+  converted.save_as(out_dir / "legacy_converted.dcm")
+
+Whole body PET example:
+
+.. code-block:: python
+
+  from pathlib import Path
+  import highdicom as hd
+  from idc_index import IDCClient
+
+
+  # IDC client handles searching and retrieving data from IDC
+  client = IDCClient()
+
+  out_dir = Path("legacy_converted_pet_example")
+  out_dir.mkdir(exist_ok=True)
+
+  # Download an example IDC series from the ACRIN 6698 collection
+  series_instance_uid = "1.3.6.1.4.1.14519.5.2.1.315077523559674293758223337866925186907"
+
+  client.download_dicom_series(
+      seriesInstanceUID=series_instance_uid,
+      downloadDir=out_dir,
+      dirTemplate="",  # flat files within output directory
+  )
+
+  # Read in the downloaded datasets
+  series_datasets = [hd.imread(p) for p in out_dir.iterdir()]
+
+  # Create a legacy converted enhanced image from the source series
+  converted = hd.legacy.LegacyConvertedEnhancedPETImage(
+      series_datasets,
+      series_instance_uid=hd.UID(),
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      series_number=1,
+      series_description="Legacy Converted Series",
+  )
+  converted.save_as(out_dir / "legacy_converted.dcm")
+
+
+.. _IDC: https://portal.imaging.datacommons.cancer.gov/
+.. _idc-index: https://github.com/ImagingDataCommons/idc-index
