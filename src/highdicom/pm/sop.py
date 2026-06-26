@@ -200,8 +200,11 @@ class ParametricMap(Image):
             instead.
         voi_lut_transformations: Sequence[highdicom.VOILUTTransformation] | None, optional
             One or more VOI transformations that describe a pixel
-            transformation to apply to frames. This will become a required
-            argument in a future release.
+            transformation that is recommended to display frames. If multiple
+            are provided, they represent different options that a user or
+            application may select from to display the frames. Each item in the
+            list applies to all frames. This will become a required argument in
+            a future release.
         transfer_syntax_uid: Union[str, None], optional
             UID of transfer syntax that should be used for encoding of
             data elements. Defaults to Explicit VR Little Endian
@@ -455,7 +458,7 @@ class ParametricMap(Image):
                     if vol_lut_label != mapping.LUTLabel:
                         raise ValueError(
                             "The LUTLabels of the 'real_world_value_mappings' "
-                            "must match those within the channel indentifiers "
+                            "must match those within the channel identifiers "
                             "of the 'pixel_array'."
                         )
 

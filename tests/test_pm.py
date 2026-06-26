@@ -1374,11 +1374,11 @@ class TestParametricMap():
             slope=1
         )
 
-        # Should fail if the LUTLabels are mimatched between the volume and the
+        # Should fail if the LUTLabels are mismatched between the volume and the
         # real_world_value_mappings parameter
         msg = (
             "The LUTLabels of the 'real_world_value_mappings' "
-            "must match those within the channel indentifiers "
+            "must match those within the channel identifiers "
             "of the 'pixel_array'."
         )
         with pytest.raises(ValueError, match=msg):

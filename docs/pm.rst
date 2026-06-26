@@ -34,6 +34,7 @@ values after mapping.
 In highdicom, *RealWorldValueMappings* are represented by the
 :class:`highdicom.pm.RealWorldValueMapping`. To specify the mapping use the
 following parameters:
+
 - ``value_range`` (``tuple[int, int]`` or ``tuple[float, float]``): Tuple
   giving the lower and upper limits of the range of stored values that are the
   input to the mapping.
@@ -58,10 +59,10 @@ the real-world values it generates:
 - ``lut_label`` (``str``):  A short label for this mapping.
 - ``lut_explanation`` (``str``):  A longer free-text explanation of the meaning
   of the mapping.
-- ``unit`` (:class:`highdicom.sr.CodedConcept`` or ``pydicom.sr.coding.Code``).
+- ``unit`` (:class:`highdicom.sr.CodedConcept` or ``pydicom.sr.coding.Code``).
   Code (see :ref:`coding`) giving the unit of measurement for the pixels. The
   UCUM system of measurement is typically used for this purpose.
-- ``quantity_definition`` (:class:`highdicom.sr.CodedConcept`` or
+- ``quantity_definition`` (:class:`highdicom.sr.CodedConcept` or
   ``pydicom.sr.coding.Code``), optional. Another code representing the physical
   quantity that the parametric map measures.
 
@@ -70,33 +71,33 @@ linear relationship between stored values and real-world values:
 
 .. code-block:: python
 
-    import highdicom as hd
-    from pydicom.sr.codedict import codes
+  import highdicom as hd
+  from pydicom.sr.codedict import codes
 
 
-    # Apparent diffusion coefficient using a scaling factor and measured in
-    # mm^2/s
-    mapping = RealWorldValueMapping(
-        lut_label="ADC",
-        lut_explanation="Apparent diffusion coefficient in mm^2/s",
-        value_range=(0, 1000.0),
-        slope=0.001,
-        quantity_definition=codes.DCM.ApparentDiffusionCoefficient,
-        unit=codes.UCUM.SquareMillimeterPerSecond,
-    )
+  # Apparent diffusion coefficient using a scaling factor and measured in
+  # mm^2/s
+  mapping = hd.pm.RealWorldValueMapping(
+      lut_label="ADC",
+      lut_explanation="Apparent diffusion coefficient in mm^2/s",
+      value_range=(0, 1000.0),
+      slope=0.001,
+      quantity_definition=codes.DCM.ApparentDiffusionCoefficient,
+      unit=codes.UCUM.SquareMillimeterPerSecond,
+  )
 
-    # A simple identity mapping that represents a saliency map from a neural
-    # network as a dimensionless quantity
-    mapping = RealWorldValueMapping(
-        lut_label="Class Activation",
-        lut_explanation=(
-            "Class activation of a neural network for the prediction "
-            "of pneumonia"
-        ),
-        value_range=(0.0, 100.0),
-        quantity_definition=codes.DCM.ClassActivation,
-        unit=codes.UCUM.NoUnits,
-    )
+  # A simple identity mapping that represents a saliency map from a neural
+  # network as a dimensionless quantity
+  mapping = hd.pm.RealWorldValueMapping(
+      lut_label="Class Activation",
+      lut_explanation=(
+         "Class activation of a neural network for "
+         "pneumonia detection"
+      ),
+      value_range=(0.0, 100.0),
+      quantity_definition=codes.DCM.ClassActivation,
+      unit=codes.UCUM.NoUnits,
+  )
 
 Pixel Data
 ----------
@@ -114,9 +115,10 @@ in the resulting DICOM object. It should be either:
 The dimensionality of the array should be either:
 
 - A 2D array, giving either:
+
   - A single 2D frame giving a parametric map of a single 2D input image, or
   - If ``tile_pixel_array=True`` a 2D total pixel matrix that will be encoded
-    in a tiled arrangement within the resulting DICOM object
+    in a multi-frame tiled arrangement within the resulting DICOM object
 - A 3D array, giving multiple 2D parametric map frames of either a series of
   input image or of a single multiframe image. Frames are stacked down the
   first dimension (index 0)
@@ -125,6 +127,475 @@ The dimensionality of the array should be either:
   mappings passed to the ``real_world_value_mappings`` parameter.
 - A :class:`highdicom.Volume` with either no channels, or a single channel
   dimension
+
+We will see examples of most of these below.
+
+Constructing a Single-Frame Parametric Map
+------------------------------------------
+
+To construct a basic Parametric Map derived from one single-frame DICOM image,
+we pass the source image, the parametric map pixel array, the real-world value
+mapping, and some other pieces of basic information, as follows:
+
+
+.. code-block:: python
+
+  import numpy as np
+  import highdicom as hd
+  from pydicom.sr.codedict import codes
+
+
+  # Read in the source image. Here we use a highdicom test file
+  # from the highdicom repo
+  im = hd.imread("data/test_files/ct_image.dcm")
+
+  # Describe the mapping
+  mapping = hd.pm.RealWorldValueMapping(
+      lut_label="Class Activation",
+      lut_explanation=(
+          "Class activation of a neural network for "
+          "pneumonia detection"
+      ),
+      value_range=(0.0, 100.0),
+      quantity_definition=codes.DCM.ClassActivation,
+      unit=codes.UCUM.NoUnits,
+  )
+
+  # Toy example with random pixel array of floats with the same dimension as
+  # the input image
+  pixel_array = np.random.uniform(
+      0.0,
+      100.0,
+      size=(im.Rows, im.Columns),
+  )
+
+  # Construct the parametric map
+  pm = hd.pm.ParametricMap(
+      source_images=[im],
+      pixel_array=pixel_array,
+      series_instance_uid=hd.UID(),
+      series_number=1,
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      manufacturer="manufacturer",
+      manufacturer_model_name="model name",
+      software_versions="1",
+      device_serial_number="123",
+      contains_recognizable_visual_features=False,
+      real_world_value_mappings=[mapping],
+      voi_lut_transformations=[
+          hd.VOILUTTransformation(
+              window_center=50,
+              window_width=100,
+          )
+      ],
+      series_description="Single frame parametric map",
+  )
+
+  # The resulting object is a sub-class of pydicom.Dataset
+  # and can therefore be saved to the filesystem, etc
+  pm.save_as("parametric_map_example.dcm")
+
+This assumes that there is pixel-for-pixel correspondence between the pixels in
+the ``pixel_array`` and the pixels of the source image.
+
+There are several other parameters available here that we will not cover in
+detail. Please consult the documentation of :class:`highdicom.pm.ParametricMap`
+for more information.
+
+Constructing a Multi-frame Parametric Map
+-----------------------------------------
+
+To create a parametric map derived from multiple input frames, stack the frames
+down the first axis (index zero) of a three-dimensional ``pixel_array``. There
+are two options here:
+
+- Each frame of the parametric map is derived from a single instance from a
+  series of single frame instances. In this case, pass the list of single frame
+  instances to the ``source_images`` parameter, and ensure that the order of
+  frames down the first dimension of the pixel array matches the order of
+  source images in the list, i.e. the parametric map frame at
+  ``pixel_array[i, :, :]`` is derived from ``source_image[i]`` and has pixel-for-pixel
+  correspondence with it.
+- Each frame of the parametric map is derived from a single frame from one
+  multi-frame image instance. In this case, pass the single multi-frame
+  instance to the ``source_images`` parameter, and ensure that the order of
+  frames down the first dimension of the pixel array matches the order the
+  frames are stored in the source image, i.e. the parametric map frame at
+  ``pixel_array[i, :, :]`` is derived from ``source_image[0].pixel_array[i, :,
+  :]`` and has pixel-for-pixel correspondence with it.
+
+In this first example, we derive a parametric map from a single-frame series:
+
+.. code-block:: python
+
+  import numpy as np
+  import highdicom as hd
+  from pydicom.data import get_testdata_files
+  from pydicom.sr.codedict import codes
+
+
+  # Read in the source images. Here we use a series of CT images from the
+  # pydicom test data
+  ct_series = [
+      hd.imread(f)
+      for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+  ]
+  n_frames = len(ct_series)
+  n_rows = ct_series[0].Rows
+  n_columns = ct_series[0].Columns
+
+  # Describe the mapping
+  mapping = hd.pm.RealWorldValueMapping(
+      lut_label="Class Activation",
+      lut_explanation=(
+          "Class activation of a neural network for "
+          "pneumonia detection"
+      ),
+      value_range=(0.0, 100.0),
+      quantity_definition=codes.DCM.ClassActivation,
+      unit=codes.UCUM.NoUnits,
+  )
+
+  # Toy example with random pixel array of floats with the same dimension as the
+  # input image. Frames are stacked down the first dimension
+  pixel_array = np.random.uniform(
+      0.0,
+      100.0,
+      size=(n_frames, n_rows, n_columns)
+  )
+
+  # Construct the parametric map
+  pm = hd.pm.ParametricMap(
+      source_images=ct_series,  # the full input series
+      pixel_array=pixel_array,
+      series_instance_uid=hd.UID(),
+      series_number=1,
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      manufacturer="manufacturer",
+      manufacturer_model_name="model name",
+      software_versions="1",
+      device_serial_number="123",
+      contains_recognizable_visual_features=False,
+      real_world_value_mappings=[mapping],
+      voi_lut_transformations=[
+          hd.VOILUTTransformation(
+              window_center=50,
+              window_width=100,
+          )
+      ],
+      series_description="Multi-frame parametric map",
+  )
+
+In this second example, we derive a parametric map from one multi-frame image:
+
+.. code-block:: python
+
+  import numpy as np
+  import highdicom as hd
+  from pydicom.data import get_testdata_file
+  from pydicom.sr.codedict import codes
+
+
+  # Read in the source image. Here we use a multiframe CT from the pydicom 
+  # test data
+  multiframe_image = hd.imread(get_testdata_file("eCT_Supplemental.dcm"))
+  n_frames = multiframe_image.NumberOfFrames
+  n_rows = multiframe_image.Rows
+  n_columns = multiframe_image.Columns
+
+  # Describe the mapping
+  mapping = hd.pm.RealWorldValueMapping(
+      lut_label="Class Activation",
+      lut_explanation=(
+          "Class activation of a neural network for "
+          "pneumonia detection"
+      ),
+      value_range=(0.0, 100.0),
+      quantity_definition=codes.DCM.ClassActivation,
+      unit=codes.UCUM.NoUnits,
+  )
+
+  # Toy example with random pixel array of floats with the same dimension as the
+  # input image. Frames are stacked down the first dimension
+  pixel_array = np.random.uniform(
+      0.0,
+      100.0,
+      size=(n_frames, n_rows, n_columns)
+  )
+
+  # Construct the parametric map
+  pm = hd.pm.ParametricMap(
+      source_images=[multiframe_image],  # pass the multiframe image
+      pixel_array=pixel_array,
+      series_instance_uid=hd.UID(),
+      series_number=1,
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      manufacturer="manufacturer",
+      manufacturer_model_name="model name",
+      software_versions="1",
+      device_serial_number="123",
+      contains_recognizable_visual_features=False,
+      real_world_value_mappings=[mapping],
+      voi_lut_transformations=[
+          hd.VOILUTTransformation(
+              window_center=50,
+              window_width=100,
+          )
+      ],
+      series_description="Multi-frame parametric map",
+  )
+
+This approach places some burden on the calling code to ensure the order of
+frames correspond between the pixel array and source images. This can be
+difficult in complex analysis pipelines. If you are working with
+reguarly-sampled 3D data, we recommend passing a Volume object instead (see
+:ref:`pm_from_volume`).
+
+.. _pm_from_volume:
+
+Constructing a Parametric Map from a Volume
+-------------------------------------------
+
+If your parametric map pixel array forms a regularly-sampled 3D volume, you can
+pass a :class:`highdicom.Volume` object instead of a basic NumPy array (see
+:ref:`volume` for an overview of Volumes). This has two advantages:
+
+- It removes the requirement from you to ensure correspondence between frames
+  of the ``source_images`` and ``pixel_array``. The constructor will compare
+  the spatial information in the Volume to that in the input image to determine
+  which frame of the input image/series each frame of the volume was derived
+  from (if there is a pixel-for-pixel correspondence).
+- It removes the requirement that there be any pixel-for-pixel correspondence
+  between the parametric map volume and the source images. This may be useful
+  in situations where the parametric map is derived from the source image(s)
+  after some sort of spatial transformation (cropping, padding, resampling,
+  rotation, etc). In this situation, the spatial information in the output
+  Parametric Map object is derived from the Volume rather than from the source
+  image(s). (This is also possible by manually specifying the
+  ``plane_positions``, but using Volumes is recommended where possible.)
+
+Here is a full worked example for deriving a parametric map from a source
+multiframe image where the parametric map has undergone a spatial transformation
+with respect to the source image.
+
+.. code-block:: python
+
+  import numpy as np
+  import highdicom as hd
+  from pydicom.data import get_testdata_file
+
+
+  # Read in the source image. Here we use a multiframe CT from the pydicom
+  # test data
+  multiframe_image = hd.imread(get_testdata_file("eCT_Supplemental.dcm"))
+
+  # Get the input image pixels as a volume for convenient processing
+  input_volume = multiframe_image.get_volume()
+
+  # Perform spatial operations to the volume (here cropping and flipping)
+  # to prepare for analysis
+  processed_volume = (
+      input_volume
+      .crop_to_spatial_shape((2, 400, 400))
+      .flip_spatial(0)
+  )
+
+  # Example calculation to derive a parameter map (NB this is not a
+  # meaningful calculation)
+  derived_volume = processed_volume.with_array(
+      processed_volume.array ** 2
+  )
+
+  # Describe the mapping
+  mapping = hd.pm.RealWorldValueMapping(
+      lut_label="HU2",
+      lut_explanation="Square Hounsfield units",
+      value_range=(0.0, 1e7),
+      unit=hd.sr.CodedConcept(
+          value="[hnsf'U]2",
+          scheme_designator="UCUM",
+          meaning="Square Hounsfield units",
+      ),
+  )
+
+  # Construct the parametric map
+  pm = hd.pm.ParametricMap(
+      source_images=[multiframe_image],
+      pixel_array=derived_volume,
+      series_instance_uid=hd.UID(),
+      series_number=1,
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      manufacturer="manufacturer",
+      manufacturer_model_name="model name",
+      software_versions="1",
+      device_serial_number="123",
+      contains_recognizable_visual_features=False,
+      real_world_value_mappings=[mapping],
+      voi_lut_transformations=[
+          hd.VOILUTTransformation(
+              window_center=50,
+              window_width=100,
+          )
+      ],
+      series_description="Volumetric parametric map",
+  )
+
+There is more information in the :ref:`seg-from-volume` section about what
+effect passing a volume does and does not have on the DICOM object created.
+
+Constructing Tiled Parametric Maps
+----------------------------------
+
+If your paramtric map array is derived from a digital pathology image and is in
+the form of a total pixel matrix that you wish to store as a tiled image, you
+can pass the total pixel matrix to the ``pixel_array`` parameter, specify
+``tile_pixel_array=True``, and optionally specify the ``tile_size``.
+
+
+.. code-block:: python
+
+  import numpy as np
+  import highdicom as hd
+  from pydicom.sr.codedict import codes
+
+
+  # Read in a tiled source image. Here we use a test file from the
+  # highdicom test data
+  tiled_image = hd.imread("data/test_files/sm_image_control.dcm")
+
+  # Toy example with random pixel array of floats with the same dimension as
+  # the input image's total pixel matrix
+  pixel_array = np.random.uniform(
+      0.0,
+      100.0,
+      size=(
+          tiled_image.TotalPixelMatrixRows,
+          tiled_image.TotalPixelMatrixColumns
+      ),
+  )
+
+  # Describe the mapping
+  mapping = hd.pm.RealWorldValueMapping(
+      lut_label="Class Activation",
+      lut_explanation=(
+          "Class activation of a neural network for "
+          "tumor detection"
+      ),
+      value_range=(0.0, 100.0),
+      quantity_definition=codes.DCM.ClassActivation,
+      unit=codes.UCUM.NoUnits,
+  )
+
+  # Construct the parametric map
+  pm = hd.pm.ParametricMap(
+      source_images=[tiled_image],
+      pixel_array=pixel_array,
+      series_instance_uid=hd.UID(),
+      series_number=1,
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      manufacturer="manufacturer",
+      manufacturer_model_name="model name",
+      software_versions="1",
+      device_serial_number="123",
+      contains_recognizable_visual_features=False,
+      real_world_value_mappings=[mapping],
+      voi_lut_transformations=[
+          hd.VOILUTTransformation(
+              window_center=50,
+              window_width=100,
+          )
+      ],
+      tile_pixel_array=True,  # specify input should be tiled
+      dimension_organization_type="TILED_FULL",  # use "tiled full"
+  )
+
+This assumes that the input array is pixel-for-pixel aligned with the total
+pixel matrix of the source image. If the geometry of the pixel array does not
+match the source image, you may pass a :class:`highdicom.Volume` with a shape
+of 1 down the first dimension as the pixel array and the spatial metadata will
+be copied from it.
+
+Both "tiled-full" and "tiled-sparse" dimension organizations are supported (see
+:ref:`tiled-dimension-organization` for Segmentations). Generally "TILED_FULL"
+is recommended in nearly all situations.
+
+Multi-Resolution Pyramids
+-------------------------
+
+If the input pixel matrix is very large, you may wish to generate a series of
+parametric maps representing the same image at multiple resolutions, known as a
+multi-resolution pyramid. The
+:func:`highdicom.pm.create_parametric_map_pyramid` function does this for you.
+There are multiple ways to specify the levels of the pyramid, including by
+specifying downsampling factors, using the same levels as the source image
+pyramid (if any), and manually passing downsampled images (see
+:ref:`multi-resolution-pyramids` in Segmentations for a detailed breakdown).
+
+Here, we give a simple example manually specifying a downsampling factor to
+create a pyramid.
+
+.. code-block:: python
+
+  import numpy as np
+  import highdicom as hd
+  from pydicom.sr.codedict import codes
+
+  # Read in a tiled source image. Here we use a test file from the
+  # highdicom test data
+  tiled_image = hd.imread("data/test_files/sm_image_control.dcm")
+
+  # Toy example with random pixel array of floats with the same dimension as
+  # the input image's total pixel matrix
+  pixel_array = np.random.uniform(
+      0.0,
+      100.0,
+      size=(
+          tiled_image.TotalPixelMatrixRows,
+          tiled_image.TotalPixelMatrixColumns
+      ),
+  )
+
+  # Describe the mapping
+  mapping = hd.pm.RealWorldValueMapping(
+      lut_label="Class Activation",
+      lut_explanation=(
+          "Class activation of a neural network for "
+          "tumor detection"
+      ),
+      value_range=(0.0, 100.0),
+      quantity_definition=codes.DCM.ClassActivation,
+      unit=codes.UCUM.NoUnits,
+  )
+
+  # Construct the parametric map
+  pm_series = hd.pm.create_parametric_map_pyramid(
+      source_images=[tiled_image],
+      pixel_arrays=[pixel_array],
+      downsample_factors=[5.0],
+      series_instance_uid=hd.UID(),
+      series_number=1,
+      manufacturer="manufacturer",
+      manufacturer_model_name="model name",
+      software_versions="1",
+      device_serial_number="123",
+      contains_recognizable_visual_features=False,
+      real_world_value_mappings=[mapping],
+      voi_lut_transformations=[
+          hd.VOILUTTransformation(
+              window_center=50,
+              window_width=100,
+          )
+      ],
+      dimension_organization_type="TILED_FULL",
+      interpolator=hd.InterpolationMethods.LINEAR,
+  )
+
+The return value is a list of :class:`highdicom.pm.ParametricMap` objects.
 
 Compression
 -----------
@@ -140,14 +611,19 @@ parallelize the process of encoding frames.
 
 Compression is not available when using floating point pixels.
 
+Parametric Maps with Multiple Mappings
+--------------------------------------
+
+TODO
+
 Reading Existing Parametric Maps
 --------------------------------
 
-Existing parametic maps can be read from a file using the
+Existing parametric maps can be read from a file using the
 :func:`highdicom.pm.pmread`. Since :class:`highdicom.pm.ParametricMap` is a
 sub-class of :class:`highdicom.Image`, you can use methods such as
 :meth:`highdicom.pm.ParametricMap.get_volume`,
 :meth:`highdicom.pm.ParametricMap.get_total_pixel_matrix`. The
-:func:`highdicom.pm.pmread` also accepts a `lazy_frame_retrieval` parameter,
-allowing frames to be retrieved and decoded only as required. See :ref:`images`
+:func:`highdicom.pm.pmread` also accepts a ``lazy_frame_retrieval`` parameter,
+allowing frames to be retrieved and decoded only as required. See :ref:`image`
 for further information.
