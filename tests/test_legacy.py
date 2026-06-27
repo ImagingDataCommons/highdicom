@@ -612,7 +612,7 @@ def test_require_volume_orientation():
     ['PatientID', 'PatientSex', 'AccessionNumber'],
 )
 def test_empty_type_2_attribute(modality: Modality, keyword: str):
-    """Type 2 attributes emtpy in source images should be set to None."""
+    """Type 2 attributes empty in source images should be set to None."""
     LegacyConvertedClass = MODALITY_CLASS_MAP[modality]
     data_generator = DicomGenerator(5)
     legacy_datasets = data_generator.generate_mixed_framesets(
@@ -1092,7 +1092,7 @@ def test_monochrome1_conversion(
             converted.get_frame(f, as_index=True),
             ds.get_frame(1)
         )
-        # Also after pixel trasforms with the VOI LUT (may be small precision
+        # Also after pixel transforms with the VOI LUT (may be small precision
         # errors)
         assert np.allclose(
             converted.get_frame(f, as_index=True, apply_voi_transform=True),

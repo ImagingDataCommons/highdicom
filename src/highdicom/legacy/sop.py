@@ -170,12 +170,11 @@ def _istag_group_length(t: BaseTag) -> bool:
 def _read_ambiguous_vr(dataset: Dataset, kw: str) -> int:
     """Read attribute from dataset while coercing ambiguous VR.
 
-    Some pixel-value related attributes have a VR or either SS or US
-    depending on the PixelRepresentation. Unforunately, some GE images with
+    Some pixel-value related attributes have a VR or either SS or US depending
+    on the PixelRepresentation. Unfortunately, some GE images with
     PixelRepresentation=1 incorrectly use a VR of US, and store the two's
-    complement of the intended (negative) value. Unforunately, if this is
-    not corrected, pydicom will (correctly) refuse to write the dataset
-    out.
+    complement of the intended (negative) value. Unfortunately, if this is not
+    corrected, pydicom will (correctly) refuse to write the dataset out.
 
     Parameters
     ----------
@@ -1868,8 +1867,8 @@ class _LegacyConversionRunner:
         suffix = " (enhanced conversion)"
 
         # If a series description is already there, it was provided
-        # explicity by the user and placed there by the SOPClass
-        # constructor, so should not be overidden
+        # explicitly by the user and placed there by the SOPClass
+        # constructor, so should not be overridden
         if "SeriesDescription" not in self._destination:
             if self._keyword_shared_dict.get("SeriesDescription", False):
                 desc = self._legacy_datasets[0].SeriesDescription
@@ -1897,7 +1896,7 @@ class _LegacyConversionRunner:
                     .DimensionIndexValues
                 ) = dim_ind_vals
 
-                # Also add volume position in the stack postion number
+                # Also add volume position in the stack position number
                 if self._volume_spacing is not None:
                     pffg.FrameContentSequence[0].StackID = "1"
                     pffg.FrameContentSequence[0].InStackPositionNumber = (
@@ -2195,7 +2194,7 @@ class _LegacyConversionRunner:
 
             # Any referenced series items in the legacy datasets should
             # also be added, but need to be deduplicated across the legacy
-            # intances
+            # instances
             for series_item in ds.get("ReferencedSeriesSequence", []):
                 for instance_item in series_item.get(
                     "ReferencedInstanceSequence", []
@@ -2209,7 +2208,7 @@ class _LegacyConversionRunner:
 
             # Referenced instances fromother studies in the legacy datasets
             # should also be added, but need to be deduplicated across the
-            # legacy intances
+            # legacy instances
             for study_item in ds.get(studies_kw, []):
                 for series_item in study_item.get(
                     "ReferencedSeriesSequence", []
@@ -2379,7 +2378,7 @@ class _LegacyConversionRunner:
             self._pixel_inversion_offset is not None or
             (
                 # Changing transfer syntax requires compression, decompression,
-                # and/or endianess conversion
+                # and/or endianness conversion
                 (dst_tx_uid != src_tx_uid) and
                 (
                     src_tx_uid.is_encapsulated or
