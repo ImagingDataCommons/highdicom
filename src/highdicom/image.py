@@ -46,14 +46,14 @@ from pydicom.sr.codedict import codes
 from pydicom.uid import ParametricMapStorage, SegmentationStorage
 from pydicom.valuerep import format_number_as_ds
 
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     ModuleUsageValues,
     construct_module_tree,
     does_iod_have_pixel_data,
+    get_module_attribute_map,
     get_module_usage,
     is_multiframe_image,
 )
-from highdicom._modules import MODULE_ATTRIBUTE_MAP
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.color import ColorManager
 from highdicom.content import (
@@ -1219,7 +1219,7 @@ class _DimensionIndexSequence(DataElementSequence):
         else:
             self._coordinate_system = CoordinateSystemNames(coordinate_system)
 
-        if functional_groups_module not in MODULE_ATTRIBUTE_MAP:
+        if functional_groups_module not in get_module_attribute_map():
             raise KeyError(
                 f"Value of '{functional_groups_module}' for parameter "
                 "'functional_groups_module' is not an existing module name."
@@ -4528,6 +4528,11 @@ class _Image(SOPClass):
         the modality transform, VOI transforms, palette color LUTs, or ICC
         profile, has been applied.
 
+        Frames are decoded lazily as requested (and furthermore, retrieved
+        lazily from file if the image was read with
+        ``lazy_frame_retrieval=True``). As result, for a small number of
+        frames, this will be far faster than using ``.pixel_array``.
+
         To get frames with pixel transforms applied (as is appropriate for
         most applications), use :func:`highdicom.Image.get_frame`
         instead.
@@ -4584,6 +4589,11 @@ class _Image(SOPClass):
         as_indices: bool = False,
     ):
         """Get a stack of frames of stored values.
+
+        Frames are decoded lazily as requested (and furthermore, retrieved
+        lazily from file if the image was read with
+        ``lazy_frame_retrieval=True``). As result, for a small number of
+        frames, this will be far faster than using ``.pixel_array``.
 
         Parameters
         ----------

@@ -38,9 +38,10 @@ from highdicom.spatial import is_tiled_image
 from highdicom.valuerep import (
     _check_code_string,
     _check_long_string,
-    _check_short_text
+    _check_short_text,
+    check_person_name,
 )
-from highdicom._module_utils import is_multiframe_image
+from highdicom._standard_utils import is_multiframe_image
 
 
 logger = logging.getLogger(__name__)
@@ -827,10 +828,22 @@ def _add_presentation_state_identification_attributes(
             )
         ]
 
-    # Not technically part of PR IODs, but we include anyway
-    now = datetime.datetime.now()
-    dataset.ContentDate = DA(now.date())
-    dataset.ContentTime = TM(now.time())
+    if content_creator_name is not None:
+        check_person_name(content_creator_name)
+    dataset.ContentCreatorName = content_creator_name
+
+    if content_creator_identification is not None:
+        if not isinstance(
+            content_creator_identification,
+            ContentCreatorIdentificationCodeSequence
+        ):
+            raise TypeError(
+                'Argument "content_creator_identification" must be of type '
+                'ContentCreatorIdentificationCodeSequence.'
+            )
+        dataset.ContentCreatorIdentificationCodeSequence = (
+            content_creator_identification
+        )
 
 
 def _add_presentation_state_relationship_attributes(

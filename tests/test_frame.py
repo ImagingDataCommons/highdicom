@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from pydicom.uid import (
     JPEG2000,
+    ExplicitVRLittleEndian,
     JPEG2000Lossless,
     JPEGLSLossless,
     JPEGLSNearLossless,
@@ -131,6 +132,46 @@ class TestEncodeFrame(TestCase):
 
     def setUp(self):
         super().setUp()
+
+    def test_native(self):
+        bits_allocated = 16
+        r, c = 16, 32
+        dtype = np.dtype(f'uint{bits_allocated}')
+        frame = np.random.randint(0, 1000, (r, c), dtype=dtype)
+        compressed_frame = encode_frame(
+            frame,
+            transfer_syntax_uid=ExplicitVRLittleEndian,
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='MONOCHROME2',
+            pixel_representation=0,
+            planar_configuration=0
+        )
+        reconstructed = np.frombuffer(
+            compressed_frame,
+            dtype=dtype
+        ).reshape(r, c)
+        assert np.array_equal(reconstructed, frame)
+
+    def test_native_from_big_endian(self):
+        bits_allocated = 16
+        r, c = 16, 32
+        dtype = np.dtype('>u2')
+        frame = np.random.randint(0, 1000, (r, c), dtype=dtype)
+        compressed_frame = encode_frame(
+            frame,
+            transfer_syntax_uid=ExplicitVRLittleEndian,  # change endianess
+            bits_allocated=bits_allocated,
+            bits_stored=bits_allocated,
+            photometric_interpretation='MONOCHROME2',
+            pixel_representation=0,
+            planar_configuration=0
+        )
+        reconstructed = np.frombuffer(
+            compressed_frame,
+            dtype='<u2',  # little endian
+        ).reshape(r, c)
+        assert np.array_equal(reconstructed, frame)
 
     def test_jpeg_rgb(self):
         bits_allocated = 8

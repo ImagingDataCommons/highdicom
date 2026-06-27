@@ -18,7 +18,7 @@ from highdicom.enum import (
 from highdicom.image import _DimensionIndexSequence
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
 from highdicom.sr.coding import CodedConcept
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     check_required_attributes,
 )
 from highdicom.volume import ChannelDescriptor

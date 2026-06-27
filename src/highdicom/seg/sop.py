@@ -864,6 +864,15 @@ class Segmentation(_Image):
             # descriptions having a positive value can remain in place.
             bg_description.SegmentNumber = 0
 
+            # Remove the algorithm identification sequence, since it is not
+            # actually required (highdicom is stricter than the standard here)
+            # and doesn't make sense for a background class
+            if bg_algo_id is not None:
+                delattr(
+                    bg_description,
+                    'SegmentationAlgorithmIdentificationSequence'
+                )
+
             self.SegmentSequence = [
                 bg_description,
                 *segment_descriptions

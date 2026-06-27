@@ -7,7 +7,7 @@ from pydicom import Dataset
 import numpy as np
 import pydicom
 
-from highdicom._module_utils import is_multiframe_image
+from highdicom._standard_utils import is_multiframe_image
 from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,
@@ -3526,7 +3526,14 @@ def get_series_volume_positions(
 
     positions = [ds.ImagePositionPatient for ds in datasets]
 
-    spacing_hint = datasets[0].get('SpacingBetweenSlices')
+    spacing_hint: float | None = None
+    if allow_missing_positions:
+        spacing_hint = datasets[0].get('SpacingBetweenSlices')
+
+        if spacing_hint == 0.0:
+            # Zero is sometimes used as an unknown value. Ignore it in this
+            # case rather than raising an unhelpful error later
+            spacing_hint = None
 
     return get_volume_positions(
         image_positions=positions,
@@ -3819,10 +3826,11 @@ def get_volume_positions(
                 rtol=rtol,
                 atol=atol,
             ):
-                raise RuntimeError(
+                logger.info(
                     f"Inferred spacing ({abs(spacing):.3f}) does not match the "
                     f"given 'spacing_hint' ({spacing_hint})."
                 )
+                return None, None
 
         is_regular = np.isclose(
             spacings,

@@ -55,7 +55,7 @@ from highdicom.valuerep import (
     _check_short_text,
     check_person_name,
 )
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     check_required_attributes,
     does_iod_have_pixel_data,
     is_multiframe_image,
@@ -82,7 +82,8 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         name: str
             Name of the algorithm
         family: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
-            Kind of algorithm family
+            Kind of algorithm family. See :dcm:`CID 7162
+            <part16/sect_CID_7162.html>` for recommended values.
         version: str
             Version of the algorithm
         source: str, optional

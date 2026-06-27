@@ -47,6 +47,8 @@ from highdicom.pr import (
     TextObject,
 )
 
+from tests.utils import write_and_read_dataset
+
 
 class TestSoftcopyVOILUTTransformation(unittest.TestCase):
 
@@ -1114,6 +1116,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert hasattr(pr, 'RescaleType')
         assert pr.RescaleIntercept == self._ct_series[0].RescaleIntercept
         assert pr.RescaleSlope == self._ct_series[0].RescaleSlope
+        assert 'ContentDate' not in pr
 
     def test_construction_with_modality_rescale(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1158,6 +1161,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert gsps.RescaleIntercept == 1024
         assert gsps.RescaleType == 'HU'
         assert not hasattr(gsps, 'ModalityLUTSequence')
+        assert 'ContentDate' not in gsps
 
     def test_construction_with_modality_lut(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1200,6 +1204,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert not hasattr(gsps, 'RescaleIntercept')
         assert not hasattr(gsps, 'RescaleType')
         assert len(gsps.ModalityLUTSequence) == 1
+        assert 'ContentDate' not in gsps
 
     def test_construction_with_copy_modality_lut(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -2026,10 +2031,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert not hasattr(pr, 'RescaleType')
 
         # Write out dataset and test icc profile works as expected
-        with BytesIO() as buf:
-            pr.save_as(buf)
-            buf.seek(0)
-            reread = dcmread(buf)
+        reread = write_and_read_dataset(pr)
 
         # A basic check that the profile was read correctly
         original_profile = self._sm_image.OpticalPathSequence[0].ICCProfile
@@ -2105,10 +2107,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert hasattr(pr, 'ICCProfile')
 
         # Write out dataset and test it works as expected
-        with BytesIO() as buf:
-            pr.save_as(buf)
-            buf.seek(0)
-            reread = dcmread(buf)
+        reread = write_and_read_dataset(pr)
 
         # A basic check that the profile was read correctly
         image_profile = ImageCmsProfile(BytesIO(reread.ICCProfile))
