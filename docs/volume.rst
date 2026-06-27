@@ -630,7 +630,7 @@ spatial metadata in the output object is correct.
     brain_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='brain',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Brain,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.AUTOMATIC,
         algorithm_identification=algorithm_identification,

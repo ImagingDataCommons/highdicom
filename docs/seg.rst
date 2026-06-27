@@ -67,11 +67,13 @@ description includes the following information:
   segment represents an anatomical structure, a tissue type, or an abnormality.
   This is passed as either a
   :class:`highdicom.sr.CodedConcept`, or a :class:`pydicom.sr.coding.Code`
-  object.
+  object. See
+  :dcm:`CID 7150 <part16/sect_CID_7150.html>` for the associated context group.
 - **Segmented Property Type**: Another coded value that more specifically
   describes the segmented region, as for example a kidney or tumor.  This is
   passed as either a :class:`highdicom.sr.CodedConcept`, or a
-  :class:`pydicom.sr.coding.Code` object.
+  :class:`pydicom.sr.coding.Code` object. See
+  :dcm:`CID 7151 <part16/sect_CID_7151.html>` for the associated context group.
 - **Algorithm Type**: Whether the segment was produced by an automatic,
   semi-automatic, or manual algorithm. The valid values are contained within the
   enum :class:`highdicom.seg.SegmentAlgorithmTypeValues`.
@@ -112,7 +114,7 @@ representing a liver that has been manually segmented.
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
         display_color=hd.color.CIELabColor.from_string('red'),
@@ -244,7 +246,7 @@ everything else the same.
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -321,7 +323,7 @@ example to use the labelmap segmentation type.
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -387,7 +389,7 @@ segmentation type.
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -475,7 +477,7 @@ always be present even if there is a single source frame.
     liver_description = hd.seg.SegmentDescription(
         segment_number=2,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -635,7 +637,7 @@ must have exactly one channel dimension with the descriptor being the
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -734,7 +736,7 @@ For example:
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -827,7 +829,7 @@ between the items of the ``source_images`` list and axis 0 of the segmentation
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -1187,7 +1189,7 @@ representing a probabilistic segmentation of the liver.
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
