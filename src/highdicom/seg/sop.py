@@ -63,6 +63,11 @@ from highdicom.volume import (
 )
 
 
+_DERIVATION_CODE = CodedConcept.from_code(
+    codes.cid7203.SegmentationImageDerivation
+)
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -693,6 +698,7 @@ class Segmentation(_Image):
             photometric_interpretation=photometric_interpretation,
             bits_allocated=bits_allocated,
             samples_per_pixel=1,
+            derivation=_DERIVATION_CODE,
             image_type=['DERIVED', 'PRIMARY'],
             pixel_representation=PixelRepresentationValues.UNSIGNED_INTEGER,
             use_default_pixel_value_transformation=False,

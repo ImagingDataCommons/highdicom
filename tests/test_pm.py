@@ -1335,9 +1335,16 @@ class TestParametricMap():
             contains_recognizable_visual_features=False,
             real_world_value_mappings=[self._float_mapping],
             voi_lut_transformations=[self._voi_transformation],
+            derivation=codes.cid7203.PixelByPixelAddition,
         )
         for frame_item in instance.PerFrameFunctionalGroupsSequence:
             assert len(frame_item.DerivationImageSequence) == 1
+            assert (
+                frame_item
+                .DerivationImageSequence[0]
+                .DerivationCodeSequence[0]
+                .CodeValue
+            ) == codes.cid7203.PixelByPixelAddition.value
 
         instance = ParametricMap.from_dataset(
             write_and_read_dataset(instance)

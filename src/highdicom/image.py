@@ -149,12 +149,9 @@ _DCM_SQL_TYPE_MAP = {
     'UT': 'TEXT',
 }
 
-# These codes are needed many times in loops so we precompute them
+# This code is needed many times in loops so we precompute them
 _PURPOSE_CODE = CodedConcept.from_code(
     codes.cid7202.SourceImageForImageProcessingOperation
-)
-_DERIVATION_CODE = CodedConcept.from_code(
-    codes.cid7203.SegmentationImageDerivation
 )
 
 
@@ -1724,6 +1721,7 @@ class _Image(SOPClass):
         photometric_interpretation: PhotometricInterpretationValues | str,
         bits_allocated: int,
         functional_groups_module: str,
+        derivation: CodedConcept,
         bits_stored: int | None = None,
         samples_per_pixel: int = 1,
         planar_configuration: (
@@ -2453,6 +2451,7 @@ class _Image(SOPClass):
                         plane_position=plane_positions[plane_index],
                         derivation_source_image_items=plane_derivation_items,
                         coordinate_system=self._coordinate_system,
+                        derivation=derivation,
                     )
 
                     if add_channel_callback is not None:
@@ -3922,6 +3921,7 @@ class _Image(SOPClass):
         plane_position: PlanePositionSequence,
         derivation_source_image_items: Sequence[Dataset] | None,
         coordinate_system: CoordinateSystemNames | None,
+        derivation: CodedConcept,
     ) -> Dataset:
         """Get a single item of the Per Frame Functional Groups Sequence.
 
@@ -3938,6 +3938,9 @@ class _Image(SOPClass):
             Image Sequence, if any, for this frame.
         coordinate_system: Optional[highdicom.CoordinateSystemNames]
             Coordinate system used, if any.
+        derivation: highdicom.sr.CodedConcept
+            Coded description of the derivation of this frame from the source
+            image(s).
 
         Returns
         -------
@@ -3996,7 +3999,7 @@ class _Image(SOPClass):
                 DataElement(
                     0x00089215,  # DerivationCodeSequence
                     'SQ',
-                    [_DERIVATION_CODE]
+                    [derivation]
                 )
             )
 

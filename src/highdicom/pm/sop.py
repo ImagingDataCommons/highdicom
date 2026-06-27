@@ -25,8 +25,11 @@ from highdicom.enum import (
 from highdicom.image import _Image, Image
 from highdicom.pm.content import RealWorldValueMapping
 from highdicom.pm.enum import DerivedPixelContrastValues, ImageFlavorValues
+from highdicom.sr import CodedConcept
 from highdicom.volume import ChannelDescriptor, Volume
 from pydicom import Dataset
+from pydicom.sr.codedict import codes
+from pydicom.sr.coding import Code
 from pydicom.dataelem import DataElement
 from pydicom.uid import (
     ExplicitVRLittleEndian,
@@ -40,6 +43,13 @@ from pydicom.uid import (
     UID,
 )
 from typing_extensions import Self
+
+
+# Default code to use for derivation. It is not really clear what
+# code should be used here
+_DERIVATION_CODE = CodedConcept.from_code(
+    codes.DCM.UnspecifiedMethodOfCalculation
+)
 
 
 class ParametricMap(Image):
@@ -104,8 +114,10 @@ class ParametricMap(Image):
             ContributingEquipment
         ] | None = None,
         use_extended_offset_table: bool = False,
-        icc_profile: bytes | None = None,
+        *,
         workers: int | Executor = 0,
+        further_source_images: Sequence[Dataset] | None = None,
+        icc_profile: bytes | None = None,
         dimension_organization_type: (
             DimensionOrganizationTypeValues |
             str |
@@ -115,7 +127,7 @@ class ParametricMap(Image):
         tile_size: Sequence[int] | None = None,
         pyramid_uid: str | None = None,
         pyramid_label: str | None = None,
-        further_source_images: Sequence[Dataset] | None = None,
+        derivation: Code | CodedConcept | None = None,
         **kwargs,
     ):
         """
@@ -258,9 +270,6 @@ class ParametricMap(Image):
             they may be less widely supported than basic offset tables. This
             parameter is ignored if using a native (uncompressed) transfer
             syntax. The default value may change in a future release.
-        icc_profile: Union[bytes, None] = None
-            An ICC profile to display the parametric map. This is only
-            permitted when palette_color_lut_transformation is provided.
         workers: Union[int, concurrent.futures.Executor], optional
             Number of worker processes to use for frame compression. If 0, no
             workers are used and compression is performed in the main process
@@ -278,6 +287,16 @@ class ParametricMap(Image):
             Note that if you use worker processes, you must ensure that your
             main process uses the ``if __name__ == "__main__"`` idiom to guard
             against spawned child processes creating further workers.
+        icc_profile: Union[bytes, None] = None
+            An ICC profile to display the parametric map. This is only
+            permitted when palette_color_lut_transformation is provided.
+        further_source_images: Optional[Sequence[pydicom.Dataset]], optional
+            Additional images to record as source images in the parametric map.
+            Unlike the main ``source_images`` parameter, these images will
+            *not* be used to infer the position and orientation of the
+            ``pixel_array`` in the case that no plane positions are supplied.
+            Images from multiple series may be passed, however they must all
+            belong to the same study.
         dimension_organization_type: Union[highdicom.enum.DimensionOrganizationTypeValues, str, None], optional
             Dimension organization type to use for the output image.
         tile_pixel_array: bool, optional
@@ -318,13 +337,12 @@ class ParametricMap(Image):
             Human readable label for the pyramid containing this segmentation.
             Should only be used if this segmentation is part of a
             multi-resolution pyramid.
-        further_source_images: Optional[Sequence[pydicom.Dataset]], optional
-            Additional images to record as source images in the parametric map.
-            Unlike the main ``source_images`` parameter, these images will
-            *not* be used to infer the position and orientation of the
-            ``pixel_array`` in the case that no plane positions are supplied.
-            Images from multiple series may be passed, however they must all
-            belong to the same study.
+        derivation: pydicom.sr.coding.Code | highdicom.sr.CodedConcept | None, optional
+            Coded description of the derivation of each frame from its source
+            frame. See :dcm:`CID 7203 <part16/sect_CID_7203.html>` "Image
+            Derivation" for the relevant context group. If None, a suitable
+            generic code is used. Ignored if per-frame references are not
+            included in the new object.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -631,6 +649,19 @@ class ParametricMap(Image):
 
             return item
 
+        if derivation is None:
+            # Use default
+            derivation_concept = _DERIVATION_CODE
+        elif isinstance(derivation, Code):
+            derivation_concept = CodedConcept.from_code(derivation)
+        elif isinstance(derivation, CodedConcept):
+            derivation_concept = derivation
+        else:
+            raise TypeError(
+                "Argument 'derivation' must have type pydicom.sr.coding.Code "
+                "or highdicom.sr.CodedConcept."
+            )
+
         self._init_multiframe_image(
             source_images=source_images,
             pixel_array=pixel_array,
@@ -643,6 +674,7 @@ class ParametricMap(Image):
             ),
             bits_allocated=bits_allocated,
             samples_per_pixel=1,
+            derivation=derivation_concept,
             use_default_pixel_value_transformation=True,
             shared_voi_lut_transformations=voi_lut_transformations,
             palette_color_lut_transformation=palette_color_lut_transformation,
