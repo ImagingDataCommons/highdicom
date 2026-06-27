@@ -1768,6 +1768,79 @@ class _Image(SOPClass):
 
         Parameters
         ----------
+        pixel_array: np.ndarray | highdicom.Volume
+            Pixel array for new image. Can be 2D, 3D (with frames stacked down
+            first axis), or 4D (with frames stacked down first axis and
+            channels stacked down last axis),
+        source_images: Sequence[pydicom.Dataset]
+            Source images from which the new image was derived. May be single
+            frame or mulitframr. If ``plane_positions`` is not provided and
+            ``pixel_array`` is not a volume, there must be correspondence
+            between each frame in pixel array and the frames within the source
+            images.
+        image_type: Sequence[str]
+            Image type of the new image.
+        photometric_interpretation: PhotometricInterpretationValues | str
+            Photometric interpretation of the new image.
+        bits_allocated: int
+            Bits allocated in the new image.
+        functional_groups_module: str
+            Name of the functional groups module used by this IOD.
+        derivation: highdicom.sr.CodedConcept
+            Coded description of the derivation of the frames from the source
+            frames to include in the DerivationCodeSequence.
+        bits_stored: int | None = None, optional
+            Bits stored in the new image. Assumed equal to ``bits_allocated``
+            if not specified.
+        samples_per_pixel: int = 1,
+            Samples per pixel in the new image.
+        planar_configuration: highdicom.PlanarConfigurationValues | int, optional
+            Planar configuration of the new image.
+        pixel_representation: highdicom.PixelRepresentationValues | int, optional
+            Pixel representation for the new image.
+        contains_recognizable_visual_features: bool | None, optional
+            Whether the image contains recognizable visible features
+        burned_in_annotation: bool | None, optional
+            Whether the image contains burned in annotations
+        use_default_pixel_value_transformation: bool, optional
+            Whether to include a default pixel value transform (slope 1,
+            intercept 0).
+        shared_voi_lut_transformations: Sequence[highdicom.VOILUTTransformation] | None, optional
+            Sequence of VOI LUT transformations shared by all frames (per-frame
+            transforms should be added via callbacks).
+        palette_color_lut_transformation: highdicom.PaletteColorLUTTransformation | None, optional
+            Palette color LUT for the new image.
+        icc_profile: bytes | None, optional
+            ICC profile for the new image.
+        pixel_measures: PixelMeasuresSequence | None, optional
+            Pixel measures for the new image.
+        plane_orientation: highdicom.PlaneOrientationSequence | None, optional
+            Plane orientation for the new image.
+        plane_positions: Sequence[highdicom.PlanePositionSequence] | None, optional
+            Plane positions of each plane in ``pixel_array``.
+        omit_empty_frames: bool,
+            Whether to omit empty frames in pixel array (those containing only 0).
+        workers: int | concurrent.futures.Executor, optional
+            Number of workers or executor object to use for multiprocessing for
+            frame compression.
+        dimension_organization_type: highdicom.DimensionOrganizationTypeValues | str | None, optional
+            Dimension organization type of the new image.
+        tile_pixel_array: bool = False,
+            Whether to automatically tile the input pixel array.
+        tile_size: Sequence[int] | None, optional
+            Tile size to use when automatically tiling the input pixel array.
+            If not specified, the tile size of the source images is used.
+        further_source_images: Sequence[Dataset] | None, optional
+            Further source images. These are referenced in the new image, but
+            not used to define the locations of the pixel array.
+        pyramid_label: str | None, optional
+            Pyramid label for the new image.
+        pyramid_uid: str | None = None, optional
+            Pyramid UID for the new image.
+        use_extended_offset_table: bool, optional
+            Whether to use an extended offset table.
+        pixel_data_keyword: highdicom.PixelDataKeywords, optional
+            Pixel data keyword used in the new image.
         channel_values: Sequence[Any] | None, optional
             If channels are to be included in the new image, the values of the
             channel dimension for each channel. The length of this list defines
