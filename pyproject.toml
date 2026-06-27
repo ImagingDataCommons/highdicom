@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "highdicom"
-version = "0.27.0"
+version = "0.28.0"
 description = "High-level DICOM abstractions."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -39,6 +39,7 @@ dependencies = [
     "pydicom>=3.0.1",
     "pyjpegls>=1.0.0",
     "typing-extensions>=4.0.0",
+    "packaging>=17.1"
 ]
 
 [project.optional-dependencies]
@@ -47,6 +48,8 @@ libjpeg = [
     "pylibjpeg-openjpeg>=2.0.0",
     "pylibjpeg>=2.0",
 ]
+itk = ["itk>=5.4.0"]
+sitk = ["SimpleITK>=2.2.1"]
 
 [dependency-groups]
 test = [
@@ -72,7 +75,7 @@ repository = "https://github.com/ImagingDataCommons/highdicom.git"
 where = [ "src" ]
 
 [tool.setuptools.package-data]
-highdicom = [ "**/*.icc" ]
+highdicom = [ "**/*.icc" , "_standard/*.json" ]
 
 [tool.pytest.ini_options]
 minversion = "7"

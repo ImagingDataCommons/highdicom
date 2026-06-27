@@ -21,6 +21,8 @@ from highdicom.color import CIELabColor
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 
+from tests.utils import write_and_read_dataset
+
 
 class TestMeasurements(unittest.TestCase):
 
@@ -600,12 +602,10 @@ class TestMicroscopyBulkSimpleAnnotations:
             device_serial_number='XYZ'
         )
 
-        with BytesIO() as fp:
-            annotations.save_as(fp)
-            fp.seek(0)
-            dataset = dcmread(fp)
+        dataset = write_and_read_dataset(annotations)
 
-        annotations = MicroscopyBulkSimpleAnnotations.from_dataset(dataset)
+        annotations_read = MicroscopyBulkSimpleAnnotations.from_dataset(dataset)
+        assert isinstance(annotations_read, MicroscopyBulkSimpleAnnotations)
 
         with BytesIO() as fp:
             annotations.save_as(fp)

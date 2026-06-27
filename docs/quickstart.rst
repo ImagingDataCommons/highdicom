@@ -600,7 +600,7 @@ For more information see :doc:`tid1500parsing`.
 
 
 Additionally, there are low-level utilities that you can use to find content
-items in the content tree of any structured report documents:
+items in the content tree of any structured report document:
 
 .. code-block:: python
 
@@ -780,6 +780,81 @@ For more information see :ref:`ann`.
     assert units[0] == codes.UCUM.SquareMicrometer
     assert values.shape == (group.number_of_annotations, 1)
 
+.. _creating-pm:
+
+Creating Parametric Map (PM) Images
+-----------------------------------
+
+Parametric Maps store pixel arrays of measurements derived from other images.
+Importantly, they are the only type of DICOM object that can store pixels
+using floating point arrays.
+
+In this example, we create a parametric map from a series of single-frame CT
+images:
+
+.. code-block:: python
+
+    import numpy as np
+    import highdicom as hd
+    from pydicom.data import get_testdata_files
+    from pydicom.sr.codedict import codes
+
+
+    # Read in the source images. Here we use a series of CT images from the
+    # pydicom test data
+    ct_series = [
+        hd.imread(f)
+        for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+    ]
+    n_frames = len(ct_series)
+    n_rows = ct_series[0].Rows
+    n_columns = ct_series[0].Columns
+
+    # Describe the mapping
+    mapping = hd.pm.RealWorldValueMapping(
+        lut_label="Class Activation",
+        lut_explanation=(
+            "Class activation of a neural network for "
+            "pneumonia detection"
+        ),
+        value_range=(0.0, 100.0),
+        quantity_definition=codes.DCM.ClassActivation,
+        unit=codes.UCUM.NoUnits,
+    )
+
+    # Toy example with random pixel array of floats with the same dimension as the
+    # input image. Frames are stacked down the first dimension
+    pixel_array = np.random.uniform(
+        0.0,
+        100.0,
+        size=(n_frames, n_rows, n_columns)
+    )
+
+    # Construct the parametric map
+    pm = hd.pm.ParametricMap(
+        source_images=ct_series,  # the full input series
+        pixel_array=pixel_array,
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer="manufacturer",
+        manufacturer_model_name="model name",
+        software_versions="1",
+        device_serial_number="123",
+        contains_recognizable_visual_features=False,
+        real_world_value_mappings=[mapping],
+        voi_lut_transformations=[
+            hd.VOILUTTransformation(
+                window_center=50,
+                window_width=100,
+            )
+        ],
+        series_description="Multi-frame parametric map",
+    )
+
+Once created, parametric maps can be treated like any other image (see
+:ref:`image`). For more information on parametric maps, see :ref:`pm`.
 
 .. _creating-sc:
 
@@ -1029,11 +1104,49 @@ preferred for storing annotations for clinical or research purposes.
     gsps.save_as('gsps.dcm')
 
 
-.. .. _creation-legacy:
+.. _creation-legacy:
 
-.. Creating Legacy Converted Enhanced Images
-.. -----------------------------------------
+Creating Legacy Converted Enhanced Images
+-----------------------------------------
 
-.. .. code-block:: python
+Highdicom provides the following Python classes for converting legacy
+single-frame images to multi-frame Legacy Converted Enhanced images:
 
-..     from highdicom.legacy.sop import LegacyConvertedEnhancedCTImage
+- :class:`highdicom.legacy.LegacyConvertedEnhancedMRImage` for MR images stored
+  in the legacy "MR Image Storage" SOP Class.
+- :class:`highdicom.legacy.LegacyConvertedEnhancedCTImage` for CT images stored
+  in the legacy "CT Image Storage" SOPClass.
+- :class:`highdicom.legacy.LegacyConvertedEnhancedPETImage` for PET images
+  stored in the legacy "Positron Emission Tomography" SOPClass.
+
+Here is a simple example using CT. See :ref:`legacy` for more detail.
+
+.. code-block:: python
+
+  import highdicom as hd
+  from pydicom import dcmread
+  from pydicom.data import get_testdata_file
+
+
+  # Use this series of files from the pydicom test data
+  legacy_ct_files = [
+      get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+      get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+      get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+  ]
+
+  # Read in the files
+  ct_series = [dcmread(f) for f in legacy_ct_files]
+
+  # Use the class constructor to perform the conversion
+  multiframe = hd.legacy.LegacyConvertedEnhancedCTImage(
+      ct_series,
+      series_number=1,
+      instance_number=1,
+      series_instance_uid=hd.UID(),
+      sop_instance_uid=hd.UID(),
+      series_description="Enhanced Test Files",
+  )
+
+  # Save out the new multiframe conversion
+  multiframe.save_as("legacy_converted_ct.dcm")

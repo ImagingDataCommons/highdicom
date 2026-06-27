@@ -902,9 +902,10 @@ There are three possibilities here:
   and/or scaling between source frames and segmentation frames). In this
   situation, the "Derivation Image Sequence" is left empty.
 
-If you require the "Derivation Image Sequence" to be populated and you are using a
-:class:`highdicom.Volume` as input to the constructor, follow the method in the
-`seg-from-volume`_ section to match the geometry before passing to the constructor.
+If you require the "Derivation Image Sequence" to be populated and you are
+using a :class:`highdicom.Volume` as input to the constructor, follow the
+method in the :ref:`seg-from-volume` section to match the geometry before
+passing to the constructor.
 
 Constructing SEG Images from a Total Pixel Matrix
 -------------------------------------------------
@@ -934,7 +935,7 @@ tile size of the source image will be used (regardless of whether the
 segmentation is represented at the same resolution as the source image).
 
 If you need to specify the plane positions of the image explicitly, you should
-pass a :meth:`highdicom.Volume` or alternatively, pass single item to the
+pass a :meth:`highdicom.Volume` or alternatively, pass a single item to the
 ``plane_positions`` argument giving the location of the top left corner of the
 full total pixel matrix. Otherwise, all the usual options are available to you.
 
@@ -989,6 +990,8 @@ full total pixel matrix. Otherwise, all the usual options are available to you.
     # the source image
     assert seg.NumberOfFrames == 10
     assert seg.pixel_array.shape == (10, 10, 10)
+
+.. _tiled-dimension-organization:
 
 ``"TILED_FULL"`` and ``"TILED_SPARSE"``
 ---------------------------------------
@@ -1047,6 +1050,8 @@ combination with ``tile_pixel_array`` argument.
     # the source image
     assert seg.NumberOfFrames == 25
     assert seg.pixel_array.shape == (25, 10, 10)
+
+.. _multi-resolution-pyramids:
 
 Multi-resolution Pyramids
 -------------------------

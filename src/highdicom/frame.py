@@ -1,5 +1,6 @@
 import logging
 from io import BytesIO
+import sys
 from typing import cast
 
 import numpy as np
@@ -18,15 +19,56 @@ from pydicom.uid import (
     JPEGLSNearLossless,
     UID,
     RLELossless,
+    HTJ2K,
 )
 
 from highdicom.enum import (
     PhotometricInterpretationValues,
     PixelRepresentationValues,
     PlanarConfigurationValues,
+    PixelDataKeywords,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_array_byteorder(array: np.ndarray, transfer_syntax_uid: str):
+    """Ensure an array has the correct byte order for a transfer syntax.
+
+    Parameters
+    ----------
+    array: np.ndarray
+        NumPy array.
+    transfer_syntax_uid: str
+        Transfer syntax UID used to infer the required byte order.
+
+    Returns
+    -------
+    np.ndarray:
+        Array with the byteorder required for transfer_syntax_uid.
+
+    """
+    byteorder = array.dtype.byteorder
+
+    if byteorder == '|':
+        # Byte order not applicable
+        return array
+
+    if byteorder == '=':
+        byteorder = {'little': '<', 'big': '>'}[sys.byteorder]
+
+    require_little_endian = UID(transfer_syntax_uid).is_little_endian
+
+    if require_little_endian and byteorder == '>':
+        # Have big endian, need little endian
+        new_dtype = f'<{array.dtype.kind}{array.dtype.itemsize}'
+        array = array.astype(new_dtype)
+    elif not require_little_endian and byteorder == '<':
+        # Have little endian, need big endian
+        new_dtype = f'>{array.dtype.kind}{array.dtype.itemsize}'
+        array = array.astype(new_dtype)
+
+    return array
 
 
 def encode_frame(
@@ -115,6 +157,35 @@ def encode_frame(
         photometric_interpretation
     ).value
 
+    if bits_allocated not in (1, 8, 16, 24, 32, 40, 48, 56, 64):
+        raise ValueError(
+            f'{bits_allocated} is not a valid value for bits_allocated'
+        )
+
+    if bits_stored > bits_allocated:
+        raise ValueError('bits_stored may be not larger than bits_allocated.')
+
+    if pixel_representation == PixelRepresentationValues.COMPLEMENT.value:
+        if array.dtype.kind != 'i':
+            raise ValueError(
+                'When encoding frames with pixel_representation=1, array '
+                'must have a signed integer dtype.'
+            )
+    else:
+        if array.dtype.kind != 'u':
+            raise ValueError(
+                'When encoding frames with pixel_representation=0, array '
+                'must have an unsigned integer dtype.'
+            )
+
+    expected_itemsize = 1 if bits_allocated == 1 else bits_allocated // 8
+    if array.dtype.itemsize != expected_itemsize:
+        n_bits = expected_itemsize * 8
+        raise ValueError(
+            f'When encoding frames with bits_allocated={bits_allocated}, '
+            f"array must have an {n_bits}-bit dtype."
+        )
+
     uncompressed_transfer_syntaxes = {
         ExplicitVRLittleEndian,
         ImplicitVRLittleEndian,
@@ -137,6 +208,10 @@ def encode_frame(
                 '", "'.join(supported_transfer_syntaxes)
             )
         )
+
+    # Ensure byte order
+    array = _ensure_array_byteorder(array, transfer_syntax_uid)
+
     if transfer_syntax_uid in uncompressed_transfer_syntaxes:
         if samples_per_pixel > 1:
             if planar_configuration != 0:
@@ -175,14 +250,14 @@ def encode_frame(
                     'MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR'
                 ):
                 raise ValueError(
-                    'Photometric intpretation must be either "MONOCHROME1", '
+                    'Photometric interpretation must be either "MONOCHROME1", '
                     '"MONOCHROME2", or "PALETTE COLOR" for encoding of '
                     'monochrome image frames with JPEG Baseline codec.'
                 )
         elif samples_per_pixel == 3:
             if photometric_interpretation != 'YBR_FULL_422':
                 raise ValueError(
-                    'Photometric intpretation must be "YBR_FULL_422" for '
+                    'Photometric interpretation must be "YBR_FULL_422" for '
                     'encoding of color image frames with '
                     'JPEG Baseline codec.'
                 )
@@ -249,7 +324,7 @@ def encode_frame(
                         'MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR'
                     ):
                     raise ValueError(
-                        'Photometric intpretation must be either '
+                        'Photometric interpretation must be either '
                         '"MONOCHROME1", "MONOCHROME2", or "PALETTE COLOR" '
                         'for encoding of monochrome image frames with '
                         f'{name} codec.'
@@ -345,6 +420,7 @@ def encode_frame(
                 planar_configuration=planar_configuration,
                 **kwargs,
             )
+
     return data
 
 
@@ -357,10 +433,10 @@ def decode_frame(
     bits_allocated: int,
     bits_stored: int,
     photometric_interpretation: PhotometricInterpretationValues | str,
-    pixel_representation: PixelRepresentationValues | int = 0,
+    pixel_representation: PixelRepresentationValues | int | None = 0,
     planar_configuration: PlanarConfigurationValues | int | None = None,
     index: int = 0,
-    pixel_keyword: str = 'PixelData',
+    pixel_keyword: PixelDataKeywords | str = PixelDataKeywords.PIXEL_DATA,
 ) -> np.ndarray:
     """Decode pixel data of an individual frame.
 
@@ -385,7 +461,7 @@ def decode_frame(
         Photometric interpretation
     pixel_representation: Union[highdicom.PixelRepresentationValues, int, None], optional
         Whether pixel samples are represented as unsigned integers or
-        2's complements
+        2's complements. May only be None for floating point pixel data.
     planar_configuration: Union[highdicom.PlanarConfigurationValues, int, None], optional
         Whether color samples are encoded by pixel (``R1G1B1R2G2B2...``) or
         by plane (``R1R2...G1G2...B1B2...``).
@@ -398,7 +474,7 @@ def decode_frame(
         the byte array. In all other situations, this parameter is not
         required and will have no effect (since decoding a frame does not
         depend on the index of the frame).
-    pixel_keyword: str, optional
+    pixel_keyword: highdicom.enum.PixelDataKeywords | str, optional
         Keyword of the attribute where the pixel data value was stored. Should be
         ``'PixelData'``, ``'FloatPixelData'``, or ``'DoubleFloatPixelData'``.
 
@@ -445,9 +521,11 @@ def decode_frame(
         pixel_array = unpacked_frame[pixel_offset:pixel_offset + n_pixels]
         return pixel_array.reshape(rows, columns)
 
-    pixel_representation = PixelRepresentationValues(
-        pixel_representation
-    ).value
+    pixel_keyword = PixelDataKeywords(pixel_keyword)
+    if pixel_keyword == PixelDataKeywords.PIXEL_DATA:
+        pixel_representation = PixelRepresentationValues(
+            pixel_representation
+        ).value
     photometric_interpretation = PhotometricInterpretationValues(
         photometric_interpretation
     ).value
@@ -480,7 +558,42 @@ def decode_frame(
         bits_stored=bits_stored,
         photometric_interpretation=photometric_interpretation,
         pixel_representation=pixel_representation,
-        pixel_keyword=pixel_keyword,
+        pixel_keyword=pixel_keyword.value,
         **kwargs,
     )
     return array
+
+
+def get_lossy_compression_attributes(
+    transfer_syntax_uid: str
+) -> tuple[str, str | None]:
+    """Get lossy compression attributes for a transfer syntax.
+
+    See :dcm:`C.7.6.1.1.5 <part03/sect_C.7.6.html#sect_C.7.6.1.1.5>`
+    for more details.
+
+    Parameters
+    ----------
+    transfer_syntax_uid: str
+        Transfer syntax UID.
+
+    Returns
+    -------
+    lossy_image_compression: str
+        Value for the Lossy Image Compression attribute.
+    lossy_image_compression_method: str | None
+        Value for the Lossy Image Compression Method attribute.
+        If None, no value should be set for this attribute.
+
+    """
+    lossy_transfer_syntaxes = {
+        str(JPEGBaseline8Bit): "ISO_10918_1",
+        str(JPEGLSNearLossless): "ISO_14495_1",
+        str(JPEG2000): "ISO_15444_1",
+        str(HTJ2K): "ISO_15444_15",
+    }
+
+    if transfer_syntax_uid in lossy_transfer_syntaxes:
+        return "01", lossy_transfer_syntaxes[transfer_syntax_uid]
+
+    return "00", None

@@ -15,7 +15,7 @@ from highdicom.valuerep import (
     _check_short_string,
     _check_short_text,
 )
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     does_iod_have_pixel_data,
 )
 
