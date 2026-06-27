@@ -19,6 +19,8 @@ from pydicom.valuerep import PersonName
 from highdicom.base import SOPClass
 from highdicom.base_content import ContributingEquipment
 from highdicom.content import (
+    _add_icc_profile_attributes,
+    _add_palette_color_lookup_table_attributes,
     ContentCreatorIdentificationCodeSequence,
     ModalityLUTTransformation,
     PaletteColorLUTTransformation,
@@ -28,9 +30,7 @@ from highdicom.enum import PresentationLUTShapeValues
 from highdicom.pr.content import (
     _add_displayed_area_attributes,
     _add_graphic_group_annotation_layer_attributes,
-    _add_icc_profile_attributes,
     _add_modality_lut_attributes,
-    _add_palette_color_lookup_table_attributes,
     _add_presentation_state_identification_attributes,
     _add_presentation_state_relationship_attributes,
     _add_softcopy_presentation_lut_attributes,
