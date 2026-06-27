@@ -160,7 +160,7 @@ class TestEncodeFrame(TestCase):
         frame = np.random.randint(0, 1000, (r, c), dtype=dtype)
         compressed_frame = encode_frame(
             frame,
-            transfer_syntax_uid=ExplicitVRLittleEndian,  # change endianess
+            transfer_syntax_uid=ExplicitVRLittleEndian,  # change endianness
             bits_allocated=bits_allocated,
             bits_stored=bits_allocated,
             photometric_interpretation='MONOCHROME2',
