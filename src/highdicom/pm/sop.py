@@ -258,6 +258,73 @@ class ParametricMap(Image):
             they may be less widely supported than basic offset tables. This
             parameter is ignored if using a native (uncompressed) transfer
             syntax. The default value may change in a future release.
+        icc_profile: Union[bytes, None] = None
+            An ICC profile to display the parametric map. This is only
+            permitted when palette_color_lut_transformation is provided.
+        workers: Union[int, concurrent.futures.Executor], optional
+            Number of worker processes to use for frame compression. If 0, no
+            workers are used and compression is performed in the main process
+            (this is the default behavior). If negative, as many processes are
+            created as the machine has processors.
+
+            Alternatively, you may directly pass an instance of a class derived
+            from ``concurrent.futures.Executor`` (most likely an instance of
+            ``concurrent.futures.ProcessPoolExecutor``) for highdicom to use.
+            You may wish to do this either to have greater control over the
+            setup of the executor, or to avoid the setup cost of spawning new
+            processes each time this ``__init__`` method is called if your
+            application creates a large number of Segmentations.
+
+            Note that if you use worker processes, you must ensure that your
+            main process uses the ``if __name__ == "__main__"`` idiom to guard
+            against spawned child processes creating further workers.
+        dimension_organization_type: Union[highdicom.enum.DimensionOrganizationTypeValues, str, None], optional
+            Dimension organization type to use for the output image.
+        tile_pixel_array: bool, optional
+            If True, `highdicom` will automatically convert an input total
+            pixel matrix into a sequence of frames representing tiles of the
+            segmentation. This is valid only when the source image supports
+            tiling (e.g. VL Whole Slide Microscopy images).
+
+            If True, the input pixel array must consist of a single "frame",
+            i.e. must be either a 2D numpy array, a 3D numpy array with a size
+            of 1 down the first dimension (axis zero), or a 4D numpy array also
+            with a size of 1 down the first dimension. The input pixel array is
+            treated as the total pixel matrix of the segmentation, and this is
+            tiled along the row and column dimension to create an output image
+            with multiple, smaller frames.
+
+            If no ``pixel_measures``, ``plane_positions``,
+            ``plane_orientation`` are supplied, the total pixel matrix of the
+            segmentation is assumed to correspond to the total pixel matrix of
+            the (single) source image. If ``plane_positions`` is supplied, the
+            sequence should contain a single item representing the plane
+            position of the entire total pixel matrix. Plane positions of
+            the newly created tiles will derived automatically from this.
+
+            If False, the pixel array is already considered to consist of one
+            or more existing frames, as described above.
+        tile_size: Union[Sequence[int], None], optional
+            Tile size to use when tiling the input pixel array. If ``None``
+            (the default), the tile size is copied from the source image.
+            Otherwise the tile size is specified explicitly as (number of rows,
+            number of columns). This value is ignored if ``tile_pixel_array``
+            is False.
+        pyramid_uid: Optional[str], optional
+            Unique identifier for the pyramid containing this segmentation.
+            Should only be used if this segmentation is part of a
+            multi-resolution pyramid.
+        pyramid_label: Optional[str], optional
+            Human readable label for the pyramid containing this segmentation.
+            Should only be used if this segmentation is part of a
+            multi-resolution pyramid.
+        further_source_images: Optional[Sequence[pydicom.Dataset]], optional
+            Additional images to record as source images in the parametric map.
+            Unlike the main ``source_images`` parameter, these images will
+            *not* be used to infer the position and orientation of the
+            ``pixel_array`` in the case that no plane positions are supplied.
+            Images from multiple series may be passed, however they must all
+            belong to the same study.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`

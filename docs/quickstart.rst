@@ -600,7 +600,7 @@ For more information see :doc:`tid1500parsing`.
 
 
 Additionally, there are low-level utilities that you can use to find content
-items in the content tree of any structured report documents:
+items in the content tree of any structured report document:
 
 .. code-block:: python
 
@@ -780,6 +780,81 @@ For more information see :ref:`ann`.
     assert units[0] == codes.UCUM.SquareMicrometer
     assert values.shape == (group.number_of_annotations, 1)
 
+.. _creating-pm:
+
+Creating Parametric Map (PM) Images
+-----------------------------------
+
+Parametric Maps store pixel arrays of measurements derived from other images.
+Importantly, they are the only type of DICOM object that can store pixels
+using floating point arrays.
+
+In this example, we create a parametric map from a series of single-frame CT
+images:
+
+.. code-block:: python
+
+    import numpy as np
+    import highdicom as hd
+    from pydicom.data import get_testdata_files
+    from pydicom.sr.codedict import codes
+
+
+    # Read in the source images. Here we use a series of CT images from the
+    # pydicom test data
+    ct_series = [
+        hd.imread(f)
+        for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+    ]
+    n_frames = len(ct_series)
+    n_rows = ct_series[0].Rows
+    n_columns = ct_series[0].Columns
+
+    # Describe the mapping
+    mapping = hd.pm.RealWorldValueMapping(
+        lut_label="Class Activation",
+        lut_explanation=(
+            "Class activation of a neural network for "
+            "pneumonia detection"
+        ),
+        value_range=(0.0, 100.0),
+        quantity_definition=codes.DCM.ClassActivation,
+        unit=codes.UCUM.NoUnits,
+    )
+
+    # Toy example with random pixel array of floats with the same dimension as the
+    # input image. Frames are stacked down the first dimension
+    pixel_array = np.random.uniform(
+        0.0,
+        100.0,
+        size=(n_frames, n_rows, n_columns)
+    )
+
+    # Construct the parametric map
+    pm = hd.pm.ParametricMap(
+        source_images=ct_series,  # the full input series
+        pixel_array=pixel_array,
+        series_instance_uid=hd.UID(),
+        series_number=1,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer="manufacturer",
+        manufacturer_model_name="model name",
+        software_versions="1",
+        device_serial_number="123",
+        contains_recognizable_visual_features=False,
+        real_world_value_mappings=[mapping],
+        voi_lut_transformations=[
+            hd.VOILUTTransformation(
+                window_center=50,
+                window_width=100,
+            )
+        ],
+        series_description="Multi-frame parametric map",
+    )
+
+Once created, parametric maps can be treated like any other image (see
+:ref:`image`). For more information on parametric maps, see :ref:`pm`.
 
 .. _creating-sc:
 

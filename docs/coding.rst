@@ -182,3 +182,16 @@ documentation for the coding scheme itself. This
 `webpage <https://fedorov.github.io/dcmterms/terminology.html>`_ is a nice
 interactive tool for searching the terms and Context Groups defined within
 DICOM.
+
+UCUM
+----
+
+UCUM works a little differently to the other coding schemes discussed here.
+Rather than a finite set of codes, it defines codes for a set of units and a
+syntax for combining them to give derived units (e.g. `"mm/s"` for millimeters
+per second), meaning there are potentially infinite codes. Pydicom defines
+a list of the most common units, but this will not cover every use case.
+
+We recommend this `page
+<https://ucum.nlm.nih.gov/ucum-lhc/demo.html>`_, a useful validator for
+checking UCUM syntax.

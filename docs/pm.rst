@@ -23,6 +23,11 @@ regularly-sampled 3D volume (common in Parametric Maps derived from CT, PET, or
 MRI) or tiles of a very large 2D plane (common in digital pathology
 applications), among other arrangements.
 
+Parametric Maps are always scalar (i.e. monochome not color) images. However
+it is possible to specify a palette color LUT transformation in order to
+have the scalar arrays render in color. Further multiple "channels" of
+measurements can be included in one Parametric Map objects.
+
 Real World Value Mappings
 -------------------------
 
@@ -614,7 +619,108 @@ Compression is not available when using floating point pixels.
 Parametric Maps with Multiple Mappings
 --------------------------------------
 
-TODO
+In the examples above, we have always passed a single item to the
+``real_world_value_mappings`` parameter, and this will be by far the most
+common case. However, it is possible to pass multiple items here. In this case,
+the multiple mappings represent alternatives. For example, you may wish to
+provide linear and logarithmic alternative mappings to use in different
+situations.
+
+Parametric Maps with Multiple "Channels"
+----------------------------------------
+
+Highdicom has the ability to include multiple sets of frames with different
+mappings in a single Parametric Map object. These could represent different
+sets of measurements, or different components of a vector measurment. We will
+refer to such sets of measurements here as "channels", but this is not a term
+used in DICOM itself.
+
+To do this, pass a 4D array to ``pixel_array``, with the multiple "channels"
+stacked down the last axis (index 3). This implies that the first (frames)
+access must be present even if it has length (and could therefore otherwise be
+omitted). Additionally, pass a nested list of mappings (where previously a
+single-level list was passed). The outer list contains the mappings for each
+channel (and therefore its length must match the number of channels down the
+last axis of the ``pixel_array``). The inner list contains (potentially)
+multiple mappings for the given channel (see previous section).
+
+If ``pixel_array`` is a Volume, it should have a single channel dimension
+with ``"LUTLabel"`` as the channel descriptor.
+
+Here is an example of a two channel image, representing two directions of a
+gradient vector:
+
+.. code-block:: python
+
+  import numpy as np
+  import highdicom as hd
+  from pydicom.data import get_testdata_files
+
+
+  # Read in the source images. Here we use a series of CT images from the
+  # pydicom test data
+  ct_series = [
+      hd.imread(f)
+      for f in get_testdata_files('dicomdirtests/77654033/CT2/*')
+  ]
+  n_frames = len(ct_series)
+  n_rows = ct_series[0].Rows
+  n_columns = ct_series[0].Columns
+  n_channels = 2
+
+  # Describe the mappings
+  mapping_x = hd.pm.RealWorldValueMapping(
+      lut_label="X component",
+      lut_explanation="Gradient in the x direction",
+      value_range=(0.0, 100.0),
+      unit=hd.sr.CodedConcept("/mm", "UCUM", "Per millimeter"),
+  )
+  mapping_y = hd.pm.RealWorldValueMapping(
+      lut_label="Y component",
+      lut_explanation="Gradient in the y direction",
+      value_range=(0.0, 100.0),
+      unit=hd.sr.CodedConcept("/mm", "UCUM", "Per millimeter"),
+  )
+
+  # Toy example with random pixel array of floats with the same dimension as the
+  # input image with frames are stacked down the first dimension and the
+  # additional channel dimension at the end
+  pixel_array = np.random.uniform(
+      0.0,
+      100.0,
+      size=(n_frames, n_rows, n_columns, n_channels)
+  )
+
+  # Construct the parametric map
+  pm = hd.pm.ParametricMap(
+      source_images=ct_series,  # the full input series
+      pixel_array=pixel_array,
+      series_instance_uid=hd.UID(),
+      series_number=1,
+      sop_instance_uid=hd.UID(),
+      instance_number=1,
+      manufacturer="manufacturer",
+      manufacturer_model_name="model name",
+      software_versions="1",
+      device_serial_number="123",
+      contains_recognizable_visual_features=False,
+      real_world_value_mappings=[[mapping_x], [mapping_y]],
+      voi_lut_transformations=[
+          hd.VOILUTTransformation(
+              window_center=50,
+              window_width=100,
+          )
+      ],
+      series_description="Multi-frame parametric map",
+  )
+
+Although highdicom supports this "multi-channel" configuration, it is more of
+an experimental feature and we recommend using it only in limited
+circumstances. Though valid within the (highly flexible) standard, this
+arrangement is not common in other tools and therefore may not be correctly
+understood by them. Furthermore, highdicom itself does not currently have
+methods to conveniently work with objects following this pattern (though these
+are planned for a future release).
 
 Reading Existing Parametric Maps
 --------------------------------
