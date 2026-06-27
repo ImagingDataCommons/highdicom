@@ -276,8 +276,7 @@ class DimensionIndexSequence(_DimensionIndexSequence):
         warnings.warn(
             "The highdicom.pm.DimensionIndexSequence class is deprecated and "
             "will be removed in a future version of the library. User code "
-            "should typically avoid this class, or, if required, use the more "
-            "general highdicom.DimensionIndexSequence instead.",
+            "should typically avoid this class.",
             UserWarning,
             stacklevel=2,
         )

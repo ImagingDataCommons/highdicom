@@ -152,7 +152,7 @@ def compute_plane_position_tiled_full(
 def get_plane_positions_of_image(
     image: Dataset,
 ) -> Sequence[PlanePositionSequence]:
-    """Gets plane positions of frames in multi-frame image.
+    """Gets plane positions of frames in a multi-frame image.
 
     Parameters
     ----------
@@ -209,7 +209,7 @@ def get_plane_positions_of_series(
     Returns
     -------
     List[highdicom.PlanePositionSequence]
-        Plane position of each frame in the image
+        Plane position of each image in the series
 
     """
     is_multiframe = any([is_multiframe_image(img) for img in images])

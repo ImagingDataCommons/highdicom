@@ -19,7 +19,7 @@ from highdicom.uid import UID
 def create_parametric_map_pyramid(
     source_images: Sequence[Dataset],
     pixel_arrays: Sequence[np.ndarray],
-    interpolator: InterpolationMethods | str,
+    *,
     series_instance_uid: str | None,
     series_number: int,
     manufacturer: str,
@@ -35,6 +35,7 @@ def create_parametric_map_pyramid(
         Sequence[VOILUTTransformation] | None
     ) = None,
     downsample_factors: Sequence[float] | None = None,
+    interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
     sop_instance_uids: list[str] | None = None,
     pyramid_uid: str | None = None,
     pyramid_label: str | None = None,
@@ -87,8 +88,6 @@ def create_parametric_map_pyramid(
         matrix, i.e. have shape (rows, columns), (1, rows, columns), or (1,
         rows, columns, channels). Otherwise all options supported by the
         constructor of :class:`highdicom.pm.ParametricMap` are permitted.
-    interpolator: highdicom.InterpolationMethods | str, optional
-        Interpolation method used for the downsampling operations.
     series_instance_uid: str | None
         UID for the output parametric series. If ``None``, a UID will be
         generated using highdicom's prefix.
@@ -143,6 +142,8 @@ def create_parametric_map_pyramid(
         pixel array, the next is half the size, the next is a quarter of the
         size of the original, and the last is one eighth the size of the
         original. Output sizes are rounded to the nearest integer.
+    interpolator: highdicom.InterpolationMethods | str, optional
+        Interpolation method used for the downsampling operations.
     sop_instance_uids: Optional[List[str]], optional
         SOP instance UIDS of the output instances. If not specified, UIDs are
         generated automatically using highdicom's prefix.
@@ -210,7 +211,7 @@ def create_parametric_map_pyramid(
         downsample_factors=downsample_factors,
         sop_instance_uids=sop_instance_uids,
     ):
-        # Create the output segmentation
+        # Create the output parametric map
         pmap = ParametricMap(
             source_images=[source_image],
             pixel_array=pixel_array,

@@ -89,7 +89,6 @@ __all__ = [
     'ContentQualificationValues',
     'ContributingEquipment',
     'CoordinateSystemNames',
-    'DimensionIndexSequence',
     'DimensionOrganizationTypeValues',
     'Image',
     'InterpolationMethods',

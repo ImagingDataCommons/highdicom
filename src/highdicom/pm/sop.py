@@ -85,9 +85,6 @@ class ParametricMap(Image):
         ),
         window_center: float | None = None,
         window_width: float | None = None,
-        voi_lut_transformations: (
-            Sequence[VOILUTTransformation] | None
-        ) = None,
         transfer_syntax_uid: str | UID = ExplicitVRLittleEndian,
         content_description: str | None = None,
         content_creator_name: str | None = None,
@@ -115,6 +112,9 @@ class ParametricMap(Image):
         ] | None = None,
         use_extended_offset_table: bool = False,
         *,
+        voi_lut_transformations: (
+            Sequence[VOILUTTransformation] | None
+        ) = None,
         workers: int | Executor = 0,
         further_source_images: Sequence[Dataset] | None = None,
         icc_profile: bytes | None = None,
@@ -210,13 +210,6 @@ class ParametricMap(Image):
             This argument has been deprecated and will be removed in a future
             release. Use the more flexible ``voi_lut_transformations`` argument
             instead.
-        voi_lut_transformations: Sequence[highdicom.VOILUTTransformation] | None, optional
-            One or more VOI transformations that describe a pixel
-            transformation that is recommended to display frames. If multiple
-            are provided, they represent different options that a user or
-            application may select from to display the frames. Each item in the
-            list applies to all frames. This will become a required argument in
-            a future release.
         transfer_syntax_uid: Union[str, None], optional
             UID of transfer syntax that should be used for encoding of
             data elements. Defaults to Explicit VR Little Endian
@@ -270,6 +263,13 @@ class ParametricMap(Image):
             they may be less widely supported than basic offset tables. This
             parameter is ignored if using a native (uncompressed) transfer
             syntax. The default value may change in a future release.
+        voi_lut_transformations: Sequence[highdicom.VOILUTTransformation] | None, optional
+            One or more VOI transformations that describe a pixel
+            transformation that is recommended to display frames. If multiple
+            are provided, they represent different options that a user or
+            application may select from to display the frames. Each item in the
+            list applies to all frames. This will become a required argument in
+            a future release.
         workers: Union[int, concurrent.futures.Executor], optional
             Number of worker processes to use for frame compression. If 0, no
             workers are used and compression is performed in the main process
