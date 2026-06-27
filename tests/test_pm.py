@@ -152,8 +152,6 @@ class TestRealWorldValueMapping():
         lut_explanation = 'Feature 1'
         unit = codes.UCUM.NoUnits
         value_range = (0, 255)
-        intercept = 200
-        slope = 10
         quantity_definition = Code('130402', 'DCM', 'Class activation')
         m = RealWorldValueMapping(
             lut_label=lut_label,
@@ -778,7 +776,7 @@ class TestParametricMap():
         return request.param
 
     def test_multi_frame_sm_image_uint8_encapsulated(
-        self, 
+        self,
         transfer_syntax_uid_8bit: str,
     ):
         if transfer_syntax_uid_8bit in (
