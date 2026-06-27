@@ -28,13 +28,16 @@ it is possible to specify a palette color LUT transformation in order to
 have the scalar arrays render in color. Further multiple "channels" of
 measurements can be included in one Parametric Map objects.
 
+Highdicom uses the :class:`highdicom.pm.ParametricMap` to represent Parametric
+Maps.
+
 Real World Value Mappings
 -------------------------
 
-Each parametric map requires one (or more) *RealWorldValueMappings*. These
-both specify how pixel values stored in the Parametric Map should be mapped
-to "real world"" values and also specify the semantics of those real world
-values after mapping.
+Each parametric map requires one (or more) *real-world value mappings*. These
+both specify how pixel values stored in the Parametric Map should be mapped to
+"real world"" values and also specify the semantics of those real world values
+after mapping.
 
 In highdicom, *RealWorldValueMappings* are represented by the
 :class:`highdicom.pm.RealWorldValueMapping`. To specify the mapping use the
@@ -711,7 +714,7 @@ gradient vector:
               window_width=100,
           )
       ],
-      series_description="Multi-frame parametric map",
+      series_description="Multi-channel parametric map",
   )
 
 Although highdicom supports this "multi-channel" configuration, it is more of
