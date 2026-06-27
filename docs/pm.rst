@@ -634,7 +634,7 @@ Parametric Maps with Multiple "Channels"
 
 Highdicom has the ability to include multiple sets of frames with different
 mappings in a single Parametric Map object. These could represent different
-sets of measurements, or different components of a vector measurment. We will
+sets of measurements, or different components of a vector measurement. We will
 refer to such sets of measurements here as "channels", but this is not a term
 used in DICOM itself.
 
