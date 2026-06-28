@@ -22,6 +22,7 @@ from highdicom._module_utils import (
 from highdicom.content import VOILUTTransformation
 from highdicom.image import (
     _CombinedPixelTransform,
+    get_volume_from_series,
 )
 from highdicom.pixels import (
     apply_voi_window,
@@ -1040,6 +1041,39 @@ def test_get_volume_multiframe_ct():
     ]:
         volume = im.get_volume(dtype=dtype)
         assert volume.array.dtype == dtype
+
+
+def test_get_volume_from_series_with_tolerance():
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+    ]
+    ct_series = [pydicom.dcmread(f) for f in ct_files]
+
+    theta = 0.05
+    ct_series[0].ImageOrientationPatient = [
+        pydicom.valuerep.format_number_as_ds(x) for x in [
+            np.cos(theta), np.sin(theta), 0.0,
+            0.0, 1.0, 0.0
+        ]
+    ]
+
+    # With no tolerance (default), this should fail
+    msg = "Images do not have the same orientation."
+    with pytest.raises(ValueError, match=msg):
+        get_volume_from_series(ct_series)
+
+    # With a tolerance that is too low, we should see a different error
+    # msg = "Images do not have the same orientation."
+    msg = 'Orientations are not consistent within the specified tolerance.'
+    with pytest.raises(ValueError, match=msg):
+        get_volume_from_series(ct_series, orientation_tol=0.0000001)
+
+    vol = get_volume_from_series(ct_series, orientation_tol=0.01)
+
+    # The majority orientation should have been used
+    assert vol.direction_cosines == tuple(ct_series[1].ImageOrientationPatient)
 
 
 def test_tiled_full_no_dimension_index():

@@ -63,6 +63,7 @@ from highdicom.pixels import (
 from highdicom.spatial import (
     _are_orientations_coplanar,
     _are_orientations_equal,
+    _check_orientation_consistency,
     _get_spatial_information,
     ImageToReferenceTransformer,
     compute_tile_positions_per_frame,
@@ -7014,6 +7015,7 @@ def get_volume_from_series(
     atol: float | None = None,
     rtol: float | None = None,
     perpendicular_tol: float | None = None,
+    orientation_tol: float | None = None,
 ) -> Volume:
     """Create volume from a series of single frame images.
 
@@ -7162,11 +7164,22 @@ def get_volume_from_series(
     ):
         raise ValueError('Images do not share a frame of reference.')
 
-    if not all(
-        ds.ImageOrientationPatient == image_orientation
-        for ds in series_datasets
-    ):
-        raise ValueError('Images do not have the same orientation.')
+    if orientation_tol is None:
+        image_orientation = series_datasets[0].ImageOrientationPatient
+        if not all(
+            ds.ImageOrientationPatient == image_orientation
+            for ds in series_datasets
+        ):
+            raise ValueError('Images do not have the same orientation.')
+    else:
+        image_orientation = _check_orientation_consistency(
+            series_datasets, orientation_tol
+        )
+        if image_orientation is None:
+            raise ValueError(
+                'Orientations are not consistent within the specified '
+                'tolerance.'
+            )
 
     if not all(
         ds.PixelSpacing == pixel_spacing
@@ -7183,6 +7196,7 @@ def get_volume_from_series(
             atol=atol,
             rtol=rtol,
             perpendicular_tol=perpendicular_tol,
+            orientation_tol=orientation_tol,
         )
         if slice_spacing is None:
             raise ValueError('Series is not a regularly-spaced volume.')
