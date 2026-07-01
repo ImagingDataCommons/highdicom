@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import itertools
-from typing import cast, Union
+from typing import cast, Union, Literal
 from collections.abc import Sequence
 from pydicom.tag import BaseTag
 from typing_extensions import Self
@@ -2925,7 +2925,35 @@ class Volume(_VolumeBase):
             volume.
 
         """
-        new_array = self._array.astype(dtype)
+        array = self._array
+
+        if (
+            np.issubdtype(dtype, np.floating) or
+            np.issubdtype(dtype, np.integer)
+        ):
+            info = (
+                np.finfo(dtype) if np.issubdtype(dtype, np.floating)
+                else np.iinfo(dtype)
+            )
+            if array.min() >= info.min and array.max() <= info.max:
+                new_array = array.astype(dtype)
+            else:
+                raise ValueError(
+                    f'Cannot cast {array.dtype} to {dtype}. Values exceed'
+                    f' supported range: [{info.min}, {info.max}].'
+                )
+
+        elif np.issubdtype(dtype, np.bool_):
+            unique = np.unique(array)
+            if not np.isin(unique, [0, 1]).all():
+                raise ValueError(
+                    f'Cannot cast to {dtype} unless array is binary.'
+                    f' Encountered unique values: {unique}.'
+                )
+            new_array = array.astype(dtype)
+
+        else:
+            raise ValueError(f'Casting to {dtype} is not supported.')
 
         return self.with_array(new_array)
 
@@ -3954,6 +3982,238 @@ class Volume(_VolumeBase):
             direction=np.reshape(itk_im.GetDirection(), (3, 3)),
             position=np.array(itk_im.GetOrigin()),
             frame_of_reference_uid=frame_of_reference_uid
+        )
+
+    def to_nibabel(
+        self,
+        image_class: Literal[
+            'Nifti1Image',
+            'Nifti2Image',
+            'MGHImage',
+            'Minc1Image',
+            'Minc2Image',
+            'AnalyzeImage'
+        ] = 'Nifti1Image'
+    ) -> 'nibabel.spatialimages.SpatialImage':  # noqa: F821
+        """Convert the volume to a ``nibabel.spatialimages.SpatialImage``
+        format.
+
+        The Volume is converted to one of several 3D Image classes (
+        ``nibabel.Nifti1Image``, ``nibabel.Nifti2Image``, ``nibabel.MGHImage``,
+        ``nibabel.Minc1Image``, ``nibabel.Minc2Image``, ``nibabel.AnalyzeImage``
+        ), defaulting to ``nibabel.Nifti1Image``. If its array's current datatype
+        is not supported by a given class, it is safely cast to a compatible
+        type where possible. If impossible to cast safely, a ``ValueError`` is
+        raised. Casting is performed on the following data types for each image
+        class:
+
+        Nifti1Image or Nifti2Image:
+
+        - ``bool`` -> ``uint8``
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float128`` -> ``float64`` (with warning if possible, else
+          raises error)
+
+        MGHImage:
+
+        - ``bool`` -> ``uint8``
+        - ``uint32`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``uint64`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``int8`` -> ``int16`` (with warning)
+        - ``int64`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float64`` -> ``float32`` (with warning if possible, else
+          raises error)
+        - ``float128`` -> ``float32`` (with warning if possible, else
+          raises error)
+
+        Minc1Image or Minc2Image:
+
+        - ``bool`` -> ``uint8``
+
+        AnalyzeImage:
+
+        - ``bool`` -> ``uint8``
+        - ``uint16`` -> ``int16`` (with warning if possible, else
+          raises error)
+        - ``uint32`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``uint64`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``int8`` -> ``int16`` (with warning)
+        - ``int64`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float128`` -> ``float64`` (with warning if possible, else
+          raises error)
+
+        Spatial metadata is preserved through the affine array. However,
+        highdicom uses "LPS" convention and NiBabel uses "RAS". This change
+        in convention is performed directly by this method.
+
+        Returns
+        -------
+        nibabel.Nifti1Image:
+            Image constructed from the volume.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+        ValueError
+            When the array's current datatype is not supported
+            and it is not possible to safely cast to a new datatype.
+
+        """
+        func = self.to_nibabel
+        nib = import_optional_dependency(
+            module_name='nibabel',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        if self.array.ndim != 3:
+            raise ValueError(
+                'NiBabel conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        if np.issubdtype(self.dtype, np.bool_):
+            self = self.astype(np.uint8)
+
+        dtype = self.dtype
+        image_class = getattr(nib, image_class)
+
+        if image_class in [nib.Nifti1Image, nib.Nifti2Image]:
+            dtype_map = {
+                np.float16: np.float32,
+                np.float128: np.float64
+            }
+
+        elif image_class == nib.MGHImage:
+            dtype_map = {
+                np.uint32: np.int32,
+                np.uint64: np.int32,
+                np.int8: np.int16,
+                np.int64: np.int32,
+                np.float16: np.float32,
+                np.float64: np.float32,
+                np.float128: np.float32
+            }
+
+        elif image_class == nib.AnalyzeImage:
+            dtype_map = {
+                np.uint16: np.int16,
+                np.uint32: np.int32,
+                np.uint64: np.int32,
+                np.int8: np.int16,
+                np.int64: np.int32,
+                np.float16: np.float32,
+                np.float128: np.float64
+            }
+
+        else:
+            dtype_map = {}
+
+        cast_dtype = dtype_map.get(dtype, dtype)
+        if dtype == cast_dtype:
+            array = self.array
+
+        else:
+            info = (
+                np.finfo(dtype) if np.issubdtype(dtype, np.floating)
+                else np.iinfo(dtype)
+            )
+            cast_info = (
+                np.finfo(cast_dtype) if np.issubdtype(cast_dtype, np.floating)
+                else np.iinfo(cast_dtype)
+            )
+
+            try:
+                array = self.astype(cast_dtype).array
+
+            except Exception:
+                raise ValueError(
+                    f'NiBabel\'s {image_class} class does not support'
+                    f' {dtype}. Casting to {cast_dtype} is not possible.'
+                )
+
+            if (
+                np.issubdtype(cast_dtype, np.floating) and
+                info.bits > cast_info.bits
+            ):
+                warnings.warn(
+                    f'NiBabel\'s {image_class} class does not support'
+                    f' {dtype}. Casting to {cast_dtype}, precision may be lost.'
+                )
+
+            else:
+                warnings.warn(
+                    f'NiBabel\'s {image_class} class does not support'
+                    f' {dtype}. Safely casting to {cast_dtype}.'
+                )
+
+        header = image_class.header_class()
+        header.set_data_dtype(array.dtype)
+        image = image_class(
+            array,
+            self.get_affine('RAS'),
+            header=header
+        )
+
+        return image
+
+    @classmethod
+    def from_nibabel(
+        cls,
+        nibabel_image: 'nibabel.spatialimages.SpatialImage',  # noqa: F821
+        coordinate_system: CoordinateSystemNames | str = 'PATIENT',
+        frame_of_reference_uid: str | None = None
+    ) -> Self:
+        """Construct a Volume from an ``nibabel.spatialimages.SpatialImage``.
+
+        The ``nibabel.spatialimages.SpatialImage`` is converted to a 3D Volume.
+        Spatial metadata is preserved through the affine array. However,
+        highdicom uses "LPS" convention and NiBabel uses "RAS". This change
+        in convention is performed directly by this method.
+
+        Parameters
+        ----------
+        nib_im: nibabel.spatialimages.SpatialImage
+            An ``nibabel.spatialimages.SpatialImage`` to convert to a volume.
+        coordinate_system: highdicom.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the Nibabel image.
+
+        Raises
+        ------
+        ValueError
+            When the input image is not 3D (multiple channels are unsupported).
+
+        """
+        array = np.asarray(nib_im.dataobj)
+
+        if array.ndim != 3:
+            raise ValueError(
+                'NiBabel conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        return cls(
+            array=array,
+            affine=nib_im.affine,
+            coordinate_system=coordinate_system,
+            frame_of_reference_uid=frame_of_reference_uid,
+            from_reference_convention='RAS'
         )
 
 
