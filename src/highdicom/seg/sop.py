@@ -2235,8 +2235,8 @@ class Segmentation(_Image):
         If ``segment_numbers`` was specified, then ``pixel_array[:, :, :, i]``
         represents the data for segment ``segment_numbers[i]``. If
         ``segment_numbers`` was unspecified, then ``pixel_array[:, :, :, i]``
-        represents the data for segment ``parser.segment_numbers[i]``. Note
-        that in neither case does ``pixel_array[:, :, :, i]`` represent
+        represents the data for segment ``segmentation.segment_numbers[i]``.
+        Note that in neither case does ``pixel_array[:, :, :, i]`` represent
         the segmentation data for the segment with segment number ``i``, since
         segment numbers begin at 1 in DICOM.
 

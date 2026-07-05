@@ -56,6 +56,7 @@ from highdicom.enum import (
     PresentationLUTShapeValues,
     RescaleTypeValues,
     RGBColorChannels,
+    SpecificCharacterSetValues,
     UniversalEntityIDTypeValues,
     VOILUTFunctionValues,
 )
@@ -120,6 +121,7 @@ __all__ = [
     'RescaleTypeValues',
     'SOPClass',
     'SegmentedPaletteColorLUT',
+    'SpecificCharacterSetValues',
     'SpecimenCollection',
     'SpecimenDescription',
     'SpecimenPreparationStep',
