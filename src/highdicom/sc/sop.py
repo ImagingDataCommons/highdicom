@@ -559,6 +559,11 @@ class SCImage(SOPClass):
                 *list(contributing_equipment),
             ]
 
+        if 'specific_character_set' in kwargs:
+            specific_character_set = kwargs.pop('specific_character_set')
+        else:
+            specific_character_set = ref_dataset.get('SpecificCharacterSet')
+
         return cls(
             pixel_array=pixel_array,
             photometric_interpretation=photometric_interpretation,
@@ -592,5 +597,6 @@ class SCImage(SOPClass):
             specimen_descriptions=specimen_descriptions,
             transfer_syntax_uid=transfer_syntax_uid,
             contributing_equipment=contributing_equipment,
+            specific_character_set=specific_character_set,
             **kwargs
         )

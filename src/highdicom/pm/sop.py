@@ -441,6 +441,11 @@ class ParametricMap(Image):
                         'sequence of highdicom.VOILUTTransformation objects.'
                     )
 
+        if 'specific_character_set' in kwargs:
+            specific_character_set = kwargs.pop('specific_character_set')
+        else:
+            specific_character_set = src_img.get('SpecificCharacterSet')
+
         super(_Image, self).__init__(
             study_instance_uid=src_img.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -465,6 +470,7 @@ class ParametricMap(Image):
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,
             software_versions=software_versions,
+            specific_character_set=specific_character_set,
             **kwargs,
         )
 

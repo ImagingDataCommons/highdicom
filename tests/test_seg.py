@@ -1760,6 +1760,7 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number,
             palette_color_lut_transformation=self._lut_transformation,
+            specific_character_set='ISO_IR 101',
         )
         assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
         assert instance.PhotometricInterpretation == 'PALETTE COLOR'
@@ -1771,6 +1772,7 @@ class TestSegmentation:
         assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert hasattr(instance, 'BluePaletteColorLookupTableData')
         assert instance.PixelPaddingValue == 0
+        assert instance.SpecificCharacterSet == 'ISO_IR 101'
         self.check_dimension_index_vals(instance)
 
     def test_construction_10(self):
@@ -2660,6 +2662,9 @@ class TestSegmentation:
             volume_multiframe.PerFrameFunctionalGroupsSequence
         ):
             fm.PlanePositionSequence[0].ImagePositionPatient = pos
+
+        # Test character set is copied from source image
+        volume_multiframe.SpecificCharacterSet = 'ISO_IR 109'
 
         # Segmentation instance from an enhanced (multi-frame) CT image
         instance = Segmentation(

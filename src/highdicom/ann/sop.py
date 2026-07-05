@@ -156,6 +156,11 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
 
+        if 'specific_character_set' in kwargs:
+            specific_character_set = kwargs.pop('specific_character_set')
+        else:
+            specific_character_set = src_img.get('SpecificCharacterSet')
+
         super().__init__(
             study_instance_uid=src_img.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -180,6 +185,7 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,
             software_versions=software_versions,
+            specific_character_set=specific_character_set,
             **kwargs
         )
         self.copy_specimen_information(src_img)
