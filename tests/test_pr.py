@@ -799,35 +799,29 @@ class TestAdvancedBlending(unittest.TestCase):
                 )
             ],
             palette_color_lut_transformation=PaletteColorLUTTransformation(
-                red_lut=SegmentedPaletteColorLUT(
+                red_lut=PaletteColorLUT(
                     first_mapped_value=0,
-                    segmented_lut_data=np.array(
-                        [
-                            0, 1, 0,
-                            1, 255, 0,
-                        ],
+                    lut_data=np.arange(
+                        0,
+                        256,
                         dtype=np.uint16
                     ),
                     color='red'
                 ),
-                green_lut=SegmentedPaletteColorLUT(
+                green_lut=PaletteColorLUT(
                     first_mapped_value=0,
-                    segmented_lut_data=np.array(
-                        [
-                            0, 1, 0,
-                            1, 255, 0,
-                        ],
+                    lut_data=np.arange(
+                        0,
+                        256,
                         dtype=np.uint16
                     ),
                     color='green'
                 ),
-                blue_lut=SegmentedPaletteColorLUT(
+                blue_lut=PaletteColorLUT(
                     first_mapped_value=0,
-                    segmented_lut_data=np.array(
-                        [
-                            0, 1, 0,
-                            1, 255, 255,
-                        ],
+                    lut_data=np.arange(
+                        0,
+                        256,
                         dtype=np.uint16
                     ),
                     color='blue'
@@ -865,9 +859,9 @@ class TestAdvancedBlending(unittest.TestCase):
         assert item.BluePaletteColorLookupTableDescriptor[0] == 256
         assert item.BluePaletteColorLookupTableDescriptor[1] == 0
         assert item.BluePaletteColorLookupTableDescriptor[2] == 16
-        assert len(item.SegmentedRedPaletteColorLookupTableData) == 12
-        assert len(item.SegmentedGreenPaletteColorLookupTableData) == 12
-        assert len(item.SegmentedBluePaletteColorLookupTableData) == 12
+        assert len(item.RedPaletteColorLookupTableData) == 512
+        assert len(item.GreenPaletteColorLookupTableData) == 512
+        assert len(item.BluePaletteColorLookupTableData) == 512
 
         assert not hasattr(ds, 'ContentDescription')
         assert not hasattr(ds, 'ConceptNameCodeSequence')
@@ -875,6 +869,61 @@ class TestAdvancedBlending(unittest.TestCase):
         assert not hasattr(ds, 'RescaleSlope')
         assert not hasattr(ds, 'RescaleIntercept')
         assert not hasattr(ds, 'ModalityLUTSequence')
+
+    def test_segmented_lut(self):
+        ref_images = [self._sm_image, self._sm_image_reversed]
+
+        msg = (
+            "palette_color_lut_transformation for presentation states "
+            "may not be segmented."
+        )
+
+        with pytest.raises(ValueError, match=msg):
+            AdvancedBlending(
+                referenced_images=ref_images,
+                blending_input_number=1,
+                voi_lut_transformations=[
+                    SoftcopyVOILUTTransformation(
+                        window_center=12.0,
+                        window_width=24.0,
+                    )
+                ],
+                palette_color_lut_transformation=PaletteColorLUTTransformation(
+                    red_lut=SegmentedPaletteColorLUT(
+                        first_mapped_value=0,
+                        segmented_lut_data=np.array(
+                            [
+                                0, 1, 0,
+                                1, 255, 0,
+                            ],
+                            dtype=np.uint16
+                        ),
+                        color='red'
+                    ),
+                    green_lut=SegmentedPaletteColorLUT(
+                        first_mapped_value=0,
+                        segmented_lut_data=np.array(
+                            [
+                                0, 1, 0,
+                                1, 255, 0,
+                            ],
+                            dtype=np.uint16
+                        ),
+                        color='green'
+                    ),
+                    blue_lut=SegmentedPaletteColorLUT(
+                        first_mapped_value=0,
+                        segmented_lut_data=np.array(
+                            [
+                                0, 1, 0,
+                                1, 255, 255,
+                            ],
+                            dtype=np.uint16
+                        ),
+                        color='blue'
+                    )
+                )
+            )
 
 
 class TestBlendingDisplay(unittest.TestCase):

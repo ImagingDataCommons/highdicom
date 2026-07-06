@@ -1767,12 +1767,18 @@ class AdvancedBlending(Dataset):
                 logger.debug('no VOI LUT attributes found in referenced images')
 
         # Palette Color Lookup Table
-        palette_color_lut_item = Dataset()
-        _add_palette_color_lookup_table_attributes(
-            palette_color_lut_item,
-            palette_color_lut_transformation=palette_color_lut_transformation
-        )
-        self.PaletteColorLookupTableSequence = [palette_color_lut_item]
+        if palette_color_lut_transformation is not None:
+            palette_color_lut_item = Dataset()
+            if palette_color_lut_transformation.is_segmented:
+                raise ValueError(
+                    "palette_color_lut_transformation for presentation states "
+                    "may not be segmented."
+                )
+            _add_palette_color_lookup_table_attributes(
+                palette_color_lut_item,
+                palette_color_lut_transformation
+            )
+            self.PaletteColorLookupTableSequence = [palette_color_lut_item]
 
 
 class BlendingDisplayInput(Dataset):
