@@ -614,6 +614,11 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
                 "palette_color_lut_transformation for presentation states must "
                 "have 16 bits."
             )
+        if palette_color_lut_transformation.is_segmented:
+            raise ValueError(
+                "palette_color_lut_transformation for presentation states may "
+                "not be segmented."
+            )
         _add_palette_color_lookup_table_attributes(
             self,
             palette_color_lut_transformation=palette_color_lut_transformation
