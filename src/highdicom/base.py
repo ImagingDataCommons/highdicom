@@ -15,8 +15,13 @@ from highdicom.base_content import ContributingEquipment
 from highdicom.enum import (
     ContentQualificationValues,
     PatientSexValues,
+    SpecificCharacterSetValues,
 )
-from highdicom.valuerep import check_person_name, _check_long_string
+from highdicom.valuerep import (
+    check_person_name,
+    _check_long_string,
+    _check_specific_character_set,
+)
 from highdicom.version import __version__
 from highdicom._standard_utils import (
     get_iod_module_map,
@@ -69,6 +74,12 @@ class SOPClass(Dataset):
         content_time: str | datetime.time | None = None,
         series_date: str | datetime.date | None = None,
         series_time: str | datetime.time | None = None,
+        specific_character_set: (
+            SpecificCharacterSetValues |
+            str |
+            Sequence[str | SpecificCharacterSetValues] |
+            None
+        ) = None,
     ):
         """
         Parameters
@@ -142,6 +153,8 @@ class SOPClass(Dataset):
         series_time: str | datetime.time | None, optional
             Time the series was started. This should be the same for all
             instances in a series.
+        specific_character_set: highdicom.enum.SpecificCharacterSetValues | str | Sequence[highdicom.enum.SpecificCharacterSetValues | str] | None, optional
+            Specific Character Set used to encode text values within this object.
 
         Note
         ----
@@ -241,7 +254,7 @@ class SOPClass(Dataset):
                 _check_long_string(institutional_department_name)
                 self.InstitutionalDepartmentName = institutional_department_name
 
-        # Instance
+        # SOP Common
         self.SOPInstanceUID = str(sop_instance_uid)
         self.SOPClassUID = str(sop_class_uid)
         if instance_number is None:
@@ -255,6 +268,12 @@ class SOPClass(Dataset):
         now = datetime.datetime.now()
         self.InstanceCreationDate = DA(now.date())
         self.InstanceCreationTime = TM(now.time())
+
+        if specific_character_set is not None:
+            specific_character_set = _check_specific_character_set(
+                specific_character_set
+            )
+            self.SpecificCharacterSet = specific_character_set
 
         # Content Date and Content Time are not present in all IODs
         if is_attribute_in_iod('ContentDate', sop_class_uid):
