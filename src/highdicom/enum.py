@@ -293,9 +293,9 @@ class PatientOrientationValuesQuadruped(Enum):
 
 class SpecificCharacterSetValues(Enum):
 
-    """Enumerated values for Specific Characeter Set attribute.
+    """Enumerated values for Specific Character Set attribute.
 
-    See :dcm:`Specific Characeter Set <part03/sect_C.12.html#sect_C.12.1.1.2>`.
+    See :dcm:`Specific Character Set <part03/sect_C.12.html#sect_C.12.1.1.2>`.
 
     """
     LATIN_ALPHABET_NO_1 = 'ISO_IR 100'
