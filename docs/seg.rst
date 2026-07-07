@@ -35,14 +35,6 @@ organ or structure (liver, lung, kidney, cell nucleus), tissue (fat, muscle,
 bone), or abnormality (tumor, infarct).  Elsewhere the same concept is known by
 other names such as *class* or *label*.
 
-Each segment in a DICOM SEG image is represented by a separate 2D *frame* (or
-set of *frames*) within the Segmentation image. One important ramification of
-this is that segments need not be *mutually exclusive*, i.e. a given pixel or
-spatial location within the source image can belong to multiple segments. In
-other words, the segments within a SEG image may *overlap*.  There is an
-optional attribute called "Segments Overlap" (0062, 0013) that, if present,
-will indicate whether the segments overlap in a given SEG image.
-
 .. _segment_descriptions:
 
 Segment Descriptions
@@ -172,7 +164,7 @@ the highdicom enum :class:`highdicom.seg.SegmentationTypeValues`:
   they also have some important downsides. Storing each segment separately
   means that ``"BINARY"`` segmentations can have a very large number of frames
   if there are a large number of segments. Furthermore, because they are stored
-  as single bit images, the options for compression are very limited. As a
+  as single-bit images, the options for compression are very limited. As a
   result, the segmentation objects can get very large and unwieldy. Lastly,
   having separate frames is simply not a convenient form to work with for many
   applications.
