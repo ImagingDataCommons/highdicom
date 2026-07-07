@@ -5956,8 +5956,8 @@ class _Image(SOPClass):
             )
         if not self._has_frame_references:
             raise RuntimeError(
-                'Indexing via source frames is not possible because frames '
-                'do not contain information about source frames.'
+                'Indexing via source frames is not possible because the '
+                'image does not contain information about source frames.'
             )
 
         # Check that all frame numbers requested actually exist
@@ -5969,23 +5969,32 @@ class _Image(SOPClass):
             if len(missing_uids) > 0:
                 msg = (
                     f'SOP Instance UID(s) {list(missing_uids)} do not match '
-                    'any referenced source instances. To return an empty '
-                    'segmentation mask in this situation, use the '
+                    'any referenced source instances. To return an array '
+                    'of zeros in this situation, use the '
                     '"assert_missing_frames_are_empty" parameter.'
                 )
                 raise KeyError(msg)
 
             if source_frame_numbers is not None:
                 max_frame_number = (
-                    self._get_max_referenced_frame_number()
+                    self._get_max_referenced_frame_number(
+                        source_sop_instance_uids[0]
+                    )
                 )
+
+                if max_frame_number is None:
+                    raise RuntimeError(
+                        "Image does not record referenced frame numbers "
+                        "for the given instance."
+                    )
+
                 for f in source_frame_numbers:
                     if f > max_frame_number:
                         msg = (
                             f'Source frame number {f} is larger than any '
                             'referenced source frame, so highdicom cannot be '
-                            'certain that it is valid. To return an empty '
-                            'segmentation mask in this situation, use the '
+                            'certain that it is valid. To return an array '
+                            'of zeros in this situation, use the '
                             "'assert_missing_frames_are_empty' parameter."
                         )
                         raise ValueError(msg)
@@ -6221,12 +6230,21 @@ class _Image(SOPClass):
             )
         }
 
-    def _get_max_referenced_frame_number(self) -> int:
+    def _get_max_referenced_frame_number(
+        self,
+        source_sop_instance_uid: str,
+    ) -> int | None:
         """Get highest frame number of any referenced frame.
 
         Absent access to the referenced dataset itself, being less than this
         value is a sufficient condition for the existence of a frame number
         in the source image.
+
+        Parameters
+        ----------
+        source_sop_instance_uid: str
+            SOP instance UID of the referenced image for which the highest
+            referenced frame number is requested.
 
         Returns
         -------
@@ -6236,7 +6254,8 @@ class _Image(SOPClass):
         """
         cur = self._db_con.cursor()
         return cur.execute(
-            'SELECT MAX(ReferencedFrameNumber) FROM FrameReferenceLUT'
+            'SELECT MAX(ReferencedFrameNumber) FROM FrameReferenceLUT '
+            f"WHERE ReferencedSOPInstanceUID='{source_sop_instance_uid}'"
         ).fetchone()[0]
 
     def is_indexable_as_total_pixel_matrix(self) -> bool:
@@ -8857,6 +8876,428 @@ class Image(_Image):
 
             return self._get_pixels_by_frame(
                 spatial_shape=output_shape,
+                indices_iterator=indices,
+                apply_real_world_transform=apply_real_world_transform,
+                real_world_value_map_selector=real_world_value_map_selector,
+                apply_modality_transform=apply_modality_transform,
+                apply_voi_transform=apply_voi_transform,
+                voi_transform_selector=voi_transform_selector,
+                voi_output_range=voi_output_range,
+                apply_presentation_lut=apply_presentation_lut,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
+                dtype=dtype,
+            )
+
+    def get_pixels_by_source_instance(
+        self,
+        source_sop_instance_uids: Sequence[str],
+        ignore_spatial_locations: bool = False,
+        assert_missing_frames_are_empty: bool = False,
+        dtype: type | str | np.dtype = np.float64,
+        apply_real_world_transform: bool | None = None,
+        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
+        apply_modality_transform: bool | None = None,
+        apply_voi_transform: bool | None = False,
+        voi_transform_selector: int | str | VOILUTTransformation = 0,
+        voi_output_range: tuple[float, float] = (0.0, 1.0),
+        apply_presentation_lut: bool = True,
+        apply_palette_color_lut: bool | None = None,
+        apply_icc_profile: bool | None = None,
+    ) -> np.ndarray:
+        """Get a pixel array for a list of source instances.
+
+        This is intended to work for any image that is derived from a series of
+        single-frame DICOM image instances, and therefore contains frame-wise
+        references to the source instances.
+
+        Parameters
+        ----------
+        source_sop_instance_uids: str
+            SOP Instance UID of the source instances for which frames
+            are requested. The requested frames
+        ignore_spatial_locations: bool, optional
+           Ignore whether or not spatial locations were preserved in the
+           derivation of the frames from the source frames. In some images, the
+           pixel locations in the frames may not correspond to pixel locations
+           in the frames of the source image from which they were derived. The
+           image may or may not specify whether or not spatial locations are
+           preserved in this way through use of the optional (0028,135A)
+           SpatialLocationsPreserved attribute. If this attribute specifies
+           that spatial locations are not preserved, or is absent from the
+           image, highdicom's default behavior is to disallow indexing by
+           source frames. To override this behavior and retrieve pixels
+           regardless of the presence or value of the spatial locations
+           preserved attribute, set this parameter to True.
+        assert_missing_frames_are_empty: bool, optional
+            Assert that requested source frame numbers that are not referenced
+            by the image contain no segments. If a source frame number is not
+            referenced by the image, highdicom is unable to check that the
+            frame number is valid in the source image. By default, highdicom
+            will raise an error if any of the requested source frames are not
+            referenced in the source image. To override this behavior and
+            return a frame of all zeros for such frames, set this parameter to
+            True.
+        dtype: Union[type, str, numpy.dtype, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
+        apply_real_world_transform: bool | None, optional
+            Whether to apply a real-world value map to the frame.
+            A real-world value maps converts stored pixel values to output
+            values with a real-world meaning, either using a LUT or a linear
+            slope and intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if present but no error will be raised if
+            it is not present.
+
+            Note that if the dataset contains both a modality LUT and a real
+            world value map, the real world value map will be applied
+            preferentially. This also implies that specifying both
+            ``apply_real_world_transform`` and ``apply_modality_transform`` to
+            True is not permitted.
+        real_world_value_map_selector: int | str | pydicom.sr.coding.Code | highdicom.sr.coding.CodedConcept, optional
+            Specification of the real world value map to use (multiple may be
+            present in the dataset). If an int, it is used to index the list of
+            available maps. A negative integer may be used to index from the
+            end of the list following standard Python indexing convention. If a
+            str, the string will be used to match the ``"LUTLabel"`` attribute
+            to select the map. If a ``pydicom.sr.coding.Code`` or
+            ``highdicom.sr.coding.CodedConcept``, this will be used to match
+            the units (contained in the ``"MeasurementUnitsCodeSequence"``
+            attribute).
+        apply_modality_transform: bool | None, optional
+            Whether to apply the modality transform (if present in the
+            dataset) to the frame. The modality transform maps stored pixel
+            values to output values, either using a LUT or rescale slope and
+            intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        apply_voi_transform: bool | None, optional
+            Apply the value-of-interest (VOI) transform (if present in the
+            dataset), which limits the range of pixel values to a particular
+            range of interest using either a windowing operation or a LUT.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        voi_transform_selector: int | str | highdicom.VOILUTTransformation, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpreted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the
+            ``"WindowCenterWidthExplanation"`` or the ``"LUTExplanation"``
+            attributes to choose from multiple VOI transforms. Note that such
+            explanations are optional according to the standard and therefore
+            may not be present. Ignored if ``apply_voi_transform`` is ``False``
+            or no VOI transform is included in the datasets.
+
+            Alternatively, a user-defined
+            :class:`highdicom.VOILUTTransformation` may be supplied.
+            This will override any such transform specified in the dataset.
+        voi_output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped. Only
+            relevant if ``apply_voi_transform`` is True and a VOI transform is
+            present.
+        apply_palette_color_lut: bool | None, optional
+            Apply the palette color LUT, if present in the dataset. The palette
+            color LUT maps a single sample for each pixel stored in the dataset
+            to a 3 sample-per-pixel color image.
+        apply_presentation_lut: bool, optional
+            Apply the presentation LUT transform to invert the pixel values. If
+            the PresentationLUTShape is present with the value ``'INVERSE'``,
+            or the PresentationLUTShape is not present but the Photometric
+            Interpretation is MONOCHROME1, convert the range of the output
+            pixels corresponds to MONOCHROME2 (in which high values are
+            represent white and low values represent black). Ignored if
+            PhotometricInterpretation is not MONOCHROME1 and the
+            PresentationLUTShape is not present, or if a real world value
+            transform is applied.
+        apply_icc_profile: bool | None, optional
+            Whether colors should be corrected by applying an ICC
+            transform. Will only be performed if metadata contain an
+            ICC Profile.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present, but no error will be
+            raised if it is not present.
+
+        Returns
+        -------
+        pixel_array: numpy.ndarray
+            Pixel array representing the requested image frames.
+
+        """  # noqa: E501
+        # Checks on validity of the inputs
+        if isinstance(source_sop_instance_uids, str):
+            raise TypeError(
+                'source_sop_instance_uids should be a sequence of UIDs, not a '
+                'single UID'
+            )
+        if len(source_sop_instance_uids) == 0:
+            raise ValueError(
+                'Source SOP instance UIDs may not be empty.'
+            )
+
+        # Check that indexing in this way is possible
+        self._check_indexing_with_source_frames(
+            source_sop_instance_uids=source_sop_instance_uids,
+            ignore_spatial_locations=ignore_spatial_locations,
+            assert_missing_frames_are_empty=assert_missing_frames_are_empty,
+        )
+
+        filters: dict[str, str] | None = None
+        if not ignore_spatial_locations:
+            filters = {'SpatialLocationsPreserved': 'YES'}
+
+        with self._iterate_indices_for_stack(
+            stack_indices={
+                'ReferencedSOPInstanceUID': source_sop_instance_uids
+            },
+            allow_missing_values=True,
+            allow_missing_combinations=True,
+            filters=filters,
+        ) as indices:
+
+            return self._get_pixels_by_frame(
+                spatial_shape=len(source_sop_instance_uids),
+                indices_iterator=indices,
+                apply_real_world_transform=apply_real_world_transform,
+                real_world_value_map_selector=real_world_value_map_selector,
+                apply_modality_transform=apply_modality_transform,
+                apply_voi_transform=apply_voi_transform,
+                voi_transform_selector=voi_transform_selector,
+                voi_output_range=voi_output_range,
+                apply_presentation_lut=apply_presentation_lut,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
+                dtype=dtype,
+            )
+
+    def get_pixels_by_source_frame(
+        self,
+        source_sop_instance_uid: str,
+        source_frame_numbers: Sequence[int] | None = None,
+        ignore_spatial_locations: bool = False,
+        assert_missing_frames_are_empty: bool = False,
+        dtype: type | str | np.dtype = np.float64,
+        apply_real_world_transform: bool | None = None,
+        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
+        apply_modality_transform: bool | None = None,
+        apply_voi_transform: bool | None = False,
+        voi_transform_selector: int | str | VOILUTTransformation = 0,
+        voi_output_range: tuple[float, float] = (0.0, 1.0),
+        apply_presentation_lut: bool = True,
+        apply_palette_color_lut: bool | None = None,
+        apply_icc_profile: bool | None = None,
+    ) -> np.ndarray:
+        """Get a pixel array for a list of source instances.
+
+        This is intended to work for any image that is derived from a single,
+        multi-frame DICOM image instance, and therefore contains frame-wise
+        references to the source frames.
+
+        Parameters
+        ----------
+        source_sop_instance_uid: str
+            SOP Instance UID of the source instance that contains the source
+            frames.
+        source_frame_numbers: Sequence[int] | None, optional
+            A sequence of frame numbers (1-based) within the source instance
+            for which frames are requested. If not specified, the consecutive
+            frame numbers from 1 until the maximum number reference in this
+            image (which may not necessarily be the number of frames in the
+            source image) is used.
+        ignore_spatial_locations: bool, optional
+           Ignore whether or not spatial locations were preserved in the
+           derivation of the frames from the source frames. In some images, the
+           pixel locations in the frames may not correspond to pixel locations
+           in the frames of the source image from which they were derived. The
+           image may or may not specify whether or not spatial locations are
+           preserved in this way through use of the optional (0028,135A)
+           SpatialLocationsPreserved attribute. If this attribute specifies
+           that spatial locations are not preserved, or is absent from the
+           image, highdicom's default behavior is to disallow indexing by
+           source frames. To override this behavior and retrieve pixels
+           regardless of the presence or value of the spatial locations
+           preserved attribute, set this parameter to True.
+        assert_missing_frames_are_empty: bool, optional
+            Assert that requested source frame numbers that are not referenced
+            by the image contain no segments. If a source frame number is not
+            referenced by the image, highdicom is unable to check that the
+            frame number is valid in the source image. By default, highdicom
+            will raise an error if any of the requested source frames are not
+            referenced in the source image. To override this behavior and
+            return a frame of all zeros for such frames, set this parameter to
+            True.
+        dtype: Union[type, str, numpy.dtype, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
+        apply_real_world_transform: bool | None, optional
+            Whether to apply a real-world value map to the frame.
+            A real-world value maps converts stored pixel values to output
+            values with a real-world meaning, either using a LUT or a linear
+            slope and intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if present but no error will be raised if
+            it is not present.
+
+            Note that if the dataset contains both a modality LUT and a real
+            world value map, the real world value map will be applied
+            preferentially. This also implies that specifying both
+            ``apply_real_world_transform`` and ``apply_modality_transform`` to
+            True is not permitted.
+        real_world_value_map_selector: int | str | pydicom.sr.coding.Code | highdicom.sr.coding.CodedConcept, optional
+            Specification of the real world value map to use (multiple may be
+            present in the dataset). If an int, it is used to index the list of
+            available maps. A negative integer may be used to index from the
+            end of the list following standard Python indexing convention. If a
+            str, the string will be used to match the ``"LUTLabel"`` attribute
+            to select the map. If a ``pydicom.sr.coding.Code`` or
+            ``highdicom.sr.coding.CodedConcept``, this will be used to match
+            the units (contained in the ``"MeasurementUnitsCodeSequence"``
+            attribute).
+        apply_modality_transform: bool | None, optional
+            Whether to apply the modality transform (if present in the
+            dataset) to the frame. The modality transform maps stored pixel
+            values to output values, either using a LUT or rescale slope and
+            intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        apply_voi_transform: bool | None, optional
+            Apply the value-of-interest (VOI) transform (if present in the
+            dataset), which limits the range of pixel values to a particular
+            range of interest using either a windowing operation or a LUT.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        voi_transform_selector: int | str | highdicom.VOILUTTransformation, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpreted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the
+            ``"WindowCenterWidthExplanation"`` or the ``"LUTExplanation"``
+            attributes to choose from multiple VOI transforms. Note that such
+            explanations are optional according to the standard and therefore
+            may not be present. Ignored if ``apply_voi_transform`` is ``False``
+            or no VOI transform is included in the datasets.
+
+            Alternatively, a user-defined
+            :class:`highdicom.VOILUTTransformation` may be supplied.
+            This will override any such transform specified in the dataset.
+        voi_output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped. Only
+            relevant if ``apply_voi_transform`` is True and a VOI transform is
+            present.
+        apply_palette_color_lut: bool | None, optional
+            Apply the palette color LUT, if present in the dataset. The palette
+            color LUT maps a single sample for each pixel stored in the dataset
+            to a 3 sample-per-pixel color image.
+        apply_presentation_lut: bool, optional
+            Apply the presentation LUT transform to invert the pixel values. If
+            the PresentationLUTShape is present with the value ``'INVERSE'``,
+            or the PresentationLUTShape is not present but the Photometric
+            Interpretation is MONOCHROME1, convert the range of the output
+            pixels corresponds to MONOCHROME2 (in which high values are
+            represent white and low values represent black). Ignored if
+            PhotometricInterpretation is not MONOCHROME1 and the
+            PresentationLUTShape is not present, or if a real world value
+            transform is applied.
+        apply_icc_profile: bool | None, optional
+            Whether colors should be corrected by applying an ICC
+            transform. Will only be performed if metadata contain an
+            ICC Profile.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present, but no error will be
+            raised if it is not present.
+
+        Returns
+        -------
+        pixel_array: numpy.ndarray
+            Pixel array representing the requested image frames.
+
+        """  # noqa: E501
+        # Checks on validity of the inputs
+        if source_frame_numbers is not None:
+            if len(source_frame_numbers) == 0:
+                raise ValueError(
+                    'Source frame numbers should not be empty.'
+                )
+            if not all(f > 0 for f in source_frame_numbers):
+                raise ValueError(
+                    'Frame numbers are 1-based indices and must be > 0.'
+                )
+
+        # Check that indexing in this way is possible
+        self._check_indexing_with_source_frames(
+            source_sop_instance_uids=[source_sop_instance_uid],
+            source_frame_numbers=source_frame_numbers,
+            ignore_spatial_locations=ignore_spatial_locations,
+            assert_missing_frames_are_empty=assert_missing_frames_are_empty,
+        )
+
+        if source_frame_numbers is None:
+            max_frame = self._get_max_referenced_frame_number(
+                source_sop_instance_uid
+            )
+            max_frame = cast(int, max_frame)  # due to check_indexing_...
+            source_frame_numbers = range(1, max_frame + 1)
+
+        filters = None
+        if not ignore_spatial_locations:
+            filters = {'SpatialLocationsPreserved': 'YES'}
+
+        with self._iterate_indices_for_stack(
+            stack_indices={
+                'ReferencedFrameNumber': list(source_frame_numbers),
+                'ReferencedSOPInstanceUID': (
+                    [source_sop_instance_uid] * len(source_frame_numbers)
+                ),
+            },
+            allow_missing_values=True,
+            allow_missing_combinations=True,
+            filters=filters,
+        ) as indices:
+
+            return self._get_pixels_by_frame(
+                spatial_shape=len(source_frame_numbers),
                 indices_iterator=indices,
                 apply_real_world_transform=apply_real_world_transform,
                 real_world_value_map_selector=real_world_value_map_selector,

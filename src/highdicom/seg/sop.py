@@ -2278,7 +2278,7 @@ class Segmentation(_Image):
         Parameters
         ----------
         source_sop_instance_uids: str
-            SOP Instance UID of the source instances to for which segmentations
+            SOP Instance UID of the source instances for which segmentations
             are requested.
         segment_numbers: Union[Sequence[int], None], optional
             Sequence containing segment numbers to include. If unspecified,
@@ -2450,7 +2450,7 @@ class Segmentation(_Image):
     def get_pixels_by_source_frame(
         self,
         source_sop_instance_uid: str,
-        source_frame_numbers: Sequence[int],
+        source_frame_numbers: Sequence[int] | None = None,
         segment_numbers: Sequence[int] | None = None,
         combine_segments: bool = False,
         relabel: bool = False,
@@ -2519,9 +2519,12 @@ class Segmentation(_Image):
         source_sop_instance_uid: str
             SOP Instance UID of the source instance that contains the source
             frames.
-        source_frame_numbers: Sequence[int]
+        source_frame_numbers: Sequence[int] | None, optional
             A sequence of frame numbers (1-based) within the source instance
-            for which segmentations are requested.
+            for which segmentations are requested. If not specified, the
+            consecutive frame numbers from 1 until the maximum number reference
+            in this segmentation (which may not necessarily be the number of
+            frames in the source image) is used.
         segment_numbers: Optional[Sequence[int]], optional
             Sequence containing segment numbers to include. If unspecified,
             all segments are included.
@@ -2667,14 +2670,15 @@ class Segmentation(_Image):
                 'Segment numbers may not be empty.'
             )
 
-        if len(source_frame_numbers) == 0:
-            raise ValueError(
-                'Source frame numbers should not be empty.'
-            )
-        if not all(f > 0 for f in source_frame_numbers):
-            raise ValueError(
-                'Frame numbers are 1-based indices and must be > 0.'
-            )
+        if source_frame_numbers is not None:
+            if len(source_frame_numbers) == 0:
+                raise ValueError(
+                    'Source frame numbers should not be empty.'
+                )
+            if not all(f > 0 for f in source_frame_numbers):
+                raise ValueError(
+                    'Frame numbers are 1-based indices and must be > 0.'
+                )
 
         if self.segmentation_type == SegmentationTypeValues.LABELMAP:
             channel_indices = None
@@ -2690,6 +2694,13 @@ class Segmentation(_Image):
             ignore_spatial_locations=ignore_spatial_locations,
             assert_missing_frames_are_empty=assert_missing_frames_are_empty,
         )
+
+        if source_frame_numbers is None:
+            max_frame = self._get_max_referenced_frame_number(
+                source_sop_instance_uid
+            )
+            max_frame = cast(int, max_frame)  # due to check_indexing_...
+            source_frame_numbers = range(1, max_frame + 1)
 
         remap_channel_indices = self._get_segment_remap_values(
             segment_numbers,
