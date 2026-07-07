@@ -2187,6 +2187,29 @@ def test_read_function(modality: Modality, lazy: bool) -> None:
         fp.seek(0)
         reread = lceread(fp, lazy_frame_retrieval=lazy)
 
-    assert isinstance(reread, LegacyConvertedClass)
-    assert ('PixelData' in reread) == (not lazy)
-    assert converted.pixel_array.shape == (5, 2, 2)
+        assert isinstance(reread, LegacyConvertedClass)
+        assert ('PixelData' in reread) == (not lazy)
+        assert converted.pixel_array.shape == (5, 2, 2)
+
+        # Request a list of legacy UIDs
+        source_instance_uids = [ds.SOPInstanceUID for ds in legacy_datasets]
+        retrieved_pixels = reread.get_pixels_by_legacy_source_instance(
+            source_instance_uids
+        )
+        assert retrieved_pixels.shape == (5, 2, 2)
+
+        # Request a single legacy UID
+        retrieved_pixels = reread.get_pixels_by_legacy_source_instance(
+            source_instance_uids[1],
+        )
+        assert retrieved_pixels.shape == (2, 2)
+
+        # Request incorrect legacy UISs
+        msg = (
+            "One or more provided legacy SOP instance UIDs not "
+            "found in the dataset."
+        )
+        with pytest.raises(ValueError, match=msg):
+            reread.get_pixels_by_legacy_source_instance(
+                ['1.2.3.4']
+            )

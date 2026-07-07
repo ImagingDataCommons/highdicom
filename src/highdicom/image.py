@@ -5182,7 +5182,8 @@ class _Image(SOPClass):
         index values.
 
         """
-        self._file_reader = None
+        if not hasattr(self, '_file_reader'):
+            self._file_reader = None
         self._coordinate_system = get_image_coordinate_system(
             self
         )
@@ -5350,6 +5351,8 @@ class _Image(SOPClass):
             (0x0020_9111, 0x0020_9057),
             # RealWorldValueMappingSequence/LUTLabel
             (0x0040_9096, 0x0040_9210),
+            # ConversionSourceAttributesSequence/ReferencedSOPInstanceUID
+            (0x0020_9172, 0x0008_1155),
         ]:
             if ptr in self._dim_ind_pointers:
                 # Skip if this attribute is already indexed due to being a
@@ -5662,6 +5665,12 @@ class _Image(SOPClass):
 
         for i, t in enumerate(extra_collection_pointers):
             vr, vm_str, _, _, kw = get_entry(t)
+
+            if t == 0x0008_1155:
+                # Special case for referenced sop instance uid to differentiate
+                # from the derivation source sequence (those values are put
+                # into a separate table)
+                kw = 'ConversionSourceAttributesReferencedSOPInstanceUID'
 
             # Add column for dimension value
             # For this to be possible, must have a fixed VM
@@ -7195,6 +7204,12 @@ class _Image(SOPClass):
                 elif p == 'SpatialLocationsPreserved':
                     table_name = 'FrameReferenceLUT'
                     col_name = 'SpatialLocationsPreserved'
+                    python_type = str
+                elif p == 'ConversionSourceAttributesReferencedSOPInstanceUID':
+                    table_name = 'FrameLUT'
+                    col_name = (
+                        'ConversionSourceAttributesReferencedSOPInstanceUID'
+                    )
                     python_type = str
                 else:
                     t = tag_for_keyword(p)
@@ -8913,9 +8928,10 @@ class Image(_Image):
 
         Parameters
         ----------
-        source_sop_instance_uids: str
-            SOP Instance UID of the source instances for which frames
-            are requested. The requested frames
+        source_sop_instance_uids: Sequence[str]
+            SOP Instance UIDs of the source instances for which frames
+            are requested. The requested frames are stacked down the first
+            dimension of the returned array, in the order given here.
         ignore_spatial_locations: bool, optional
            Ignore whether or not spatial locations were preserved in the
            derivation of the frames from the source frames. In some images, the

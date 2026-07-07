@@ -24,6 +24,7 @@ from pydicom.dataset import Dataset
 from pydicom.encaps import encapsulate, encapsulate_extended, get_frame
 from pydicom.multival import MultiValue
 from pydicom.tag import BaseTag
+from pydicom.sr.coding import Code
 from pydicom.uid import (
     LegacyConvertedEnhancedCTImageStorage,
     LegacyConvertedEnhancedMRImageStorage,
@@ -41,10 +42,12 @@ from pydicom.valuerep import DT, DA, TM, format_number_as_ds
 
 from highdicom._standard_utils import get_anatomic_region_map
 from highdicom.base_content import ContributingEquipment
+from highdicom.content import VOILUTTransformation
 from highdicom.enum import PhotometricInterpretationValues
 from highdicom.frame import encode_frame, get_lossy_compression_attributes
 from highdicom.image import Image, _Image
 from highdicom.spatial import get_series_volume_positions
+from highdicom.sr import CodedConcept
 from highdicom.uid import UID as hd_UID
 
 from highdicom._standard_utils import (
@@ -2866,6 +2869,200 @@ class _CommonLegacyConvertedEnhancedImage(Image):
                 f"{cls._MODALITY_NAME} image."
             )
         return super().from_dataset(dataset, copy=copy)
+
+    def get_pixels_by_legacy_source_instance(
+        self,
+        legacy_sop_instance_uids: str | Sequence[str],
+        dtype: type | str | np.dtype = np.float64,
+        apply_real_world_transform: bool | None = None,
+        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
+        apply_modality_transform: bool | None = None,
+        apply_voi_transform: bool | None = False,
+        voi_transform_selector: int | str | VOILUTTransformation = 0,
+        voi_output_range: tuple[float, float] = (0.0, 1.0),
+        apply_presentation_lut: bool = True,
+        apply_palette_color_lut: bool | None = None,
+        apply_icc_profile: bool | None = None,
+    ) -> np.ndarray:
+        """Get a pixel array using UIDs of the original legacy series.
+
+        Parameters
+        ----------
+        legacy_sop_instance_uids: str | Sequence[str]
+            SOP Instance UID(s) of the original legacy source instance(s) for
+            which frames are requested. If a string is passed, a single 2D
+            frame is returned. If a list of strings is passed, the requested
+            frames are stacked down the first dimension of the returned array,
+            in the order given here.
+        dtype: Union[type, str, numpy.dtype, None]
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
+        apply_real_world_transform: bool | None, optional
+            Whether to apply a real-world value map to the frame.
+            A real-world value maps converts stored pixel values to output
+            values with a real-world meaning, either using a LUT or a linear
+            slope and intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if present but no error will be raised if
+            it is not present.
+
+            Note that if the dataset contains both a modality LUT and a real
+            world value map, the real world value map will be applied
+            preferentially. This also implies that specifying both
+            ``apply_real_world_transform`` and ``apply_modality_transform`` to
+            True is not permitted.
+        real_world_value_map_selector: int | str | pydicom.sr.coding.Code | highdicom.sr.coding.CodedConcept, optional
+            Specification of the real world value map to use (multiple may be
+            present in the dataset). If an int, it is used to index the list of
+            available maps. A negative integer may be used to index from the
+            end of the list following standard Python indexing convention. If a
+            str, the string will be used to match the ``"LUTLabel"`` attribute
+            to select the map. If a ``pydicom.sr.coding.Code`` or
+            ``highdicom.sr.coding.CodedConcept``, this will be used to match
+            the units (contained in the ``"MeasurementUnitsCodeSequence"``
+            attribute).
+        apply_modality_transform: bool | None, optional
+            Whether to apply the modality transform (if present in the
+            dataset) to the frame. The modality transform maps stored pixel
+            values to output values, either using a LUT or rescale slope and
+            intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        apply_voi_transform: bool | None, optional
+            Apply the value-of-interest (VOI) transform (if present in the
+            dataset), which limits the range of pixel values to a particular
+            range of interest using either a windowing operation or a LUT.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        voi_transform_selector: int | str | highdicom.VOILUTTransformation, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpreted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the
+            ``"WindowCenterWidthExplanation"`` or the ``"LUTExplanation"``
+            attributes to choose from multiple VOI transforms. Note that such
+            explanations are optional according to the standard and therefore
+            may not be present. Ignored if ``apply_voi_transform`` is ``False``
+            or no VOI transform is included in the datasets.
+
+            Alternatively, a user-defined
+            :class:`highdicom.VOILUTTransformation` may be supplied.
+            This will override any such transform specified in the dataset.
+        voi_output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped. Only
+            relevant if ``apply_voi_transform`` is True and a VOI transform is
+            present.
+        apply_palette_color_lut: bool | None, optional
+            Apply the palette color LUT, if present in the dataset. The palette
+            color LUT maps a single sample for each pixel stored in the dataset
+            to a 3 sample-per-pixel color image.
+        apply_presentation_lut: bool, optional
+            Apply the presentation LUT transform to invert the pixel values. If
+            the PresentationLUTShape is present with the value ``'INVERSE'``,
+            or the PresentationLUTShape is not present but the Photometric
+            Interpretation is MONOCHROME1, convert the range of the output
+            pixels corresponds to MONOCHROME2 (in which high values are
+            represent white and low values represent black). Ignored if
+            PhotometricInterpretation is not MONOCHROME1 and the
+            PresentationLUTShape is not present, or if a real world value
+            transform is applied.
+        apply_icc_profile: bool | None, optional
+            Whether colors should be corrected by applying an ICC
+            transform. Will only be performed if metadata contain an
+            ICC Profile.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present, but no error will be
+            raised if it is not present.
+
+        Returns
+        -------
+        pixel_array: numpy.ndarray
+            Pixel array representing the requested image frames. This will be
+            either a 2D array (rows, columns) if the input was a single UID
+            as a string, or a 3D array (frames, rows, columns) if a list of
+            one or more legacy UIDs was provided.
+
+        """  # noqa: E501
+        if isinstance(legacy_sop_instance_uids, str):
+            legacy_sop_instance_uids = [legacy_sop_instance_uids]
+            single_output_frame = True
+        else:
+            single_output_frame = False
+
+        # Checks on validity of the inputs
+        if len(legacy_sop_instance_uids) == 0:
+            raise ValueError(
+                'Source SOP instance UIDs may not be empty.'
+            )
+
+        legacy_uid_set = set(legacy_sop_instance_uids)
+        if len(legacy_uid_set) != len(legacy_sop_instance_uids):
+            raise ValueError(
+                "Duplicate values found in 'source_sop_instance_uids'"
+            )
+
+        allowed_values = {
+            v[0] for v in self._db_con.execute(
+                "SELECT DISTINCT("
+                "ConversionSourceAttributesReferencedSOPInstanceUID) "
+                "FROM FrameLUT;"
+            )
+        }
+        if not legacy_uid_set <= allowed_values:
+            raise ValueError(
+                "One or more provided legacy SOP instance UIDs not "
+                "found in the dataset."
+            )
+
+        with self._iterate_indices_for_stack(
+            stack_indices={
+                'ConversionSourceAttributesReferencedSOPInstanceUID':
+                legacy_sop_instance_uids
+            },
+            allow_missing_values=False,
+            allow_missing_combinations=True,
+        ) as indices:
+
+            pixels = self._get_pixels_by_frame(
+                spatial_shape=len(legacy_sop_instance_uids),
+                indices_iterator=indices,
+                apply_real_world_transform=apply_real_world_transform,
+                real_world_value_map_selector=real_world_value_map_selector,
+                apply_modality_transform=apply_modality_transform,
+                apply_voi_transform=apply_voi_transform,
+                voi_transform_selector=voi_transform_selector,
+                voi_output_range=voi_output_range,
+                apply_presentation_lut=apply_presentation_lut,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
+                dtype=dtype,
+            )
+
+        if single_output_frame:
+            pixels = pixels[0]
+
+        return pixels
 
 
 class LegacyConvertedEnhancedCTImage(_CommonLegacyConvertedEnhancedImage):
