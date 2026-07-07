@@ -35,14 +35,6 @@ organ or structure (liver, lung, kidney, cell nucleus), tissue (fat, muscle,
 bone), or abnormality (tumor, infarct).  Elsewhere the same concept is known by
 other names such as *class* or *label*.
 
-Each segment in a DICOM SEG image is represented by a separate 2D *frame* (or
-set of *frames*) within the Segmentation image. One important ramification of
-this is that segments need not be *mutually exclusive*, i.e. a given pixel or
-spatial location within the source image can belong to multiple segments. In
-other words, the segments within a SEG image may *overlap*.  There is an
-optional attribute called "Segments Overlap" (0062, 0013) that, if present,
-will indicate whether the segments overlap in a given SEG image.
-
 .. _segment_descriptions:
 
 Segment Descriptions
@@ -67,11 +59,13 @@ description includes the following information:
   segment represents an anatomical structure, a tissue type, or an abnormality.
   This is passed as either a
   :class:`highdicom.sr.CodedConcept`, or a :class:`pydicom.sr.coding.Code`
-  object.
+  object. See
+  :dcm:`CID 7150 <part16/sect_CID_7150.html>` for the associated context group.
 - **Segmented Property Type**: Another coded value that more specifically
   describes the segmented region, as for example a kidney or tumor.  This is
   passed as either a :class:`highdicom.sr.CodedConcept`, or a
-  :class:`pydicom.sr.coding.Code` object.
+  :class:`pydicom.sr.coding.Code` object. See
+  :dcm:`CID 7151 <part16/sect_CID_7151.html>` for the associated context group.
 - **Algorithm Type**: Whether the segment was produced by an automatic,
   semi-automatic, or manual algorithm. The valid values are contained within the
   enum :class:`highdicom.seg.SegmentAlgorithmTypeValues`.
@@ -112,7 +106,7 @@ representing a liver that has been manually segmented.
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
         display_color=hd.color.CIELabColor.from_string('red'),
@@ -170,7 +164,7 @@ the highdicom enum :class:`highdicom.seg.SegmentationTypeValues`:
   they also have some important downsides. Storing each segment separately
   means that ``"BINARY"`` segmentations can have a very large number of frames
   if there are a large number of segments. Furthermore, because they are stored
-  as single bit images, the options for compression are very limited. As a
+  as single-bit images, the options for compression are very limited. As a
   result, the segmentation objects can get very large and unwieldy. Lastly,
   having separate frames is simply not a convenient form to work with for many
   applications.
@@ -244,7 +238,7 @@ everything else the same.
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -321,7 +315,7 @@ example to use the labelmap segmentation type.
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -387,7 +381,7 @@ segmentation type.
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -475,7 +469,7 @@ always be present even if there is a single source frame.
     liver_description = hd.seg.SegmentDescription(
         segment_number=2,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -635,7 +629,7 @@ must have exactly one channel dimension with the descriptor being the
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -734,7 +728,7 @@ For example:
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -827,7 +821,7 @@ between the items of the ``source_images`` list and axis 0 of the segmentation
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )
@@ -900,9 +894,10 @@ There are three possibilities here:
   and/or scaling between source frames and segmentation frames). In this
   situation, the "Derivation Image Sequence" is left empty.
 
-If you require the "Derivation Image Sequence" to be populated and you are using a
-:class:`highdicom.Volume` as input to the constructor, follow the method in the
-`seg-from-volume`_ section to match the geometry before passing to the constructor.
+If you require the "Derivation Image Sequence" to be populated and you are
+using a :class:`highdicom.Volume` as input to the constructor, follow the
+method in the :ref:`seg-from-volume` section to match the geometry before
+passing to the constructor.
 
 Constructing SEG Images from a Total Pixel Matrix
 -------------------------------------------------
@@ -932,7 +927,7 @@ tile size of the source image will be used (regardless of whether the
 segmentation is represented at the same resolution as the source image).
 
 If you need to specify the plane positions of the image explicitly, you should
-pass a :meth:`highdicom.Volume` or alternatively, pass single item to the
+pass a :meth:`highdicom.Volume` or alternatively, pass a single item to the
 ``plane_positions`` argument giving the location of the top left corner of the
 full total pixel matrix. Otherwise, all the usual options are available to you.
 
@@ -987,6 +982,8 @@ full total pixel matrix. Otherwise, all the usual options are available to you.
     # the source image
     assert seg.NumberOfFrames == 10
     assert seg.pixel_array.shape == (10, 10, 10)
+
+.. _tiled-dimension-organization:
 
 ``"TILED_FULL"`` and ``"TILED_SPARSE"``
 ---------------------------------------
@@ -1045,6 +1042,8 @@ combination with ``tile_pixel_array`` argument.
     # the source image
     assert seg.NumberOfFrames == 25
     assert seg.pixel_array.shape == (25, 10, 10)
+
+.. _multi-resolution-pyramids:
 
 Multi-resolution Pyramids
 -------------------------
@@ -1187,7 +1186,7 @@ representing a probabilistic segmentation of the liver.
     liver_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='liver',
-        segmented_property_category=codes.SCT.Organ,
+        segmented_property_category=codes.SCT.AnatomicalStructure,
         segmented_property_type=codes.SCT.Liver,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
     )

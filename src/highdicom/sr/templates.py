@@ -52,7 +52,7 @@ from highdicom.sr.value_types import (
     UIDRefContentItem,
 )
 
-from highdicom._module_utils import does_iod_have_pixel_data
+from highdicom._standard_utils import does_iod_have_pixel_data
 # Codes missing from pydicom
 DEFAULT_LANGUAGE = CodedConcept(
     value='en-US',
@@ -697,20 +697,26 @@ class AlgorithmIdentification(Template):
         self,
         name: str,
         version: str,
-        parameters: Sequence[str] | None = None
+        parameters: Sequence[str] | None = None,
+        family: Code | CodedConcept | None = None,
+        manufacturer: str | None = None,
     ) -> None:
         """
 
         Parameters
         ----------
         name: str
-            name of the algorithm
+            Name of the algorithm
         version: str
-            version of the algorithm
+            Version of the algorithm
         parameters: Union[Sequence[str], None], optional
-            parameters of the algorithm
+            Parameters of the algorithm
+        manufacturer: str | None, optional
+            Manufacturer of the algorithm
+        family: pydicom.sr.coding.Code | highdicom.sr.CodedConcept | None, optional
+            Algorithm family
 
-        """
+        """  # noqa: E501
         super().__init__()
         name_item = TextContentItem(
             name=CodedConcept(
@@ -732,6 +738,17 @@ class AlgorithmIdentification(Template):
             relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
         )
         self.append(version_item)
+        if manufacturer is not None:
+            manufacturer_item = TextContentItem(
+                name=CodedConcept(
+                    value='122405',
+                    meaning='Algorithm Manufacturer',
+                    scheme_designator='DCM'
+                ),
+                value=manufacturer,
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
+            )
+            self.append(manufacturer_item)
         if parameters is not None:
             for param in parameters:
                 parameter_item = TextContentItem(
@@ -744,6 +761,17 @@ class AlgorithmIdentification(Template):
                     relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
                 )
                 self.append(parameter_item)
+        if family is not None:
+            family_item = CodeContentItem(
+                name=CodedConcept(
+                    value='111000',
+                    meaning='Algorithm Family',
+                    scheme_designator='DCM'
+                ),
+                value=family,
+                relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD
+            )
+            self.append(family_item)
 
 
 class TrackingIdentifier(Template):
@@ -3207,12 +3235,24 @@ class MeasurementsAndQualitativeEvaluations(
     def source_images(self) -> list[SourceImageForMeasurementGroup]:
         """List[highdicom.sr.SourceImageForMeasurementGroup]: source images"""
         root_item = self[0]
-        matches = find_content_items(
-            root_item,
-            name=_SOURCE,
-            value_type=ValueTypeValues.IMAGE,
-            relationship_type=RelationshipTypeValues.CONTAINS
-        )
+
+        # Allowable codes for source images. Per the invocation of TID1501 with
+        # ImagePurpose=CID7551, this should probably be DCM "Source of
+        # Measurement". However, highdicom previously used SCT "Source"
+        # following the note for row 10 of TID1501. So we include both variants
+        # here
+        source_codes = [_SOURCE, codes.DCM.SourceOfMeasurement]
+
+        matches = []
+        for name in source_codes:
+            matches.extend(
+                find_content_items(
+                    root_item,
+                    name=name,
+                    value_type=ValueTypeValues.IMAGE,
+                    relationship_type=RelationshipTypeValues.CONTAINS
+                )
+            )
         if len(matches) > 0:
             return [
                 SourceImageForMeasurementGroup.from_dataset(m) for m in matches
@@ -5095,12 +5135,20 @@ class MeasurementReport(Template):
                 (referenced_sop_instance_uid is not None) or
                 (referenced_sop_class_uid is not None)
             ):
-                matches_uids = _contains_image_items(
-                    group_item,
-                    name=_SOURCE,
-                    referenced_sop_class_uid=referenced_sop_class_uid,
-                    referenced_sop_instance_uid=referenced_sop_instance_uid,
-                    relationship_type=RelationshipTypeValues.CONTAINS
+                # Allowable codes for source images. Per the invocation of
+                # TID1501 with ImagePurpose=CID7551, this should probably be
+                # DCM "Source of Measurement". However, highdicom previously
+                # used SCT "Source" following the note for row 10 of TID1501.
+                # So we include both variants here
+                source_codes = [_SOURCE, codes.DCM.SourceOfMeasurement]
+                matches_uids = any(
+                    _contains_image_items(
+                        group_item,
+                        name=name,
+                        referenced_sop_class_uid=referenced_sop_class_uid,
+                        referenced_sop_instance_uid=referenced_sop_instance_uid,
+                        relationship_type=RelationshipTypeValues.CONTAINS
+                    ) for name in source_codes
                 )
                 matches.append(matches_uids)
 

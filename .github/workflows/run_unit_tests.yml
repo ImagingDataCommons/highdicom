@@ -19,16 +19,16 @@ jobs:
         # and the likelihood of 3.12-specific bugs is considered low at this
         # stage
         python-version: ["3.10", "3.11", "3.13", "3.14"]
-        dependencies: [".", "'.[libjpeg]'"]
+        dependencies: [".", "'.[libjpeg,itk,sitk]'"]
 
     env:
       # Set this otherwise coverage on python 3.12 is absurdly slow
       COVERAGE_CORE: "sysmon"
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -38,7 +38,7 @@ jobs:
         pip install ${{ matrix.dependencies }}
     - name: Lint with flake8
       run: |
-        flake8 --exclude='bin,build,.eggs,src/highdicom/_*'
+        flake8 --exclude='bin,build,.eggs'
     - name: Test with pytest
       run: |
         pytest --cov=highdicom --cov-fail-under=80

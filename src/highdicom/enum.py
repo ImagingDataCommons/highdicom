@@ -1,4 +1,4 @@
-"""Enumerated halues."""
+"""Enumerated values."""
 from enum import Enum
 
 
@@ -291,6 +291,110 @@ class PatientOrientationValuesQuadruped(Enum):
     """Plantar"""
 
 
+class SpecificCharacterSetValues(Enum):
+
+    """Enumerated values for Specific Character Set attribute.
+
+    See :dcm:`Specific Character Set <part03/sect_C.12.html#sect_C.12.1.1.2>`.
+
+    """
+    LATIN_ALPHABET_NO_1 = 'ISO_IR 100'
+    """Latin Alphabet No. 1"""
+
+    LATIN_ALPHABET_NO_2 = 'ISO_IR 101'
+    """Latin Alphabet No. 1"""
+
+    LATIN_ALPHABET_NO_3 = 'ISO_IR 109'
+    """Latin Alphabet No. 1"""
+
+    LATIN_ALPHABET_NO_4 = 'ISO_IR 110'
+    """Latin Alphabet No. 1"""
+
+    CYRILLIC = 'ISO_IR 144'
+    """Cyrillic"""
+
+    ARABIC = 'ISO_IR 127'
+    """Arabic"""
+
+    GREEK = 'ISO_IR 126'
+    """Greek"""
+
+    HEBREW = 'ISO_IR 138'
+    """Hebrew"""
+
+    LATIN_ALPHABET_NO_5 = 'ISO_IR 148'
+    """Latin Alphabet No. 5"""
+
+    LATIN_ALPHABET_NO_9 = 'ISO_IR 203'
+    """Latin Alphabet No. 9"""
+
+    JAPANESE = 'ISO_IR 13'
+    """Japanese"""
+
+    THAI = 'ISO_IR 166'
+    """Thai"""
+
+    DEFAULT_REPERTOIRE_CODE_EXTENSIONS = 'ISO 2022 IR 6'
+    """Default DICOM repertoire with Code Extensions"""
+
+    LATIN_ALPHABET_NO_1_CODE_EXTENSIONS = 'ISO 2022 IR 100'
+    """Latin Alphabet No. 1 with Code Extensions"""
+
+    LATIN_ALPHABET_NO_2_CODE_EXTENSIONS = 'ISO 2022 IR 101'
+    """Latin Alphabet No. 2 with Code Extensions"""
+
+    LATIN_ALPHABET_NO_3_CODE_EXTENSIONS = 'ISO 2022 IR 109'
+    """Latin Alphabet No. 3 with Code Extensions"""
+
+    LATIN_ALPHABET_NO_4_CODE_EXTENSIONS = 'ISO 2022 IR 110'
+    """Latin Alphabet No. 3 with Code Extensions"""
+
+    CYRILLIC_CODE_EXTENSIONS = 'ISO 2022 IR 144'
+    """Cyrillic with Code Extensions"""
+
+    ARABIC_CODE_EXTENSIONS = 'ISO 2022 IR 127'
+    """Arabic with Code Extensions"""
+
+    GREEK_CODE_EXTENSIONS = 'ISO 2022 IR 126'
+    """Greek with Code Extensions"""
+
+    HEBREW_CODE_EXTENSIONS = 'ISO 2022 IR 138'
+    """Hebrew with Code Extensions"""
+
+    LATIN_ALPHABET_NO_5_CODE_EXTENSIONS = 'ISO 2022 IR 148'
+    """Latin Alphabet No. 5 with Code Extensions"""
+
+    LATIN_ALPHABET_NO_9_CODE_EXTENSIONS = 'ISO 2022 IR 203'
+    """Latin Alphabet No. 9 with Code Extensions"""
+
+    JAPANESE_CODE_EXTENSIONS = 'ISO 2022 IR 13'
+    """Japanese with Code Extensions"""
+
+    THAI_CODE_EXTENSIONS = 'ISO 2022 IR 166'
+    """Thai with Code Extensions"""
+
+    JAPANESE_KANJI_CODE_EXTENSIONS = 'ISO 2022 IR 87'
+    """Multi-byte Japanese Kanji with Code Extensions"""
+
+    JAPANESE_KANJI_SUPPLEMENTARY_CODE_EXTENSIONS = 'ISO 2022 IR 159'
+    """Multi-byte Japanese Kanji with Code Extensions"""
+
+    KOREAN_CODE_EXTENSIONS = 'ISO 2022 IR 159'
+    """Multi-byte Korean Hangul and Hanja with Code Extensions"""
+
+    SIMPLIFIED_CHINESE_CODE_EXTENSIONS = 'ISO 2022 IR 58'
+    """Multi-byte Simplified Chinese with Code Extensions"""
+
+    UNICODE_IN_UTF8 = "ISO_IR 192"
+    """Unicode in UTF-8 (stand-alone)"""
+
+    GB18030 = "GB18030"
+    """GB18030 Chinese Character Set (stand-alone)"""
+
+    GBK = "GBK"
+    """GBK Chinese Character Set (stand-alone)"""
+
+
 class UniversalEntityIDTypeValues(Enum):
 
     """Enumerated values for Universal Entity ID Type attribute."""
@@ -350,7 +454,7 @@ class AxisHandedness(Enum):
 
     """
 
-    LEFT_HANDED = "LEFT_HANDED"
+    LEFT_HANDED = 'LEFT_HANDED'
     """
 
     The unit vectors of the first, second and third axes form a left hand when
@@ -360,7 +464,7 @@ class AxisHandedness(Enum):
 
     """
 
-    RIGHT_HANDED = "RIGHT_HANDED"
+    RIGHT_HANDED = 'RIGHT_HANDED'
     """
 
     The unit vectors of the first, second and third axes form a right hand when
@@ -369,3 +473,28 @@ class AxisHandedness(Enum):
     vector, and the middle finger representing the third vector.
 
     """
+
+
+class InterpolationMethods(Enum):
+
+    """Interpolation methods that may be used for resampling arrays."""
+
+    NEAREST = 'NEAREST'
+    """Nearest-neighbor interpolator."""
+
+    LINEAR = 'LINEAR'
+    """Linear (or bi-linear or tri-linear) interpolator."""
+
+
+class PixelDataKeywords(Enum):
+
+    """Keywords used to store pixel data."""
+
+    PIXEL_DATA = 'PixelData'
+    """Integer-valued pixel data of any size (Image Pixel Module)."""
+
+    FLOAT_PIXEL_DATA = 'FloatPixelData'
+    """32-bit-float-valued pixel data (Floating Point Image Pixel Module)."""
+
+    DOUBLE_FLOAT_PIXEL_DATA = 'DoubleFloatPixelData'
+    """64-bit-float-valued pixel data (Double Floating Point Image Pixel Module)."""  # noqa: E501

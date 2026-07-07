@@ -8,7 +8,7 @@ from pydicom import Dataset
 import numpy as np
 import pydicom
 
-from highdicom._module_utils import is_multiframe_image
+from highdicom._standard_utils import is_multiframe_image
 from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,
@@ -309,8 +309,8 @@ def iter_tiled_full_frame_data(
     Parameters
     ----------
     dataset: pydicom.dataset.Dataset
-        VL Whole Slide Microscopy Image or Segmentation Image using the
-        "TILED_FULL" DimensionOrganizationType.
+        VL Whole Slide Microscopy Image, Segmentation Image, or Parametric Map
+        using the "TILED_FULL" DimensionOrganizationType.
 
     Returns
     -------
@@ -339,15 +339,33 @@ def iter_tiled_full_frame_data(
         units.
 
     """
-    allowed_sop_class_uids = {
-        '1.2.840.10008.5.1.4.1.1.77.1.6',  # VL Whole Slide Microscopy Image
-        '1.2.840.10008.5.1.4.1.1.66.4',  # Segmentation Image
-        '1.2.840.10008.5.1.4.1.1.66.7',  # Label Map Segmentation Image
-    }
-    if dataset.SOPClassUID not in allowed_sop_class_uids:
-        raise ValueError(
-            'Expected a VL Whole Slide Microscopy Image or Segmentation Image.'
-        )
+    # The "channels" output is either segment for segmentations, or optical
+    # path for other images
+    match dataset.SOPClassUID:
+        case (
+            '1.2.840.10008.5.1.4.1.1.66.7' |  # Label Map Segmentation
+            '1.2.840.10008.5.1.4.1.1.30'  # Parametric Map
+        ):
+            # No "channel" in this case -> return None
+            channels = [None]
+
+        case '1.2.840.10008.5.1.4.1.1.66.4':  # Segmentation Image
+            channels = range(1, len(dataset.SegmentSequence) + 1)
+
+        case '1.2.840.10008.5.1.4.1.1.77.1.6':  # VL Whole Slide Microscopy
+            num_optical_paths = getattr(
+                dataset,
+                'NumberOfOpticalPaths',
+                len(dataset.OpticalPathSequence)
+            )
+            channels = range(1, num_optical_paths + 1)
+
+        case _:
+            raise ValueError(
+                'Expected a VL Whole Slide Microscopy Image, Segmentation '
+                'Image, or Parametric Map.'
+            )
+
     if (
         not hasattr(dataset, "DimensionOrganizationType") or
         dataset.DimensionOrganizationType != "TILED_FULL"
@@ -370,27 +388,6 @@ def iter_tiled_full_frame_data(
         'TotalPixelMatrixFocalPlanes',
         1
     )
-
-    is_segmentation = dataset.SOPClassUID in (
-        '1.2.840.10008.5.1.4.1.1.66.4',
-        '1.2.840.10008.5.1.4.1.1.66.7',
-    )
-
-    # The "channels" output is either segment for segmentations, or optical
-    # path for other images
-    if is_segmentation:
-        if dataset.SegmentationType == "LABELMAP":
-            # No "channel" in this case -> return None
-            channels = [None]
-        else:
-            channels = range(1, len(dataset.SegmentSequence) + 1)
-    else:
-        num_optical_paths = getattr(
-            dataset,
-            'NumberOfOpticalPaths',
-            len(dataset.OpticalPathSequence)
-        )
-        channels = range(1, num_optical_paths + 1)
 
     shared_fg = dataset.SharedFunctionalGroupsSequence[0]
     pixel_measures = shared_fg.PixelMeasuresSequence[0]
@@ -3101,7 +3098,7 @@ class ImageToImageTransformer:
 
         Parameters
         ----------
-        indices: numpy.ndarray
+        coordinates: numpy.ndarray
             Array of (column, row) coordinates at sub-pixel resolution in the
             range [0, Columns] and [0, Rows], respectively.
             Array of floating-point values with shape ``(n, 2)``, where *n* is
@@ -3591,7 +3588,14 @@ def get_series_volume_positions(
 
     positions = [ds.ImagePositionPatient for ds in datasets]
 
-    spacing_hint = datasets[0].get('SpacingBetweenSlices')
+    spacing_hint: float | None = None
+    if allow_missing_positions:
+        spacing_hint = datasets[0].get('SpacingBetweenSlices')
+
+        if spacing_hint == 0.0:
+            # Zero is sometimes used as an unknown value. Ignore it in this
+            # case rather than raising an unhelpful error later
+            spacing_hint = None
 
     return get_volume_positions(
         image_positions=positions,
@@ -3884,10 +3888,11 @@ def get_volume_positions(
                 rtol=rtol,
                 atol=atol,
             ):
-                raise RuntimeError(
+                logger.info(
                     f"Inferred spacing ({abs(spacing):.3f}) does not match the "
                     f"given 'spacing_hint' ({spacing_hint})."
                 )
+                return None, None
 
         is_regular = np.isclose(
             spacings,
