@@ -5001,6 +5001,21 @@ class TestSegmentationParsing:
         )
         assert pixels.shape == out_shape
 
+    def test_get_pixels_by_source_frames_all(self):
+        source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
+
+        pixels = self._sm_control_seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+        )
+
+        out_shape = (
+            25,
+            self._sm_control_seg.Rows,
+            self._sm_control_seg.Columns,
+            self._sm_control_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
     def test_get_pixels_by_invalid_source_frames(self):
         source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
 

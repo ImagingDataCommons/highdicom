@@ -227,10 +227,54 @@ that could be used to form a :class:`highdicom.Volume`). This is optional,
 Legacy Converted Enhanced images that are not volumes are still entirely valid
 according to the DICOM standard.
 
+Reading Legacy Converted Enhanced Images
+----------------------------------------
+
+You can read in existing legacy converted enhanced images with the
+:func:`highdicom.legacy.lceread` function. Like the more general
+:func:`highdicom.imread` function, this supports a
+``lazy_frame_retrieval`` parameter to enable :ref:`lazy`.
+
+Once read, the legacy converted images can be treated just like any DICOM image
+because the Legacy Converted Enhanced classes are subclasses of
+:class:`highdicom.Image` (see :ref:`image`). Additionally, they support an
+additional method, :meth:`get_pixels_by_legacy_source_instance`, that allows
+you to request frames of the legacy converted enhanced image by specifying the
+SOP Instance UID(s) of the original legacy instances they were converted from
+(rather than the frame numbers in the converted image).
+
+.. code-block:: python
+
+  import highdicom as hd
+
+
+  # Read the legacy converted enhanced image from disk
+  lce_image = hd.legacy.lceread("...")
+
+  # Get a Volume (assuming frames are regularly-spaced)
+  volume = lce_image.get_volume()
+
+  # Retrieve a single frame by providing the legacy SOP instance UID as a
+  # single string. This will return a 2D numpy array
+  frame = lce_image.get_pixels_by_legacy_source_instance(
+      "1.2.826.0.1.3680043.10.511.3.1090449243900474088982677898136506"
+  )
+
+  # Retrieve multiple ordered frames by providing the legacy SOP instance UIDs in a
+  # list of strings. This will return a 3D numpy array with frames stacked down the
+  # first dimension
+  frames = lce_image.get_pixels_by_legacy_source_instance(
+      [
+          "1.2.826.0.1.3680043.10.511.3.1090449243900474088982677898136506",
+          "1.2.826.0.1.3680043.10.511.3.1090449243900474088982677898136507",
+          "1.2.826.0.1.3680043.10.511.3.1090449243900474088982677898136508",
+      ]
+  )
+
 "Real-World" Examples Using Imaging Data Commons Data
 -----------------------------------------------------
 
-Below, we give three examples of converted "real-world" legacy CT/MR/PET series
+Below, we give three examples of converting "real-world" legacy CT/MR/PET series
 into the corresponding Legacy Converted Enhanced Image. These examples use
 publicly accessible data from the Imaging Data Commons (`IDC`_) project, so you
 should be able to run these code snippets directly to retrieve the input data.

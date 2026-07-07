@@ -355,7 +355,7 @@ class TestParametricMap():
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[0, 255],
+            value_range=(0, 255),
             intercept=0,
             slope=1
         )
@@ -363,7 +363,7 @@ class TestParametricMap():
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[-10000.0, 10000.0],
+            value_range=(-10000.0, 10000.0),
             intercept=0,
             slope=1
         )
@@ -485,7 +485,7 @@ class TestParametricMap():
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[0.0, 1.0],
+            value_range=(0.0, 1.0),
             intercept=0,
             slope=1
         )
@@ -564,7 +564,7 @@ class TestParametricMap():
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[0, 255],
+            value_range=(0, 255),
             intercept=0,
             slope=1
         )
@@ -631,7 +631,7 @@ class TestParametricMap():
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[0, 255],
+            value_range=(0, 255),
             intercept=0,
             slope=1
         )
@@ -715,7 +715,7 @@ class TestParametricMap():
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[0, 255],
+            value_range=(0, 255),
             intercept=0,
             slope=1
         )
@@ -804,7 +804,7 @@ class TestParametricMap():
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[0, 255],
+            value_range=(0, 255),
             intercept=0,
             slope=1
         )
@@ -861,7 +861,7 @@ class TestParametricMap():
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[0, 255],
+            value_range=(0, 255),
             intercept=0,
             slope=1
         )
@@ -886,6 +886,30 @@ class TestParametricMap():
         assert np.array_equal(pmap.pixel_array, pixel_array)
         assert hasattr(pmap, 'ExtendedOffsetTable')
         assert hasattr(pmap, 'ExtendedOffsetTableLengths')
+
+        # All frames
+        retrieved_pixels = pmap.get_pixels_by_source_frame(
+            source_sop_instance_uid=self._sm_image.SOPInstanceUID,
+        )
+        assert np.array_equal(retrieved_pixels, pixel_array)
+
+        # All frames (explicit)
+        retrieved_pixels = pmap.get_pixels_by_source_frame(
+            source_sop_instance_uid=self._sm_image.SOPInstanceUID,
+            source_frame_numbers=range(1, self._sm_image.NumberOfFrames + 1)
+        )
+        assert np.array_equal(retrieved_pixels, pixel_array)
+
+        # Subset of frames
+        retrieved_pixels = pmap.get_pixels_by_source_frame(
+            source_sop_instance_uid=self._sm_image.SOPInstanceUID,
+            source_frame_numbers=[4, 5, 6, 7],
+        )
+        assert np.array_equal(retrieved_pixels, pixel_array[3:7, ...])
+
+        msg = "The chosen dimensions do not uniquely identify frames of the "
+        with pytest.raises(RuntimeError, match=msg):
+            pmap.get_pixels_by_source_instance([self._sm_image.SOPInstanceUID])
 
     def test_single_frame_ct_image_double(self):
         pixel_array = np.random.uniform(-1, 1, self._ct_image.pixel_array.shape)
@@ -989,7 +1013,7 @@ class TestParametricMap():
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[0, 4095],
+            value_range=(0, 4095),
             intercept=0,
             slope=1
         )
@@ -1080,7 +1104,7 @@ class TestParametricMap():
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[0, 2**16],
+            value_range=(0, 2**16),
             intercept=-1,
             slope=2. / (2**16 - 1)
         )
@@ -1151,6 +1175,36 @@ class TestParametricMap():
         )
 
         assert np.array_equal(pmap.pixel_array, pixel_array)
+
+        instance_uids = [ds.SOPInstanceUID for ds in self._ct_series]
+        pixel_array_by_uid = pmap.get_pixels_by_source_instance(
+            source_sop_instance_uids=instance_uids,
+        )
+        assert np.array_equal(pixel_array_by_uid, pixel_array)
+
+        # Now try the same, reversed
+        instance_uids = list(reversed(instance_uids))
+        pixel_array_by_uid = pmap.get_pixels_by_source_instance(
+            source_sop_instance_uids=instance_uids,
+        )
+        flipped_pixel_array = np.flip(pixel_array_by_uid, axis=0)
+        assert np.array_equal(flipped_pixel_array, pixel_array)
+
+        msg = (
+            "Image does not record referenced frame numbers for the "
+            "given instance."
+        )
+        with pytest.raises(RuntimeError, match=msg):
+            pmap.get_pixels_by_source_frame(
+                source_sop_instance_uid=instance_uids[0],
+                source_frame_numbers=[1, 2],
+            )
+
+        with pytest.raises(KeyError):
+            pmap.get_pixels_by_source_frame(
+                source_sop_instance_uid="1.2.3.4",
+                source_frame_numbers=[1, 2],
+            )
 
     def test_multi_frame_sm_image_with_spatial_positions_not_preserved(self):
         pixel_array = np.random.randint(
@@ -1242,7 +1296,7 @@ class TestParametricMap():
             lut_label='1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[0, 255],
+            value_range=(0, 255),
             intercept=0,
             slope=1
         )
@@ -1366,7 +1420,7 @@ class TestParametricMap():
             lut_label='LUT1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[-10000.0, 10000.0],
+            value_range=(-10000.0, 10000.0),
             intercept=0,
             slope=1
         )
@@ -1374,7 +1428,7 @@ class TestParametricMap():
             lut_label='LUT2',
             lut_explanation='feature_002',
             unit=codes.UCUM.NoUnits,
-            value_range=[-10000.0, 10000.0],
+            value_range=(-10000.0, 10000.0),
             intercept=0,
             slope=1
         )
@@ -1506,7 +1560,7 @@ class TestParametricMap():
             lut_label='LUT1',
             lut_explanation='feature_001',
             unit=codes.UCUM.NoUnits,
-            value_range=[-10000.0, 10000.0],
+            value_range=(-10000.0, 10000.0),
             intercept=0,
             slope=1
         )
@@ -1514,7 +1568,7 @@ class TestParametricMap():
             lut_label='LUT2',
             lut_explanation='feature_002',
             unit=codes.UCUM.NoUnits,
-            value_range=[-10000.0, 10000.0],
+            value_range=(-10000.0, 10000.0),
             intercept=0,
             slope=1
         )
