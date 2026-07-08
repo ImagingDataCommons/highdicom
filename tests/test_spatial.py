@@ -1138,6 +1138,7 @@ def test_get_volume_positions_non_perpendicular():
             assert spacing is None
             assert volume_positions is None
 
+
 def test_get_volume_positions_non_perpendicular_2():
     # Check that slices stacked along a vector that is not perpendicular to
     # their normals (a "staircase") are not considered a volume
