@@ -496,6 +496,8 @@ class NiBabelImageClasses(Enum):
 
     ANALYZEIMAGE = "AnalyzeImage"
     """``nibabel.AnalyzeImage``"""
+
+
 class InterpolationMethods(Enum):
 
     """Interpolation methods that may be used for resampling arrays."""
