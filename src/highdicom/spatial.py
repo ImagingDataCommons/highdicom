@@ -3915,8 +3915,8 @@ def get_volume_positions(
             )
             return None, None
 
-    # Additionally check that the vector from the first to the last plane lies
-    # approximately along the normal vector
+    # Additionally check that the vectors are all approximately along the
+    # normal vector
     spans = unique_positions[sort_index[1:]] - unique_positions[sort_index[0]]
     spans /= np.linalg.norm(spans, axis=1)[:, None]
 
