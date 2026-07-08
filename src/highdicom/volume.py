@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import itertools
-from typing import cast, Union, Literal
+from typing import cast, Union
 from collections.abc import Sequence
 from pydicom.tag import BaseTag
 from typing_extensions import Self
@@ -15,6 +15,7 @@ from highdicom.enum import (
     PadModes,
     PatientOrientationValuesBiped,
     RGBColorChannels,
+    NiBabelImageClasses
 )
 from highdicom.spatial import (
     LPS_PATIENT_REFERENCE_CONVENTION,
@@ -3613,7 +3614,7 @@ class Volume(_VolumeBase):
             channels=self._channels,
         )
 
-    def to_sitk(self) -> 'SimpleITK.Image':  # noqa: F821
+    def to_simpleitk(self) -> 'SimpleITK.Image':  # noqa: F821
         """Convert the Volume to ``SimpleITK.Image`` format.
 
         The Volume is converted to a 3D ``SimpleITK.Image``. If
@@ -3647,7 +3648,7 @@ class Volume(_VolumeBase):
             and it is not possible to safely cast to a new datatype.
 
         """
-        func = self.to_sitk
+        func = self.to_simpleitk
         sitk = import_optional_dependency(
             module_name='SimpleITK',
             feature=f'{func.__module__}.{func.__qualname__}'
@@ -3686,17 +3687,17 @@ class Volume(_VolumeBase):
                     ' Casting to float64 is not possible.'
                 )
 
-        sitk_im = sitk.GetImageFromArray(array)
-        sitk_im.SetSpacing(self.spacing)
-        sitk_im.SetDirection(self.direction.flatten())
-        sitk_im.SetOrigin(self.position)
+        simpleitk_image = sitk.GetImageFromArray(array)
+        simpleitk_image.SetSpacing(self.spacing)
+        simpleitk_image.SetDirection(self.direction.flatten())
+        simpleitk_image.SetOrigin(self.position)
 
-        return sitk_im
+        return simpleitk_image
 
     @classmethod
-    def from_sitk(
+    def from_simpleitk(
         cls,
-        sitk_im: 'SimpleITK.Image',  # noqa: F821
+        simpleitk_image: 'SimpleITK.Image',  # noqa: F821
         coordinate_system: CoordinateSystemNames | str = 'PATIENT',
         frame_of_reference_uid: str | None = None,
     ) -> Self:
@@ -3711,7 +3712,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        sitk_im: SimpleITK.Image
+        simpletk_image: SimpleITK.Image
             A `SimpleITK.Image` to convert to a volume.
         coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
@@ -3730,13 +3731,13 @@ class Volume(_VolumeBase):
             When the volume is not 3D (multiple channels are unsupported).
 
         """
-        func = cls.from_sitk
+        func = cls.from_simpleitk
         sitk = import_optional_dependency(
             module_name='SimpleITK',
             feature=f'{func.__module__}.{func.__qualname__}'
         )
 
-        array = sitk.GetArrayFromImage(sitk_im)
+        array = sitk.GetArrayFromImage(simpleitk_image)
 
         if array.ndim != 3:
             raise ValueError(
@@ -3748,10 +3749,10 @@ class Volume(_VolumeBase):
 
         return cls.from_components(
             array=array,
-            spacing=sitk_im.GetSpacing(),
+            spacing=simpleitk_image.GetSpacing(),
             coordinate_system=coordinate_system,
-            direction=np.reshape(sitk_im.GetDirection(), (3, 3)),
-            position=sitk_im.GetOrigin(),
+            direction=np.reshape(simpleitk_image.GetDirection(), (3, 3)),
+            position=simpleitk_image.GetOrigin(),
             frame_of_reference_uid=frame_of_reference_uid
         )
 
@@ -3852,17 +3853,17 @@ class Volume(_VolumeBase):
                     ' Casting to float64 is not possible.'
                 )
 
-        itk_im = itk.GetImageFromArray(array)
-        itk_im.SetSpacing(self.spacing)
-        itk_im.SetDirection(self.direction)
-        itk_im.SetOrigin(self.position)
+        itk_image = itk.GetImageFromArray(array)
+        itk_image.SetSpacing(self.spacing)
+        itk_image.SetDirection(self.direction)
+        itk_image.SetOrigin(self.position)
 
-        return itk_im
+        return itk_image
 
     @classmethod
     def from_itk(
         cls,
-        itk_im: 'itk.Image',  # noqa: F821
+        itk_image: 'itk.Image',  # noqa: F821
         coordinate_system: CoordinateSystemNames | str = 'PATIENT',
         frame_of_reference_uid: str | None = None,
     ) -> Self:
@@ -3876,7 +3877,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        itk_im: itk.Image
+        itk_image: itk.Image
             A `itk.Image` to convert to a volume.
         coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
@@ -3901,7 +3902,7 @@ class Volume(_VolumeBase):
             feature=f'{func.__module__}.{func.__qualname__}'
         )
 
-        array = itk.GetArrayFromImage(itk_im)
+        array = itk.GetArrayFromImage(itk_image)
 
         if array.ndim != 3:
             raise ValueError(
@@ -3913,23 +3914,16 @@ class Volume(_VolumeBase):
 
         return cls.from_components(
             array=array,
-            spacing=np.array(itk_im.GetSpacing()),
+            spacing=np.array(itk_image.GetSpacing()),
             coordinate_system=coordinate_system,
-            direction=np.reshape(itk_im.GetDirection(), (3, 3)),
-            position=np.array(itk_im.GetOrigin()),
+            direction=np.reshape(itk_image.GetDirection(), (3, 3)),
+            position=np.array(itk_image.GetOrigin()),
             frame_of_reference_uid=frame_of_reference_uid
         )
 
     def to_nibabel(
         self,
-        image_class: Literal[
-            'Nifti1Image',
-            'Nifti2Image',
-            'MGHImage',
-            'Minc1Image',
-            'Minc2Image',
-            'AnalyzeImage'
-        ] = 'Nifti1Image'
+        image_class: str | NiBabelImageClasses = NiBabelImageClasses.NIFTI1IMAGE
     ) -> 'nibabel.spatialimages.SpatialImage':  # noqa: F821
         """Convert the volume to a ``nibabel.spatialimages.SpatialImage``
         format.
@@ -3937,20 +3931,20 @@ class Volume(_VolumeBase):
         The Volume is converted to one of several 3D Image classes (
         ``nibabel.Nifti1Image``, ``nibabel.Nifti2Image``, ``nibabel.MGHImage``,
         ``nibabel.Minc1Image``, ``nibabel.Minc2Image``, ``nibabel.AnalyzeImage``
-        ), defaulting to ``nibabel.Nifti1Image``. If its array's current datatype
-        is not supported by a given class, it is safely cast to a compatible
-        type where possible. If impossible to cast safely, a ``ValueError`` is
-        raised. Casting is performed on the following data types for each image
-        class:
+        ), defaulting to ``nibabel.Nifti1Image``. If its array's current
+        datatype is not supported by a given class, it is safely cast to a
+        compatible type where possible. If impossible to cast safely, a
+        ``ValueError`` is raised. Casting is performed on the following data
+        types for each image class:
 
-        Nifti1Image or Nifti2Image:
+        ``nibabel.Nifti1Image`` or ``nibabel.Nifti2Image``:
 
         - ``bool`` -> ``uint8``
         - ``float16`` -> ``float32`` (with warning)
         - ``float128`` -> ``float64`` (with warning if possible, else
           raises error)
 
-        MGHImage:
+        ``nibabel.MGHImage``:
 
         - ``bool`` -> ``uint8``
         - ``uint32`` -> ``int32`` (with warning if possible, else
@@ -3966,11 +3960,11 @@ class Volume(_VolumeBase):
         - ``float128`` -> ``float32`` (with warning if possible, else
           raises error)
 
-        Minc1Image or Minc2Image:
+        ``nibabel.Minc1Image`` or ``nibabel.Minc2Image``:
 
         - ``bool`` -> ``uint8``
 
-        AnalyzeImage:
+        ``nibabel.AnalyzeImage``:
 
         - ``bool`` -> ``uint8``
         - ``uint16`` -> ``int16`` (with warning if possible, else
@@ -3992,7 +3986,7 @@ class Volume(_VolumeBase):
 
         Returns
         -------
-        nibabel.Nifti1Image:
+        nibabel.spatialimages.SpatialImage:
             Image constructed from the volume.
 
         Raises
@@ -4020,7 +4014,7 @@ class Volume(_VolumeBase):
             self = self.astype(np.uint8)
 
         dtype = self.dtype
-        image_class = getattr(nib, image_class)
+        image_class = getattr(nib, NiBabelImageClasses(image_class).value)
 
         if image_class in [nib.Nifti1Image, nib.Nifti2Image]:
             dtype_map = {
@@ -4039,6 +4033,9 @@ class Volume(_VolumeBase):
                 np.float128: np.float32
             }
 
+        elif image_class in [nib.Minc1Image, nib.Minc2Image]:
+            dtype_map = {}
+
         elif image_class == nib.AnalyzeImage:
             dtype_map = {
                 np.uint16: np.int16,
@@ -4049,9 +4046,6 @@ class Volume(_VolumeBase):
                 np.float16: np.float32,
                 np.float128: np.float64
             }
-
-        else:
-            dtype_map = {}
 
         cast_dtype = dtype_map.get(dtype, dtype)
         if dtype == cast_dtype:
@@ -4117,7 +4111,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        nib_im: nibabel.spatialimages.SpatialImage
+        nibabel_image: nibabel.spatialimages.SpatialImage
             An ``nibabel.spatialimages.SpatialImage`` to convert to a volume.
         coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
@@ -4136,7 +4130,7 @@ class Volume(_VolumeBase):
             When the input image is not 3D (multiple channels are unsupported).
 
         """
-        array = np.asarray(nib_im.dataobj)
+        array = np.asarray(nibabel_image.dataobj)
 
         if array.ndim != 3:
             raise ValueError(
@@ -4146,7 +4140,7 @@ class Volume(_VolumeBase):
 
         return cls(
             array=array,
-            affine=nib_im.affine,
+            affine=nibabel_image.affine,
             coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
             from_reference_convention='RAS'
