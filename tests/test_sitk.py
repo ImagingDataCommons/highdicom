@@ -386,22 +386,23 @@ def test_dtype_sitk(dtype: np.dtype):
         coordinate_system='PATIENT',
     )
 
-    if dtype == np.bool_:
+    if np.dtype(dtype) == np.dtype(np.bool_):
         volume.array = np.round(rng.random(size=size)).astype(dtype)
 
         sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
         assert sitk_roundtrip.dtype == np.uint8
         assert (sitk_roundtrip.array == volume.array).all()
 
-    elif dtype == np.float16:
+    elif np.dtype(dtype) == np.dtype(np.float16):
         f16 = np.finfo(np.float16)
         volume.array = rng.uniform(f16.min, f16.max, size=size).astype(dtype)
 
         with pytest.warns(
             UserWarning,
             match=(
-                'SimpleITK does not support float16 data.'
-                ' Safely casting to float32.'
+                'SimpleITK does not support'
+                f' {np.dtype(dtype)}. Safely casting to'
+                f' {np.dtype(np.float32)}.'
             )
         ):
             sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
@@ -409,7 +410,7 @@ def test_dtype_sitk(dtype: np.dtype):
         assert sitk_roundtrip.dtype == np.float32
         assert (sitk_roundtrip.array == volume.array).all()
 
-    elif dtype == np.float128:
+    elif np.dtype(dtype) == np.dtype(np.float128):
         f64 = np.finfo(np.float64)
         array = rng.random(size).astype(dtype)
         volume.array = (2 * array - 1) * 0.9 * f64.max
@@ -417,8 +418,9 @@ def test_dtype_sitk(dtype: np.dtype):
         with pytest.warns(
             UserWarning,
             match=(
-                'SimpleITK does not support float128 data.'
-                ' Casting to float64, precision may be lost.'
+                'SimpleITK does not support'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)},'
+                ' precision may be lost.'
             )
         ):
             sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
@@ -430,8 +432,9 @@ def test_dtype_sitk(dtype: np.dtype):
         with pytest.raises(
             ValueError,
             match=(
-                'SimpleITK does not support float128 data.'
-                ' Casting to float64 is not possible.'
+                'SimpleITK class does not support'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
+                ' is not possible.'
             )
         ):
             sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
@@ -440,8 +443,9 @@ def test_dtype_sitk(dtype: np.dtype):
         with pytest.raises(
             ValueError,
             match=(
-                'SimpleITK does not support float128 data.'
-                ' Casting to float64 is not possible.'
+                'SimpleITK class does not support'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
+                ' is not possible.'
             )
         ):
             sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())

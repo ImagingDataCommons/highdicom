@@ -385,22 +385,23 @@ def test_dtype_itk(dtype):
         coordinate_system='PATIENT',
     )
 
-    if dtype == np.bool_:
+    if np.dtype(dtype) == np.dtype(np.bool_):
         volume.array = np.round(rng.random(size=size)).astype(dtype)
 
         itk_roundtrip = Volume.from_itk(volume.to_itk())
         assert itk_roundtrip.dtype == np.uint8
         assert (itk_roundtrip.array == volume.array).all()
 
-    elif dtype == np.int8:
+    elif np.dtype(dtype) == np.dtype(np.int8):
         i8 = np.iinfo(np.int8)
         volume.array = rng.integers(i8.min, i8.max, size=size, dtype=dtype)
 
         with pytest.warns(
             UserWarning,
             match=(
-                'ITK does not support int8 data.'
-                ' Safely casting to int16.'
+                'ITK does not support'
+                f' {np.dtype(dtype)}. Safely casting to'
+                f' {np.dtype(np.int16)}.'
             )
         ):
             itk_roundtrip = Volume.from_itk(volume.to_itk())
@@ -408,15 +409,16 @@ def test_dtype_itk(dtype):
         assert itk_roundtrip.dtype == np.int16
         assert (itk_roundtrip.array == volume.array).all()
 
-    elif dtype == np.int64:
+    elif np.dtype(dtype) == np.dtype(np.int64):
         i32 = np.iinfo(np.int32)
         volume.array = rng.integers(i32.min, i32.max, size=size, dtype=dtype)
 
         with pytest.warns(
             UserWarning,
             match=(
-                'ITK does not support int64 data.'
-                ' Safely casting to int32.'
+                'ITK does not support'
+                f' {np.dtype(dtype)}. Safely casting to'
+                f' {np.dtype(np.int32)}.'
             )
         ):
             itk_roundtrip = Volume.from_itk(volume.to_itk())
@@ -428,8 +430,9 @@ def test_dtype_itk(dtype):
         with pytest.raises(
             ValueError,
             match=(
-                'ITK does not support int64 data.'
-                ' Safely casting to int32 is not possible.'
+                'ITK class does not support'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.int32)}'
+                ' is not possible.'
             )
         ):
             itk_roundtrip = Volume.from_itk(volume.to_itk())
@@ -438,21 +441,23 @@ def test_dtype_itk(dtype):
         with pytest.raises(
             ValueError,
             match=(
-                'ITK does not support int64 data.'
-                ' Safely casting to int32 is not possible.'
+                'ITK class does not support'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.int32)}'
+                ' is not possible.'
             )
         ):
             itk_roundtrip = Volume.from_itk(volume.to_itk())
 
-    elif dtype == np.float16:
+    elif np.dtype(dtype) == np.dtype(np.float16):
         f16 = np.finfo(np.float16)
         volume.array = rng.uniform(f16.min, f16.max, size=size).astype(dtype)
 
         with pytest.warns(
             UserWarning,
             match=(
-                'ITK does not support float16 data.'
-                ' Safely casting to float32.'
+                'ITK does not support'
+                f' {np.dtype(dtype)}. Safely casting to'
+                f' {np.dtype(np.float32)}.'
             )
         ):
             itk_roundtrip = Volume.from_itk(volume.to_itk())
@@ -460,7 +465,7 @@ def test_dtype_itk(dtype):
         assert itk_roundtrip.dtype == np.float32
         assert (itk_roundtrip.array == volume.array).all()
 
-    elif dtype == np.float128:
+    elif np.dtype(dtype) == np.dtype(np.float128):
         f64 = np.finfo(np.float64)
         array = rng.random(size).astype(dtype)
         volume.array = (2 * array - 1) * 0.9 * f64.max
@@ -468,8 +473,9 @@ def test_dtype_itk(dtype):
         with pytest.warns(
             UserWarning,
             match=(
-                'ITK does not support float128 data.'
-                ' Casting to float64, precision may be lost.'
+                'ITK does not support'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)},'
+                ' precision may be lost.'
             )
         ):
             itk_roundtrip = Volume.from_itk(volume.to_itk())
@@ -481,8 +487,9 @@ def test_dtype_itk(dtype):
         with pytest.raises(
             ValueError,
             match=(
-                'ITK does not support float128 data.'
-                ' Casting to float64 is not possible.'
+                'ITK class does not support'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
+                ' is not possible.'
             )
         ):
             itk_roundtrip = Volume.from_itk(volume.to_itk())
@@ -491,8 +498,9 @@ def test_dtype_itk(dtype):
         with pytest.raises(
             ValueError,
             match=(
-                'ITK does not support float128 data.'
-                ' Casting to float64 is not possible.'
+                'ITK class does not support'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
+                ' is not possible.'
             )
         ):
             itk_roundtrip = Volume.from_itk(volume.to_itk())

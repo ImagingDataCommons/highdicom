@@ -3715,31 +3715,55 @@ class Volume(_VolumeBase):
                 ' volumes with multiple channels.'
             )
 
-        array = self.array.transpose(2, 1, 0)
+        if np.issubdtype(self.dtype, np.bool_):
+            self = self.astype(np.uint8)
 
-        if array.dtype == np.bool_:
-            array = array.astype(np.uint8)
+        dtype = self.dtype
 
-        elif array.dtype == np.float16:
-            warnings.warn(
-                'SimpleITK does not support float16 data.'
-                ' Safely casting to float32.'
+        dtype_map = {
+            np.dtype(np.float16): np.float32,
+            np.dtype(np.float128): np.float64
+        }
+
+        cast_dtype = dtype_map.get(np.dtype(dtype), dtype)
+        if np.dtype(dtype) == np.dtype(cast_dtype):
+            array = self.array.transpose(2, 1, 0)
+
+        else:
+            info = (
+                np.finfo(dtype) if np.issubdtype(dtype, np.floating)
+                else np.iinfo(dtype)
             )
-            array = array.astype(np.float32)
+            cast_info = (
+                np.finfo(cast_dtype) if np.issubdtype(cast_dtype, np.floating)
+                else np.iinfo(cast_dtype)
+            )
 
-        elif array.dtype == np.float128:
-            f64 = np.finfo(np.float64)
-            if array.min() >= f64.min and array.max() <= f64.max:
-                warnings.warn(
-                    'SimpleITK does not support float128 data.'
-                    ' Casting to float64, precision may be lost.'
+            try:
+                array = self.astype(cast_dtype).array.transpose(2, 1, 0)
+
+            except Exception:
+                raise ValueError(
+                    'SimpleITK class does not support'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)}'
+                    ' is not possible.'
                 )
-                array = array.astype(np.float64)
+
+            if (
+                np.issubdtype(cast_dtype, np.floating) and
+                info.bits > cast_info.bits
+            ):
+                warnings.warn(
+                    'SimpleITK does not support'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)},'
+                    ' precision may be lost.'
+                )
 
             else:
-                raise ValueError(
-                    'SimpleITK does not support float128 data.'
-                    ' Casting to float64 is not possible.'
+                warnings.warn(
+                    'SimpleITK does not support'
+                    f' {np.dtype(dtype)}. Safely casting to'
+                    f' {np.dtype(cast_dtype)}.'
                 )
 
         simpleitk_image = sitk.GetImageFromArray(array)
@@ -3865,53 +3889,57 @@ class Volume(_VolumeBase):
                 ' volumes with multiple channels.'
             )
 
-        array = self.array.transpose(2, 1, 0).copy()
+        if np.issubdtype(self.dtype, np.bool_):
+            self = self.astype(np.uint8)
 
-        if array.dtype == np.bool_:
-            array = array.astype(np.uint8)
+        dtype = self.dtype
 
-        elif array.dtype == np.int8:
-            warnings.warn(
-                'ITK does not support int8 data.'
-                ' Safely casting to int16.'
+        dtype_map = {
+            np.dtype(np.int8): np.int16,
+            np.dtype(np.int64): np.int32,
+            np.dtype(np.float16): np.float32,
+            np.dtype(np.float128): np.float64
+        }
+
+        cast_dtype = dtype_map.get(np.dtype(dtype), dtype)
+        if np.dtype(dtype) == np.dtype(cast_dtype):
+            array = self.array.transpose(2, 1, 0).copy()
+
+        else:
+            info = (
+                np.finfo(dtype) if np.issubdtype(dtype, np.floating)
+                else np.iinfo(dtype)
             )
-            array = array.astype(np.int16)
+            cast_info = (
+                np.finfo(cast_dtype) if np.issubdtype(cast_dtype, np.floating)
+                else np.iinfo(cast_dtype)
+            )
 
-        elif array.dtype == np.int64:
-            i32 = np.iinfo(np.int32)
-            if array.min() >= i32.min and array.max() <= i32.max:
-                warnings.warn(
-                    'ITK does not support int64 data.'
-                    ' Safely casting to int32.'
+            try:
+                array = self.astype(cast_dtype).array.transpose(2, 1, 0).copy()
+
+            except Exception:
+                raise ValueError(
+                    'ITK class does not support'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)}'
+                    ' is not possible.'
                 )
-                array = array.astype(np.int32)
+
+            if (
+                np.issubdtype(cast_dtype, np.floating) and
+                info.bits > cast_info.bits
+            ):
+                warnings.warn(
+                    'ITK does not support'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)},'
+                    ' precision may be lost.'
+                )
 
             else:
-                raise ValueError(
-                    'ITK does not support int64 data.'
-                    ' Safely casting to int32 is not possible.'
-                )
-
-        elif array.dtype == np.float16:
-            warnings.warn(
-                'ITK does not support float16 data.'
-                ' Safely casting to float32.'
-            )
-            array = array.astype(np.float32)
-
-        elif array.dtype == np.float128:
-            f64 = np.finfo(np.float64)
-            if array.min() >= f64.min and array.max() <= f64.max:
                 warnings.warn(
-                    'ITK does not support float128 data.'
-                    ' Casting to float64, precision may be lost.'
-                )
-                array = array.astype(np.float64)
-
-            else:
-                raise ValueError(
-                    'ITK does not support float128 data.'
-                    ' Casting to float64 is not possible.'
+                    'ITK does not support'
+                    f' {np.dtype(dtype)}. Safely casting to'
+                    f' {np.dtype(cast_dtype)}.'
                 )
 
         itk_image = itk.GetImageFromArray(array)
