@@ -29,7 +29,7 @@ Creating a NiBabel Image from a Volume:
 
     vol = hd.Volume(...)
 
-    nib_im = vol.to_nibabel(image_class='Nifti1Image')
+    nibabel_image = vol.to_nibabel(image_class='Nifti1Image')
 
 Creating a volume from a NiBabel Image:
 
@@ -39,10 +39,10 @@ Creating a volume from a NiBabel Image:
     import highdicom as hd
 
 
-    nib_im = nib.Nifti1Image(...)
+    nibabel_image = nib.Nifti1Image(...)
 
     vol = hd.Volume.from_nibabel(
-        nib_im=nib_im,
+        nibabel_image=nibabel_image,
         coordinate_system='PATIENT',
         frame_of_reference_uid=None
     )
