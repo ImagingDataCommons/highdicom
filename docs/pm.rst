@@ -13,7 +13,7 @@ that store pixel data is that they can store pixels in floating point format
 using either 32-bit (single precision) or 64-bit (double precision) floats.
 Signed and unsigned integer pixel values are also supported. Parametric Maps
 always use a single sample per pixel (i.e. they are grayscale rather than color
-images), but a palette color LUTs may be included to display the image as
+images), but a palette color  may be included to display the image as
 color. They also include mechanisms that describe the physical quantity the
 image represents.
 
@@ -732,7 +732,9 @@ Existing parametric maps can be read from a file using the
 :func:`highdicom.pm.pmread`. Since :class:`highdicom.pm.ParametricMap` is a
 sub-class of :class:`highdicom.Image`, you can use methods such as
 :meth:`highdicom.pm.ParametricMap.get_volume`,
-:meth:`highdicom.pm.ParametricMap.get_total_pixel_matrix`. The
+:meth:`highdicom.pm.ParametricMap.get_total_pixel_matrix`,
+:meth:`highdicom.pm.ParametricMap.get_pixels_by_source_instance`, and
+:meth:`highdicom.pm.ParametricMap.get_pixels_by_source_frame`.
 :func:`highdicom.pm.pmread` also accepts a ``lazy_frame_retrieval`` parameter,
 allowing frames to be retrieved and decoded only as required. See :ref:`image`
 for further information.

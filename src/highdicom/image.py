@@ -8920,7 +8920,7 @@ class Image(_Image):
         apply_palette_color_lut: bool | None = None,
         apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
-        """Get a pixel array for a list of source instances.
+        """Get a pixel array using instances that frames were derived from.
 
         This is intended to work for any image that is derived from a series of
         single-frame DICOM image instances, and therefore contains frame-wise
@@ -8932,6 +8932,10 @@ class Image(_Image):
             SOP Instance UIDs of the source instances for which frames
             are requested. The requested frames are stacked down the first
             dimension of the returned array, in the order given here.
+        source_sop_instance_uids: str
+            SOP Instance UID of the source instances for which frames
+            are requested. The requested frames are stacked dowm the first
+            dimension of the output array in the order they appear in this list.
         ignore_spatial_locations: bool, optional
            Ignore whether or not spatial locations were preserved in the
            derivation of the frames from the source frames. In some images, the
@@ -9124,9 +9128,9 @@ class Image(_Image):
         apply_palette_color_lut: bool | None = None,
         apply_icc_profile: bool | None = None,
     ) -> np.ndarray:
-        """Get a pixel array for a list of source instances.
+        """Get a pixel array using frame numbers that frames were derived from.
 
-        This is intended to work for any image that is derived from a single,
+        This is intended to work for any image that is derived from a
         multi-frame DICOM image instance, and therefore contains frame-wise
         references to the source frames.
 
@@ -9137,10 +9141,12 @@ class Image(_Image):
             frames.
         source_frame_numbers: Sequence[int] | None, optional
             A sequence of frame numbers (1-based) within the source instance
-            for which frames are requested. If not specified, the consecutive
-            frame numbers from 1 until the maximum number reference in this
-            image (which may not necessarily be the number of frames in the
-            source image) is used.
+            for which frames are requested. The requested frames are stacked
+            dowm the first dimension of the output array in the order they
+            appear in this list. If not specified, the consecutive frame
+            numbers from 1 until the maximum number reference in this image
+            (which may not necessarily be the number of frames in the source
+            image) is used.
         ignore_spatial_locations: bool, optional
            Ignore whether or not spatial locations were preserved in the
            derivation of the frames from the source frames. In some images, the
