@@ -409,7 +409,7 @@ def test_dtype_nifti(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.float32}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.float32)}.'
             )
         ):
 
@@ -429,7 +429,8 @@ def test_dtype_nifti(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float64}, precision may be lost.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)},'
+                ' precision may be lost.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -444,7 +445,8 @@ def test_dtype_nifti(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float64} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -456,7 +458,8 @@ def test_dtype_nifti(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float64} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -539,7 +542,7 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.int32}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.int32)}.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -554,7 +557,8 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.int32} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.int32)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -570,7 +574,7 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.int32}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.int32)}.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -585,7 +589,8 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.int32} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.int32)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -600,7 +605,7 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.int16}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.int16)}.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -619,7 +624,7 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.int32}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.int32)}.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -634,7 +639,8 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.int32} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.int32)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -649,7 +655,7 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.float32}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.float32)}.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -668,7 +674,8 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float32}, precision may be lost.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float32)},'
+                ' precision may be lost.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -683,7 +690,8 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float32} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float32)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -695,7 +703,8 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float32} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float32)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -711,7 +720,8 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float32}, precision may be lost.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float32)},'
+                ' precision may be lost.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -726,7 +736,8 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float32} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float32)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -738,7 +749,8 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float32} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float32)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -889,7 +901,7 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.int16}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.int16)}.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -904,7 +916,8 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.int16} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.int16)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -920,7 +933,7 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.int32}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.int32)}.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -935,7 +948,8 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.int32} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.int32)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -951,7 +965,7 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.int32}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.int32)}.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -966,7 +980,8 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.int32} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.int32)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -981,7 +996,7 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.int16}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.int16)}.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -1000,7 +1015,7 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.int32}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.int32)}.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -1015,7 +1030,8 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.int32} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.int32)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -1030,7 +1046,7 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Safely casting to {np.float32}.'
+                f' {np.dtype(dtype)}. Safely casting to {np.dtype(np.float32)}.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -1049,7 +1065,8 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             UserWarning,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float64}, precision may be lost.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)},'
+                ' precision may be lost.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -1064,7 +1081,8 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float64} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(
@@ -1075,7 +1093,8 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             ValueError,
             match=(
                 f'NiBabel\'s {getattr(nib, image_class)} class does not support'
-                f' {dtype}. Casting to {np.float64} is not possible.'
+                f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
+                ' is not possible.'
             )
         ):
             nib_roundtrip = Volume.from_nibabel(

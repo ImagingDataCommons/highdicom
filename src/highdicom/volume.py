@@ -4082,19 +4082,19 @@ class Volume(_VolumeBase):
 
         if image_class in [nib.Nifti1Image, nib.Nifti2Image]:
             dtype_map = {
-                np.float16: np.float32,
-                np.float128: np.float64
+                np.dtype(np.float16): np.float32,
+                np.dtype(np.float128): np.float64
             }
 
         elif image_class == nib.MGHImage:
             dtype_map = {
-                np.uint32: np.int32,
-                np.uint64: np.int32,
-                np.int8: np.int16,
-                np.int64: np.int32,
-                np.float16: np.float32,
-                np.float64: np.float32,
-                np.float128: np.float32
+                np.dtype(np.uint32): np.int32,
+                np.dtype(np.uint64): np.int32,
+                np.dtype(np.int8): np.int16,
+                np.dtype(np.int64): np.int32,
+                np.dtype(np.float16): np.float32,
+                np.dtype(np.float64): np.float32,
+                np.dtype(np.float128): np.float32
             }
 
         elif image_class in [nib.Minc1Image, nib.Minc2Image]:
@@ -4102,17 +4102,17 @@ class Volume(_VolumeBase):
 
         elif image_class == nib.AnalyzeImage:
             dtype_map = {
-                np.uint16: np.int16,
-                np.uint32: np.int32,
-                np.uint64: np.int32,
-                np.int8: np.int16,
-                np.int64: np.int32,
-                np.float16: np.float32,
-                np.float128: np.float64
+                np.dtype(np.uint16): np.int16,
+                np.dtype(np.uint32): np.int32,
+                np.dtype(np.uint64): np.int32,
+                np.dtype(np.int8): np.int16,
+                np.dtype(np.int64): np.int32,
+                np.dtype(np.float16): np.float32,
+                np.dtype(np.float128): np.float64
             }
 
-        cast_dtype = dtype_map.get(dtype, dtype)
-        if dtype == cast_dtype:
+        cast_dtype = dtype_map.get(np.dtype(dtype), dtype)
+        if np.dtype(dtype) == np.dtype(cast_dtype):
             array = self.array
 
         else:
@@ -4131,7 +4131,8 @@ class Volume(_VolumeBase):
             except Exception:
                 raise ValueError(
                     f'NiBabel\'s {image_class} class does not support'
-                    f' {dtype}. Casting to {cast_dtype} is not possible.'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)}'
+                    ' is not possible.'
                 )
 
             if (
@@ -4140,13 +4141,15 @@ class Volume(_VolumeBase):
             ):
                 warnings.warn(
                     f'NiBabel\'s {image_class} class does not support'
-                    f' {dtype}. Casting to {cast_dtype}, precision may be lost.'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)},'
+                    ' precision may be lost.'
                 )
 
             else:
                 warnings.warn(
                     f'NiBabel\'s {image_class} class does not support'
-                    f' {dtype}. Safely casting to {cast_dtype}.'
+                    f' {np.dtype(dtype)}. Safely casting to'
+                    f' {np.dtype(cast_dtype)}.'
                 )
 
         header = image_class.header_class()
