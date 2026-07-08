@@ -27,7 +27,7 @@ Creating an ITK Image from a Volume:
 
     vol = hd.Volume(...)
 
-    itk_im = vol.to_itk()
+    itk_image = vol.to_itk()
 
 Creating a volume from an ITK Image:
 
@@ -37,10 +37,10 @@ Creating a volume from an ITK Image:
     import highdicom as hd
 
 
-    itk_im = itk.image(...)
+    itk_image = itk.Image(...)
 
     vol = hd.Volume.from_itk(
-        itk_im=itk_im,
+        itk_image=itk_image,
         coordinate_system='PATIENT',
         frame_of_reference_uid=None
     )

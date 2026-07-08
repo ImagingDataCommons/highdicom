@@ -475,6 +475,29 @@ class AxisHandedness(Enum):
     """
 
 
+class NiBabelImageClasses(Enum):
+
+    """Enumerated ``nibabel.spatialimages.SpatialImage`` subclasses."""
+
+    NIFTI1IMAGE = "Nifti1Image"
+    """``nibabel.Nifti1Image``"""
+
+    NIFTI2IMAGE = "Nifti2Image"
+    """``nibabel.Nifti2Image``"""
+
+    MGHIMAGE = "MGHImage"
+    """``nibabel.MGHImage``"""
+
+    MINC1IMAGE = "Minc1Image"
+    """``nibabel.Minc1Image``"""
+
+    MINC2IMAGE = "Minc2Image"
+    """``nibabel.Minc2Image``"""
+
+    ANALYZEIMAGE = "AnalyzeImage"
+    """``nibabel.AnalyzeImage``"""
+
+
 class InterpolationMethods(Enum):
 
     """Interpolation methods that may be used for resampling arrays."""

@@ -28,7 +28,7 @@ Creating a SimpleITK Image from a Volume:
 
     vol = hd.Volume(...)
 
-    sitk_im = vol.to_sitk()
+    simpleitk_image = vol.to_simpleitk()
 
 Creating a volume from a SimpleITK Image:
 
@@ -38,10 +38,10 @@ Creating a volume from a SimpleITK Image:
     import highdicom as hd
 
 
-    sitk_im = sitk.image(...)
+    simpleitk_image = sitk.Image(...)
 
-    vol = hd.Volume.from_sitk(
-        sitk_im=sitk_im,
+    vol = hd.Volume.from_simpleitk(
+        simpleitk_image=simpleitk_image,
         coordinate_system='PATIENT',
         frame_of_reference_uid=None
     )

@@ -1,15 +1,24 @@
-from io import BytesIO
+import urllib
+import pydicom
+import tempfile
+import zipfile
+import time
 
+from io import BytesIO
+from typing import Sequence
 from pathlib import Path
-from pydicom.data import get_testdata_files
+from pydicom.data import get_testdata_files, get_testdata_file
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.filereader import dcmread
 from pydicom import uid
-
-
+from highdicom import imread, get_volume_from_series
 from highdicom._standard_utils import (
     does_iod_have_pixel_data,
 )
+
+DCM_QA_MPRAGE = 'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main'  # noqa: E501
+DCM_QA_ME = 'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master'
+DCM_QA_PDT2 = 'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main'
 
 
 def write_and_read_dataset(dataset: Dataset):
@@ -126,3 +135,60 @@ def find_readable_images() -> list[tuple[str, str | None]]:
         files_to_use.append((f, dependency))
 
     return files_to_use
+
+
+def read_multiframe_ct_volume():
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+    return im.get_volume()
+
+
+def read_ct_series_volume():
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+    ]
+    ct_series = [pydicom.dcmread(f) for f in ct_files]
+    return get_volume_from_series(ct_series)
+
+
+def urldownload_with_retry(
+        url,
+        filename,
+        retries=10,
+        timeout=1
+):
+    for i in range(retries):
+        try:
+            urllib.request.urlretrieve(
+                url,
+                filename
+            )
+
+        except Exception:
+            time.sleep(timeout)
+
+
+def read_github_zip_volume(url: str):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        zipfilename = Path(temp_dir) / Path(url).name
+        urldownload_with_retry(url, zipfilename)
+
+        with zipfile.ZipFile(zipfilename, 'r') as zf:
+            zf.extractall(temp_dir)
+
+        series = [pydicom.dcmread(f) for f in Path(temp_dir).glob('**/*.dcm')]
+
+    return get_volume_from_series(series), series
+
+
+def read_github_series_volume(urls: Sequence[str]):
+    series = []
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for url in urls:
+            filename = Path(temp_dir) / Path(url).name
+            urldownload_with_retry(url, filename)
+
+            series.append(pydicom.dcmread(filename))
+
+    return get_volume_from_series(series), series

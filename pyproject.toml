@@ -49,7 +49,8 @@ libjpeg = [
     "pylibjpeg>=2.0",
 ]
 itk = ["itk>=5.4.0"]
-sitk = ["SimpleITK>=2.2.1"]
+simpleitk = ["SimpleITK>=2.2.1"]
+nibabel = ["nibabel>=4.0.0"]
 
 [dependency-groups]
 test = [
