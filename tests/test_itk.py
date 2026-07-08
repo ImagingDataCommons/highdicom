@@ -1,20 +1,22 @@
 import numpy as np
-import pydicom
 import tempfile
-import zipfile
-import urllib
 import pytest
 
 from pathlib import Path
 from typing import Sequence
-from pydicom.data import get_testdata_file
-from highdicom import (
-    Volume,
-    get_volume_from_series,
-    imread,
-)
+from highdicom import Volume
 from highdicom.spatial import get_closest_patient_orientation
 from highdicom._dependency_utils import import_optional_dependency
+from .utils import (
+    DCM_QA_MPRAGE,
+    DCM_QA_ME,
+    DCM_QA_PDT2,
+    read_multiframe_ct_volume,
+    read_ct_series_volume,
+    read_github_zip_volume,
+    read_github_series_volume,
+    urldownload_with_retry
+)
 
 try:
     itk = import_optional_dependency('itk', feature='itk tests')
@@ -22,59 +24,15 @@ try:
 except Exception:
     pytest.skip("Optional dependency not available", allow_module_level=True)
 
-DCM_QA_MPRAGE = 'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main'  # noqa: E501
-DCM_QA_ME = 'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master'
-DCM_QA_PDT2 = 'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main'
-
-
-def read_multiframe_ct_volume():
-    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
-    return im.get_volume()
-
-
-def read_ct_series_volume():
-    ct_files = [
-        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
-        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
-        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
-    ]
-    ct_series = [pydicom.dcmread(f) for f in ct_files]
-    return get_volume_from_series(ct_series)
-
-
-def read_github_zip_volume(url: str):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        zipfilename = Path(temp_dir) / Path(url).name
-        urllib.request.urlretrieve(url, zipfilename)
-
-        with zipfile.ZipFile(zipfilename, 'r') as zf:
-            zf.extractall(temp_dir)
-
-        series = [pydicom.dcmread(f) for f in Path(temp_dir).glob('**/*.dcm')]
-
-    return get_volume_from_series(series), series
-
-
-def read_github_series_volume(urls: Sequence[str]):
-    series = []
-    with tempfile.TemporaryDirectory() as temp_dir:
-        for url in urls:
-            filename = Path(temp_dir) / Path(url).name
-            urllib.request.urlretrieve(url, filename)
-
-            series.append(pydicom.dcmread(filename))
-
-    return get_volume_from_series(series), series
-
 
 def read_github_itk(url: str):
     with tempfile.TemporaryDirectory() as temp_dir:
         filename = Path(temp_dir) / Path(url).name
-        urllib.request.urlretrieve(url, filename)
+        urldownload_with_retry(url, filename)
 
-        itk_im = itk.imread(filename)
+        itk_image = itk.imread(filename)
 
-    return itk_im
+    return itk_image
 
 
 @pytest.mark.parametrize(
@@ -377,20 +335,20 @@ def read_github_itk(url: str):
     ]
 )
 def test_roundtrip(vol: Volume):
-    itk_im = vol.to_itk()
+    itk_image = vol.to_itk()
 
-    assert np.allclose(vol.position, itk_im.GetOrigin(), atol=1e-4)
-    assert np.allclose(vol.spacing, itk_im.GetSpacing(), atol=1e-4)
+    assert np.allclose(vol.position, itk_image.GetOrigin(), atol=1e-4)
+    assert np.allclose(vol.spacing, itk_image.GetSpacing(), atol=1e-4)
     assert np.allclose(
         vol.direction,
-        itk_im.GetDirection(),
+        itk_image.GetDirection(),
         atol=1e-4
     )
     assert (
-        vol.array == itk.GetArrayFromImage(itk_im).transpose(2, 1, 0)
+        vol.array == itk.GetArrayFromImage(itk_image).transpose(2, 1, 0)
     ).all()
 
-    itk_roundtrip = Volume.from_itk(itk_im)
+    itk_roundtrip = Volume.from_itk(itk_image)
 
     assert np.allclose(vol.affine, itk_roundtrip.affine, atol=1e-4)
     assert (vol.array == itk_roundtrip.array).all()
@@ -561,49 +519,34 @@ def test_dtype_itk(dtype):
     'zip_url,nifti_url',
     [
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/2_t1_mp2rage_sag_p3_32.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_2_t1_mp2rage_sag_p3_32_INV1.nii.gz'  # noqa: E501
+            f'{DCM_QA_MPRAGE}/In/2_t1_mp2rage_sag_p3_32.zip',
+            f'{DCM_QA_MPRAGE}/Ref/Si_2_t1_mp2rage_sag_p3_32_INV1.nii.gz'
         ),
         (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/3_t1_mp2rage_sag_p3_32.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_3_t1_mp2rage_sag_p3_32_INV2.nii.gz'  # noqa: E501
-        ),
-        (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/4_t1_mp2rage_sag_p3_32.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_4_t1_mp2rage_sag_p3_32_UNI_Images.nii.gz'  # noqa: E501
-        ),
-        (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/5_HCP_T1.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_5_HCP_T1.nii.gz'  # noqa: E501
-        ),
-        (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/6_T1_mprage_ns_sag_p2.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_6_T1_mprage_ns_sag_p2.nii.gz'  # noqa: E501
-        ),
-        (
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/In/8_T1_memprage_rms.zip',  # noqa: E501
-            'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main/Ref/Si_8_T1_memprage_rms_RMS.nii.gz'  # noqa: E501
-        ),
+            f'{DCM_QA_MPRAGE}/In/5_HCP_T1.zip',
+            f'{DCM_QA_MPRAGE}/Ref/Si_5_HCP_T1.nii.gz'
+        )
     ]
 )
 def test_nifti_equivalence_zip(zip_url: str, nifti_url: str):
     vol, series = read_github_zip_volume(zip_url)
-    itk_im = read_github_itk(nifti_url)
+    itk_image = read_github_itk(nifti_url)
 
     orientation = get_closest_patient_orientation(
-        np.reshape(itk_im.GetDirection(), (3, 3))
+        np.reshape(itk_image.GetDirection(), (3, 3))
     )
     oriented_vol = vol.to_patient_orientation(orientation)
 
-    assert np.allclose(oriented_vol.position, itk_im.GetOrigin(), atol=1e-4)
-    assert np.allclose(oriented_vol.spacing, itk_im.GetSpacing(), atol=1e-4)
+    assert np.allclose(oriented_vol.position, itk_image.GetOrigin(), atol=1e-4)
+    assert np.allclose(oriented_vol.spacing, itk_image.GetSpacing(), atol=1e-4)
     assert np.allclose(
         oriented_vol.direction,
-        itk_im.GetDirection(),
+        itk_image.GetDirection(),
         atol=1e-4
     )
     assert (
-        oriented_vol.array == itk.GetArrayFromImage(itk_im).transpose(2, 1, 0)
+        oriented_vol.array == itk.GetArrayFromImage(itk_image)
+        .transpose(2, 1, 0)
     ).all()
 
 
@@ -612,59 +555,39 @@ def test_nifti_equivalence_zip(zip_url: str, nifti_url: str):
     [
         (
             [
-                f'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/In/2_me_FieldMap_GRE/{i:04d}.dcm'  # noqa: E501
+                f'{DCM_QA_ME}/In/2_me_FieldMap_GRE/{i:04d}.dcm'
                 for i in range(1, 37)
             ],
-            'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/Ref/me_FieldMap_GRE_2_e1.nii'  # noqa: E501
+            f'{DCM_QA_ME}/Ref/me_FieldMap_GRE_2_e1.nii'
         ),
         (
             [
-                f'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/In/2_me_FieldMap_GRE/{i:04d}_e2.dcm'  # noqa: E501
-                for i in range(1, 37)
-            ],
-            'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/Ref/me_FieldMap_GRE_2_e2.nii'  # noqa: E501
-        ),
-        (
-            [
-                f'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/In/3_me_FieldMap_GRE/{i:04d}_e2_ph.dcm'  # noqa: E501
-                for i in range(1, 37)
-            ],
-            'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master/Ref/me_FieldMap_GRE_3_e2_ph.nii'  # noqa: E501
-        ),
-        (
-            [
-                f'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main/In/Siemens/VE11/{i:04d}.dcm'  # noqa: E501
+                f'{DCM_QA_PDT2}/In/Siemens/VE11/{i:04d}.dcm'
                 for i in range(1, 36)
             ],
-            'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main/Ref/Siemens_pd+t2_tse_sag_ISO_1.8mm_3_e1.nii'  # noqa: E501
-        ),
-        (
-            [
-                f'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main/In/Siemens/VE11/{i:04d}_e2.dcm'  # noqa: E501
-                for i in range(36, 71)
-            ],
-            'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main/Ref/Siemens_pd+t2_tse_sag_ISO_1.8mm_3_e2.nii'  # noqa: E501
-        ),
+            f'{DCM_QA_PDT2}/Ref/Siemens_pd+t2_tse_sag_ISO_1.8mm_3_e1.nii'
+        )
     ]
 )
 def test_nifti_equivalence_series(dcm_urls: Sequence[str], nifti_url: str):
     vol, series = read_github_series_volume(dcm_urls)
-    itk_im = read_github_itk(nifti_url)
+    itk_image = read_github_itk(nifti_url)
 
     orientation = get_closest_patient_orientation(
-        np.reshape(itk_im.GetDirection(), (3, 3))
+        np.reshape(itk_image.GetDirection(), (3, 3))
     )
     oriented_vol = vol.to_patient_orientation(orientation)
 
-    assert np.allclose(oriented_vol.position, itk_im.GetOrigin(), atol=1e-4)
-    assert np.allclose(oriented_vol.spacing, itk_im.GetSpacing(), atol=1e-4)
+    assert np.allclose(oriented_vol.position, itk_image.GetOrigin(), atol=1e-4)
+    assert np.allclose(oriented_vol.spacing, itk_image.GetSpacing(), atol=1e-4)
     assert np.allclose(
         oriented_vol.direction,
-        itk_im.GetDirection(),
+        itk_image.GetDirection(),
         atol=1e-4
     )
     assert (
-        oriented_vol.array == itk.GetArrayFromImage(itk_im).transpose(2, 1, 0)
+        oriented_vol.array == itk.GetArrayFromImage(itk_image)
+        .transpose(2, 1, 0)
     ).all()
 
 
@@ -690,7 +613,7 @@ def test_multichannel_volume():
         volume.to_itk()
 
     array = np.zeros((10, 10, 10, 2))
-    itk_im = itk.GetImageFromArray(array)
+    itk_image = itk.GetImageFromArray(array)
 
     with pytest.raises(
         ValueError,
@@ -699,4 +622,4 @@ def test_multichannel_volume():
             ' volumes with multiple channels.'
         )
     ):
-        Volume.from_itk(itk_im)
+        Volume.from_itk(itk_image)

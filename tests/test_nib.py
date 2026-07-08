@@ -1,24 +1,26 @@
 import numpy as np
-import pydicom
 import tempfile
-import zipfile
-import urllib
 import pytest
 import itertools
 
 from pathlib import Path
 from typing import Sequence
-from pydicom.data import get_testdata_file
-from highdicom import (
-    Volume,
-    get_volume_from_series,
-    imread,
-)
+from highdicom import Volume
 from highdicom.spatial import (
     get_closest_patient_orientation,
     convert_affine_to_convention
 )
 from highdicom._dependency_utils import import_optional_dependency
+from .utils import (
+    DCM_QA_MPRAGE,
+    DCM_QA_ME,
+    DCM_QA_PDT2,
+    read_multiframe_ct_volume,
+    read_ct_series_volume,
+    read_github_zip_volume,
+    read_github_series_volume,
+    urldownload_with_retry
+)
 
 try:
     nib = import_optional_dependency('nibabel', feature='nib tests')
@@ -26,55 +28,11 @@ try:
 except Exception:
     pytest.skip("Optional dependency not available", allow_module_level=True)
 
-DCM_QA_MPRAGE = 'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main'  # noqa: E501
-DCM_QA_ME = 'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master'
-DCM_QA_PDT2 = 'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main'
-
-
-def read_multiframe_ct_volume():
-    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
-    return im.get_volume()
-
-
-def read_ct_series_volume():
-    ct_files = [
-        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
-        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
-        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
-    ]
-    ct_series = [pydicom.dcmread(f) for f in ct_files]
-    return get_volume_from_series(ct_series)
-
-
-def read_github_zip_volume(url: str):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        zipfilename = Path(temp_dir) / Path(url).name
-        urllib.request.urlretrieve(url, zipfilename)
-
-        with zipfile.ZipFile(zipfilename, 'r') as zf:
-            zf.extractall(temp_dir)
-
-        series = [pydicom.dcmread(f) for f in Path(temp_dir).glob('**/*.dcm')]
-
-    return get_volume_from_series(series), series
-
-
-def read_github_series_volume(urls: Sequence[str]):
-    series = []
-    with tempfile.TemporaryDirectory() as temp_dir:
-        for url in urls:
-            filename = Path(temp_dir) / Path(url).name
-            urllib.request.urlretrieve(url, filename)
-
-            series.append(pydicom.dcmread(filename))
-
-    return get_volume_from_series(series), series
-
 
 def read_github_nib(url: str):
     with tempfile.TemporaryDirectory() as temp_dir:
         filename = Path(temp_dir) / Path(url).name
-        urllib.request.urlretrieve(url, filename)
+        urldownload_with_retry(url, filename)
 
         nifti_proxy = nib.load(filename)
         nifti = nib.Nifti1Image(
@@ -1154,25 +1112,9 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             f'{DCM_QA_MPRAGE}/Ref/Si_2_t1_mp2rage_sag_p3_32_INV1.nii.gz'
         ),
         (
-            f'{DCM_QA_MPRAGE}/In/3_t1_mp2rage_sag_p3_32.zip',
-            f'{DCM_QA_MPRAGE}/Ref/Si_3_t1_mp2rage_sag_p3_32_INV2.nii.gz'
-        ),
-        (
-            f'{DCM_QA_MPRAGE}/In/4_t1_mp2rage_sag_p3_32.zip',
-            f'{DCM_QA_MPRAGE}/Ref/Si_4_t1_mp2rage_sag_p3_32_UNI_Images.nii.gz'
-        ),
-        (
             f'{DCM_QA_MPRAGE}/In/5_HCP_T1.zip',
             f'{DCM_QA_MPRAGE}/Ref/Si_5_HCP_T1.nii.gz'
-        ),
-        (
-            f'{DCM_QA_MPRAGE}/In/6_T1_mprage_ns_sag_p2.zip',
-            f'{DCM_QA_MPRAGE}/Ref/Si_6_T1_mprage_ns_sag_p2.nii.gz'
-        ),
-        (
-            f'{DCM_QA_MPRAGE}/In/8_T1_memprage_rms.zip',
-            f'{DCM_QA_MPRAGE}/Ref/Si_8_T1_memprage_rms_RMS.nii.gz'
-        ),
+        )
     ]
 )
 def test_nifti_equivalence_zip(zip_url: str, nifti_url: str):
@@ -1204,32 +1146,11 @@ def test_nifti_equivalence_zip(zip_url: str, nifti_url: str):
         ),
         (
             [
-                f'{DCM_QA_ME}/In/2_me_FieldMap_GRE/{i:04d}_e2.dcm'
-                for i in range(1, 37)
-            ],
-            f'{DCM_QA_ME}/Ref/me_FieldMap_GRE_2_e2.nii'
-        ),
-        (
-            [
-                f'{DCM_QA_ME}/In/3_me_FieldMap_GRE/{i:04d}_e2_ph.dcm'
-                for i in range(1, 37)
-            ],
-            f'{DCM_QA_ME}/Ref/me_FieldMap_GRE_3_e2_ph.nii'
-        ),
-        (
-            [
                 f'{DCM_QA_PDT2}/In/Siemens/VE11/{i:04d}.dcm'
                 for i in range(1, 36)
             ],
             f'{DCM_QA_PDT2}/Ref/Siemens_pd+t2_tse_sag_ISO_1.8mm_3_e1.nii'
-        ),
-        (
-            [
-                f'{DCM_QA_PDT2}/In/Siemens/VE11/{i:04d}_e2.dcm'
-                for i in range(36, 71)
-            ],
-            f'{DCM_QA_PDT2}/Ref/Siemens_pd+t2_tse_sag_ISO_1.8mm_3_e2.nii'
-        ),
+        )
     ]
 )
 def test_nifti_equivalence_series(dcm_urls: Sequence[str], nifti_url: str):

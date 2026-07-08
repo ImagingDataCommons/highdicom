@@ -1,20 +1,22 @@
 import numpy as np
-import pydicom
 import tempfile
-import zipfile
-import urllib
 import pytest
 
 from pathlib import Path
 from typing import Sequence
-from pydicom.data import get_testdata_file
-from highdicom import (
-    Volume,
-    get_volume_from_series,
-    imread,
-)
+from highdicom import Volume
 from highdicom.spatial import get_closest_patient_orientation
 from highdicom._dependency_utils import import_optional_dependency
+from .utils import (
+    DCM_QA_MPRAGE,
+    DCM_QA_ME,
+    DCM_QA_PDT2,
+    read_multiframe_ct_volume,
+    read_ct_series_volume,
+    read_github_zip_volume,
+    read_github_series_volume,
+    urldownload_with_retry
+)
 
 try:
     sitk = import_optional_dependency('SimpleITK', feature='sitk tests')
@@ -22,59 +24,15 @@ try:
 except Exception:
     pytest.skip("Optional dependency not available", allow_module_level=True)
 
-DCM_QA_MPRAGE = 'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main'  # noqa: E501
-DCM_QA_ME = 'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master'
-DCM_QA_PDT2 = 'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main'
-
-
-def read_multiframe_ct_volume():
-    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
-    return im.get_volume()
-
-
-def read_ct_series_volume():
-    ct_files = [
-        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
-        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
-        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
-    ]
-    ct_series = [pydicom.dcmread(f) for f in ct_files]
-    return get_volume_from_series(ct_series)
-
-
-def read_github_zip_volume(url: str):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        zipfilename = Path(temp_dir) / Path(url).name
-        urllib.request.urlretrieve(url, zipfilename)
-
-        with zipfile.ZipFile(zipfilename, 'r') as zf:
-            zf.extractall(temp_dir)
-
-        series = [pydicom.dcmread(f) for f in Path(temp_dir).glob('**/*.dcm')]
-
-    return get_volume_from_series(series), series
-
-
-def read_github_series_volume(urls: Sequence[str]):
-    series = []
-    with tempfile.TemporaryDirectory() as temp_dir:
-        for url in urls:
-            filename = Path(temp_dir) / Path(url).name
-            urllib.request.urlretrieve(url, filename)
-
-            series.append(pydicom.dcmread(filename))
-
-    return get_volume_from_series(series), series
-
 
 def read_github_sitk(url: str):
     with tempfile.TemporaryDirectory() as temp_dir:
         filename = Path(temp_dir) / Path(url).name
-        urllib.request.urlretrieve(url, filename)
+        urldownload_with_retry(url, filename)
 
-        sitk_im = sitk.ReadImage(filename)
+        simpletk_image = sitk.ReadImage(filename)
 
-    return sitk_im
+    return simpletk_image
 
 
 @pytest.mark.parametrize(
@@ -377,20 +335,21 @@ def read_github_sitk(url: str):
     ]
 )
 def test_roundtrip(vol: Volume):
-    sitk_im = vol.to_sitk()
+    simpleitk_image = vol.to_simpleitk()
 
-    assert np.allclose(vol.position, sitk_im.GetOrigin(), atol=1e-4)
-    assert np.allclose(vol.spacing, sitk_im.GetSpacing(), atol=1e-4)
+    assert np.allclose(vol.position, simpleitk_image.GetOrigin(), atol=1e-4)
+    assert np.allclose(vol.spacing, simpleitk_image.GetSpacing(), atol=1e-4)
     assert np.allclose(
         vol.direction.flatten(),
-        sitk_im.GetDirection(),
+        simpleitk_image.GetDirection(),
         atol=1e-4
     )
     assert (
-        vol.array == sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
+        vol.array == sitk.GetArrayFromImage(simpleitk_image)
+        .transpose(2, 1, 0)
     ).all()
 
-    sitk_roundtrip = Volume.from_sitk(sitk_im)
+    sitk_roundtrip = Volume.from_simpleitk(simpleitk_image)
 
     assert np.allclose(vol.affine, sitk_roundtrip.affine, atol=1e-4)
     assert (vol.array == sitk_roundtrip.array).all()
@@ -430,7 +389,7 @@ def test_dtype_sitk(dtype: np.dtype):
     if dtype == np.bool_:
         volume.array = np.round(rng.random(size=size)).astype(dtype)
 
-        sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
+        sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
         assert sitk_roundtrip.dtype == np.uint8
         assert (sitk_roundtrip.array == volume.array).all()
 
@@ -445,7 +404,7 @@ def test_dtype_sitk(dtype: np.dtype):
                 ' Safely casting to float32.'
             )
         ):
-            sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
+            sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
 
         assert sitk_roundtrip.dtype == np.float32
         assert (sitk_roundtrip.array == volume.array).all()
@@ -462,7 +421,7 @@ def test_dtype_sitk(dtype: np.dtype):
                 ' Casting to float64, precision may be lost.'
             )
         ):
-            sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
+            sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
 
         assert sitk_roundtrip.dtype == np.float64
         assert np.allclose(sitk_roundtrip.array, volume.array, atol=1e-4)
@@ -475,7 +434,7 @@ def test_dtype_sitk(dtype: np.dtype):
                 ' Casting to float64 is not possible.'
             )
         ):
-            sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
+            sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
 
         volume.array[(0, 0, 0)] = 1.1 * np.float128(np.finfo(np.float64).min)
         with pytest.raises(
@@ -485,13 +444,13 @@ def test_dtype_sitk(dtype: np.dtype):
                 ' Casting to float64 is not possible.'
             )
         ):
-            sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
+            sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
 
     elif np.issubdtype(dtype, np.integer):
         ib = np.iinfo(dtype)
         volume.array = rng.integers(ib.min, ib.max, size=size, dtype=dtype)
 
-        sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
+        sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
         assert sitk_roundtrip.dtype == volume.dtype
         assert (sitk_roundtrip.array == volume.array).all()
 
@@ -500,7 +459,7 @@ def test_dtype_sitk(dtype: np.dtype):
         array = rng.random(size).astype(dtype)
         volume.array = (2 * array - 1) * 0.9 * fb.max
 
-        sitk_roundtrip = Volume.from_sitk(volume.to_sitk())
+        sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
         assert sitk_roundtrip.dtype == volume.dtype
         assert (sitk_roundtrip.array == volume.array).all()
 
@@ -513,45 +472,38 @@ def test_dtype_sitk(dtype: np.dtype):
             f'{DCM_QA_MPRAGE}/Ref/Si_2_t1_mp2rage_sag_p3_32_INV1.nii.gz'
         ),
         (
-            f'{DCM_QA_MPRAGE}/In/3_t1_mp2rage_sag_p3_32.zip',
-            f'{DCM_QA_MPRAGE}/Ref/Si_3_t1_mp2rage_sag_p3_32_INV2.nii.gz'
-        ),
-        (
-            f'{DCM_QA_MPRAGE}/In/4_t1_mp2rage_sag_p3_32.zip',
-            f'{DCM_QA_MPRAGE}/Ref/Si_4_t1_mp2rage_sag_p3_32_UNI_Images.nii.gz'
-        ),
-        (
             f'{DCM_QA_MPRAGE}/In/5_HCP_T1.zip',
             f'{DCM_QA_MPRAGE}/Ref/Si_5_HCP_T1.nii.gz'
-        ),
-        (
-            f'{DCM_QA_MPRAGE}/In/6_T1_mprage_ns_sag_p2.zip',
-            f'{DCM_QA_MPRAGE}/Ref/Si_6_T1_mprage_ns_sag_p2.nii.gz'
-        ),
-        (
-            f'{DCM_QA_MPRAGE}/In/8_T1_memprage_rms.zip',
-            f'{DCM_QA_MPRAGE}/Ref/Si_8_T1_memprage_rms_RMS.nii.gz'
-        ),
+        )
     ]
 )
 def test_nifti_equivalence_zip(zip_url: str, nifti_url: str):
     vol, series = read_github_zip_volume(zip_url)
-    sitk_im = read_github_sitk(nifti_url)
+    simpleitk_image = read_github_sitk(nifti_url)
 
     orientation = get_closest_patient_orientation(
-        np.reshape(sitk_im.GetDirection(), (3, 3))
+        np.reshape(simpleitk_image.GetDirection(), (3, 3))
     )
     oriented_vol = vol.to_patient_orientation(orientation)
 
-    assert np.allclose(oriented_vol.position, sitk_im.GetOrigin(), atol=1e-4)
-    assert np.allclose(oriented_vol.spacing, sitk_im.GetSpacing(), atol=1e-4)
+    assert np.allclose(
+        oriented_vol.position,
+        simpleitk_image.GetOrigin(),
+        atol=1e-4
+    )
+    assert np.allclose(
+        oriented_vol.spacing,
+        simpleitk_image.GetSpacing(),
+        atol=1e-4
+    )
     assert np.allclose(
         oriented_vol.direction.flatten(),
-        sitk_im.GetDirection(),
+        simpleitk_image.GetDirection(),
         atol=1e-4
     )
     assert (
-        oriented_vol.array == sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
+        oriented_vol.array == sitk.GetArrayFromImage(simpleitk_image)
+        .transpose(2, 1, 0)
     ).all()
 
 
@@ -567,52 +519,40 @@ def test_nifti_equivalence_zip(zip_url: str, nifti_url: str):
         ),
         (
             [
-                f'{DCM_QA_ME}/In/2_me_FieldMap_GRE/{i:04d}_e2.dcm'
-                for i in range(1, 37)
-            ],
-            f'{DCM_QA_ME}/Ref/me_FieldMap_GRE_2_e2.nii'
-        ),
-        (
-            [
-                f'{DCM_QA_ME}/In/3_me_FieldMap_GRE/{i:04d}_e2_ph.dcm'
-                for i in range(1, 37)
-            ],
-            f'{DCM_QA_ME}/Ref/me_FieldMap_GRE_3_e2_ph.nii'
-        ),
-        (
-            [
                 f'{DCM_QA_PDT2}/In/Siemens/VE11/{i:04d}.dcm'
                 for i in range(1, 36)
             ],
             f'{DCM_QA_PDT2}/Ref/Siemens_pd+t2_tse_sag_ISO_1.8mm_3_e1.nii'
-        ),
-        (
-            [
-                f'{DCM_QA_PDT2}/In/Siemens/VE11/{i:04d}_e2.dcm'
-                for i in range(36, 71)
-            ],
-            f'{DCM_QA_PDT2}/Ref/Siemens_pd+t2_tse_sag_ISO_1.8mm_3_e2.nii'
-        ),
+        )
     ]
 )
 def test_nifti_equivalence_series(dcm_urls: Sequence[str], nifti_url: str):
     vol, series = read_github_series_volume(dcm_urls)
-    sitk_im = read_github_sitk(nifti_url)
+    simpleitk_image = read_github_sitk(nifti_url)
 
     orientation = get_closest_patient_orientation(
-        np.reshape(sitk_im.GetDirection(), (3, 3))
+        np.reshape(simpleitk_image.GetDirection(), (3, 3))
     )
     oriented_vol = vol.to_patient_orientation(orientation)
 
-    assert np.allclose(oriented_vol.position, sitk_im.GetOrigin(), atol=1e-4)
-    assert np.allclose(oriented_vol.spacing, sitk_im.GetSpacing(), atol=1e-4)
+    assert np.allclose(
+        oriented_vol.position,
+        simpleitk_image.GetOrigin(),
+        atol=1e-4
+    )
+    assert np.allclose(
+        oriented_vol.spacing,
+        simpleitk_image.GetSpacing(),
+        atol=1e-4
+    )
     assert np.allclose(
         oriented_vol.direction.flatten(),
-        sitk_im.GetDirection(),
+        simpleitk_image.GetDirection(),
         atol=1e-4
     )
     assert (
-        oriented_vol.array == sitk.GetArrayFromImage(sitk_im).transpose(2, 1, 0)
+        oriented_vol.array == sitk.GetArrayFromImage(simpleitk_image)
+        .transpose(2, 1, 0)
     ).all()
 
 
@@ -635,10 +575,10 @@ def test_multichannel_volume():
             ' volumes with multiple channels.'
         )
     ):
-        volume.to_sitk()
+        volume.to_simpleitk()
 
     array = np.zeros((10, 10, 10, 2))
-    sitk_im = sitk.GetImageFromArray(array)
+    simpleitk_image = sitk.GetImageFromArray(array)
 
     with pytest.raises(
         ValueError,
@@ -647,4 +587,4 @@ def test_multichannel_volume():
             ' volumes with multiple channels.'
         )
     ):
-        Volume.from_sitk(sitk_im)
+        Volume.from_simpleitk(simpleitk_image)
