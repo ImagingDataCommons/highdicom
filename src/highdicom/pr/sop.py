@@ -19,6 +19,8 @@ from pydicom.valuerep import PersonName
 from highdicom.base import SOPClass
 from highdicom.base_content import ContributingEquipment
 from highdicom.content import (
+    _add_icc_profile_attributes,
+    _add_palette_color_lookup_table_attributes,
     ContentCreatorIdentificationCodeSequence,
     ModalityLUTTransformation,
     PaletteColorLUTTransformation,
@@ -28,9 +30,7 @@ from highdicom.enum import PresentationLUTShapeValues
 from highdicom.pr.content import (
     _add_displayed_area_attributes,
     _add_graphic_group_annotation_layer_attributes,
-    _add_icc_profile_attributes,
     _add_modality_lut_attributes,
-    _add_palette_color_lookup_table_attributes,
     _add_presentation_state_identification_attributes,
     _add_presentation_state_relationship_attributes,
     _add_softcopy_presentation_lut_attributes,
@@ -184,6 +184,11 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
                 )
         ref_im = referenced_images[0]
 
+        if 'specific_character_set' in kwargs:
+            specific_character_set = kwargs.pop('specific_character_set')
+        else:
+            specific_character_set = ref_im.get('SpecificCharacterSet')
+
         super().__init__(
             study_instance_uid=ref_im.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -210,6 +215,7 @@ class GrayscaleSoftcopyPresentationState(SOPClass):
             device_serial_number=device_serial_number,
             institution_name=institution_name,
             institutional_department_name=institutional_department_name,
+            specific_character_set=specific_character_set,
             **kwargs
         )
         self.copy_patient_and_study_information(ref_im)
@@ -463,6 +469,11 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
                 )
         ref_im = referenced_images[0]
 
+        if 'specific_character_set' in kwargs:
+            specific_character_set = kwargs.pop('specific_character_set')
+        else:
+            specific_character_set = ref_im.get('SpecificCharacterSet')
+
         super().__init__(
             study_instance_uid=ref_im.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -489,6 +500,7 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
             device_serial_number=device_serial_number,
             institution_name=institution_name,
             institutional_department_name=institutional_department_name,
+            specific_character_set=specific_character_set,
             **kwargs
         )
         self.copy_patient_and_study_information(ref_im)
@@ -601,6 +613,11 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
             raise ValueError(
                 "palette_color_lut_transformation for presentation states must "
                 "have 16 bits."
+            )
+        if palette_color_lut_transformation.is_segmented:
+            raise ValueError(
+                "palette_color_lut_transformation for presentation states may "
+                "not be segmented."
             )
         _add_palette_color_lookup_table_attributes(
             self,
@@ -736,6 +753,11 @@ class ColorSoftcopyPresentationState(SOPClass):
                 )
         ref_im = referenced_images[0]
 
+        if 'specific_character_set' in kwargs:
+            specific_character_set = kwargs.pop('specific_character_set')
+        else:
+            specific_character_set = ref_im.get('SpecificCharacterSet')
+
         super().__init__(
             study_instance_uid=ref_im.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -762,6 +784,7 @@ class ColorSoftcopyPresentationState(SOPClass):
             device_serial_number=device_serial_number,
             institution_name=institution_name,
             institutional_department_name=institutional_department_name,
+            specific_character_set=specific_character_set,
             **kwargs
         )
         self.copy_patient_and_study_information(ref_im)
@@ -942,6 +965,11 @@ class AdvancedBlendingPresentationState(SOPClass):
                     'images must have the same Frame of Reference UID.'
                 )
 
+        if 'specific_character_set' in kwargs:
+            specific_character_set = kwargs.pop('specific_character_set')
+        else:
+            specific_character_set = ref_im.get('SpecificCharacterSet')
+
         super().__init__(
             study_instance_uid=ref_im.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -968,6 +996,7 @@ class AdvancedBlendingPresentationState(SOPClass):
             device_serial_number=device_serial_number,
             institution_name=institution_name,
             institutional_department_name=institutional_department_name,
+            specific_character_set=specific_character_set,
             **kwargs
         )
         self.copy_patient_and_study_information(ref_im)

@@ -15,10 +15,20 @@ from highdicom.base_content import ContributingEquipment
 from highdicom.enum import (
     ContentQualificationValues,
     PatientSexValues,
+    SpecificCharacterSetValues,
 )
-from highdicom.valuerep import check_person_name, _check_long_string
+from highdicom.valuerep import (
+    check_person_name,
+    _check_long_string,
+    _check_specific_character_set,
+)
 from highdicom.version import __version__
-from highdicom._module_utils import is_attribute_in_iod
+from highdicom._standard_utils import (
+    get_iod_module_map,
+    get_module_attribute_map,
+    get_sop_class_iod_map,
+    is_attribute_in_iod,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -64,6 +74,12 @@ class SOPClass(Dataset):
         content_time: str | datetime.time | None = None,
         series_date: str | datetime.date | None = None,
         series_time: str | datetime.time | None = None,
+        specific_character_set: (
+            SpecificCharacterSetValues |
+            str |
+            Sequence[str | SpecificCharacterSetValues] |
+            None
+        ) = None,
     ):
         """
         Parameters
@@ -137,6 +153,8 @@ class SOPClass(Dataset):
         series_time: str | datetime.time | None, optional
             Time the series was started. This should be the same for all
             instances in a series.
+        specific_character_set: highdicom.enum.SpecificCharacterSetValues | str | Sequence[highdicom.enum.SpecificCharacterSetValues | str] | None, optional
+            Specific Character Set used to encode text values within this object.
 
         Note
         ----
@@ -236,7 +254,7 @@ class SOPClass(Dataset):
                 _check_long_string(institutional_department_name)
                 self.InstitutionalDepartmentName = institutional_department_name
 
-        # Instance
+        # SOP Common
         self.SOPInstanceUID = str(sop_instance_uid)
         self.SOPClassUID = str(sop_class_uid)
         if instance_number is None:
@@ -250,6 +268,12 @@ class SOPClass(Dataset):
         now = datetime.datetime.now()
         self.InstanceCreationDate = DA(now.date())
         self.InstanceCreationTime = TM(now.time())
+
+        if specific_character_set is not None:
+            specific_character_set = _check_specific_character_set(
+                specific_character_set
+            )
+            self.SpecificCharacterSet = specific_character_set
 
         # Content Date and Content Time are not present in all IODs
         if is_attribute_in_iod('ContentDate', sop_class_uid):
@@ -369,14 +393,16 @@ class SOPClass(Dataset):
             DICOM Module (e.g., ``"General Series"`` or ``"Specimen"``)
 
         """
-        from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
-        from highdicom._modules import MODULE_ATTRIBUTE_MAP
+        sop_class_iod_map = get_sop_class_iod_map()
+        iod_module_map = get_iod_module_map()
+        module_attribute_map = get_module_attribute_map()
+
         logger.info(
             f'copy {ie}-related attributes from '
             f'dataset "{dataset.SOPInstanceUID}"'
         )
-        iod_key = SOP_CLASS_UID_IOD_KEY_MAP[dataset.SOPClassUID]
-        for module_item in IOD_MODULE_MAP[iod_key]:
+        iod_key = sop_class_iod_map[dataset.SOPClassUID]
+        for module_item in iod_module_map[iod_key]:
             module_key = module_item['key']
             if module_item['ie'] != ie:
                 continue
@@ -392,7 +418,7 @@ class SOPClass(Dataset):
                     ])
                 )
             )
-            for item in MODULE_ATTRIBUTE_MAP[module_key]:
+            for item in module_attribute_map[module_key]:
                 if len(item['path']) == 0:
                     self._copy_attribute(dataset, str(item['keyword']))
 

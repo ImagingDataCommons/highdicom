@@ -16,18 +16,20 @@ from highdicom import (
     Volume,
     imread,
 )
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     does_iod_have_pixel_data,
 )
-from highdicom.content import VOILUTTransformation
+from highdicom.content import (
+    _add_icc_profile_attributes,
+    VOILUTTransformation,
+)
 from highdicom.image import (
     _CombinedPixelTransform,
+    _DimensionIndexSequence,
+    get_volume_from_series,
 )
 from highdicom.pixels import (
     apply_voi_window,
-)
-from highdicom.pr.content import (
-    _add_icc_profile_attributes,
 )
 from highdicom.pm import (
     RealWorldValueMapping,
@@ -35,7 +37,65 @@ from highdicom.pm import (
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
+from highdicom.volume import ChannelDescriptor
 from tests.utils import find_readable_images
+
+
+class TestDimensionIndexSequence():
+
+    def test_construction_1(self):
+        seq = _DimensionIndexSequence(
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+        )
+        assert len(seq) == 1
+        assert seq[0].DimensionIndexPointer == 0x00200032
+        assert seq[0].FunctionalGroupPointer == 0x00209113
+
+    def test_construction_2(self):
+        seq = _DimensionIndexSequence(
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+            channel_dimensions=[ChannelDescriptor("ReferencedSegmentNumber")],
+        )
+        assert len(seq) == 2
+        assert seq[0].DimensionIndexPointer == 0x0062000B
+        assert seq[0].FunctionalGroupPointer == 0x0062000A
+        assert seq[1].DimensionIndexPointer == 0x00200032
+        assert seq[1].FunctionalGroupPointer == 0x00209113
+
+    def test_construction_3(self):
+        seq = _DimensionIndexSequence(
+            coordinate_system='SLIDE',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+        )
+        assert len(seq) == 2
+        assert seq[0].DimensionIndexPointer == 0x0048021F
+        assert seq[0].FunctionalGroupPointer == 0x0048021A
+        assert seq[1].DimensionIndexPointer == 0x0048021E
+        assert seq[1].FunctionalGroupPointer == 0x0048021A
+
+    def test_construction_4(self):
+        seq = _DimensionIndexSequence(
+            coordinate_system='SLIDE',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+            channel_dimensions=[ChannelDescriptor("ReferencedSegmentNumber")],
+        )
+        assert len(seq) == 3
+        assert seq[0].DimensionIndexPointer == 0x0062000B
+        assert seq[0].FunctionalGroupPointer == 0x0062000A
+        assert seq[1].DimensionIndexPointer == 0x0048021F
+        assert seq[1].FunctionalGroupPointer == 0x0048021A
+        assert seq[2].DimensionIndexPointer == 0x0048021E
+        assert seq[2].FunctionalGroupPointer == 0x0048021A
 
 
 def test_slice_spacing():
@@ -1040,6 +1100,39 @@ def test_get_volume_multiframe_ct():
     ]:
         volume = im.get_volume(dtype=dtype)
         assert volume.array.dtype == dtype
+
+
+def test_get_volume_from_series_with_tolerance():
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+    ]
+    ct_series = [pydicom.dcmread(f) for f in ct_files]
+
+    theta = 0.05
+    ct_series[0].ImageOrientationPatient = [
+        pydicom.valuerep.format_number_as_ds(x) for x in [
+            np.cos(theta), np.sin(theta), 0.0,
+            0.0, 1.0, 0.0
+        ]
+    ]
+
+    # With no tolerance (default), this should fail
+    msg = "Images do not have the same orientation."
+    with pytest.raises(ValueError, match=msg):
+        get_volume_from_series(ct_series)
+
+    # With a tolerance that is too low, we should see a different error
+    # msg = "Images do not have the same orientation."
+    msg = 'Orientations are not consistent within the specified tolerance.'
+    with pytest.raises(ValueError, match=msg):
+        get_volume_from_series(ct_series, orientation_tol=0.0000001)
+
+    vol = get_volume_from_series(ct_series, orientation_tol=0.01)
+
+    # The majority orientation should have been used
+    assert vol.direction_cosines == tuple(ct_series[1].ImageOrientationPatient)
 
 
 def test_tiled_full_no_dimension_index():

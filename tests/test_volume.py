@@ -1341,3 +1341,114 @@ def test_match_geometry_segmentation():
         seg_vol_from_matched_dataset.array,
         seg_volume_matched.array
     )
+
+
+@pytest.mark.parametrize(
+    'dtype',
+    [
+        np.uint8,
+        np.uint16,
+        np.uint32,
+        np.uint64,
+        np.int8,
+        np.int16,
+        np.int32,
+        np.int64,
+        int,
+        np.float16,
+        np.float32,
+        np.float64,
+        float,
+        np.float128,
+        np.complex64,
+        complex,
+        np.complex128,
+        np.complex256,
+        np.bool_,
+        bool,
+        str
+    ]
+)
+def test_init_dtype(dtype):
+    if any([
+        np.issubdtype(dtype, t) for t in
+        [np.floating, np.integer, np.bool_]
+    ]):
+        Volume.from_attributes(
+            array=np.zeros((10, 10, 10), dtype=dtype),
+            image_position=(0.0, 0.0, 0.0),
+            image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+            pixel_spacing=(1.0, 1.0),
+            spacing_between_slices=1.0,
+            coordinate_system='PATIENT',
+        )
+
+    else:
+        with pytest.raises(
+            ValueError,
+            match=(
+                "Array must have an integer, floating point,"
+                " or boolean dtype, received"
+            )
+        ):
+            Volume.from_attributes(
+                array=np.zeros((10, 10, 10), dtype=dtype),
+                image_position=(0.0, 0.0, 0.0),
+                image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+                pixel_spacing=(1.0, 1.0),
+                spacing_between_slices=1.0,
+                coordinate_system='PATIENT',
+            )
+
+
+@pytest.mark.parametrize(
+    'dtype',
+    [
+        np.uint8,
+        np.uint16,
+        np.uint32,
+        np.uint64,
+        np.int8,
+        np.int16,
+        np.int32,
+        np.int64,
+        int,
+        np.float16,
+        np.float32,
+        np.float64,
+        float,
+        np.float128,
+        np.complex64,
+        complex,
+        np.complex128,
+        np.complex256,
+        np.bool_,
+        bool,
+        str
+    ]
+)
+def test_reassign_dtype(dtype):
+    volume = Volume.from_attributes(
+        array=np.zeros((10, 10, 10), dtype=np.uint8),
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=1.0,
+        coordinate_system='PATIENT',
+    )
+
+    if any([
+        np.issubdtype(dtype, t) for t in
+        [np.floating, np.integer, np.bool_]
+    ]):
+        volume.array = np.zeros((10, 10, 10), dtype=dtype)
+
+    else:
+        with pytest.raises(
+            ValueError,
+            match=(
+                "Array must have an integer, floating point,"
+                " or boolean dtype, received"
+            )
+        ):
+            volume.array = np.zeros((10, 10, 10), dtype=dtype)

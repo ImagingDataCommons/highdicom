@@ -47,6 +47,8 @@ from highdicom.pr import (
     TextObject,
 )
 
+from tests.utils import write_and_read_dataset
+
 
 class TestSoftcopyVOILUTTransformation(unittest.TestCase):
 
@@ -797,35 +799,29 @@ class TestAdvancedBlending(unittest.TestCase):
                 )
             ],
             palette_color_lut_transformation=PaletteColorLUTTransformation(
-                red_lut=SegmentedPaletteColorLUT(
+                red_lut=PaletteColorLUT(
                     first_mapped_value=0,
-                    segmented_lut_data=np.array(
-                        [
-                            0, 1, 0,
-                            1, 255, 0,
-                        ],
+                    lut_data=np.arange(
+                        0,
+                        256,
                         dtype=np.uint16
                     ),
                     color='red'
                 ),
-                green_lut=SegmentedPaletteColorLUT(
+                green_lut=PaletteColorLUT(
                     first_mapped_value=0,
-                    segmented_lut_data=np.array(
-                        [
-                            0, 1, 0,
-                            1, 255, 0,
-                        ],
+                    lut_data=np.arange(
+                        0,
+                        256,
                         dtype=np.uint16
                     ),
                     color='green'
                 ),
-                blue_lut=SegmentedPaletteColorLUT(
+                blue_lut=PaletteColorLUT(
                     first_mapped_value=0,
-                    segmented_lut_data=np.array(
-                        [
-                            0, 1, 0,
-                            1, 255, 255,
-                        ],
+                    lut_data=np.arange(
+                        0,
+                        256,
                         dtype=np.uint16
                     ),
                     color='blue'
@@ -863,9 +859,9 @@ class TestAdvancedBlending(unittest.TestCase):
         assert item.BluePaletteColorLookupTableDescriptor[0] == 256
         assert item.BluePaletteColorLookupTableDescriptor[1] == 0
         assert item.BluePaletteColorLookupTableDescriptor[2] == 16
-        assert len(item.SegmentedRedPaletteColorLookupTableData) == 12
-        assert len(item.SegmentedGreenPaletteColorLookupTableData) == 12
-        assert len(item.SegmentedBluePaletteColorLookupTableData) == 12
+        assert len(item.RedPaletteColorLookupTableData) == 512
+        assert len(item.GreenPaletteColorLookupTableData) == 512
+        assert len(item.BluePaletteColorLookupTableData) == 512
 
         assert not hasattr(ds, 'ContentDescription')
         assert not hasattr(ds, 'ConceptNameCodeSequence')
@@ -873,6 +869,61 @@ class TestAdvancedBlending(unittest.TestCase):
         assert not hasattr(ds, 'RescaleSlope')
         assert not hasattr(ds, 'RescaleIntercept')
         assert not hasattr(ds, 'ModalityLUTSequence')
+
+    def test_segmented_lut(self):
+        ref_images = [self._sm_image, self._sm_image_reversed]
+
+        msg = (
+            "palette_color_lut_transformation for presentation states "
+            "may not be segmented."
+        )
+
+        with pytest.raises(ValueError, match=msg):
+            AdvancedBlending(
+                referenced_images=ref_images,
+                blending_input_number=1,
+                voi_lut_transformations=[
+                    SoftcopyVOILUTTransformation(
+                        window_center=12.0,
+                        window_width=24.0,
+                    )
+                ],
+                palette_color_lut_transformation=PaletteColorLUTTransformation(
+                    red_lut=SegmentedPaletteColorLUT(
+                        first_mapped_value=0,
+                        segmented_lut_data=np.array(
+                            [
+                                0, 1, 0,
+                                1, 255, 0,
+                            ],
+                            dtype=np.uint16
+                        ),
+                        color='red'
+                    ),
+                    green_lut=SegmentedPaletteColorLUT(
+                        first_mapped_value=0,
+                        segmented_lut_data=np.array(
+                            [
+                                0, 1, 0,
+                                1, 255, 0,
+                            ],
+                            dtype=np.uint16
+                        ),
+                        color='green'
+                    ),
+                    blue_lut=SegmentedPaletteColorLUT(
+                        first_mapped_value=0,
+                        segmented_lut_data=np.array(
+                            [
+                                0, 1, 0,
+                                1, 255, 255,
+                            ],
+                            dtype=np.uint16
+                        ),
+                        color='blue'
+                    )
+                )
+            )
 
 
 class TestBlendingDisplay(unittest.TestCase):
@@ -1114,6 +1165,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert hasattr(pr, 'RescaleType')
         assert pr.RescaleIntercept == self._ct_series[0].RescaleIntercept
         assert pr.RescaleSlope == self._ct_series[0].RescaleSlope
+        assert 'ContentDate' not in pr
 
     def test_construction_with_modality_rescale(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1158,6 +1210,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert gsps.RescaleIntercept == 1024
         assert gsps.RescaleType == 'HU'
         assert not hasattr(gsps, 'ModalityLUTSequence')
+        assert 'ContentDate' not in gsps
 
     def test_construction_with_modality_lut(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -1200,6 +1253,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert not hasattr(gsps, 'RescaleIntercept')
         assert not hasattr(gsps, 'RescaleType')
         assert len(gsps.ModalityLUTSequence) == 1
+        assert 'ContentDate' not in gsps
 
     def test_construction_with_copy_modality_lut(self):
         gsps = GrayscaleSoftcopyPresentationState(
@@ -2026,10 +2080,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert not hasattr(pr, 'RescaleType')
 
         # Write out dataset and test icc profile works as expected
-        with BytesIO() as buf:
-            pr.save_as(buf)
-            buf.seek(0)
-            reread = dcmread(buf)
+        reread = write_and_read_dataset(pr)
 
         # A basic check that the profile was read correctly
         original_profile = self._sm_image.OpticalPathSequence[0].ICCProfile
@@ -2105,10 +2156,7 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert hasattr(pr, 'ICCProfile')
 
         # Write out dataset and test it works as expected
-        with BytesIO() as buf:
-            pr.save_as(buf)
-            buf.seek(0)
-            reread = dcmread(buf)
+        reread = write_and_read_dataset(pr)
 
         # A basic check that the profile was read correctly
         image_profile = ImageCmsProfile(BytesIO(reread.ICCProfile))

@@ -34,7 +34,7 @@ from highdicom.sr.value_types import (
     Scoord3DContentItem,
     UIDRefContentItem,
 )
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     is_multiframe_image,
     is_attribute_in_iod,
 )
@@ -230,9 +230,9 @@ class SourceImageForMeasurementGroup(ImageContentItem):
                 )
         super().__init__(
             name=CodedConcept(
-                value='260753009',
-                scheme_designator='SCT',
-                meaning='Source',
+                value='121112',
+                scheme_designator='DCM',
+                meaning='Source of Measurement',
             ),
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,

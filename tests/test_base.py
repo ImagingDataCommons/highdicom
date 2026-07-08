@@ -12,6 +12,7 @@ from pydicom.uid import (
 from pydicom.data import get_testdata_file
 from highdicom import SOPClass, UID
 from highdicom.base import _check_little_endian
+from highdicom.enum import SpecificCharacterSetValues
 
 
 class TestBase(unittest.TestCase):
@@ -250,6 +251,151 @@ class TestBase(unittest.TestCase):
                 modality='SR',
                 manufacturer='highdicom',
                 series_description="abc" * 100,
+            )
+
+    def test_specific_character_set(self):
+        instance = SOPClass(
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+            instance_number=1,
+            modality='SR',
+            manufacturer='highdicom',
+            specific_character_set='ISO_IR 126',
+        )
+        assert instance.SpecificCharacterSet == 'ISO_IR 126'
+
+    def test_specific_character_invalid(self):
+        msg = "'ISO_IR 666' is not a valid SpecificCharacterSetValues"
+        with pytest.raises(ValueError, match=msg):
+            SOPClass(
+                study_instance_uid=UID(),
+                series_instance_uid=UID(),
+                series_number=1,
+                sop_instance_uid=UID(),
+                sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+                instance_number=1,
+                modality='SR',
+                manufacturer='highdicom',
+                specific_character_set='ISO_IR 666',
+            )
+
+    def test_specific_character_set_enum(self):
+        instance = SOPClass(
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+            instance_number=1,
+            modality='SR',
+            manufacturer='highdicom',
+            specific_character_set=SpecificCharacterSetValues.ARABIC,
+        )
+        assert instance.SpecificCharacterSet == 'ISO_IR 127'
+
+    def test_specific_character_invalid_code_extensions(self):
+        msg = (
+            "Encodings with code extensions should not be used when only a "
+            "single encoding is included."
+        )
+        with pytest.raises(ValueError, match=msg):
+            SOPClass(
+                study_instance_uid=UID(),
+                series_instance_uid=UID(),
+                series_number=1,
+                sop_instance_uid=UID(),
+                sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+                instance_number=1,
+                modality='SR',
+                manufacturer='highdicom',
+                specific_character_set=(
+                    SpecificCharacterSetValues.GREEK_CODE_EXTENSIONS,
+                ),
+            )
+
+    def test_specific_character_multivalue(self):
+        instance = SOPClass(
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+            instance_number=1,
+            modality='SR',
+            manufacturer='highdicom',
+            specific_character_set=[
+                SpecificCharacterSetValues.LATIN_ALPHABET_NO_2_CODE_EXTENSIONS,
+                SpecificCharacterSetValues.CYRILLIC_CODE_EXTENSIONS,
+            ]
+        )
+        assert instance.SpecificCharacterSet == [
+            'ISO 2022 IR 101',
+            'ISO 2022 IR 144',
+        ]
+
+    def test_specific_character_multivalue_multibyte(self):
+        instance = SOPClass(
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+            instance_number=1,
+            modality='SR',
+            manufacturer='highdicom',
+            specific_character_set=[
+                SpecificCharacterSetValues.JAPANESE_CODE_EXTENSIONS,
+                SpecificCharacterSetValues.JAPANESE_KANJI_CODE_EXTENSIONS,
+            ]
+        )
+        assert instance.SpecificCharacterSet == [
+            'ISO 2022 IR 13',
+            'ISO 2022 IR 87',
+        ]
+
+    def test_specific_character_invalid_multivalue_multibyte(self):
+        msg = (
+            "When SpecificCharacterSet is multi-valued, a multi-byte "
+            "encoding may not be used as the first value."
+        )
+        with pytest.raises(ValueError, match=msg):
+            SOPClass(
+                study_instance_uid=UID(),
+                series_instance_uid=UID(),
+                series_number=1,
+                sop_instance_uid=UID(),
+                sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+                instance_number=1,
+                modality='SR',
+                manufacturer='highdicom',
+                specific_character_set=[
+                    SpecificCharacterSetValues.JAPANESE_KANJI_CODE_EXTENSIONS,
+                    SpecificCharacterSetValues.JAPANESE_CODE_EXTENSIONS,
+                ]
+            )
+
+    def test_specific_character_invalid_multivalue(self):
+        msg = (
+            "When SpecificCharacterSet is multi-valued, all encodings "
+            "must use code extensions."
+        )
+        with pytest.raises(ValueError, match=msg):
+            SOPClass(
+                study_instance_uid=UID(),
+                series_instance_uid=UID(),
+                series_number=1,
+                sop_instance_uid=UID(),
+                sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+                instance_number=1,
+                modality='SR',
+                manufacturer='highdicom',
+                specific_character_set=[
+                    SpecificCharacterSetValues.LATIN_ALPHABET_NO_2,
+                    SpecificCharacterSetValues.CYRILLIC_CODE_EXTENSIONS,
+                ]
             )
 
 

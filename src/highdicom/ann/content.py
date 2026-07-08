@@ -17,7 +17,7 @@ from highdicom.color import CIELabColor
 from highdicom.content import AlgorithmIdentificationSequence
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
-from highdicom._module_utils import check_required_attributes
+from highdicom._standard_utils import check_required_attributes
 
 
 class Measurements(Dataset):
