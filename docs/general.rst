@@ -14,5 +14,8 @@ parts of the library.
    image
    pixel_transforms
    volume
+   instance_metadata
+   uids
+   compression
    coding
    remote

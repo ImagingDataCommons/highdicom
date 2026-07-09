@@ -795,7 +795,7 @@ can capture more detail about how the derived information was obtained and
 what it represents.
 
 In this example, we use a secondary capture to store an image containing a
-labeled bounding box region drawn over a CT image.
+labelled bounding box region drawn over a CT image.
 
 .. code-block:: python
 
@@ -877,66 +877,7 @@ labeled bounding box region drawn over a CT image.
     # Save the file
     sc_image.save_as('sc_output.dcm')
 
-
-To save a 3D image as a series of output slices, simply loop over the 2D
-slices and ensure that the individual output instances share a common series
-instance UID.  Here is an example for a CT scan that is in a NumPy array called
-"ct_to_save" where we do not have the original DICOM files on hand. We want to
-overlay a segmentation that is stored in a NumPy array called "seg_out".
-
-.. code-block:: python
-
-    import highdicom as hd
-    import numpy as np
-    import os
-
-    pixel_spacing = [1.0, 1.0]
-    sz = ct_to_save.shape[2]
-    series_instance_uid = hd.UID()
-    study_instance_uid = hd.UID()
-
-    for iz in range(sz):
-        this_slice = ct_to_save[:, :, iz]
-
-        # Window the image to a soft tissue window (center 40, width 400)
-        # and rescale to the range 0 to 255
-        windowed_image = hd.pixels.apply_voi_window(
-            this_slice,
-            window_center=40,
-            window_width=400,
-
-        )
-
-        # Create RGB channels
-        pixel_array = np.tile(windowed_image[:, :, np.newaxis], [1, 1, 3])
-
-        # transparency level
-        alpha = 0.1
-
-        pixel_array[:, :, 0] = 255 * (1 - alpha) * seg_out[:, :, iz] + alpha * pixel_array[:, :, 0]
-        pixel_array[:, :, 1] = alpha * pixel_array[:, :, 1]
-        pixel_array[:, :, 2] = alpha * pixel_array[:, :, 2]
-
-        patient_orientation = ['L', 'P']
-
-        # Create the secondary capture image
-        sc_image = hd.sc.SCImage(
-            pixel_array=pixel_array.astype(np.uint8),
-            photometric_interpretation=hd.PhotometricInterpretationValues.RGB,
-            bits_allocated=8,
-            coordinate_system=hd.CoordinateSystemNames.PATIENT,
-            study_instance_uid=study_instance_uid,
-            series_instance_uid=series_instance_uid,
-            sop_instance_uid=hd.UID(),
-            series_number=100,
-            instance_number=iz + 1,
-            manufacturer='Manufacturer',
-            pixel_spacing=pixel_spacing,
-            patient_orientation=patient_orientation,
-            series_description='Example Secondary Capture',
-        )
-
-        sc_image.save_as(os.path.join("output", 'sc_output_' + str(iz) + '.dcm'))
+See :ref:`sc` for more information.
 
 
 Creating Grayscale Softcopy Presentation State (GSPS) Objects
