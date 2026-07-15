@@ -368,11 +368,17 @@ def test_roundtrip(vol: Volume):
         np.float16,
         np.float32,
         np.float64,
-        np.float128,
+        np.longdouble,
         np.bool_
     ]
 )
 def test_dtype_itk(dtype):
+    if (
+        dtype == np.longdouble and
+        np.dtype(np.longdouble) == np.dtype(np.float64)
+    ):
+        return
+
     rng = np.random.default_rng()
     size = (10, 10, 10)
 
@@ -430,7 +436,7 @@ def test_dtype_itk(dtype):
         with pytest.raises(
             ValueError,
             match=(
-                'ITK class does not support'
+                'ITK does not support'
                 f' {np.dtype(dtype)}. Casting to {np.dtype(np.int32)}'
                 ' is not possible.'
             )
@@ -441,7 +447,7 @@ def test_dtype_itk(dtype):
         with pytest.raises(
             ValueError,
             match=(
-                'ITK class does not support'
+                'ITK does not support'
                 f' {np.dtype(dtype)}. Casting to {np.dtype(np.int32)}'
                 ' is not possible.'
             )
@@ -465,7 +471,7 @@ def test_dtype_itk(dtype):
         assert itk_roundtrip.dtype == np.float32
         assert (itk_roundtrip.array == volume.array).all()
 
-    elif np.dtype(dtype) == np.dtype(np.float128):
+    elif np.dtype(dtype) == np.dtype(np.longdouble):
         f64 = np.finfo(np.float64)
         array = rng.random(size).astype(dtype)
         volume.array = (2 * array - 1) * 0.9 * f64.max
@@ -483,22 +489,22 @@ def test_dtype_itk(dtype):
         assert itk_roundtrip.dtype == np.float64
         assert np.allclose(itk_roundtrip.array, volume.array, atol=1e-4)
 
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(f64.max)
+        volume.array[(0, 0, 0)] = 1.1 * np.longdouble(f64.max)
         with pytest.raises(
             ValueError,
             match=(
-                'ITK class does not support'
+                'ITK does not support'
                 f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
                 ' is not possible.'
             )
         ):
             itk_roundtrip = Volume.from_itk(volume.to_itk())
 
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(f64.min)
+        volume.array[(0, 0, 0)] = 1.1 * np.longdouble(f64.min)
         with pytest.raises(
             ValueError,
             match=(
-                'ITK class does not support'
+                'ITK does not support'
                 f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
                 ' is not possible.'
             )

@@ -370,7 +370,7 @@ def test_roundtrip(vol: Volume):
             np.float16,
             np.float32,
             np.float64,
-            np.float128,
+            np.longdouble,
             np.bool_
         ],
         [
@@ -380,6 +380,11 @@ def test_roundtrip(vol: Volume):
     )
 )
 def test_dtype_nifti(dtype: np.dtype, image_class: str):
+    if (
+        dtype == np.longdouble and
+        np.dtype(np.longdouble) == np.dtype(np.float64)
+    ):
+        return
     rng = np.random.default_rng()
     size = (10, 10, 10)
 
@@ -420,7 +425,7 @@ def test_dtype_nifti(dtype: np.dtype, image_class: str):
         assert nib_roundtrip.dtype == np.float32
         assert (nib_roundtrip.array == volume.array).all()
 
-    elif dtype == np.float128:
+    elif dtype == np.longdouble:
         f64 = np.finfo(np.float64)
         array = rng.random(size).astype(dtype)
         volume.array = (2 * array - 1) * 0.9 * f64.max
@@ -440,7 +445,7 @@ def test_dtype_nifti(dtype: np.dtype, image_class: str):
         assert nib_roundtrip.dtype == np.float64
         assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
 
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(f64.max)
+        volume.array[(0, 0, 0)] = 1.1 * np.longdouble(f64.max)
         with pytest.raises(
             ValueError,
             match=(
@@ -453,7 +458,7 @@ def test_dtype_nifti(dtype: np.dtype, image_class: str):
                 volume.to_nibabel(image_class=image_class)
             )
 
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(f64.min)
+        volume.array[(0, 0, 0)] = 1.1 * np.longdouble(f64.min)
         with pytest.raises(
             ValueError,
             match=(
@@ -503,7 +508,7 @@ def test_dtype_nifti(dtype: np.dtype, image_class: str):
             np.float16,
             np.float32,
             np.float64,
-            np.float128,
+            np.longdouble,
             np.bool_
         ],
         [
@@ -711,7 +716,7 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
                 volume.to_nibabel(image_class=image_class)
             )
 
-    elif dtype == np.float128:
+    elif dtype == np.longdouble:
         f32 = np.finfo(np.float32)
         array = rng.random(size).astype(dtype)
         volume.array = (2 * array - 1) * 0.9 * f32.max
@@ -731,7 +736,7 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
         assert nib_roundtrip.dtype == np.float32
         assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
 
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(f32.max)
+        volume.array[(0, 0, 0)] = 1.1 * np.longdouble(f32.max)
         with pytest.raises(
             ValueError,
             match=(
@@ -744,7 +749,7 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
                 volume.to_nibabel(image_class=image_class)
             )
 
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(f32.min)
+        volume.array[(0, 0, 0)] = 1.1 * np.longdouble(f32.min)
         with pytest.raises(
             ValueError,
             match=(
@@ -794,7 +799,7 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
             np.float16,
             np.float32,
             np.float64,
-            np.float128,
+            np.longdouble,
             np.bool_
         ],
         [
@@ -862,7 +867,7 @@ def test_dtype_minc(dtype: np.dtype, image_class: str):
             np.float16,
             np.float32,
             np.float64,
-            np.float128,
+            np.longdouble,
             np.bool_
         ],
         [
@@ -1056,7 +1061,7 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
         assert nib_roundtrip.dtype == np.float32
         assert (nib_roundtrip.array == volume.array).all()
 
-    elif dtype == np.float128:
+    elif dtype == np.longdouble:
         f64 = np.finfo(np.float64)
         array = rng.random(size).astype(dtype)
         volume.array = (2 * array - 1) * 0.9 * f64.max
@@ -1076,7 +1081,7 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
         assert nib_roundtrip.dtype == np.float64
         assert np.allclose(nib_roundtrip.array, volume.array, atol=1e-4)
 
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(f64.max)
+        volume.array[(0, 0, 0)] = 1.1 * np.longdouble(f64.max)
         with pytest.raises(
             ValueError,
             match=(
@@ -1088,7 +1093,7 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
             nib_roundtrip = Volume.from_nibabel(
                 volume.to_nibabel(image_class=image_class)
             )
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(f64.min)
+        volume.array[(0, 0, 0)] = 1.1 * np.longdouble(f64.min)
         with pytest.raises(
             ValueError,
             match=(

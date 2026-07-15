@@ -369,11 +369,17 @@ def test_roundtrip(vol: Volume):
         np.float16,
         np.float32,
         np.float64,
-        np.float128,
+        np.longdouble,
         np.bool_
     ]
 )
 def test_dtype_sitk(dtype: np.dtype):
+    if (
+        dtype == np.longdouble and
+        np.dtype(np.longdouble) == np.dtype(np.float64)
+    ):
+        return
+
     rng = np.random.default_rng()
     size = (10, 10, 10)
 
@@ -410,7 +416,7 @@ def test_dtype_sitk(dtype: np.dtype):
         assert sitk_roundtrip.dtype == np.float32
         assert (sitk_roundtrip.array == volume.array).all()
 
-    elif np.dtype(dtype) == np.dtype(np.float128):
+    elif np.dtype(dtype) == np.dtype(np.longdouble):
         f64 = np.finfo(np.float64)
         array = rng.random(size).astype(dtype)
         volume.array = (2 * array - 1) * 0.9 * f64.max
@@ -428,22 +434,22 @@ def test_dtype_sitk(dtype: np.dtype):
         assert sitk_roundtrip.dtype == np.float64
         assert np.allclose(sitk_roundtrip.array, volume.array, atol=1e-4)
 
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(np.finfo(np.float64).max)
+        volume.array[(0, 0, 0)] = 1.1 * np.longdouble(np.finfo(np.float64).max)
         with pytest.raises(
             ValueError,
             match=(
-                'SimpleITK class does not support'
+                'SimpleITK does not support'
                 f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
                 ' is not possible.'
             )
         ):
             sitk_roundtrip = Volume.from_simpleitk(volume.to_simpleitk())
 
-        volume.array[(0, 0, 0)] = 1.1 * np.float128(np.finfo(np.float64).min)
+        volume.array[(0, 0, 0)] = 1.1 * np.longdouble(np.finfo(np.float64).min)
         with pytest.raises(
             ValueError,
             match=(
-                'SimpleITK class does not support'
+                'SimpleITK does not support'
                 f' {np.dtype(dtype)}. Casting to {np.dtype(np.float64)}'
                 ' is not possible.'
             )
