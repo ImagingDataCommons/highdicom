@@ -1139,6 +1139,30 @@ def test_get_volume_positions_non_perpendicular():
             assert volume_positions is None
 
 
+def test_get_volume_positions_non_perpendicular_2():
+    # Check that slices stacked along a vector that is not perpendicular to
+    # their normals (a "staircase") are not considered a volume
+    positions = [
+        [0.0, 0.0, 10.0],
+        [0.1, 0.0, 11.0],
+        [0.0, 0.0, 12.0],
+    ]
+    orientation = [1, 0, 0, 0, -1, 0]
+
+    # Regardless of values of allow_missing_positions and
+    # allow_duplicate_positions, this is not a volume
+    for allow_duplicate_positions in [False, True]:
+        for allow_missing_positions in [False, True]:
+            spacing, volume_positions = get_volume_positions(
+                positions,
+                orientation,
+                allow_missing_positions=allow_missing_positions,
+                allow_duplicate_positions=allow_duplicate_positions,
+            )
+            assert spacing is None
+            assert volume_positions is None
+
+
 def test_get_volume_positions_non_perpendicular_higher_tol():
     # Repeat above test with a higher tolerance so that the slices are
     # considered a volume

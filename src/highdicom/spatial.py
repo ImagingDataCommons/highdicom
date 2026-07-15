@@ -3915,17 +3915,17 @@ def get_volume_positions(
             )
             return None, None
 
-    # Additionally check that the vector from the first to the last plane lies
-    # approximately along the normal vector
-    pos1 = unique_positions[sort_index[0], :]
-    pos2 = unique_positions[sort_index[-1], :]
-    span = (pos2 - pos1)
-    span /= np.linalg.norm(span)
+    # Additionally check that the vectors are all approximately along the
+    # normal vector
+    spans = unique_positions[sort_index[1:]] - unique_positions[sort_index[0]]
+    spans /= np.linalg.norm(spans, axis=1)[:, None]
 
-    dot_product = normal_vector.T @ span
-    is_perpendicular = (
-        abs(dot_product - 1.0) < perpendicular_tol or
-        abs(dot_product + 1.0) < perpendicular_tol
+    dot_products = spans @ normal_vector
+    is_perpendicular = np.all(
+        np.logical_or(
+            np.abs(dot_products - 1.0) < perpendicular_tol,
+            np.abs(dot_products + 1.0) < perpendicular_tol
+        )
     )
 
     if not is_perpendicular:
@@ -3933,7 +3933,6 @@ def get_volume_positions(
             "Frame positions are not located along a vector "
             "normal to the image plane."
         )
-        logger.debug(f"Dot product: {dot_product:.4f}")
 
     if is_regular and is_perpendicular:
         vol_positions = [
