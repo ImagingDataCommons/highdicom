@@ -391,14 +391,14 @@ def test_dtype_itk(dtype):
         coordinate_system='PATIENT',
     )
 
-    if np.dtype(dtype) == np.dtype(np.bool_):
+    if dtype == np.bool_:
         volume.array = np.round(rng.random(size=size)).astype(dtype)
 
         itk_roundtrip = Volume.from_itk(volume.to_itk())
         assert itk_roundtrip.dtype == np.uint8
         assert (itk_roundtrip.array == volume.array).all()
 
-    elif np.dtype(dtype) == np.dtype(np.int8):
+    elif dtype == np.int8:
         i8 = np.iinfo(np.int8)
         volume.array = rng.integers(i8.min, i8.max, size=size, dtype=dtype)
 
@@ -415,7 +415,7 @@ def test_dtype_itk(dtype):
         assert itk_roundtrip.dtype == np.int16
         assert (itk_roundtrip.array == volume.array).all()
 
-    elif np.dtype(dtype) == np.dtype(np.int64):
+    elif dtype == np.int64:
         i32 = np.iinfo(np.int32)
         volume.array = rng.integers(i32.min, i32.max, size=size, dtype=dtype)
 
@@ -454,7 +454,7 @@ def test_dtype_itk(dtype):
         ):
             itk_roundtrip = Volume.from_itk(volume.to_itk())
 
-    elif np.dtype(dtype) == np.dtype(np.float16):
+    elif dtype == np.float16:
         f16 = np.finfo(np.float16)
         volume.array = rng.uniform(f16.min, f16.max, size=size).astype(dtype)
 
@@ -471,7 +471,7 @@ def test_dtype_itk(dtype):
         assert itk_roundtrip.dtype == np.float32
         assert (itk_roundtrip.array == volume.array).all()
 
-    elif np.dtype(dtype) == np.dtype(np.longdouble):
+    elif dtype == np.longdouble:
         f64 = np.finfo(np.float64)
         array = rng.random(size).astype(dtype)
         volume.array = (2 * array - 1) * 0.9 * f64.max
