@@ -11,8 +11,11 @@ on:
 
 jobs:
   build:
+    runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
+
       matrix:
         # NB no 3.12 because an issue with coverage makes it extremely slow
         # and the likelihood of 3.12-specific bugs is considered low at this
