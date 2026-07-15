@@ -34,7 +34,7 @@ def read_github_nib(url: str):
         filename = Path(temp_dir) / Path(url).name
         urldownload_with_retry(url, filename)
 
-        nifti_proxy = nib.load(filename)
+        nifti_proxy = nib.load(filename, keep_file_open=False)
         nifti = nib.Nifti1Image(
             np.asarray(nifti_proxy.dataobj),
             nifti_proxy.affine,
