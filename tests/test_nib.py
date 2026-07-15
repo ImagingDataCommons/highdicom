@@ -523,7 +523,7 @@ def test_dtype_mgh(dtype: np.dtype, image_class: str):
         np.dtype(np.longdouble) == np.dtype(np.float64)
     ):
         return
-  
+
     rng = np.random.default_rng()
     size = (10, 10, 10)
 
@@ -894,7 +894,7 @@ def test_dtype_analyze(dtype: np.dtype, image_class: str):
         np.dtype(np.longdouble) == np.dtype(np.float64)
     ):
         return
-  
+
     rng = np.random.default_rng()
     size = (10, 10, 10)
 
