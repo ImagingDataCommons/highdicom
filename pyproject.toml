@@ -39,7 +39,8 @@ dependencies = [
     "pydicom>=3.0.1",
     "pyjpegls>=1.0.0",
     "typing-extensions>=4.0.0",
-    "packaging>=17.1"
+    "packaging>=17.1",
+    "tzdata; platform_system == 'Windows'"
 ]
 
 [project.optional-dependencies]
