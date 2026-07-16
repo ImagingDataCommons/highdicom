@@ -11,15 +11,35 @@ on:
 
 jobs:
   build:
+    runs-on: ${{ matrix.os }}
 
-    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
+
       matrix:
         # NB no 3.12 because an issue with coverage makes it extremely slow
         # and the likelihood of 3.12-specific bugs is considered low at this
         # stage
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.13", "3.14"]
-        dependencies: [".", "'.[libjpeg,itk,simpleitk,nibabel]'"]
+        dependencies: [".", ".[libjpeg,itk,simpleitk,nibabel]"]
+
+        include:
+          - os: windows-latest
+            python-version: "3.14"
+            dependencies: "."
+
+          - os: windows-latest
+            python-version: "3.14"
+            dependencies: ".[libjpeg,itk,simpleitk,nibabel]"
+
+          - os: macos-latest
+            python-version: "3.14"
+            dependencies: "."
+
+          - os: macos-latest
+            python-version: "3.14"
+            dependencies: ".[libjpeg,itk,simpleitk,nibabel]"
 
     env:
       # Set this otherwise coverage on python 3.12 is absurdly slow
@@ -42,4 +62,3 @@ jobs:
     - name: Test with pytest
       run: |
         pytest --cov=highdicom --cov-fail-under=80
-

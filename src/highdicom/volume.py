@@ -3722,7 +3722,7 @@ class Volume(_VolumeBase):
 
         dtype_map = {
             np.dtype(np.float16): np.float32,
-            np.dtype(np.float128): np.float64
+            np.dtype(np.longdouble): np.float64
         }
 
         cast_dtype = dtype_map.get(np.dtype(dtype), dtype)
@@ -3744,7 +3744,7 @@ class Volume(_VolumeBase):
 
             except Exception:
                 raise ValueError(
-                    'SimpleITK class does not support'
+                    'SimpleITK does not support'
                     f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)}'
                     ' is not possible.'
                 )
@@ -3794,7 +3794,7 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        simpletk_image: SimpleITK.Image
+        simpleitk_image: SimpleITK.Image
             A `SimpleITK.Image` to convert to a volume.
         coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
@@ -3898,7 +3898,7 @@ class Volume(_VolumeBase):
             np.dtype(np.int8): np.int16,
             np.dtype(np.int64): np.int32,
             np.dtype(np.float16): np.float32,
-            np.dtype(np.float128): np.float64
+            np.dtype(np.longdouble): np.float64
         }
 
         cast_dtype = dtype_map.get(np.dtype(dtype), dtype)
@@ -3920,7 +3920,7 @@ class Volume(_VolumeBase):
 
             except Exception:
                 raise ValueError(
-                    'ITK class does not support'
+                    'ITK does not support'
                     f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)}'
                     ' is not possible.'
                 )
@@ -4111,7 +4111,7 @@ class Volume(_VolumeBase):
         if image_class in [nib.Nifti1Image, nib.Nifti2Image]:
             dtype_map = {
                 np.dtype(np.float16): np.float32,
-                np.dtype(np.float128): np.float64
+                np.dtype(np.longdouble): np.float64
             }
 
         elif image_class == nib.MGHImage:
@@ -4122,7 +4122,7 @@ class Volume(_VolumeBase):
                 np.dtype(np.int64): np.int32,
                 np.dtype(np.float16): np.float32,
                 np.dtype(np.float64): np.float32,
-                np.dtype(np.float128): np.float32
+                np.dtype(np.longdouble): np.float32
             }
 
         elif image_class in [nib.Minc1Image, nib.Minc2Image]:
@@ -4136,7 +4136,7 @@ class Volume(_VolumeBase):
                 np.dtype(np.int8): np.int16,
                 np.dtype(np.int64): np.int32,
                 np.dtype(np.float16): np.float32,
-                np.dtype(np.float128): np.float64
+                np.dtype(np.longdouble): np.float64
             }
 
         cast_dtype = dtype_map.get(np.dtype(dtype), dtype)
