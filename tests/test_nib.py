@@ -36,8 +36,8 @@ def read_github_nib(url: str):
 
         nifti_proxy = nib.load(filename, keep_file_open=False)
         nifti = nib.Nifti1Image(
-            np.asarray(nifti_proxy.dataobj),
-            nifti_proxy.affine,
+            np.asarray(nifti_proxy.dataobj).copy(),
+            nifti_proxy.affine.copy(),
             header=nifti_proxy.header
         )
 
