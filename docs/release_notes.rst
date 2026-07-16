@@ -202,3 +202,41 @@ Now a ``pydicom.sequence.Sequence`` of ``pydicom.dataset.Dataset``
 objects is passed in the ``referenced_images`` argument and the
 ImageLibrary components are created internally by highdicom.
 This standardizes the content of the Image Library subcomponents.
+
+.. _pm-voi-transform:
+
+In order to unify the API with other places in the library and give further
+flexibility, the ``window_center`` and ``windhow_width`` parameters of the
+:class:`highdicom.pm.ParametricMap` class were deprecated in highdicom
+0.28.0 in favor of the new ``voi_lut_transformations`` parameter and will be
+removed in a future release. To update existing code, create a simple
+VOI LUT transformation instead and pass to the ``voi_lut_transformations``
+parameter. So this:
+
+.. code-block:: python
+
+   import highdicom as hd
+
+   pm = hd.pm.ParametricMap(
+       ...,
+       window_center=window_center,
+       window_width=window_width,
+       ...,
+   )
+
+can be replaced with this to give the same output object:
+
+.. code-block:: python
+
+   import highdicom as hd
+
+   pm = hd.pm.ParametricMap(
+       ...,
+       voi_lut_transformations=[
+           hd.VOILUTTransformation(
+               window_center=window_center,
+               window_width=window_width,
+           )
+       ],
+       ...,
+   )

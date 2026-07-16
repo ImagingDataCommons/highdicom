@@ -379,6 +379,8 @@ class TestAlgorithmIdentification(unittest.TestCase):
         self._name = "Foo's Method"
         self._version = '1.0'
         self._parameters = ['spam=True', 'eggs=False']
+        self._manufacturer = 'Foo Corp.'
+        self._family = codes.DCM.ArtificialIntelligence
 
     def test_construction_basic(self):
         algo_id = AlgorithmIdentification(
@@ -393,23 +395,33 @@ class TestAlgorithmIdentification(unittest.TestCase):
             codes.DCM.AlgorithmVersion.value
         assert algo_id[1].TextValue == self._version
 
-    def test_construction_parameters(self):
+    def test_construction_full(self):
+        # With all optional parameters
         algo_id = AlgorithmIdentification(
             name=self._name,
             version=self._version,
             parameters=self._parameters,
+            manufacturer=self._manufacturer,
+            family=self._family,
         )
-        assert len(algo_id) == 2 + len(self._parameters)
+        assert len(algo_id) == 4 + len(self._parameters)
         assert algo_id[0].ConceptNameCodeSequence[0].CodeValue == \
             codes.DCM.AlgorithmName.value
         assert algo_id[0].TextValue == self._name
         assert algo_id[1].ConceptNameCodeSequence[0].CodeValue == \
             codes.DCM.AlgorithmVersion.value
         assert algo_id[1].TextValue == self._version
-        for i, param in enumerate(self._parameters, start=2):
+        assert algo_id[2].ConceptNameCodeSequence[0].CodeValue == \
+            codes.DCM.AlgorithmManufacturer.value
+        assert algo_id[2].TextValue == self._manufacturer
+        for i, param in enumerate(self._parameters, start=3):
             assert algo_id[i].ConceptNameCodeSequence[0].CodeValue == \
                 codes.DCM.AlgorithmParameters.value
             assert algo_id[i].TextValue == param
+        assert algo_id[-1].ConceptNameCodeSequence[0].CodeValue == \
+            codes.DCM.AlgorithmFamily.value
+        assert algo_id[-1].ConceptCodeSequence[0].CodeValue == \
+            self._family.value
 
 
 class TestMeasurementStatisticalProperties(unittest.TestCase):
@@ -4381,6 +4393,9 @@ class TestComprehensiveSR(unittest.TestCase):
             buf.seek(0)
             sr_instance = srread(buf)
 
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
+
         assert isinstance(sr_instance, ComprehensiveSR)
 
     def test_srread_from_bytes(self):
@@ -4402,6 +4417,9 @@ class TestComprehensiveSR(unittest.TestCase):
             report.save_as(buf)
             # Read from bytes
             sr_instance = srread(buf.getvalue())
+
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
 
         assert isinstance(sr_instance, ComprehensiveSR)
 
@@ -4912,6 +4930,10 @@ class TestGetPlanarMeasurementGroups:
             buf.seek(0)
             sr_from_file_copy = dcmread(buf)
 
+        # Remove the buffer to prevent warning about closed file
+        sr_from_file.buffer = None
+        sr_from_file_copy.buffer = None
+
         self._sr = Comprehensive3DSR.from_dataset(sr_from_file)
         self._content = self._sr.content
 
@@ -5309,6 +5331,10 @@ class TestGetVolumetricMeasurementGroups:
             buf.seek(0)
             sr_from_file_copy = dcmread(buf)
 
+        # Remove the buffer to prevent warning about closed file
+        sr_from_file.buffer = None
+        sr_from_file_copy.buffer = None
+
         # Two versions of the file, one with template IDs, one without
         self._sr = Comprehensive3DSR.from_dataset(sr_from_file)
         self._content = self._sr.content
@@ -5546,6 +5572,9 @@ class TestGetVolumetricMeasurementGroups:
             buf.seek(0)
             sr_instance = srread(buf)
 
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
+
         assert isinstance(sr_instance, Comprehensive3DSR)
 
     def test_missing_template_id_single_image_region(self):
@@ -5590,6 +5619,10 @@ class TestGetVolumetricMeasurementGroups:
             sr_instance = srread(buf)
             buf.seek(0)
             sr_instance_copy = srread(buf)
+
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
+        sr_instance_copy.buffer = None
 
         _delete_template_ids(sr_instance_copy)
 

@@ -115,10 +115,10 @@ class SCImage(SOPClass):
             (RGB color space)
         photometric_interpretation: Union[str, highdicom.PhotometricInterpretationValues]
             Interpretation with which to store pixel data in the dataset;
-            either ``"MONOCHROME1"`` or ``"MONOCHROME2"`` for 2D grayscale
-            images or ``"RGB"`` or ``"YBR_FULL"`` for 3D color images. Note
-            that this should match the photometric interpretation of the input
-            pixel array, except in the following cases: if
+            either ``"MONOCHROME1"`` or ``"MONOCHROME2"`` for single channel
+            grayscale images or ``"RGB"`` or ``"YBR_FULL"`` for 3 channel color
+            images. Note that this should match the photometric interpretation
+            of the input pixel array, except in the following cases: if
             ``transfer_syntax_uid`` is ``"JPEGBaseline8Bit"``,
             ``photometric_interpretation must be ``"YBR_FULL_422"``, if
             ``transfer_syntax_uid`` is ``"JPEG2000"``,
@@ -559,6 +559,11 @@ class SCImage(SOPClass):
                 *list(contributing_equipment),
             ]
 
+        if 'specific_character_set' in kwargs:
+            specific_character_set = kwargs.pop('specific_character_set')
+        else:
+            specific_character_set = ref_dataset.get('SpecificCharacterSet')
+
         return cls(
             pixel_array=pixel_array,
             photometric_interpretation=photometric_interpretation,
@@ -592,5 +597,6 @@ class SCImage(SOPClass):
             specimen_descriptions=specimen_descriptions,
             transfer_syntax_uid=transfer_syntax_uid,
             contributing_equipment=contributing_equipment,
+            specific_character_set=specific_character_set,
             **kwargs
         )

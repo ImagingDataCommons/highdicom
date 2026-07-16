@@ -164,6 +164,11 @@ class _SR(SOPClass):
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
 
+        if 'specific_character_set' in kwargs:
+            specific_character_set = kwargs.pop('specific_character_set')
+        else:
+            specific_character_set = evidence[0].get('SpecificCharacterSet')
+
         super().__init__(
             study_instance_uid=evidence[0].StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -185,6 +190,7 @@ class _SR(SOPClass):
             referring_physician_name=getattr(
                 evidence[0], 'ReferringPhysicianName', None
             ),
+            specific_character_set=specific_character_set,
             **kwargs
         )
 

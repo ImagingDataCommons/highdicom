@@ -15,6 +15,7 @@ from highdicom.enum import (
     PadModes,
     PatientOrientationValuesBiped,
     RGBColorChannels,
+    NiBabelImageClasses
 )
 from highdicom.spatial import (
     LPS_PATIENT_REFERENCE_CONVENTION,
@@ -39,11 +40,14 @@ from highdicom.content import (
 from highdicom.uid import UID
 
 from pydicom.datadict import (
+    dictionary_description,
     get_entry,
     tag_for_keyword,
     keyword_for_tag,
 )
 
+from highdicom._dependency_utils import import_optional_dependency
+import warnings
 
 _DCM_PYTHON_TYPE_MAP = {
     'CS': str,
@@ -187,6 +191,19 @@ class ChannelDescriptor:
     def keyword(self) -> str:
         """str: The DICOM keyword or custom string for the descriptor."""
         return self._keyword
+
+    @property
+    def description(self) -> str | None:
+        """str: The DICOM description for the descriptor.
+
+        The description is a short textual description of the attribute taken
+        from the standard.
+
+        ``None`` for custom descriptors.
+
+        """
+        if not self.is_custom:
+            return dictionary_description(self._tag)
 
     @property
     def tag(self) -> BaseTag | None:
@@ -2236,6 +2253,16 @@ class VolumeGeometry(_VolumeBase):
         """
         return self.spatial_shape
 
+    @property
+    def ndim(self) -> int:
+        """int: Number of dimensions.
+
+        For objects of type :class:`highdicom.VolumeGeometry`, this is
+        always 3.
+
+        """
+        return 3
+
     def __getitem__(
         self,
         index: int | slice | tuple[int | slice],
@@ -2500,6 +2527,15 @@ class Volume(_VolumeBase):
         if array.ndim < 3:
             raise ValueError(
                 "Argument 'array' must be at least three dimensional."
+            )
+
+        if not any([
+            np.issubdtype(array.dtype, dtype) for dtype in
+            [np.floating, np.integer, np.bool_]
+        ]):
+            raise ValueError(
+                "Array must have an integer, floating point,"
+                f" or boolean dtype, received '{array.dtype}'."
             )
 
         if channels is None:
@@ -2790,9 +2826,9 @@ class Volume(_VolumeBase):
         )
 
     @property
-    def dtype(self) -> type:
+    def dtype(self) -> np.dtype:
         """type: Datatype of the array."""
-        return self._array.dtype.type
+        return self._array.dtype
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -2811,6 +2847,15 @@ class Volume(_VolumeBase):
 
         """
         return tuple(self._array.shape[:3])
+
+    @property
+    def ndim(self) -> int:
+        """int: Number of dimensions.
+
+        This includes spatial and channel dimensions.
+
+        """
+        return self._array.ndim
 
     @property
     def number_of_channel_dimensions(self) -> int:
@@ -2854,6 +2899,16 @@ class Volume(_VolumeBase):
             raise ValueError(
                 "Array must match the shape of the existing array."
             )
+
+        if not any([
+            np.issubdtype(value.dtype, dtype) for dtype in
+            [np.floating, np.integer, np.bool_]
+        ]):
+            raise ValueError(
+                "Array must have an integer, floating point,"
+                f" or boolean dtype, received '{value.dtype}'."
+            )
+
         self._array = value
 
     def astype(self, dtype: type) -> Self:
@@ -2871,7 +2926,35 @@ class Volume(_VolumeBase):
             volume.
 
         """
-        new_array = self._array.astype(dtype)
+        array = self._array
+
+        if (
+            np.issubdtype(dtype, np.floating) or
+            np.issubdtype(dtype, np.integer)
+        ):
+            info = (
+                np.finfo(dtype) if np.issubdtype(dtype, np.floating)
+                else np.iinfo(dtype)
+            )
+            if array.min() >= info.min and array.max() <= info.max:
+                new_array = array.astype(dtype)
+            else:
+                raise ValueError(
+                    f'Cannot cast {array.dtype} to {dtype}. Values exceed'
+                    f' supported range: [{info.min}, {info.max}].'
+                )
+
+        elif np.issubdtype(dtype, np.bool_):
+            unique = np.unique(array)
+            if not np.isin(unique, [0, 1]).all():
+                raise ValueError(
+                    f'Cannot cast to {dtype} unless array is binary.'
+                    f' Encountered unique values: {unique}.'
+                )
+            new_array = array.astype(dtype)
+
+        else:
+            raise ValueError(f'Casting to {dtype} is not supported.')
 
         return self.with_array(new_array)
 
@@ -3581,6 +3664,581 @@ class Volume(_VolumeBase):
             coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
             channels=self._channels,
+        )
+
+    def to_simpleitk(self) -> 'SimpleITK.Image':  # noqa: F821
+        """Convert the Volume to ``SimpleITK.Image`` format.
+
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``SimpleITK``.
+
+        The Volume is converted to a 3D ``SimpleITK.Image``. If
+        its array's current datatype is not supported by SimpleITK,
+        it is safely cast to a compatible type where possible. If
+        impossible to cast safely, a ``ValueError`` is raised.
+        Casting is performed on the following data types:
+
+        - ``bool`` -> ``uint8``
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float128`` -> ``float64`` (with warning if possible,
+          else raises error)
+
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and SimpletITK using "LPS" convention.
+        As SimpleITK uses column-major order and NumPy uses row-major,
+        this method automatically applies a transpose to the original
+        array.
+
+        Returns
+        -------
+        SimpleITK.Image:
+            Image constructed from the Volume.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+        ValueError
+            When the array's current datatype is not supported
+            and it is not possible to safely cast to a new datatype.
+
+        """
+        func = self.to_simpleitk
+        sitk = import_optional_dependency(
+            module_name='SimpleITK',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        if self.array.ndim != 3:
+            raise ValueError(
+                'SimpleITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        if np.issubdtype(self.dtype, np.bool_):
+            self = self.astype(np.uint8)
+
+        dtype = self.dtype
+
+        dtype_map = {
+            np.dtype(np.float16): np.float32,
+            np.dtype(np.longdouble): np.float64
+        }
+
+        cast_dtype = dtype_map.get(np.dtype(dtype), dtype)
+        if np.dtype(dtype) == np.dtype(cast_dtype):
+            array = self.array.transpose(2, 1, 0)
+
+        else:
+            info = (
+                np.finfo(dtype) if np.issubdtype(dtype, np.floating)
+                else np.iinfo(dtype)
+            )
+            cast_info = (
+                np.finfo(cast_dtype) if np.issubdtype(cast_dtype, np.floating)
+                else np.iinfo(cast_dtype)
+            )
+
+            try:
+                array = self.astype(cast_dtype).array.transpose(2, 1, 0)
+
+            except Exception:
+                raise ValueError(
+                    'SimpleITK does not support'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)}'
+                    ' is not possible.'
+                )
+
+            if (
+                np.issubdtype(cast_dtype, np.floating) and
+                info.bits > cast_info.bits
+            ):
+                warnings.warn(
+                    'SimpleITK does not support'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)},'
+                    ' precision may be lost.'
+                )
+
+            else:
+                warnings.warn(
+                    'SimpleITK does not support'
+                    f' {np.dtype(dtype)}. Safely casting to'
+                    f' {np.dtype(cast_dtype)}.'
+                )
+
+        simpleitk_image = sitk.GetImageFromArray(array)
+        simpleitk_image.SetSpacing(self.spacing)
+        simpleitk_image.SetDirection(self.direction.flatten())
+        simpleitk_image.SetOrigin(self.position)
+
+        return simpleitk_image
+
+    @classmethod
+    def from_simpleitk(
+        cls,
+        simpleitk_image: 'SimpleITK.Image',  # noqa: F821
+        coordinate_system: CoordinateSystemNames | str = 'PATIENT',
+        frame_of_reference_uid: str | None = None,
+    ) -> Self:
+        """Construct a Volume from a `SimpleITK.Image`.
+
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``SimpleITK``.
+
+        The ``SimpleITK.Image`` is converted to a 3D Volume.
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and SimpletITK using "LPS" convention.
+        As SimpleITK uses column-major order and NumPy uses row-major,
+        this method automatically applies a transpose to the original
+        array.
+
+        Parameters
+        ----------
+        simpleitk_image: SimpleITK.Image
+            A `SimpleITK.Image` to convert to a volume.
+        coordinate_system: highdicom.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the `SimpleITK.Image`.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+
+        """
+        func = cls.from_simpleitk
+        sitk = import_optional_dependency(
+            module_name='SimpleITK',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        array = sitk.GetArrayFromImage(simpleitk_image)
+
+        if array.ndim != 3:
+            raise ValueError(
+                'SimpleITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        array = array.transpose(2, 1, 0)
+
+        return cls.from_components(
+            array=array,
+            spacing=simpleitk_image.GetSpacing(),
+            coordinate_system=coordinate_system,
+            direction=np.reshape(simpleitk_image.GetDirection(), (3, 3)),
+            position=simpleitk_image.GetOrigin(),
+            frame_of_reference_uid=frame_of_reference_uid
+        )
+
+    def to_itk(self) -> 'itk.Image':  # noqa: F821
+        """Convert the volume to `itk.Image` format.
+
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``itk``.
+
+        The Volume is converted to a 3D ``itk.image``. If its array's
+        current datatype is not supported by ITK, it is safely cast to
+        a compatible type where possible. If impossible to cast safely,
+        a ``ValueError`` is raised. Casting is performed on the following
+        data types:
+
+        - ``bool`` -> ``uint8``
+        - ``int8`` -> ``int16`` (with warning)
+        - ``int64`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float128`` -> ``float64`` (with warning if possible, else
+          raises error)
+
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and ITK using "LPS" convention. As ITK uses
+        column-major order and NumPy uses row-major, this method automatically
+        applies a transpose to the original array.
+
+        Returns
+        -------
+        itk.Image:
+            Image constructed from the volume.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+        ValueError
+            When the array's current datatype is not supported
+            and it is not possible to safely cast to a new datatype.
+
+        """
+        func = self.to_itk
+        itk = import_optional_dependency(
+            module_name='itk',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        if self.array.ndim != 3:
+            raise ValueError(
+                'ITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        if np.issubdtype(self.dtype, np.bool_):
+            self = self.astype(np.uint8)
+
+        dtype = self.dtype
+
+        dtype_map = {
+            np.dtype(np.int8): np.int16,
+            np.dtype(np.int64): np.int32,
+            np.dtype(np.float16): np.float32,
+            np.dtype(np.longdouble): np.float64
+        }
+
+        cast_dtype = dtype_map.get(np.dtype(dtype), dtype)
+        if np.dtype(dtype) == np.dtype(cast_dtype):
+            array = self.array.transpose(2, 1, 0).copy()
+
+        else:
+            info = (
+                np.finfo(dtype) if np.issubdtype(dtype, np.floating)
+                else np.iinfo(dtype)
+            )
+            cast_info = (
+                np.finfo(cast_dtype) if np.issubdtype(cast_dtype, np.floating)
+                else np.iinfo(cast_dtype)
+            )
+
+            try:
+                array = self.astype(cast_dtype).array.transpose(2, 1, 0).copy()
+
+            except Exception:
+                raise ValueError(
+                    'ITK does not support'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)}'
+                    ' is not possible.'
+                )
+
+            if (
+                np.issubdtype(cast_dtype, np.floating) and
+                info.bits > cast_info.bits
+            ):
+                warnings.warn(
+                    'ITK does not support'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)},'
+                    ' precision may be lost.'
+                )
+
+            else:
+                warnings.warn(
+                    'ITK does not support'
+                    f' {np.dtype(dtype)}. Safely casting to'
+                    f' {np.dtype(cast_dtype)}.'
+                )
+
+        itk_image = itk.GetImageFromArray(array)
+        itk_image.SetSpacing(self.spacing)
+        itk_image.SetDirection(self.direction)
+        itk_image.SetOrigin(self.position)
+
+        return itk_image
+
+    @classmethod
+    def from_itk(
+        cls,
+        itk_image: 'itk.Image',  # noqa: F821
+        coordinate_system: CoordinateSystemNames | str = 'PATIENT',
+        frame_of_reference_uid: str | None = None,
+    ) -> Self:
+        """Construct a Volume from an `itk.Image`.
+
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``itk``.
+
+        The ``itk.Image`` is converted to a 3D Volume.
+        Spatial metadata (spacing, direction, origin) is preserved
+        with both highdicom and ITK using "LPS" convention. As ITK uses
+        column-major order and NumPy uses row-major, this method automatically
+        applies a transpose to the original array.
+
+        Parameters
+        ----------
+        itk_image: itk.Image
+            A `itk.Image` to convert to a volume.
+        coordinate_system: highdicom.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the `itk.Image`.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+
+        """
+        func = cls.from_itk
+        itk = import_optional_dependency(
+            module_name='itk',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        array = itk.GetArrayFromImage(itk_image)
+
+        if array.ndim != 3:
+            raise ValueError(
+                'ITK conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        array = array.transpose(2, 1, 0).copy()
+
+        return cls.from_components(
+            array=array,
+            spacing=np.array(itk_image.GetSpacing()),
+            coordinate_system=coordinate_system,
+            direction=np.reshape(itk_image.GetDirection(), (3, 3)),
+            position=np.array(itk_image.GetOrigin()),
+            frame_of_reference_uid=frame_of_reference_uid
+        )
+
+    def to_nibabel(
+        self,
+        image_class: str | NiBabelImageClasses = NiBabelImageClasses.NIFTI1IMAGE
+    ) -> 'nibabel.spatialimages.SpatialImage':  # noqa: F821
+        """Convert the volume to a ``nibabel.spatialimages.SpatialImage``
+        format.
+
+        The Volume is converted to one of several 3D Image classes (
+        ``nibabel.Nifti1Image``, ``nibabel.Nifti2Image``, ``nibabel.MGHImage``,
+        ``nibabel.Minc1Image``, ``nibabel.Minc2Image``, ``nibabel.AnalyzeImage``
+        ), defaulting to ``nibabel.Nifti1Image``. If its array's current
+        datatype is not supported by a given class, it is safely cast to a
+        compatible type where possible. If impossible to cast safely, a
+        ``ValueError`` is raised. Casting is performed on the following data
+        types for each image class:
+
+        ``nibabel.Nifti1Image`` or ``nibabel.Nifti2Image``:
+
+        - ``bool`` -> ``uint8``
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float128`` -> ``float64`` (with warning if possible, else
+          raises error)
+
+        ``nibabel.MGHImage``:
+
+        - ``bool`` -> ``uint8``
+        - ``uint32`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``uint64`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``int8`` -> ``int16`` (with warning)
+        - ``int64`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float64`` -> ``float32`` (with warning if possible, else
+          raises error)
+        - ``float128`` -> ``float32`` (with warning if possible, else
+          raises error)
+
+        ``nibabel.Minc1Image`` or ``nibabel.Minc2Image``:
+
+        - ``bool`` -> ``uint8``
+
+        ``nibabel.AnalyzeImage``:
+
+        - ``bool`` -> ``uint8``
+        - ``uint16`` -> ``int16`` (with warning if possible, else
+          raises error)
+        - ``uint32`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``uint64`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``int8`` -> ``int16`` (with warning)
+        - ``int64`` -> ``int32`` (with warning if possible, else
+          raises error)
+        - ``float16`` -> ``float32`` (with warning)
+        - ``float128`` -> ``float64`` (with warning if possible, else
+          raises error)
+
+        Spatial metadata is preserved through the affine array. However,
+        highdicom uses "LPS" convention and NiBabel uses "RAS". This change
+        in convention is performed directly by this method.
+
+        Returns
+        -------
+        nibabel.spatialimages.SpatialImage:
+            Image constructed from the volume.
+
+        Raises
+        ------
+        ValueError
+            When the volume is not 3D (multiple channels are unsupported).
+        ValueError
+            When the array's current datatype is not supported
+            and it is not possible to safely cast to a new datatype.
+
+        """
+        func = self.to_nibabel
+        nib = import_optional_dependency(
+            module_name='nibabel',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        if self.array.ndim != 3:
+            raise ValueError(
+                'NiBabel conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        if np.issubdtype(self.dtype, np.bool_):
+            self = self.astype(np.uint8)
+
+        dtype = self.dtype
+        image_class = getattr(nib, NiBabelImageClasses(image_class).value)
+
+        if image_class in [nib.Nifti1Image, nib.Nifti2Image]:
+            dtype_map = {
+                np.dtype(np.float16): np.float32,
+                np.dtype(np.longdouble): np.float64
+            }
+
+        elif image_class == nib.MGHImage:
+            dtype_map = {
+                np.dtype(np.uint32): np.int32,
+                np.dtype(np.uint64): np.int32,
+                np.dtype(np.int8): np.int16,
+                np.dtype(np.int64): np.int32,
+                np.dtype(np.float16): np.float32,
+                np.dtype(np.float64): np.float32,
+                np.dtype(np.longdouble): np.float32
+            }
+
+        elif image_class in [nib.Minc1Image, nib.Minc2Image]:
+            dtype_map = {}
+
+        elif image_class == nib.AnalyzeImage:
+            dtype_map = {
+                np.dtype(np.uint16): np.int16,
+                np.dtype(np.uint32): np.int32,
+                np.dtype(np.uint64): np.int32,
+                np.dtype(np.int8): np.int16,
+                np.dtype(np.int64): np.int32,
+                np.dtype(np.float16): np.float32,
+                np.dtype(np.longdouble): np.float64
+            }
+
+        cast_dtype = dtype_map.get(np.dtype(dtype), dtype)
+        if np.dtype(dtype) == np.dtype(cast_dtype):
+            array = self.array
+
+        else:
+            info = (
+                np.finfo(dtype) if np.issubdtype(dtype, np.floating)
+                else np.iinfo(dtype)
+            )
+            cast_info = (
+                np.finfo(cast_dtype) if np.issubdtype(cast_dtype, np.floating)
+                else np.iinfo(cast_dtype)
+            )
+
+            try:
+                array = self.astype(cast_dtype).array
+
+            except Exception:
+                raise ValueError(
+                    f'NiBabel\'s {image_class} class does not support'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)}'
+                    ' is not possible.'
+                )
+
+            if (
+                np.issubdtype(cast_dtype, np.floating) and
+                info.bits > cast_info.bits
+            ):
+                warnings.warn(
+                    f'NiBabel\'s {image_class} class does not support'
+                    f' {np.dtype(dtype)}. Casting to {np.dtype(cast_dtype)},'
+                    ' precision may be lost.'
+                )
+
+            else:
+                warnings.warn(
+                    f'NiBabel\'s {image_class} class does not support'
+                    f' {np.dtype(dtype)}. Safely casting to'
+                    f' {np.dtype(cast_dtype)}.'
+                )
+
+        header = image_class.header_class()
+        header.set_data_dtype(array.dtype)
+        image = image_class(
+            array,
+            self.get_affine('RAS'),
+            header=header
+        )
+
+        return image
+
+    @classmethod
+    def from_nibabel(
+        cls,
+        nibabel_image: 'nibabel.spatialimages.SpatialImage',  # noqa: F821
+        coordinate_system: CoordinateSystemNames | str = 'PATIENT',
+        frame_of_reference_uid: str | None = None
+    ) -> Self:
+        """Construct a Volume from an ``nibabel.spatialimages.SpatialImage``.
+
+        The ``nibabel.spatialimages.SpatialImage`` is converted to a 3D Volume.
+        Spatial metadata is preserved through the affine array. However,
+        highdicom uses "LPS" convention and NiBabel uses "RAS". This change
+        in convention is performed directly by this method.
+
+        Parameters
+        ----------
+        nibabel_image: nibabel.spatialimages.SpatialImage
+            An ``nibabel.spatialimages.SpatialImage`` to convert to a volume.
+        coordinate_system: highdicom.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the Nibabel image.
+
+        Raises
+        ------
+        ValueError
+            When the input image is not 3D (multiple channels are unsupported).
+
+        """
+        array = np.asarray(nibabel_image.dataobj)
+
+        if array.ndim != 3:
+            raise ValueError(
+                'NiBabel conversion does not currently support'
+                ' volumes with multiple channels.'
+            )
+
+        return cls(
+            array=array,
+            affine=nibabel_image.affine,
+            coordinate_system=coordinate_system,
+            frame_of_reference_uid=frame_of_reference_uid,
+            from_reference_convention='RAS'
         )
 
 
