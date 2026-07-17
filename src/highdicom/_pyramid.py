@@ -235,6 +235,7 @@ def iter_derived_pyramid_levels(
     resampler = {
         InterpolationMethods.NEAREST: Image.Resampling.NEAREST,
         InterpolationMethods.LINEAR: Image.Resampling.BILINEAR,
+        InterpolationMethods.CUBIC: Image.Resampling.BICUBIC,
     }[interpolator]
 
     # Checks on consistency of the pixel arrays

@@ -1682,3 +1682,25 @@ class TestParametricMapPyramid():
 
         assert pmaps[1].TotalPixelMatrixRows == 10
         assert pmaps[1].TotalPixelMatrixColumns == 10
+
+    def test_contruct_pm_pyramid_cubic(self):
+        pmaps = create_parametric_map_pyramid(
+            source_images=[self._sm_image],
+            pixel_arrays=[self._pixel_array],
+            interpolator=InterpolationMethods.CUBIC,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            manufacturer=self._manufacturer,
+            manufacturer_model_name=self._manufacturer_model_name,
+            software_versions=self._software_versions,
+            device_serial_number=self._device_serial_number,
+            contains_recognizable_visual_features=False,
+            real_world_value_mappings=[self._float_mapping],
+            voi_lut_transformations=[self._voi_transformation],
+            downsample_factors=[5.0],
+            pyramid_uid=self._pyramid_uid,
+            pyramid_label=self._pyramid_label,
+            series_description=self._series_description,
+        )
+
+        assert len(pmaps) == 2

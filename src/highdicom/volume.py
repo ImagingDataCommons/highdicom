@@ -12,10 +12,11 @@ import numpy as np
 from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,
+    InterpolationMethods,
     PadModes,
     PatientOrientationValuesBiped,
     RGBColorChannels,
-    NiBabelImageClasses
+    NiBabelImageClasses,
 )
 from highdicom.spatial import (
     LPS_PATIENT_REFERENCE_CONVENTION,
@@ -69,6 +70,169 @@ _DCM_PYTHON_TYPE_MAP = {
     'US': int,
     'UT': str,
 }
+
+
+def _resample_nearest(
+    array: np.ndarray,
+    x_v: np.ndarray,
+    y_v: np.ndarray,
+    z_v: np.ndarray,
+    shape: np.ndarray,
+) -> np.ndarray:
+    """Nearest-neighbor interpolation for a set of voxel coordinates.
+
+    Parameters
+    ----------
+    array: np.ndarray
+        4D input array of shape ``(X, Y, Z, C)``.
+    x_v, y_v, z_v: np.ndarray
+        Clipped spatial coordinates of the voxels to interpolate.
+    shape: np.ndarray
+        Spatial shape ``(X, Y, Z)`` of the input array.
+
+    Returns
+    -------
+    np.ndarray:
+        Interpolated values of shape ``(N, C)``.
+    """
+    xi = np.clip(np.round(x_v), 0, shape[0] - 1).astype(np.int64)
+    yi = np.clip(np.round(y_v), 0, shape[1] - 1).astype(np.int64)
+    zi = np.clip(np.round(z_v), 0, shape[2] - 1).astype(np.int64)
+    return array[xi, yi, zi, :]
+
+
+def _resample_linear(
+    array: np.ndarray,
+    x_v: np.ndarray,
+    y_v: np.ndarray,
+    z_v: np.ndarray,
+    shape: np.ndarray,
+) -> np.ndarray:
+    """Tri-linear interpolation for a set of voxel coordinates.
+
+    Parameters
+    ----------
+    array: np.ndarray
+        4D input array of shape ``(X, Y, Z, C)``.
+    x_v, y_v, z_v: np.ndarray
+        Clipped spatial coordinates of the voxels to interpolate.
+    shape: np.ndarray
+        Spatial shape ``(X, Y, Z)`` of the input array.
+
+    Returns
+    -------
+    np.ndarray:
+        Interpolated values of shape ``(N, C)``.
+
+    """
+    x0 = np.floor(x_v).astype(np.int64)
+    y0 = np.floor(y_v).astype(np.int64)
+    z0 = np.floor(z_v).astype(np.int64)
+    x1 = x0 + 1
+    y1 = y0 + 1
+    z1 = z0 + 1
+    dx = x_v - x0
+    dy = y_v - y0
+    dz = z_v - z0
+
+    c000 = array[x0, y0, z0, :]
+    c100 = array[x1, y0, z0, :]
+    c010 = array[x0, y1, z0, :]
+    c110 = array[x1, y1, z0, :]
+    c001 = array[x0, y0, z1, :]
+    c101 = array[x1, y0, z1, :]
+    c011 = array[x0, y1, z1, :]
+    c111 = array[x1, y1, z1, :]
+
+    w000 = (1 - dx) * (1 - dy) * (1 - dz)
+    w100 = dx * (1 - dy) * (1 - dz)
+    w010 = (1 - dx) * dy * (1 - dz)
+    w110 = dx * dy * (1 - dz)
+    w001 = (1 - dx) * (1 - dy) * dz
+    w101 = dx * (1 - dy) * dz
+    w011 = (1 - dx) * dy * dz
+    w111 = dx * dy * dz
+
+    return (
+        c000 * w000[:, None]
+        + c100 * w100[:, None]
+        + c010 * w010[:, None]
+        + c110 * w110[:, None]
+        + c001 * w001[:, None]
+        + c101 * w101[:, None]
+        + c011 * w011[:, None]
+        + c111 * w111[:, None]
+    )
+
+
+def _resample_cubic(
+    array: np.ndarray,
+    x_v: np.ndarray,
+    y_v: np.ndarray,
+    z_v: np.ndarray,
+    shape: np.ndarray,
+) -> np.ndarray:
+    """Cubic convolution interpolation (Catmull-Rom) for a set of voxel
+    coordinates.
+
+    Parameters
+    ----------
+    array: np.ndarray
+        4D input array of shape ``(X, Y, Z, C)``.
+    x_v, y_v, z_v: np.ndarray
+        Clipped spatial coordinates of the voxels to interpolate.
+    shape: np.ndarray
+        Spatial shape ``(X, Y, Z)`` of the input array.
+
+    Returns
+    -------
+    np.ndarray:
+        Interpolated values of shape ``(N, C)``.
+
+    """
+    n_channels = array.shape[-1]
+    x0 = np.floor(x_v).astype(np.int64) - 1
+    y0 = np.floor(y_v).astype(np.int64) - 1
+    z0 = np.floor(z_v).astype(np.int64) - 1
+
+    tx = x_v - (x0 + 1)
+    ty = y_v - (y0 + 1)
+    tz = z_v - (z0 + 1)
+
+    tx2 = tx * tx
+    tx3 = tx2 * tx
+    wx1 = 1.5 * tx3 - 2.5 * tx2 + 1.0
+    wx2 = -1.5 * tx3 + 2.0 * tx2 + 0.5 * tx
+    wx3 = 0.5 * tx3 - 0.5 * tx2
+    wx0 = -0.5 * tx3 + tx2 - 0.5 * tx
+
+    ty2 = ty * ty
+    ty3 = ty2 * ty
+    wy1 = 1.5 * ty3 - 2.5 * ty2 + 1.0
+    wy2 = -1.5 * ty3 + 2.0 * ty2 + 0.5 * ty
+    wy3 = 0.5 * ty3 - 0.5 * ty2
+    wy0 = -0.5 * ty3 + ty2 - 0.5 * ty
+
+    tz2 = tz * tz
+    tz3 = tz2 * tz
+    wz1 = 1.5 * tz3 - 2.5 * tz2 + 1.0
+    wz2 = -1.5 * tz3 + 2.0 * tz2 + 0.5 * tz
+    wz3 = 0.5 * tz3 - 0.5 * tz2
+    wz0 = -0.5 * tz3 + tz2 - 0.5 * tz
+
+    out = np.zeros((x_v.shape[0], n_channels), dtype=array.dtype)
+    shape_i = shape.astype(np.int64)
+    for i in range(4):
+        xi = np.clip(x0 + i, 0, shape_i[0] - 1)
+        wxi = (wx0, wx1, wx2, wx3)[i]
+        for j in range(4):
+            yj = np.clip(y0 + j, 0, shape_i[1] - 1)
+            wxy = wxi * (wy0, wy1, wy2, wy3)[j]
+            for k in range(4):
+                zk = np.clip(z0 + k, 0, shape_i[2] - 1)
+                w = wxy * (wz0, wz1, wz2, wz3)[k]
+                out += w[:, None] * array[xi, yj, zk, :]
+    return out
 
 
 class ChannelDescriptor:
@@ -3664,6 +3828,133 @@ class Volume(_VolumeBase):
             coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
             channels=self._channels,
+        )
+
+    def resample_to_geometry(
+        self,
+        geometry: VolumeGeometry,
+        *,
+        mode: InterpolationMethods = InterpolationMethods.LINEAR,
+        pad_value: float | list[float] = 0.0,
+        extend: bool = False,
+    ) -> Self:
+        """Create a new volume by resampling this to a given geometry.
+
+        Parameters
+        ----------
+        geometry: highdicom.VolumeGeometry
+            Volume geometry that defines the geometry onto which this
+            volume should be resampled.
+        mode: InterpolationMode, optional
+            Interpolation mode to use. Defaults to ``InterpolationMode.LINEAR``.
+        pad_value: float | list[float], optional
+            Value(s) to place into output voxels that fall outside the range of
+            the input array. If a list, its length must match the number of
+            channels (last dimension) of ``array``. Ignored if ``extend`` is
+            ``True``.
+        extend: bool, optional
+            If True, out-of-range voxels use the nearest edge value from the
+            input array instead of ``pad_value``. Defaults to False.
+
+        Returns
+        -------
+        Self:
+            Volume resampled to the given geometry.
+
+        """
+        if (
+            self.frame_of_reference_uid is not None and
+            geometry.frame_of_reference_uid is not None
+        ):
+            if (
+                self.frame_of_reference_uid != geometry.frame_of_reference_uid
+            ):
+                raise ValueError(
+                    "Resampling is not possible because the geometries exist "
+                    "within different frames of reference."
+                )
+
+        frame_of_reference_uid = None
+        if self.frame_of_reference_uid is not None:
+            frame_of_reference_uid = self.frame_of_reference_uid
+        if geometry.frame_of_reference_uid is not None:
+            frame_of_reference_uid = geometry.frame_of_reference_uid
+
+        # TODO generalise to more than 1 channel dim
+        is_multichannel = self.number_of_channel_dimensions == 1
+        if not is_multichannel:
+            array = self._array[..., None]
+        else:
+            array = self._array
+
+        combined = np.linalg.inv(self.affine) @ geometry.affine
+
+        ranges = [np.arange(d) for d in geometry.spatial_shape]
+        grid = np.meshgrid(*ranges, indexing="ij")
+        output_indices = np.stack(grid)
+        ones = np.ones_like(output_indices[0])
+        output_indices_h = np.concatenate(
+            [output_indices, ones[None, ...]], axis=0
+        )
+        orig_shape = output_indices_h.shape[1:]
+        N = output_indices_h.size // 4
+        output_indices_flat = output_indices_h.reshape(4, N)
+
+        input_indices_flat = combined @ output_indices_flat
+
+        x, y, z = input_indices_flat[:3]
+
+        shape = np.array(array.shape[:3], dtype=x.dtype)
+        n_channels = array.shape[-1]
+
+        if extend:
+            x_v = np.clip(x, 0, shape[0] - 1 - 1e-7)
+            y_v = np.clip(y, 0, shape[1] - 1 - 1e-7)
+            z_v = np.clip(z, 0, shape[2] - 1 - 1e-7)
+            valid = slice(None)
+            output = np.empty((N, n_channels), dtype=array.dtype)
+        else:
+            valid = (
+                (x >= 0)
+                & (x < shape[0])
+                & (y >= 0)
+                & (y < shape[1])
+                & (z >= 0)
+                & (z < shape[2])
+            )
+
+            x_v = np.clip(x[valid], 0, shape[0] - 1 - 1e-7)
+            y_v = np.clip(y[valid], 0, shape[1] - 1 - 1e-7)
+            z_v = np.clip(z[valid], 0, shape[2] - 1 - 1e-7)
+
+            pad_value_arr = np.asarray(pad_value)
+            if pad_value_arr.ndim == 1 and pad_value_arr.shape[0] != n_channels:
+                raise ValueError(
+                    f"pad_value has {pad_value_arr.shape[0]} elements but array has "
+                    f"{n_channels} channel{'s' if n_channels > 1 else ''}"
+                )
+            pad_value_arr = np.broadcast_to(pad_value_arr, (n_channels,))
+            output = np.empty((N, n_channels), dtype=array.dtype)
+            output[:] = pad_value_arr[None, :]
+
+        if mode == InterpolationMethods.NEAREST:
+            interpolation_fn = _resample_nearest
+        elif mode == InterpolationMethods.LINEAR:
+            interpolation_fn = _resample_linear
+        elif mode == InterpolationMethods.CUBIC:
+            interpolation_fn = _resample_cubic
+
+        output[valid] = interpolation_fn(array, x_v, y_v, z_v, shape)
+
+        result = output.reshape((*orig_shape, n_channels))
+        if not is_multichannel:
+            result = result.squeeze(-1)
+
+        return self.__class__(
+            array=result,
+            affine=geometry.affine,
+            coordinate_system=self.coordinate_system,
+            frame_of_reference_uid=frame_of_reference_uid,
         )
 
     def to_simpleitk(self) -> 'SimpleITK.Image':  # noqa: F821
