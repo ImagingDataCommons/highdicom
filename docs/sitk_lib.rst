@@ -13,10 +13,11 @@ Volume Conversions
 ------------------
 
 Highdicom supports conversions with the ``SimpleITK.Image`` class through the
-:meth:`highdicom.Volume.to_sitk` and :meth:`highdicom.Volume.from_sitk` methods.
-Like highdicom, SimpleITK uses the "LPS" convention. However, when converting to
-and from NumPy arrays, SimpleITK reverses the order of dimensions. This permutation
-is handled automatically by highdicom and requires no intervention by the user.
+:meth:`highdicom.Volume.to_simpletk` and :meth:`highdicom.Volume.from_simpletk`
+methods. Like highdicom, SimpleITK uses the "LPS" convention. However, when
+converting to and from NumPy arrays, SimpleITK reverses the order of
+dimensions. This permutation is handled automatically by highdicom and requires
+no intervention by the user.
 
 
 Creating a SimpleITK Image from a Volume:
