@@ -3428,7 +3428,7 @@ class Volume(_VolumeBase):
 
         if (
             per_channel and
-            self.number_of_channel_dimensions > 1
+            self.number_of_channel_dimensions > 0
         ):
             imin = self.array.min(axis=(0, 1, 2), keepdims=True)
             imax = self.array.max(axis=(0, 1, 2), keepdims=True)
