@@ -272,9 +272,10 @@ class _VolumeBase(ABC):
         affine: numpy.ndarray
             4 x 4 affine matrix representing the transformation from voxel
             indices to the frame-of-reference coordinate system. The top left 3
-            x 3 matrix should be a scaled orthogonal matrix representing the
-            rotation and scaling. The top right 3 x 1 vector represents the
-            translation component. The last row should have value [0, 0, 0, 1].
+            x 3 matrix must be an invertible, scaled orthogonal matrix
+            representing the rotation and scaling. The top right 3 x 1 vector
+            represents the translation component. The last row should have
+            value [0, 0, 0, 1].
         coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
             is defined.
@@ -329,6 +330,13 @@ class _VolumeBase(ABC):
                     from_reference_convention=from_reference_convention,
                     to_reference_convention=LPS_PATIENT_REFERENCE_CONVENTION,
                 )
+
+        try:
+            np.linalg.inv(affine)
+        except np.linalg.LinAlgError as error:
+            raise ValueError(
+                "Argument 'affine' must be invertible."
+            ) from error
 
         self._affine = affine
         self._frame_of_reference_uid = frame_of_reference_uid
@@ -1990,9 +1998,10 @@ class VolumeGeometry(_VolumeBase):
             4 x 4 affine matrix representing the transformation from pixel
             indices (slice index, row index, column index) to the
             frame-of-reference coordinate system. The top left 3 x 3 matrix
-            should be a scaled orthogonal matrix representing the rotation and
-            scaling. The top right 3 x 1 vector represents the translation
-            component. The last row should have value [0, 0, 0, 1].
+            must be an invertible, scaled orthogonal matrix representing the
+            rotation and scaling. The top right 3 x 1 vector represents the
+            translation component. The last row should have value
+            [0, 0, 0, 1].
         spatial_shape: Sequence[int]
             Number of voxels in the (implied) volume along the three spatial
             dimensions.
@@ -2477,9 +2486,10 @@ class Volume(_VolumeBase):
             4 x 4 affine matrix representing the transformation from pixel
             indices (slice index, row index, column index) to the
             frame-of-reference coordinate system. The top left 3 x 3 matrix
-            should be a scaled orthogonal matrix representing the rotation and
-            scaling. The top right 3 x 1 vector represents the translation
-            component. The last row should have value [0, 0, 0, 1].
+            must be an invertible, scaled orthogonal matrix representing the
+            rotation and scaling. The top right 3 x 1 vector represents the
+            translation component. The last row should have value
+            [0, 0, 0, 1].
         coordinate_system: highdicom.CoordinateSystemNames | str
             Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
             is defined.
