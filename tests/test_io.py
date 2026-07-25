@@ -94,6 +94,14 @@ class TestImageFileReader(unittest.TestCase):
                             pixel_array[frame_index],
                         )
 
+    def test_reject_out_of_range_frame_indices(self):
+        filename = str(self._test_dir.joinpath('ct_image.dcm'))
+        with ImageFileReader(filename) as reader:
+            with pytest.raises(ValueError, match="Frame index"):
+                reader.read_frame_raw(-1)
+            with pytest.raises(ValueError, match="Frame index"):
+                reader.read_frame_raw(reader.number_of_frames)
+
     def test_read_multi_frame_ct_image_native(self):
         filename = str(get_testdata_file('eCT_Supplemental.dcm'))
         dataset = dcmread(filename)
