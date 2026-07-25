@@ -1072,6 +1072,27 @@ def test_normalize():
     assert np.isclose(normed.array.max(), 1.0)
 
 
+def test_normalize_min_max_per_channel_single_dimension():
+    first_channel = np.arange(8, dtype=np.float32).reshape(2, 2, 2)
+    second_channel = 100.0 + 10.0 * first_channel
+    array = np.stack([first_channel, second_channel], axis=-1)
+    volume = Volume(
+        array,
+        np.eye(4),
+        coordinate_system="PATIENT",
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: [
+            RGBColorChannels.R,
+            RGBColorChannels.G,
+        ]},
+    )
+    assert volume.number_of_channel_dimensions == 1
+
+    normalized = volume.normalize_min_max(per_channel=True)
+
+    assert np.allclose(normalized.array.min(axis=(0, 1, 2)), 0.0)
+    assert np.allclose(normalized.array.max(axis=(0, 1, 2)), 1.0)
+
+
 def test_normalize_uniform():
     # Normaliztion when std is zero
     arr = np.ones((10, 10, 10))
