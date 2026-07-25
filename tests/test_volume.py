@@ -1093,6 +1093,56 @@ def test_normalize_min_max_per_channel_single_dimension():
     assert np.allclose(normalized.array.max(axis=(0, 1, 2)), 1.0)
 
 
+def test_normalize_min_max_per_channel_constant_integer_channel():
+    first_channel = np.full((2, 2, 2), 7, dtype=np.uint16)
+    second_channel = np.arange(8, dtype=np.uint16).reshape(2, 2, 2)
+    array = np.stack([first_channel, second_channel], axis=-1)
+    volume = Volume(
+        array,
+        np.eye(4),
+        coordinate_system="PATIENT",
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: [
+            RGBColorChannels.R,
+            RGBColorChannels.G,
+        ]},
+    )
+
+    normalized = volume.normalize_min_max(
+        output_min=0.0,
+        output_max=0.5,
+        per_channel=True,
+    )
+
+    assert np.isfinite(normalized.array).all()
+    assert np.allclose(normalized.array[..., 0], 0.0)
+    assert np.isclose(normalized.array[..., 1].min(), 0.0)
+    assert np.isclose(normalized.array[..., 1].max(), 0.5)
+
+
+def test_normalize_min_max_per_channel_signed_integer_range():
+    first_channel = np.array(
+        [-32768, -24576, -16384, -8192, 0, 8192, 16384, 32767],
+        dtype=np.int16,
+    ).reshape(2, 2, 2)
+    second_channel = np.arange(8, dtype=np.int16).reshape(2, 2, 2)
+    array = np.stack([first_channel, second_channel], axis=-1)
+    volume = Volume(
+        array,
+        np.eye(4),
+        coordinate_system="PATIENT",
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: [
+            RGBColorChannels.R,
+            RGBColorChannels.G,
+        ]},
+    )
+
+    normalized = volume.normalize_min_max(per_channel=True)
+
+    assert np.isfinite(normalized.array).all()
+    assert np.allclose(normalized.array.min(axis=(0, 1, 2)), 0.0)
+    assert np.allclose(normalized.array.max(axis=(0, 1, 2)), 1.0)
+
+
 def test_normalize_uniform():
     # Normaliztion when std is zero
     arr = np.ones((10, 10, 10))

@@ -3432,12 +3432,20 @@ class Volume(_VolumeBase):
         ):
             imin = self.array.min(axis=(0, 1, 2), keepdims=True)
             imax = self.array.max(axis=(0, 1, 2), keepdims=True)
+            if np.issubdtype(self.array.dtype, np.integer):
+                imin = imin.astype(np.float64)
+                imax = imax.astype(np.float64)
 
             peak_to_peak = imax - imin
 
-            # Avoid division by zerp
-            peak_to_peak[peak_to_peak == 0.0] = output_range
-            scale_factor = output_range / peak_to_peak
+            # Avoid division by zero without assigning a fractional output
+            # range into an integer array.
+            safe_peak_to_peak = np.where(
+                peak_to_peak == 0.0,
+                1,
+                peak_to_peak,
+            )
+            scale_factor = output_range / safe_peak_to_peak
         else:
             imin = self.array.min()
             imax = self.array.max()
