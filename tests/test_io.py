@@ -6,7 +6,13 @@ from tempfile import TemporaryDirectory
 import numpy as np
 from pydicom import dcmread
 from pydicom.data import get_testdata_file
+from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.filebase import DicomBytesIO, DicomFileLike, DicomFile
+from pydicom.uid import (
+    ExplicitVRLittleEndian,
+    ParametricMapStorage,
+    generate_uid,
+)
 import pytest
 
 from highdicom.io import ImageFileReader
@@ -38,6 +44,55 @@ class TestImageFileReader(unittest.TestCase):
                 reader.metadata.Columns,
             )
             np.testing.assert_array_equal(frame, pixel_array)
+
+    def test_read_float_pixel_data(self):
+        cases = [
+            (np.float32, 'FloatPixelData', 32),
+            (np.float64, 'DoubleFloatPixelData', 64),
+        ]
+        with TemporaryDirectory() as temp_dir:
+            for dtype, pixel_keyword, bits_allocated in cases:
+                filename = Path(temp_dir) / f"{pixel_keyword}.dcm"
+                file_meta = FileMetaDataset()
+                file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+                file_meta.MediaStorageSOPClassUID = ParametricMapStorage
+                file_meta.MediaStorageSOPInstanceUID = generate_uid()
+                file_meta.ImplementationClassUID = generate_uid()
+                dataset = FileDataset(
+                    filename,
+                    {},
+                    file_meta=file_meta,
+                    preamble=b"\0" * 128,
+                )
+                dataset.SOPClassUID = file_meta.MediaStorageSOPClassUID
+                dataset.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+                dataset.Rows = 3
+                dataset.Columns = 4
+                dataset.SamplesPerPixel = 1
+                dataset.PhotometricInterpretation = 'MONOCHROME2'
+                dataset.NumberOfFrames = 2
+                dataset.BitsAllocated = bits_allocated
+                pixel_array = np.linspace(
+                    -3.5,
+                    2.25,
+                    num=24,
+                    dtype=dtype,
+                ).reshape(2, 3, 4)
+                setattr(dataset, pixel_keyword, pixel_array.tobytes())
+                dataset.save_as(
+                    filename,
+                    implicit_vr=False,
+                    little_endian=True,
+                )
+
+                with ImageFileReader(filename) as reader:
+                    for frame_index in range(2):
+                        frame = reader.read_frame(frame_index)
+                        assert frame.dtype == dtype
+                        np.testing.assert_array_equal(
+                            frame,
+                            pixel_array[frame_index],
+                        )
 
     def test_read_multi_frame_ct_image_native(self):
         filename = str(get_testdata_file('eCT_Supplemental.dcm'))
