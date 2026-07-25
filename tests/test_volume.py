@@ -1040,6 +1040,33 @@ def test_pad_with_channels(mode, per_channel):
     assert padded.match_geometry(vol).geometry_equal(vol)
 
 
+@pytest.mark.parametrize('dtype', [np.uint16, np.float32])
+def test_pad_per_channel_preserves_dtype(dtype):
+    array = np.stack(
+        [
+            np.arange(1, 9).reshape(2, 2, 2),
+            np.arange(101, 109).reshape(2, 2, 2),
+        ],
+        axis=-1,
+    ).astype(dtype)
+    volume = Volume(
+        array,
+        np.eye(4),
+        coordinate_system="PATIENT",
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: [
+            RGBColorChannels.R,
+            RGBColorChannels.G,
+        ]},
+    )
+
+    padded = volume.pad(1, mode=PadModes.MINIMUM, per_channel=True)
+
+    expected = np.full((4, 4, 4, 2), [1, 101], dtype=dtype)
+    expected[1:-1, 1:-1, 1:-1] = array
+    assert padded.array.dtype == dtype
+    assert np.array_equal(padded.array, expected)
+
+
 def test_pad_to_spatial_shape():
     vol, _ = read_multiframe_ct_volume()
 

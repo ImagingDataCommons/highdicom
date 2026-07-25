@@ -3646,7 +3646,10 @@ class Volume(_VolumeBase):
                 for s, (p1, p2) in zip(self.spatial_shape, full_pad_width)
             ]
             # preallocate output array
-            new_array = np.zeros([*out_spatial_shape, *self.channel_shape])
+            new_array = np.zeros(
+                [*out_spatial_shape, *self.channel_shape],
+                dtype=self.array.dtype,
+            )
             for cind in itertools.product(
                 *[range(n) for n in self.channel_shape]
             ):
