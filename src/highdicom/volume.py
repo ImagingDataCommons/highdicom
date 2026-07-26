@@ -3438,11 +3438,11 @@ class Volume(_VolumeBase):
 
             peak_to_peak = imax - imin
 
-            # Avoid division by zero without assigning a fractional output
-            # range into an integer array.
+            # Constant channels map to output_min; keep their inert scale at
+            # 1.0 while avoiding division by zero.
             safe_peak_to_peak = np.where(
                 peak_to_peak == 0.0,
-                1,
+                output_range,
                 peak_to_peak,
             )
             scale_factor = output_range / safe_peak_to_peak
