@@ -1108,15 +1108,15 @@ def test_normalize_min_max_per_channel_constant_integer_channel():
     )
 
     normalized = volume.normalize_min_max(
-        output_min=0.0,
-        output_max=0.5,
+        output_min=-2.0,
+        output_max=3.0,
         per_channel=True,
     )
 
     assert np.isfinite(normalized.array).all()
-    assert np.allclose(normalized.array[..., 0], 0.0)
-    assert np.isclose(normalized.array[..., 1].min(), 0.0)
-    assert np.isclose(normalized.array[..., 1].max(), 0.5)
+    assert np.allclose(normalized.array[..., 0], -2.0)
+    assert np.isclose(normalized.array[..., 1].min(), -2.0)
+    assert np.isclose(normalized.array[..., 1].max(), 3.0)
 
 
 def test_normalize_min_max_per_channel_signed_integer_range():
