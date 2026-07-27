@@ -968,17 +968,15 @@ def _is_matrix_orthogonal(
     m: numpy.ndarray
         A matrix.
     require_unit: bool, optional
-        Whether to require that the row vectors are unit vectors.
+        Whether to require that the column vectors are unit vectors.
     tol: float, optional
-        Tolerance. ``m`` will be deemed orthogonal if the product ``m.T @ m``
-        is equal to diagonal matrix of squared column norms within this
-        tolerance.
+        Tolerance used to compare column norms and normalized dot products.
 
     Returns
     -------
     bool:
-        True if the matrix ``m`` is a square orthogonal matrix. False
-        otherwise.
+        True if ``m`` is square and has mutually orthogonal, nonzero columns.
+        False otherwise.
 
     """
     if m.ndim != 2:
@@ -987,16 +985,25 @@ def _is_matrix_orthogonal(
          )
     if m.shape[0] != m.shape[1]:
         return False
-    norm_squared = (m ** 2).sum(axis=0)
+
+    scales = np.linalg.norm(m, axis=0)
+    if not np.all(np.isfinite(scales)) or np.any(scales == 0.0):
+        return False
+
     if require_unit:
         if not np.allclose(
-            norm_squared,
-            np.array([1.0, 1.0, 1.0]),
+            scales ** 2,
+            np.ones(m.shape[1]),
             atol=tol,
         ):
             return False
 
-    return np.allclose(m.T @ m, np.diag(norm_squared), atol=tol)
+    directions = m / scales
+    return np.allclose(
+        directions.T @ directions,
+        np.eye(m.shape[1]),
+        atol=tol,
+    )
 
 
 def get_normal_vector(
