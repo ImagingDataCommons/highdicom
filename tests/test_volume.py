@@ -52,6 +52,40 @@ def read_ct_series_volume():
     return get_volume_from_series(ct_series), ct_series
 
 
+@pytest.mark.parametrize('volume_type', [Volume, VolumeGeometry])
+def test_reject_singular_affine(volume_type):
+    affine = np.eye(4)
+    affine[:3, 2] = affine[:3, 0] * 1e-6
+
+    kwargs = {
+        'affine': affine,
+        'coordinate_system': "PATIENT",
+    }
+    if volume_type is Volume:
+        kwargs['array'] = np.zeros((2, 2, 2))
+    else:
+        kwargs['spatial_shape'] = (2, 2, 2)
+
+    with pytest.raises(ValueError, match="affine.*orthogonal"):
+        volume_type(**kwargs)
+
+
+@pytest.mark.parametrize('volume_type', [Volume, VolumeGeometry])
+def test_accept_small_independent_affine_scales(volume_type):
+    affine = np.diag([1e-12, 2e-12, 3e-12, 1.0])
+    kwargs = {
+        'affine': affine,
+        'coordinate_system': "PATIENT",
+    }
+    if volume_type is Volume:
+        kwargs['array'] = np.zeros((2, 2, 2))
+    else:
+        kwargs['spatial_shape'] = (2, 2, 2)
+
+    volume = volume_type(**kwargs)
+    assert np.array_equal(volume.affine, affine)
+
+
 def test_transforms():
     array = np.zeros((25, 50, 50))
     orientation = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]

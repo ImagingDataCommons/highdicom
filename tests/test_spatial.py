@@ -12,6 +12,7 @@ from highdicom.spatial import (
     ReferenceToImageTransformer,
     ReferenceToPixelTransformer,
     _are_images_coplanar,
+    _is_matrix_orthogonal,
     _normalize_patient_orientation,
     _transform_affine_matrix,
     create_rotation_matrix,
@@ -724,6 +725,32 @@ def test_map_coordinates_between_images(params, inputs, expected_outputs):
     transform = ImageToImageTransformer(**params)
     outputs = transform(inputs)
     np.testing.assert_array_almost_equal(outputs, expected_outputs)
+
+
+@pytest.mark.parametrize(
+    'matrix',
+    [
+        pytest.param(
+            np.diag([1.0, 1.0, 0.0]),
+            id='zero-column',
+        ),
+        pytest.param(
+            np.array([
+                [1.0, 0.0, 1e-6],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0],
+            ]),
+            id='small-dependent-column',
+        ),
+    ],
+)
+def test_is_matrix_orthogonal_rejects_degenerate_columns(matrix):
+    assert not _is_matrix_orthogonal(matrix, require_unit=False)
+
+
+def test_is_matrix_orthogonal_accepts_small_independent_scales():
+    matrix = np.diag([1e-12, 2e-12, 3e-12])
+    assert _is_matrix_orthogonal(matrix, require_unit=False)
 
 
 @pytest.mark.parametrize(
