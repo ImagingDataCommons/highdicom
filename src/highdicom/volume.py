@@ -3834,7 +3834,7 @@ class Volume(_VolumeBase):
         self,
         geometry: VolumeGeometry,
         *,
-        mode: InterpolationMethods = InterpolationMethods.LINEAR,
+        interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
         pad_value: float | list[float] = 0.0,
         extend: bool = False,
     ) -> Self:
@@ -3845,8 +3845,9 @@ class Volume(_VolumeBase):
         geometry: highdicom.VolumeGeometry
             Volume geometry that defines the geometry onto which this
             volume should be resampled.
-        mode: InterpolationMode, optional
-            Interpolation mode to use. Defaults to ``InterpolationMode.LINEAR``.
+        interpolator: highdicom.enum.InterpolationMethods | str, optional
+            Interpolation mode to use. Defaults to
+            ``InterpolationMethods.LINEAR``.
         pad_value: float | list[float], optional
             Value(s) to place into output voxels that fall outside the range of
             the input array. If a list, its length must match the number of
@@ -3862,6 +3863,8 @@ class Volume(_VolumeBase):
             Volume resampled to the given geometry.
 
         """
+        interpolator = InterpolationMethods(interpolator)
+
         if (
             self.frame_of_reference_uid is not None and
             geometry.frame_of_reference_uid is not None
@@ -3937,11 +3940,11 @@ class Volume(_VolumeBase):
             output = np.empty((N, n_channels), dtype=array.dtype)
             output[:] = pad_value_arr[None, :]
 
-        if mode == InterpolationMethods.NEAREST:
+        if interpolator == InterpolationMethods.NEAREST:
             interpolation_fn = _resample_nearest
-        elif mode == InterpolationMethods.LINEAR:
+        elif interpolator == InterpolationMethods.LINEAR:
             interpolation_fn = _resample_linear
-        elif mode == InterpolationMethods.CUBIC:
+        elif interpolator == InterpolationMethods.CUBIC:
             interpolation_fn = _resample_cubic
 
         output[valid] = interpolation_fn(array, x_v, y_v, z_v, shape)
