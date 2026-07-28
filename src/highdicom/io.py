@@ -697,12 +697,18 @@ class ImageFileReader:
 
         Raises
         ------
+        ValueError
+            When `index` is less than 0 or greater than or equal to the number
+            of frames.
         OSError
             When frame could not be read
 
         """
-        if index > self.number_of_frames:
-            raise ValueError('Frame index exceeds number of frames in image.')
+        if index < 0 or index >= self.number_of_frames:
+            raise ValueError(
+                'Frame index must be greater than or equal to 0 and less '
+                'than the number of frames in the image.'
+            )
         logger.debug(f'read frame #{index}')
 
         frame_offset = self._offset_table[index]
@@ -755,6 +761,9 @@ class ImageFileReader:
 
         Raises
         ------
+        ValueError
+            When `index` is less than 0 or greater than or equal to the number
+            of frames.
         OSError
             When frame could not be read
 
