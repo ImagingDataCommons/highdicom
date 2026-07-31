@@ -27,6 +27,7 @@ from highdicom import (
     PlanePositionSequence,
     ReferencedImageSequence,
     RescaleTypeValues,
+    SegmentedPaletteColorLUT,
     SpecimenCollection,
     SpecimenDescription,
     SpecimenPreparationStep,
@@ -1998,6 +1999,202 @@ class TestPaletteColorLUT(TestCase):
             with pytest.raises(TypeError):
                 lut.apply(arr, dtype=dtype)
 
+    def test_extract_from_dataset(self):
+        for dtype in [np.uint8, np.uint16]:
+            for color in ['red', 'green', 'blue']:
+                lut_data = np.arange(0, 256, dtype=dtype)
+                first_mapped_value = 0
+                lut = PaletteColorLUT(first_mapped_value, lut_data, color=color)
+
+                # Create a "plain" pydicom dataset containing the same
+                # attributes
+                ds = Dataset()
+
+                for k, v in lut.items():
+                    ds[k] = v
+
+                extracted = PaletteColorLUT.extract_from_dataset(
+                    ds,
+                    color=color
+                )
+                assert extracted == lut
+                assert np.array_equal(lut.lut_data, lut_data)
+
+
+class TestSegmentedPaletteColorLUT(TestCase):
+
+    def test_construction_16bit(self):
+        segmented_lut_data = np.array(
+            [
+                0, 3, 4, 5, 6,  # literal [4, 5, 6]
+                1, 3, 0,  # ramp down to zero in 3 steps [4, 2, 0]
+                0, 2, 10, 20,  # literal [10, 20]
+                1, 4, 40,  # ramp up to 40 in 4 steps [25, 30, 35, 40]
+            ],
+            dtype=np.uint16
+        )
+
+        # The expected expansion of the above
+        lut_data = np.array(
+            [4, 5, 6, 4, 2, 0, 10, 20, 25, 30, 35, 40],
+            dtype=np.uint16,
+        )
+
+        first_mapped_value = 32
+        lut = SegmentedPaletteColorLUT(
+            first_mapped_value,
+            segmented_lut_data,
+            color='red'
+        )
+
+        assert len(lut.RedPaletteColorLookupTableDescriptor) == 3
+        assert lut.RedPaletteColorLookupTableDescriptor[0] == len(lut_data)
+        assert lut.RedPaletteColorLookupTableDescriptor[1] == 32
+        assert lut.RedPaletteColorLookupTableDescriptor[2] == 16
+        assert not hasattr(lut, 'BluePaletteColorLookupTableDescriptor')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
+        assert len(lut.SegmentedRedPaletteColorLookupTableData) == (
+            segmented_lut_data.shape[0] * 2
+        )
+        assert not hasattr(lut, 'SegmentedBluePaletteColorLookupTableData')
+        assert not hasattr(lut, 'SegmentedGreenPaletteColorLookupTableData')
+
+        assert lut.number_of_entries == lut_data.shape[0]
+        assert lut.first_mapped_value == first_mapped_value
+        assert lut.bits_per_entry == 16
+        assert lut.lut_data.dtype == np.uint16
+        np.array_equal(lut.segmented_lut_data, segmented_lut_data)
+        np.array_equal(lut.lut_data, lut_data)
+
+        arr = np.array([32, 33, 32, 38, 41])
+        expected = np.array([4, 5, 4, 10, 30])
+        output = lut.apply(arr)
+        assert output.dtype == np.uint16
+        assert np.array_equal(output, expected)
+
+        for dtype in [
+            np.uint16,
+            np.uint32,
+            np.float32,
+            np.float64,
+            np.int32,
+            np.int64,
+        ]:
+            output = lut.apply(arr, dtype=dtype)
+            assert output.dtype == dtype
+            assert np.array_equal(output, expected.astype(dtype))
+
+        for dtype in [
+            np.uint8,
+            np.int8,
+            np.int16,
+        ]:
+            with pytest.raises(TypeError):
+                lut.apply(arr, dtype=dtype)
+
+    def test_construction_8bit(self):
+        segmented_lut_data = np.array(
+            [
+                0, 3, 4, 5, 6,  # literal [4, 5, 6]
+                1, 3, 0,  # ramp down to zero in 3 steps [4, 2, 0]
+                0, 2, 10, 20,  # literal [10, 20]
+                1, 4, 40,  # ramp up to 40 in 4 steps [25, 30, 35, 40]
+            ],
+            dtype=np.uint8
+        )
+
+        # The expected expansion of the above
+        lut_data = np.array(
+            [4, 5, 6, 4, 2, 0, 10, 20, 25, 30, 35, 40],
+            dtype=np.uint8,
+        )
+        first_mapped_value = 0
+        lut = SegmentedPaletteColorLUT(
+            first_mapped_value,
+            segmented_lut_data,
+            color='blue',
+        )
+
+        assert len(lut.BluePaletteColorLookupTableDescriptor) == 3
+        assert lut.BluePaletteColorLookupTableDescriptor[0] == len(lut_data)
+        assert lut.BluePaletteColorLookupTableDescriptor[1] == 0
+        assert lut.BluePaletteColorLookupTableDescriptor[2] == 8
+        assert not hasattr(lut, 'RedPaletteColorLookupTableDescriptor')
+        assert not hasattr(lut, 'GreenPaletteColorLookupTableDescriptor')
+        expected_len = segmented_lut_data.shape[0]
+        assert len(lut.SegmentedBluePaletteColorLookupTableData) == expected_len
+        assert not hasattr(lut, 'SegmentedRedPaletteColorLookupTableData')
+        assert not hasattr(lut, 'SegmentedGreenPaletteColorLookupTableData')
+
+        assert lut.number_of_entries == lut_data.shape[0]
+        assert lut.first_mapped_value == first_mapped_value
+        assert lut.bits_per_entry == 8
+        assert lut.lut_data.dtype == np.uint8
+        np.array_equal(lut.lut_data, lut_data)
+
+        arr = np.array([0, 1, 0, 6, 9])
+        expected = np.array([4, 5, 4, 10, 30])
+        output = lut.apply(arr)
+        assert output.dtype == np.uint8
+        assert np.array_equal(output, expected)
+
+        for dtype in [
+            np.uint16,
+            np.uint32,
+            np.int16,
+            np.float32,
+            np.float64,
+            np.int32,
+            np.int64,
+        ]:
+            output = lut.apply(arr, dtype=dtype)
+            assert output.dtype == dtype
+            assert np.array_equal(output, expected.astype(dtype))
+
+        for dtype in [
+            np.int8,
+        ]:
+            with pytest.raises(TypeError):
+                lut.apply(arr, dtype=dtype)
+
+    def test_extract_from_dataset(self):
+        for dtype in [np.uint8, np.uint16]:
+            for color in ['red', 'green', 'blue']:
+                segmented_lut_data = np.array(
+                    [
+                        0, 3, 4, 5, 6,  # literal [4, 5, 6]
+                        1, 3, 0,  # ramp down to zero in 3 steps [4, 2, 0]
+                        0, 2, 10, 20,  # literal [10, 20]
+                        1, 4, 40,  # ramp up to 40 in 4 steps [25, 30, 35, 40]
+                    ],
+                    dtype=np.uint8
+                )
+                # the expected expansion of the above
+                lut_data = np.array(
+                    [4, 5, 6, 4, 2, 0, 10, 20, 25, 30, 35, 40],
+                    dtype=np.uint8,
+                )
+                first_mapped_value = 0
+                lut = SegmentedPaletteColorLUT(
+                    first_mapped_value,
+                    segmented_lut_data,
+                    color=color
+                 )
+
+                # Create a "plain" pydicom dataset containing the same
+                # attributes
+                ds = Dataset()
+
+                for k, v in lut.items():
+                    ds[k] = v
+
+                extracted = SegmentedPaletteColorLUT.extract_from_dataset(
+                    ds,
+                    color=color,
+                 )
+                assert extracted == lut
+                assert np.array_equal(lut.lut_data, lut_data)
+
 
 class TestPaletteColorLUTTransformation(TestCase):
 
@@ -2168,6 +2365,51 @@ class TestPaletteColorLUTTransformation(TestCase):
         assert np.array_equal(lut.red_lut.lut_data, r_lut_data)
         assert np.array_equal(lut.blue_lut.lut_data, b_lut_data)
         assert np.array_equal(lut.green_lut.lut_data, g_lut_data)
+
+    def test_extract_from_dataset(self):
+        for bits, dtype in [(8, np.uint8), (16, np.uint16)]:
+            r_lut_data = np.arange(10, 120, dtype=dtype)
+            g_lut_data = np.arange(20, 130, dtype=dtype)
+            b_lut_data = np.arange(30, 140, dtype=dtype)
+            first_mapped_value = 32
+            lut_uid = UID()
+            r_lut = PaletteColorLUT(
+                first_mapped_value,
+                r_lut_data,
+                color='red',
+            )
+            g_lut = PaletteColorLUT(
+                first_mapped_value,
+                g_lut_data,
+                color='green',
+            )
+            b_lut = PaletteColorLUT(
+                first_mapped_value,
+                b_lut_data,
+                color='blue',
+            )
+            combined_lut_data = np.stack(
+                [r_lut_data, g_lut_data, b_lut_data]
+            ).T
+            instance = PaletteColorLUTTransformation(
+                red_lut=r_lut,
+                green_lut=g_lut,
+                blue_lut=b_lut,
+                palette_color_lut_uid=lut_uid,
+            )
+
+            # Create a "plain" pydicom dataset containing the same attributes
+            ds = Dataset()
+
+            for k, v in instance.items():
+                ds[k] = v
+
+            extracted = PaletteColorLUTTransformation.extract_from_dataset(ds)
+            assert extracted == instance
+            assert np.array_equal(
+                instance.combined_lut_data,
+                combined_lut_data,
+            )
 
 
 class TestSpecimenDescription(TestCase):

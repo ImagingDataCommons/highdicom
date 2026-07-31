@@ -31,7 +31,9 @@ from highdicom.enum import (
 )
 from highdicom.pixels import (
     _check_rescale_dtype,
+    _expand_segmented_lut,
     _get_combined_palette_color_lut,
+    _get_expanded_lut_length,
     _parse_palette_color_lut_attributes,
     _select_voi_lut,
     _select_voi_window_center_width,
@@ -2990,6 +2992,7 @@ class PaletteColorLUT(Dataset):
             setattr(new_ds, kw, getattr(dataset, kw))
 
         new_ds.__class__ = cls
+        new_ds._lut_data = None
         return cast(Self, new_ds)
 
 
@@ -3084,54 +3087,7 @@ class SegmentedPaletteColorLUT(Dataset):
             segmented_lut_data.tobytes()
         )
 
-        expanded_lut_values = []
-        i = 0
-        offset = 0
-        while i < len(segmented_lut_data):
-            opcode = segmented_lut_data[i]
-            i += 1
-            if opcode == 0:
-                # Discrete segment type (constant)
-                length = segmented_lut_data[i]
-                i += 1
-                value = segmented_lut_data[i]
-                i += 1
-                expanded_lut_values.extend([
-                    value for _ in range(length)
-                ])
-                offset += length
-            elif opcode == 1:
-                # Linear segment type (interpolation)
-                length = segmented_lut_data[i]
-                i += 1
-                start_value = expanded_lut_values[offset - 1]
-                end_value = segmented_lut_data[i]
-                i += 1
-                step = (end_value - start_value) / (length - 1)
-                expanded_lut_values.extend([
-                    start_value + int(np.round(j * step))
-                    for j in range(length)
-
-                ])
-                offset += length
-            elif opcode == 2:
-                # TODO
-                raise ValueError(
-                  'Indirect segment type is not yet supported for '
-                  'Segmented Palette Color Lookup Table.'
-                )
-            else:
-                raise ValueError(
-                  f'Encountered unexpected segment type {opcode} for '
-                  'Segmented Palette Color Lookup Table.'
-                )
-
-        self._lut_data = np.array(
-            expanded_lut_values,
-            dtype=segmented_lut_data.dtype,
-        )
-
-        len_data = len(expanded_lut_values)
+        len_data = _get_expanded_lut_length(segmented_lut_data)
         if len_data == 2 ** 16:
             number_of_entries = 0
         else:
@@ -3145,7 +3101,6 @@ class SegmentedPaletteColorLUT(Dataset):
     @property
     def segmented_lut_data(self) -> np.ndarray:
         """numpy.ndarray: segmented lookup table data"""
-        length = self.number_of_entries
         data = getattr(self, f'Segmented{self._attr_name_prefix}Data')
         if self.bits_per_entry == 8:
             dtype = np.uint8
@@ -3153,19 +3108,13 @@ class SegmentedPaletteColorLUT(Dataset):
             dtype = np.uint16
         else:
             raise RuntimeError("Invalid LUT descriptor.")
-        # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=dtype)
-        if len(array) != length:
-            raise RuntimeError(
-                'Length of LUTData does not match the value expected from the '
-                f'LUTDescriptor. Expected {length}, found {len(array)}.'
-            )
-        return array
+
+        return np.frombuffer(data, dtype=dtype)
 
     @property
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: expanded lookup table data"""
-        return self._lut_data
+        return _expand_segmented_lut(self.segmented_lut_data)
 
     @property
     def number_of_entries(self) -> int:
@@ -3195,6 +3144,37 @@ class SegmentedPaletteColorLUT(Dataset):
         """int: Bits allocated for the lookup table data. 8 or 16."""
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
         return int(descriptor[2])
+
+    def apply(
+        self,
+        array: np.ndarray,
+        dtype: type | str | np.dtype | None = None,
+    ) -> np.ndarray:
+        """Apply the LUT to a pixel array.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the LUT should be applied. Can be of any shape
+            but must have an integer datatype.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Datatype of the output array. If ``None``, an unsigned integer
+            datatype corresponding to the number of bits in the LUT will be
+            used (either ``numpy.uint8`` or ``numpy.uint16``). Only safe casts
+            are permitted.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with LUT applied.
+
+        """
+        return apply_lut(
+            array=array,
+            lut_data=self.lut_data,
+            first_mapped_value=self.first_mapped_value,
+            dtype=dtype,
+        )
 
     @classmethod
     def extract_from_dataset(cls, dataset: Dataset, color: str) -> Self:
@@ -3640,7 +3620,12 @@ class PaletteColorLUTTransformation(Dataset):
                 data_kw = f'{color}PaletteColorLookupTableData'
             setattr(new_dataset, data_kw, data)
 
+        uid = dataset.get('PaletteColorLookupTableUID')
+        if uid is not None:
+            new_dataset.PaletteColorLookupTableUID = uid
+
         new_dataset.__class__ = cls
+        new_dataset._lut_data = None
         return cast(Self, new_dataset)
 
     def apply(
