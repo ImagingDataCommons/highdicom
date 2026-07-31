@@ -41,13 +41,13 @@ def _parse_palette_color_lut_attributes(dataset: Dataset) -> tuple[
     is_segmented = 'SegmentedRedPaletteColorLookupTableData' in dataset
 
     if (
-        not is_segmented
-        and 'RedPaletteColorLookupTableData' not in dataset
+        not is_segmented and
+        'RedPaletteColorLookupTableData' not in dataset
     ):
-            raise AttributeError(
-                'Dataset does not contain palette color lookup table '
-                'attributes.'
-            )
+        raise AttributeError(
+            'Dataset does not contain palette color lookup table '
+            'attributes.'
+        )
 
     descriptor = dataset.RedPaletteColorLookupTableDescriptor
     if len(descriptor) != 3:
