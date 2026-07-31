@@ -40,8 +40,10 @@ def _parse_palette_color_lut_attributes(dataset: Dataset) -> tuple[
     """
     is_segmented = 'SegmentedRedPaletteColorLookupTableData' in dataset
 
-    if not is_segmented:
-        if 'RedPaletteColorLookupTableData' not in dataset:
+    if (
+        not is_segmented
+        and 'RedPaletteColorLookupTableData' not in dataset
+    ):
             raise AttributeError(
                 'Dataset does not contain palette color lookup table '
                 'attributes.'
@@ -107,7 +109,7 @@ def _parse_palette_color_lut_attributes(dataset: Dataset) -> tuple[
             )
 
         lut_bytes = getattr(dataset, data_kw)
-        if len(lut_bytes) != expected_num_bytes:
+        if not is_segmented and len(lut_bytes) != expected_num_bytes:
             raise RuntimeError(
                 "LUT data has incorrect length"
             )
@@ -476,6 +478,114 @@ def apply_voi_window(
         ) + output_min
 
     return array
+
+
+def _expand_segmented_lut(
+    segmented_lut_data: np.ndarray
+) -> np.ndarray:
+    """Expand segmented LUT data to "standard" LUT representation.
+
+    Parameters
+    ----------
+    segmented_lut_data: numpy.ndarray
+        Segmented LUT data (consisting of opcodes and parameters) as a 1D numpy
+        array with dtype uint8 or uint16.
+
+    Returns
+    -------
+    numpy.ndarray:
+        Expanded representation of the segmented lut data. 1D numpy array with
+        the same dtype as the input array.
+
+    """
+    expanded_lut_values = []
+    i = 0
+    while i < len(segmented_lut_data):
+        opcode = segmented_lut_data[i]
+        if opcode == 0:
+            # Discrete segment type (literal)
+            length = segmented_lut_data[i + 1]
+            expanded_lut_values.extend(
+                segmented_lut_data[i + 2:i + 2 + length].tolist()
+            )
+            i += (length + 2)
+        elif opcode == 1:
+            # Linear segment type (interpolation)
+            length = segmented_lut_data[i + 1]
+
+            # Need signed integers for subsequent calculations
+            start_value = int(expanded_lut_values[-1])
+            end_value = int(segmented_lut_data[i + 2])
+            step = (end_value - start_value) / length
+
+            expanded_lut_values.extend([
+                start_value + int(np.round(j * step))
+                for j in range(1, length + 1)
+            ])
+            i += 3
+        elif opcode == 2:
+            # TODO
+            raise ValueError(
+                'Indirect segment type is not yet supported for '
+                'Segmented Palette Color Lookup Table.'
+            )
+        else:
+            raise ValueError(
+                f'Encountered unexpected segment type {opcode} for '
+                'Segmented Palette Color Lookup Table.'
+            )
+
+    return np.array(expanded_lut_values, dtype=segmented_lut_data.dtype)
+
+
+def _get_expanded_lut_length(
+    segmented_lut_data: np.ndarray
+) -> int:
+    """Get length of expanded segmented LUT data.
+
+    This function does not expand the array to calculate the total length, and
+    is thus much more memory efficient than _expand_segmented_lut if only the
+    length is needed.
+
+    Parameters
+    ----------
+    segmented_lut_data: numpy.ndarray
+        Segmented LUT data (consisting of opcodes and parameters) as a 1D numpy
+        array with dtype uint8 or uint16.
+
+    Returns
+    -------
+    int:
+        Length (number of entries) of the expanded data.
+
+    """
+    total_length = 0
+    i = 0
+    while i < len(segmented_lut_data):
+        opcode = segmented_lut_data[i]
+        if opcode == 0:
+            # Discrete segment type (literal)
+            length = segmented_lut_data[i + 1]
+            total_length += length
+            i += (length + 2)
+        elif opcode == 1:
+            # Linear segment type (interpolation)
+            length = segmented_lut_data[i + 1]
+            total_length += length
+            i += 3
+        elif opcode == 2:
+            # TODO
+            raise ValueError(
+                'Indirect segment type is not yet supported for '
+                'Segmented Palette Color Lookup Table.'
+            )
+        else:
+            raise ValueError(
+                f'Encountered unexpected segment type {opcode} for '
+                'Segmented Palette Color Lookup Table.'
+            )
+
+    return int(total_length)
 
 
 def apply_lut(
