@@ -2157,6 +2157,33 @@ class TestSegmentedPaletteColorLUT(TestCase):
             with pytest.raises(TypeError):
                 lut.apply(arr, dtype=dtype)
 
+    def test_construction_invalid_opcode(self):
+        # Example with an invalid opcode (4)
+        segmented_lut_data = np.array([4, 0, 0], dtype=np.uint8)
+
+        msg = "Encountered unexpected segment type 4"
+        with pytest.raises(ValueError, match=msg):
+            SegmentedPaletteColorLUT(
+                0,
+                segmented_lut_data,
+                'red',
+            )
+
+    def test_construction_linear_segment_first(self):
+        # Linear segment (opcode 1) may not be the first segment
+        segmented_lut_data = np.array([1, 10, 10], dtype=np.uint8)
+
+        msg = (
+            "Error reading segmented LUT data, a linear segment may not be "
+            "used as the first segment."
+        )
+        with pytest.raises(ValueError, match=msg):
+            SegmentedPaletteColorLUT(
+                0,
+                segmented_lut_data,
+                'red',
+            )
+
     def test_extract_from_dataset(self):
         for dtype in [np.uint8, np.uint16]:
             for color in ['red', 'green', 'blue']:

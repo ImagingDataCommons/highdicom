@@ -511,6 +511,15 @@ def _expand_segmented_lut(
             i += (length + 2)
         elif opcode == 1:
             # Linear segment type (interpolation)
+
+            # This type of segment may not be placed first as it requires the
+            # previous value
+            if i == 0:
+                raise ValueError(
+                    "Error reading segmented LUT data, a linear segment may "
+                    "not be used as the first segment."
+                )
+
             length = segmented_lut_data[i + 1]
 
             # Need signed integers for subsequent calculations
@@ -570,6 +579,15 @@ def _get_expanded_lut_length(
             i += (length + 2)
         elif opcode == 1:
             # Linear segment type (interpolation)
+
+            # This type of segment may not be placed first as it requires the
+            # previous value
+            if i == 0:
+                raise ValueError(
+                    "Error reading segmented LUT data, a linear segment may "
+                    "not be used as the first segment."
+                )
+
             length = segmented_lut_data[i + 1]
             total_length += length
             i += 3
