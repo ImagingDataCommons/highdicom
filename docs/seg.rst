@@ -150,24 +150,25 @@ One particularly important characteristic of a segmentation image is its
 the highdicom enum :class:`highdicom.seg.SegmentationTypeValues`:
 
 - ``"BINARY"`` segmentations store each segment in a separate set of frames.
-  Within each segment, pixels can only take the value 0 (meaning that the pixel
-  does not belong to the segment) or 1 (meaning that the pixel does belong to
-  the segment). Note that although the name may suggest that only one segment
-  is present, in fact there is no limit on the number of segments (i.e.
-  "binary" refers to the possible values of pixels within a segment, not the
-  number of segments). Because each segment is stored using a separate set of
-  frames, segments are not constrained to be mutually exclusive: a single pixel
-  can belong to any number of segments. In other words, segments may overlap
-  with each other.
+  Within each segment, pixels can only take the value 0 (meaning that the
+  corresponding pixel in the source image does not belong to the segment) or 1
+  (meaning that the corresponding pixel in the source image does belong to the
+  segment). Note that although the name may suggest that only one segment is
+  present, in fact there is no limit on the number of segments (i.e. "binary"
+  refers to the possible values of pixels within a segment, not the number of
+  segments). Because each segment is stored using a separate set of frames,
+  segments are not constrained to be mutually exclusive: a single pixel in the
+  source image can belong to any number of segments. In other words, segments
+  may overlap with each other.
 
   ``"BINARY"`` segmentations are the most widely supported and used. However
   they also have some important downsides. Storing each segment separately
   means that ``"BINARY"`` segmentations can have a very large number of frames
   if there are a large number of segments. Furthermore, because they are stored
-  as single-bit images, the options for compression are very limited. As a
-  result, the segmentation objects can get very large and unwieldy. Lastly,
-  having separate frames is simply not a convenient form to work with for many
-  applications.
+  as single-bit images, which are not supported by most codecs, the options for
+  compression are very limited. As a result, the segmentation objects can get
+  very large and unwieldy. Lastly, having separate frames is simply not a
+  convenient form to work with for many applications.
 
 - ``"FRACTIONAL"`` segmentations also store each segment as a separate set of
   frames, but within each segment pixel values lie in the range 0 to 1. A
@@ -176,19 +177,21 @@ the highdicom enum :class:`highdicom.seg.SegmentationTypeValues`:
   enumerated type :class:`highdicom.seg.SegmentationFractionalTypeValues`:
 
   - ``"PROBABILITY"``, i.e. the number between 0 and 1 represents a probability
-    that a pixel belongs to the segment
-  - ``"OCCUPANCY"`` i.e. the number represents the fraction of the volume of the
-    pixel's (or voxel's) area (or volume) that belongs to the segment
+    that the corresponding pixel in the source image belongs to the segment
+  - ``"OCCUPANCY"`` i.e. the number represents the fraction of the volume of
+    the source image pixel's (or voxel's) area (or volume) that belongs to the
+    segment
 
 - ``"LABELMAP"`` segmentations are a new type of segmentation introduced to the
   standard in 2024 and supported in highdicom since version 0.24.0. They are
   designed to address the shortcomings of ``"BINARY"`` segmentations described
   above by combining all segments into a single set of frames. The pixel values
   are unsigned 8 or 16 bit integers that encode the segment membership of the
-  pixel. This means that a single pixel cannot belong to multiple segments
-  (segments must be mutually exclusive and cannot overlap). This represents a
-  limitation of the ``"LABELMAP"`` representation, relative to ``"BINARY"``,
-  but in practice non-overlapping segments are a very common case.
+  corresponding source image pixel. This means that a single source image pixel
+  cannot belong to multiple segments (segments must be mutually exclusive and
+  cannot overlap). This represents a limitation of the ``"LABELMAP"``
+  representation, relative to ``"BINARY"``, but in practice non-overlapping
+  segments are a very common case.
 
   Since they use 8 or 16 bit pixels, there are also many more options for
   compression of ``"LABELMAP"`` segmentations than ``"BINARY"`` ones. The
@@ -1860,8 +1863,8 @@ viewers. Viewers that do support SEG include:
 - `3D Slicer <https://www.slicer.org/>`_, an open-source desktop application
   for 3D medical image computing. It supports both display and creation of
   DICOM SEG files via the "Quantitative Reporting" plugin.
-- `Weasis`_, an open-source desktop DICOM
-  viewer. Its support for DICOM Segmentations is currently rather basic.
+- `Weasis`_, an open-source desktop DICOM viewer whose support for DICOM
+  SEG improved considerably with recent releases (v4.7.0 and above).
 
 .. _seg-viewers:
 

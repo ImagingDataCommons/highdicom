@@ -31,7 +31,7 @@ different measurements can be included in one Parametric Map objects.
 
 Highdicom uses the :class:`highdicom.pm.ParametricMap` to represent Parametric
 Maps. It shares many similarities with :class:`highdicom.seg.Segmentation`,
-eespecially regarding the way different spatial arrangements of frames and
+especially regarding the way different spatial arrangements of frames and
 their relationship to the source images are specified to the constructor.
 
 Real World Value Mappings
