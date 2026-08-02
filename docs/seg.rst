@@ -135,7 +135,7 @@ we must first provide more information about the algorithm used in an
         segmented_property_type=codes.SCT.Tumor,
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.AUTOMATIC,
         algorithm_identification=algorithm_identification,
-        anatomic_regions=[codes.SCT.Kidney]
+        anatomic_regions=[codes.SCT.Kidney],
         display_color=hd.color.CIELabColor.from_rgb(0, 0, 255),
     )
 
