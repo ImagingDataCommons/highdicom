@@ -3495,9 +3495,9 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
 
         Note
         ----
-        Either a segmentation or a region needs to referenced
-        together with the corresponding source image from which the
-        segmentation or region was obtained.
+        Exactly one of the following parameters must be specified to describe
+        the planar region of interest within the source image:
+        ``referenced_region``, ``referenced_segment``.
 
         """  # noqa: E501
         were_references_provided = [
@@ -3780,8 +3780,10 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
 
         Note
         ----
-        Either a segmentation, a list of regions or volume needs to referenced
-        together with the corresponding source image(s) or series.
+        Exactly one of the following parameters must be specified to describe
+        the volumetric region of interest within the source image or series:
+        ``referenced_regions``, ``referenced_volume_surface``,
+        ``referenced_segment``.
 
         """  # noqa: E501
         if referenced_regions is not None and any(
