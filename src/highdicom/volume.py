@@ -2258,14 +2258,8 @@ class _VolumeBase(ABC):
 
         Parameters
         ----------
-        spatial_shape: Sequence[int]
-            Sequence of three floats giving the requested pixel spacing.
-            If True, align the centers of the corner voxels of the new image
-            and the old images. Since the position of the volume is defined in
-            terms of the location of the center of the voxel at index (0, 0,
-            0), this leads to no change in the position property of the new
-            volume. If False (default behavior), the corners of the image (i.e.
-            the corners of the corner pixels) are aligned instead.
+        spacing: Sequence[float]
+            Sequence of three floats giving the requested pixel spacing in mm.
         align_pixel_centers: bool
             If True, align the centers of the corner voxels of the new image
             and the old images. Since the position of the volume is defined in
