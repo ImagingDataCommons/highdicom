@@ -508,7 +508,7 @@ class InterpolationMethods(Enum):
     LINEAR = 'LINEAR'
     """Linear (or bi-linear or tri-linear) interpolator."""
 
-    CUBIC = 'cubic'
+    CUBIC = 'CUBIC'
     """Cubic (or bi-cubic or tri-cubic) interpolator."""
 
 

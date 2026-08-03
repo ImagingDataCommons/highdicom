@@ -1,6 +1,7 @@
 """Representations of multidimensional arrays with spatial metadata."""
 from abc import ABC, abstractmethod
 from enum import Enum
+from math import floor
 import itertools
 from typing import cast, Union
 from collections.abc import Sequence
@@ -154,14 +155,14 @@ def _resample_linear(
     w111 = dx * dy * dz
 
     return (
-        c000 * w000[:, None]
-        + c100 * w100[:, None]
-        + c010 * w010[:, None]
-        + c110 * w110[:, None]
-        + c001 * w001[:, None]
-        + c101 * w101[:, None]
-        + c011 * w011[:, None]
-        + c111 * w111[:, None]
+        c000 * w000[:, None] +
+        c100 * w100[:, None] +
+        c010 * w010[:, None] +
+        c110 * w110[:, None] +
+        c001 * w001[:, None] +
+        c101 * w101[:, None] +
+        c011 * w011[:, None] +
+        c111 * w111[:, None]
     )
 
 
@@ -497,6 +498,17 @@ class _VolumeBase(ABC):
         self._affine = affine
         self._frame_of_reference_uid = frame_of_reference_uid
 
+    @abstractmethod
+    def get_geometry(self) -> 'VolumeGeometry':
+        """Get geometry for this volume.
+
+        Returns
+        -------
+        highdicom.VolumeGeometry:
+            Geometry object matching this volume.
+
+        """
+
     @property
     @abstractmethod
     def spatial_shape(self) -> tuple[int, int, int]:
@@ -505,7 +517,6 @@ class _VolumeBase(ABC):
         Does not include channel dimensions.
 
         """
-        pass
 
     @property
     def coordinate_system(self) -> CoordinateSystemNames:
@@ -1280,6 +1291,40 @@ class _VolumeBase(ABC):
         )
 
     @abstractmethod
+    def resample_to_geometry(
+        self,
+        geometry: '_VolumeBase',
+        *,
+        interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
+        pad_value: float | list[float] = 0.0,
+        extend: bool = False,
+    ) -> Self:
+        """Create a new volume by resampling this to a given geometry.
+
+        Parameters
+        ----------
+        geometry: highdicom.VolumeGeometry
+            Volume geometry that defines the geometry onto which this
+            volume should be resampled.
+        interpolator: highdicom.enum.InterpolationMethods | str, optional
+            Interpolation mode to use.
+        pad_value: float | list[float], optional
+            Value(s) to place into output voxels that fall outside the range of
+            the input array. If a list, its length must match the number of
+            channels (last dimension) of ``array``. Ignored if ``extend`` is
+            ``True``.
+        extend: bool, optional
+            If True, out-of-range voxels use the nearest edge value from the
+            input array instead of ``pad_value``. Defaults to False.
+
+        Returns
+        -------
+        Self:
+            Volume resampled to the given geometry.
+
+        """
+
+    @abstractmethod
     def copy(self) -> Self:
         """Create a copy of the object.
 
@@ -1289,7 +1334,6 @@ class _VolumeBase(ABC):
             Copy of the original object.
 
         """
-        pass
 
     @abstractmethod
     def permute_spatial_axes(self, indices: Sequence[int]) -> Self:
@@ -1308,7 +1352,6 @@ class _VolumeBase(ABC):
             New volume with spatial axes permuted in the provided order.
 
         """
-        pass
 
     def random_permute_spatial_axes(
         self,
@@ -1676,6 +1719,9 @@ class _VolumeBase(ABC):
 
         if flip_axis is not None:
             return self.flip_spatial(flip_axis)
+
+        # Due to inital check that either flip_axis or swap_axes is specified
+        swap_axes = cast(Sequence[int], swap_axes)
 
         if len(swap_axes) != 2:
             raise ValueError(
@@ -2120,6 +2166,139 @@ class _VolumeBase(ABC):
 
         return new_volume
 
+    def resample_to_spatial_shape(
+        self,
+        spatial_shape: Sequence[int],
+        *,
+        align_voxel_centers: bool = False,
+        interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
+    ) -> Self:
+        """Resample the volume to a new spatial shape.
+
+        The resulting volume covers the same area in physical space with the
+        new spacing calculated to give the requested spatial shape.
+
+        Parameters
+        ----------
+        spatial_shape: Sequence[int]
+            Sequence of three integers giving the requested spatial shape.
+        align_pixel_centers: bool
+            If True, align the centers of the corner voxels of the new image
+            and the old images. Since the position of the volume is defined in
+            terms of the location of the center of the voxel at index (0, 0,
+            0), this leads to no change in the position property of the new
+            volume. If False (default behavior), the corners of the image (i.e.
+            the corners of the corner pixels) are aligned instead.
+        interpolator: highdicom.enum.InterpolationMethods | str, optional
+            Interpolation mode to use.
+
+        """
+        if align_voxel_centers:
+            new_spacing = [
+                max(old_shape - 1, 1) * old_spacing / max(new_shape - 1, 1)
+                for new_shape, old_shape, old_spacing in zip(
+                    spatial_shape,
+                    self.spatial_shape,
+                    self.spacing,
+                )
+            ]
+
+            new_geometry = VolumeGeometry.from_components(
+                spatial_shape=spatial_shape,
+                spacing=new_spacing,
+                position=self.position,
+                direction=self.direction,
+                coordinate_system=self.coordinate_system,
+            )
+        else:
+            new_spacing = [
+                ext / s for s, ext in zip(spatial_shape, self.physical_extent)
+            ]
+
+            new_geometry = VolumeGeometry.from_components(
+                spatial_shape=spatial_shape,
+                spacing=new_spacing,
+                center_position=self.center_position,
+                direction=self.direction,
+                coordinate_system=self.coordinate_system,
+            )
+
+        return self.resample_to_geometry(
+            new_geometry,
+            interpolator=interpolator,
+        )
+
+    def resample_to_spacing(
+        self,
+        spacing: Sequence[float],
+        *,
+        align_voxel_centers: bool = False,
+        interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
+    ) -> Self:
+        """Resample the volume to a new pixel spacing.
+
+        The resulting volume covers the same area in physical space with the
+        shape calculated to give the requested spacing. If rounding is required,
+        the shape is rounded down along each dimension such that the
+        resulting volume covers a slightly smaller physical area than the
+        original volume.
+
+        Parameters
+        ----------
+        spatial_shape: Sequence[int]
+            Sequence of three floats giving the requested pixel spacing.
+            If True, align the centers of the corner voxels of the new image
+            and the old images. Since the position of the volume is defined in
+            terms of the location of the center of the voxel at index (0, 0,
+            0), this leads to no change in the position property of the new
+            volume. If False (default behavior), the corners of the image (i.e.
+            the corners of the corner pixels) are aligned instead.
+        align_pixel_centers: bool
+            If True, align the centers of the corner voxels of the new image
+            and the old images. Since the position of the volume is defined in
+            terms of the location of the center of the voxel at index (0, 0,
+            0), this leads to no change in the position property of the new
+            volume. If False (default behavior), the corners of the image (i.e.
+            the corners of the corner pixels) are aligned instead.
+        interpolator: highdicom.enum.InterpolationMethods | str, optional
+            Interpolation mode to use.
+
+        """
+        if align_voxel_centers:
+            new_shape = [
+                floor((old_shape - 1) * old_spacing / new_spacing) + 1
+                for old_shape, old_spacing, new_spacing in zip(
+                    self.spatial_shape,
+                    self.spacing,
+                    spacing,
+                )
+            ]
+
+            new_geometry = VolumeGeometry.from_components(
+                spatial_shape=new_shape,
+                spacing=spacing,
+                position=self.position,
+                direction=self.direction,
+                coordinate_system=self.coordinate_system,
+            )
+        else:
+            new_shape = [
+                floor(ext / s) for s, ext in zip(spacing, self.physical_extent)
+            ]
+
+            new_geometry = VolumeGeometry.from_components(
+                spatial_shape=new_shape,
+                spacing=spacing,
+                center_position=self.center_position,
+                direction=self.direction,
+                coordinate_system=self.coordinate_system,
+            )
+
+        return self.resample_to_geometry(
+            new_geometry,
+            interpolator=interpolator,
+        )
+
 
 class VolumeGeometry(_VolumeBase):
 
@@ -2192,7 +2371,7 @@ class VolumeGeometry(_VolumeBase):
 
         if len(spatial_shape) != 3:
             raise ValueError("Argument 'spatial_shape' must have length 3.")
-        self._spatial_shape = tuple(spatial_shape)
+        self._spatial_shape: tuple[int, int, int] = tuple(spatial_shape)
 
     @classmethod
     def from_attributes(
@@ -2398,6 +2577,19 @@ class VolumeGeometry(_VolumeBase):
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
 
+    def get_geometry(self):
+        """Get geometry.
+
+        Returns self for VolumeGeometry class.
+
+        Returns
+        -------
+        highdicom.VolumeGeometry:
+            Returns a reference to the object.
+
+        """
+        return self
+
     @property
     def spatial_shape(self) -> tuple[int, int, int]:
         """Tuple[int, int, int]: Spatial shape of the array.
@@ -2540,6 +2732,41 @@ class VolumeGeometry(_VolumeBase):
             coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
         )
+
+    def resample_to_geometry(
+        self,
+        geometry: _VolumeBase,
+        *,
+        interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
+        pad_value: float | list[float] = 0.0,
+        extend: bool = False,
+    ) -> Self:
+        """Create a new volume by resampling this to a given geometry.
+
+        Parameters
+        ----------
+        geometry: highdicom.VolumeGeometry
+            Volume geometry that defines the geometry onto which this
+            volume should be resampled.
+        interpolator: highdicom.enum.InterpolationMethods | str, optional
+            Interpolation mode to use. Defaults to
+            ``InterpolationMethods.LINEAR``.
+        pad_value: float | list[float], optional
+            Value(s) to place into output voxels that fall outside the range of
+            the input array. If a list, its length must match the number of
+            channels (last dimension) of ``array``. Ignored if ``extend`` is
+            ``True``.
+        extend: bool, optional
+            If True, out-of-range voxels use the nearest edge value from the
+            input array instead of ``pad_value``. Defaults to False.
+
+        Returns
+        -------
+        Self:
+            Volume resampled to the given geometry.
+
+        """
+        return geometry.get_geometry()
 
     def with_array(
         self,
@@ -3832,7 +4059,7 @@ class Volume(_VolumeBase):
 
     def resample_to_geometry(
         self,
-        geometry: VolumeGeometry,
+        geometry: Union['VolumeGeometry', 'Volume'],
         *,
         interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
         pad_value: float | list[float] = 0.0,
@@ -3900,8 +4127,8 @@ class Volume(_VolumeBase):
             [output_indices, ones[None, ...]], axis=0
         )
         orig_shape = output_indices_h.shape[1:]
-        N = output_indices_h.size // 4
-        output_indices_flat = output_indices_h.reshape(4, N)
+        n = output_indices_h.size // 4
+        output_indices_flat = output_indices_h.reshape(4, n)
 
         input_indices_flat = combined @ output_indices_flat
 
@@ -3910,42 +4137,44 @@ class Volume(_VolumeBase):
         shape = np.array(array.shape[:3], dtype=x.dtype)
         n_channels = array.shape[-1]
 
+        eps = 1e-7
+
         if extend:
-            x_v = np.clip(x, 0, shape[0] - 1 - 1e-7)
-            y_v = np.clip(y, 0, shape[1] - 1 - 1e-7)
-            z_v = np.clip(z, 0, shape[2] - 1 - 1e-7)
+            x_v = np.clip(x, 0, shape[0] - 1 - eps)
+            y_v = np.clip(y, 0, shape[1] - 1 - eps)
+            z_v = np.clip(z, 0, shape[2] - 1 - eps)
             valid = slice(None)
-            output = np.empty((N, n_channels), dtype=array.dtype)
+            output = np.empty((n, n_channels), dtype=array.dtype)
         else:
             valid = (
-                (x >= 0)
-                & (x < shape[0])
-                & (y >= 0)
-                & (y < shape[1])
-                & (z >= 0)
-                & (z < shape[2])
+                (x >= 0) &
+                (x < shape[0]) &
+                (y >= 0) &
+                (y < shape[1]) &
+                (z >= 0) &
+                (z < shape[2])
             )
 
-            x_v = np.clip(x[valid], 0, shape[0] - 1 - 1e-7)
-            y_v = np.clip(y[valid], 0, shape[1] - 1 - 1e-7)
-            z_v = np.clip(z[valid], 0, shape[2] - 1 - 1e-7)
+            x_v = np.clip(x[valid], 0, shape[0] - 1 - eps)
+            y_v = np.clip(y[valid], 0, shape[1] - 1 - eps)
+            z_v = np.clip(z[valid], 0, shape[2] - 1 - eps)
 
             pad_value_arr = np.asarray(pad_value)
             if pad_value_arr.ndim == 1 and pad_value_arr.shape[0] != n_channels:
+                plural_str = 's' if n_channels > 1 else ''
                 raise ValueError(
-                    f"pad_value has {pad_value_arr.shape[0]} elements but array has "
-                    f"{n_channels} channel{'s' if n_channels > 1 else ''}"
+                    f"pad_value has {pad_value_arr.shape[0]} elements but "
+                    f"array has {n_channels} channel{plural_str}"
                 )
             pad_value_arr = np.broadcast_to(pad_value_arr, (n_channels,))
-            output = np.empty((N, n_channels), dtype=array.dtype)
+            output = np.empty((n, n_channels), dtype=array.dtype)
             output[:] = pad_value_arr[None, :]
 
-        if interpolator == InterpolationMethods.NEAREST:
-            interpolation_fn = _resample_nearest
-        elif interpolator == InterpolationMethods.LINEAR:
-            interpolation_fn = _resample_linear
-        elif interpolator == InterpolationMethods.CUBIC:
-            interpolation_fn = _resample_cubic
+        interpolation_fn = {
+            InterpolationMethods.NEAREST: _resample_nearest,
+            InterpolationMethods.LINEAR: _resample_linear,
+            InterpolationMethods.CUBIC: _resample_cubic,
+        }[interpolator]
 
         output[valid] = interpolation_fn(array, x_v, y_v, z_v, shape)
 
