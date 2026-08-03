@@ -2193,6 +2193,19 @@ class _VolumeBase(ABC):
             Interpolation mode to use.
 
         """
+        if len(spatial_shape) != 3:
+            raise ValueError("Argument 'spatial_shape' must have length 3.")
+
+        for i in spatial_shape:
+            if not isinstance(i, int):
+                raise TypeError(
+                    "Items of 'spatial_shape' muat be integers."
+                )
+            if i < 1:
+                raise ValueError(
+                    "Items of 'spatial_shape' muat be positive integers."
+                )
+
         if align_voxel_centers:
             new_spacing = [
                 max(old_shape - 1, 1) * old_spacing / max(new_shape - 1, 1)
@@ -2264,6 +2277,13 @@ class _VolumeBase(ABC):
             Interpolation mode to use.
 
         """
+        if len(spacing) != 3:
+            raise ValueError("Argument 'spacing' must have length 3.")
+
+        for i in spacing:
+            if not i > 0.0:
+                raise ValueError("Items of 'spacing' muat be positive.")
+
         if align_voxel_centers:
             new_shape = [
                 floor((old_shape - 1) * old_spacing / new_spacing) + 1
