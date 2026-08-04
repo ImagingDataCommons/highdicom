@@ -121,6 +121,7 @@ from highdicom.volume import (
     Volume,
     RGB_COLOR_CHANNEL_DESCRIPTOR,
     VOLUME_INDEX_CONVENTION,
+    _get_match_operations,
 )
 
 
@@ -8705,6 +8706,105 @@ class Image(_Image):
             frame_of_reference_uid=self.FrameOfReferenceUID,
             channels=channel_spec,
         )
+
+    def get_volume_by_geometry(
+        self,
+        geometry: Volume | VolumeGeometry,
+    ) -> Volume:
+        """Get a volume with a given geometry from the image.
+
+        This will form the requested volume without resampling, using some
+        combination of axis permutations, crops, pads, and flips. If this is
+        not possible, a ``RuntimeError`` will be raised.
+
+        Importantly, only required frames will be accessed. If the requested
+        volume is much smaller than the full volume contained within the image,
+        this can therefore be much more efficient than retrieving the full
+        volume and manipulating it to match the requested geometry.
+
+        Parameters
+        ----------
+        geometry: highdicom.Volume | highdicom.VolumeGeometry
+            Geometry of the requested volume. If this is a full Volume, only
+            the geometry is relevant to this operation.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume retrieved from the image with the requested geometry.
+
+        """
+        image_geometry = self._get_volume_geometry()
+
+        # We want to start with the "minimal" volume to avoid loading or
+        # processing unnecessary frames. To do this find the operations needed
+        # for the inverse mapping (other volume to the image volume) and use
+        # the padding values as the cropping values when constructing the
+        # volume
+        _, pad_values, crop_slices = _get_match_operations(
+            geometry,
+            image_geometry,
+        )
+
+        def process_pad_values(
+            pv: tuple[int, int],
+            cs: slice,
+        ) -> tuple[int, int | None]:
+            before, after = pv
+            if cs.step == 1:
+                start = before
+                end = -after
+            elif cs.step == -1:
+                # Order is reversed so need to swap start and end
+                start = after
+                end = -before
+            else:
+                # Step may be an integer greater than one, meaning the reverse
+                # operation is a downsample. But this implies upsampling the
+                # image volume and is therefore not allowed
+                raise RuntimeError(
+                    "Non-integer scale factor required."
+                )
+
+            if end == 0:
+                end = None
+
+            return start, end
+
+        if pad_values is None:
+            slice_start = None
+            slice_end = None
+            row_start = None
+            row_end = None
+            column_start = None
+            column_end = None
+        else:
+            if crop_slices is None:
+                crop_slices = [slice(None, None, 1)] * 3
+
+            slice_start, slice_end = process_pad_values(
+                pad_values[0],
+                crop_slices[0],
+            )
+            row_start, row_end = process_pad_values(
+                pad_values[1],
+                crop_slices[1],
+            )
+            column_start, column_end = process_pad_values(
+                pad_values[2],
+                crop_slices[2],
+            )
+
+        # TODO other parameters
+        return self.get_volume(
+            slice_start=slice_start,
+            slice_end=slice_end,
+            row_start=row_start,
+            row_end=row_end,
+            column_start=column_start,
+            column_end=column_end,
+            as_indices=True,
+        ).match_geometry(geometry)
 
     def get_total_pixel_matrix(
         self,

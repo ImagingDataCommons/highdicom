@@ -236,175 +236,6 @@ def _resample_cubic(
     return out
 
 
-def _get_match_operations(
-    a: _VolumeBase,
-    b: _VolumeBase,
-    tol: float = _DEFAULT_EQUALITY_TOLERANCE,
-) -> tuple[
-    tuple[int, int, int] | None,
-    tuple[tuple[int, int], tuple[int, int], tuple[int, int]] | None,
-    tuple[slice, slice, slice] | None,
-]:
-    """Find operations to match the geometry of one volume to another.
-
-    This finds a combination of permuting axes, flipping, padding, and cropping
-    (in that order) such that when performed on volume ``a``, its geometry of
-    this volume matches that of volume ``b``. Notably, the operations do not
-    involves resampled. If the geometry cannot be matched using these
-    operations, then a ``RuntimeError`` is raised.
-
-    Parameters
-    ----------
-    a: Union[highdicom.Volume, highdicom.VolumeGeometry]
-        Volume or volume geometry to which operations should be applied.
-    b: Union[highdicom.Volume, highdicom.VolumeGeometry]
-        Volume or volume geometry that ``a`` should match after the operations.
-    tol: float, optional
-        Absolute Tolerance used to determine equality of affine matrices.
-        If None, affine matrices must match exactly.
-
-    Returns
-    -------
-    permute_indices: tuple[int, int, int] | None
-        Indices to use to permute the spatial dimensions of the volume. None if
-        no permutation is required.
-    pad_values: tuple[tuple[int, int], tuple[int, int], tuple[int, int]] | None
-        Values to use to pad the volume. None if no padding is required.
-    crop_slices: tuple[slice, slice, slice] | None
-        Slice objects to use to index the volume (via __getitem__) to perform
-        cropping (and/or flipping).
-
-    Raises
-    ------
-    RuntimeError:
-        If the geometries cannot be matched without resampling the array.
-
-    """
-    if (
-        a.frame_of_reference_uid is not None and
-        b.frame_of_reference_uid is not None
-    ):
-        if a.frame_of_reference_uid != a.frame_of_reference_uid:
-            raise RuntimeError(
-                "Volumes do not have matching frame of reference UIDs."
-            )
-
-    if a.coordinate_system != b.coordinate_system:
-        raise RuntimeError(
-            "Volumes do not exist in the same coordinate system."
-        )
-
-    permute_indices = []
-    step_sizes = []
-    for u, s in zip(b.unit_vectors(), b.spacing):
-        for j, (v, t) in enumerate(
-            zip(a.unit_vectors(), a.spacing)
-        ):
-            dot_product = u @ v
-            if (
-                np.abs(dot_product - 1.0) < tol or
-                np.abs(dot_product + 1.0) < tol
-            ):
-                permute_indices.append(j)
-
-                scale_factor = s / t
-                step = int(np.round(scale_factor))
-                if abs(scale_factor - step) > tol:
-                    raise RuntimeError(
-                        "Non-integer scale factor required."
-                    )
-
-                if dot_product < 0.0:
-                    step = -step
-
-                step_sizes.append(step)
-
-                break
-        else:
-            raise RuntimeError(
-                "Direction vectors could not be aligned."
-            )
-
-    requires_permute = permute_indices != [0, 1, 2]
-    if requires_permute:
-        new_geometry = (
-            a
-            .get_geometry()
-            .permute_spatial_axes(permute_indices)
-        )
-    else:
-        new_geometry = a
-
-    # Now figure out padding and cropping
-    origin_offset = (
-        np.array(b.position) -
-        np.array(new_geometry.position)
-    )
-
-    crop_slices = []
-    pad_values = []
-    requires_crop = False
-    requires_pad = False
-
-    for v, spacing, step, out_shape, in_shape in zip(
-        new_geometry.unit_vectors(),
-        new_geometry.spacing,
-        step_sizes,
-        b.spatial_shape,
-        new_geometry.spatial_shape,
-    ):
-        offset = v @ origin_offset
-        start_ind = offset / spacing
-        start_pos = int(np.round(start_ind))
-        end_pos = start_pos + out_shape * step
-
-        if abs(start_pos - start_ind) > tol:
-            raise RuntimeError(
-                "Required translation is non-integer "
-                "multiple of voxel spacing."
-            )
-
-        if step > 0:
-            pad_before = max(-start_pos, 0)
-            pad_after = max(end_pos - in_shape, 0)
-            crop_start = start_pos + pad_before
-            crop_stop = end_pos + pad_before
-
-            if crop_start > 0 or crop_stop < out_shape:
-                requires_crop = True
-        else:
-            pad_after = max(start_pos - in_shape + 1, 0)
-            pad_before = max(-end_pos - 1, 0)
-            crop_start = start_pos + pad_before
-            crop_stop = end_pos + pad_before
-
-            # Need the crop operation to flip
-            requires_crop = True
-
-            if crop_stop == -1:
-                crop_stop = None
-
-        if pad_before > 0 or pad_after > 0:
-            requires_pad = True
-
-        crop_slices.append(
-            slice(crop_start, crop_stop, step)
-        )
-        pad_values.append((pad_before, pad_after))
-
-    permute_indices = (
-        None if permute_indices == [0, 1, 2] else tuple(permute_indices)
-    )
-    pad_values = tuple(pad_values) if requires_pad else None
-    crop_slices = tuple(crop_slices) if requires_crop else None
-
-    return (
-        permute_indices,
-        pad_values,
-        crop_slices,
-    )
-
-
 class ChannelDescriptor:
 
     """Descriptor of a channel (non-spatial) dimension within a Volume.
@@ -4970,3 +4801,172 @@ class VolumeToVolumeTransformer:
                 raise ValueError("Bounds check failed.")
 
         return output_indices
+
+
+def _get_match_operations(
+    a: _VolumeBase,
+    b: _VolumeBase,
+    tol: float = _DEFAULT_EQUALITY_TOLERANCE,
+) -> tuple[
+    tuple[int, int, int] | None,
+    tuple[tuple[int, int], tuple[int, int], tuple[int, int]] | None,
+    tuple[slice, slice, slice] | None,
+]:
+    """Find operations to match the geometry of one volume to another.
+
+    This finds a combination of permuting axes, flipping, padding, and cropping
+    (in that order) such that when performed on volume ``a``, its geometry of
+    this volume matches that of volume ``b``. Notably, the operations do not
+    involves resampled. If the geometry cannot be matched using these
+    operations, then a ``RuntimeError`` is raised.
+
+    Parameters
+    ----------
+    a: Union[highdicom.Volume, highdicom.VolumeGeometry]
+        Volume or volume geometry to which operations should be applied.
+    b: Union[highdicom.Volume, highdicom.VolumeGeometry]
+        Volume or volume geometry that ``a`` should match after the operations.
+    tol: float, optional
+        Absolute Tolerance used to determine equality of affine matrices.
+        If None, affine matrices must match exactly.
+
+    Returns
+    -------
+    permute_indices: tuple[int, int, int] | None
+        Indices to use to permute the spatial dimensions of the volume. None if
+        no permutation is required.
+    pad_values: tuple[tuple[int, int], tuple[int, int], tuple[int, int]] | None
+        Values to use to pad the volume. None if no padding is required.
+    crop_slices: tuple[slice, slice, slice] | None
+        Slice objects to use to index the volume (via __getitem__) to perform
+        cropping (and/or flipping).
+
+    Raises
+    ------
+    RuntimeError:
+        If the geometries cannot be matched without resampling the array.
+
+    """
+    if (
+        a.frame_of_reference_uid is not None and
+        b.frame_of_reference_uid is not None
+    ):
+        if a.frame_of_reference_uid != a.frame_of_reference_uid:
+            raise RuntimeError(
+                "Volumes do not have matching frame of reference UIDs."
+            )
+
+    if a.coordinate_system != b.coordinate_system:
+        raise RuntimeError(
+            "Volumes do not exist in the same coordinate system."
+        )
+
+    permute_indices = []
+    step_sizes = []
+    for u, s in zip(b.unit_vectors(), b.spacing):
+        for j, (v, t) in enumerate(
+            zip(a.unit_vectors(), a.spacing)
+        ):
+            dot_product = u @ v
+            if (
+                np.abs(dot_product - 1.0) < tol or
+                np.abs(dot_product + 1.0) < tol
+            ):
+                permute_indices.append(j)
+
+                scale_factor = s / t
+                step = int(np.round(scale_factor))
+                if abs(scale_factor - step) > tol:
+                    raise RuntimeError(
+                        "Non-integer scale factor required."
+                    )
+
+                if dot_product < 0.0:
+                    step = -step
+
+                step_sizes.append(step)
+
+                break
+        else:
+            raise RuntimeError(
+                "Direction vectors could not be aligned."
+            )
+
+    requires_permute = permute_indices != [0, 1, 2]
+    if requires_permute:
+        new_geometry = (
+            a
+            .get_geometry()
+            .permute_spatial_axes(permute_indices)
+        )
+    else:
+        new_geometry = a
+
+    # Now figure out padding and cropping
+    origin_offset = (
+        np.array(b.position) -
+        np.array(new_geometry.position)
+    )
+
+    crop_slices = []
+    pad_values = []
+    requires_crop = False
+    requires_pad = False
+
+    for v, spacing, step, out_shape, in_shape in zip(
+        new_geometry.unit_vectors(),
+        new_geometry.spacing,
+        step_sizes,
+        b.spatial_shape,
+        new_geometry.spatial_shape,
+    ):
+        offset = v @ origin_offset
+        start_ind = offset / spacing
+        start_pos = int(np.round(start_ind))
+        end_pos = start_pos + out_shape * step
+
+        if abs(start_pos - start_ind) > tol:
+            raise RuntimeError(
+                "Required translation is non-integer "
+                "multiple of voxel spacing."
+            )
+
+        if step > 0:
+            pad_before = max(-start_pos, 0)
+            pad_after = max(end_pos - in_shape, 0)
+            crop_start = start_pos + pad_before
+            crop_stop = end_pos + pad_before
+
+            if crop_start > 0 or crop_stop < out_shape:
+                requires_crop = True
+        else:
+            pad_after = max(start_pos - in_shape + 1, 0)
+            pad_before = max(-end_pos - 1, 0)
+            crop_start = start_pos + pad_before
+            crop_stop = end_pos + pad_before
+
+            # Need the crop operation to flip
+            requires_crop = True
+
+            if crop_stop == -1:
+                crop_stop = None
+
+        if pad_before > 0 or pad_after > 0:
+            requires_pad = True
+
+        crop_slices.append(
+            slice(crop_start, crop_stop, step)
+        )
+        pad_values.append((pad_before, pad_after))
+
+    permute_indices = (
+        None if permute_indices == [0, 1, 2] else tuple(permute_indices)
+    )
+    pad_values = tuple(pad_values) if requires_pad else None
+    crop_slices = tuple(crop_slices) if requires_crop else None
+
+    return (
+        permute_indices,
+        pad_values,
+        crop_slices,
+    )
