@@ -95,10 +95,14 @@ def _resample_nearest(
     -------
     np.ndarray:
         Interpolated values of shape ``(N, C)``.
+
     """
-    xi = np.clip(np.round(x_v), 0, shape[0] - 1).astype(np.int64)
-    yi = np.clip(np.round(y_v), 0, shape[1] - 1).astype(np.int64)
-    zi = np.clip(np.round(z_v), 0, shape[2] - 1).astype(np.int64)
+    # xi = np.clip(np.round(x_v), 0, shape[0] - 1).astype(np.int64)
+    # yi = np.clip(np.round(y_v), 0, shape[1] - 1).astype(np.int64)
+    # zi = np.clip(np.round(z_v), 0, shape[2] - 1).astype(np.int64)
+    xi = np.round(x_v).astype(np.int64)
+    yi = np.round(y_v).astype(np.int64)
+    zi = np.round(z_v).astype(np.int64)
     return array[xi, yi, zi, :]
 
 
@@ -145,13 +149,17 @@ def _resample_linear(
     c011 = array[x0, y1, z1, :]
     c111 = array[x1, y1, z1, :]
 
-    w000 = (1 - dx) * (1 - dy) * (1 - dz)
-    w100 = dx * (1 - dy) * (1 - dz)
-    w010 = (1 - dx) * dy * (1 - dz)
-    w110 = dx * dy * (1 - dz)
-    w001 = (1 - dx) * (1 - dy) * dz
-    w101 = dx * (1 - dy) * dz
-    w011 = (1 - dx) * dy * dz
+    dx_m = 1 - dx
+    dy_m = 1 - dy
+    dz_m = 1 - dz
+
+    w000 = dx_m * dy_m * dz_m
+    w100 = dx * dy_m * dz_m
+    w010 = dx_m * dy * dz_m
+    w110 = dx * dy * dz_m
+    w001 = dx_m * dy_m * dz
+    w101 = dx * dy_m * dz
+    w011 = dx_m * dy * dz
     w111 = dx * dy * dz
 
     return (
@@ -200,26 +208,26 @@ def _resample_cubic(
     ty = y_v - (y0 + 1)
     tz = z_v - (z0 + 1)
 
-    tx2 = tx * tx
-    tx3 = tx2 * tx
+    tx2 = tx ** 2
+    tx3 = tx ** 3
+    wx0 = -0.5 * tx3 + tx2 - 0.5 * tx
     wx1 = 1.5 * tx3 - 2.5 * tx2 + 1.0
     wx2 = -1.5 * tx3 + 2.0 * tx2 + 0.5 * tx
     wx3 = 0.5 * tx3 - 0.5 * tx2
-    wx0 = -0.5 * tx3 + tx2 - 0.5 * tx
 
-    ty2 = ty * ty
-    ty3 = ty2 * ty
+    ty2 = ty ** 2
+    ty3 = ty ** 3
+    wy0 = -0.5 * ty3 + ty2 - 0.5 * ty
     wy1 = 1.5 * ty3 - 2.5 * ty2 + 1.0
     wy2 = -1.5 * ty3 + 2.0 * ty2 + 0.5 * ty
     wy3 = 0.5 * ty3 - 0.5 * ty2
-    wy0 = -0.5 * ty3 + ty2 - 0.5 * ty
 
-    tz2 = tz * tz
-    tz3 = tz2 * tz
+    tz2 = tz ** 2
+    tz3 = tz ** 3
+    wz0 = -0.5 * tz3 + tz2 - 0.5 * tz
     wz1 = 1.5 * tz3 - 2.5 * tz2 + 1.0
     wz2 = -1.5 * tz3 + 2.0 * tz2 + 0.5 * tz
     wz3 = 0.5 * tz3 - 0.5 * tz2
-    wz0 = -0.5 * tz3 + tz2 - 0.5 * tz
 
     out = np.zeros((x_v.shape[0], n_channels), dtype=array.dtype)
     shape_i = shape.astype(np.int64)
@@ -233,6 +241,7 @@ def _resample_cubic(
                 zk = np.clip(z0 + k, 0, shape_i[2] - 1)
                 w = wxy * (wz0, wz1, wz2, wz3)[k]
                 out += w[:, None] * array[xi, yj, zk, :]
+
     return out
 
 
@@ -4014,14 +4023,13 @@ class Volume(_VolumeBase):
         if (
             self.frame_of_reference_uid is not None and
             geometry.frame_of_reference_uid is not None
+        ) and (
+            self.frame_of_reference_uid != geometry.frame_of_reference_uid
         ):
-            if (
-                self.frame_of_reference_uid != geometry.frame_of_reference_uid
-            ):
-                raise ValueError(
-                    "Resampling is not possible because the geometries exist "
-                    "within different frames of reference."
-                )
+            raise ValueError(
+                "Resampling is not possible because the geometries exist "
+                "within different frames of reference."
+            )
 
         frame_of_reference_uid = None
         if self.frame_of_reference_uid is not None:
