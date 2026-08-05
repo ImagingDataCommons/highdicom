@@ -1305,11 +1305,12 @@ class _VolumeBase(ABC):
     @abstractmethod
     def resample_to_geometry(
         self,
-        geometry: '_VolumeBase',
+        geometry: Union['VolumeGeometry', 'Volume'],
         *,
         interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
-        pad_value: float | list[float] = 0.0,
-        extend: bool = False,
+        pad_mode: PadModes | str = PadModes.CONSTANT,
+        pad_value: float | list[float] | np.ndarray = 0.0,
+        per_channel: bool = False,
     ) -> Self:
         """Create a new volume by resampling this to a given geometry.
 
@@ -1319,15 +1320,20 @@ class _VolumeBase(ABC):
             Volume geometry that defines the geometry onto which this
             volume should be resampled.
         interpolator: highdicom.enum.InterpolationMethods | str, optional
-            Interpolation mode to use.
-        pad_value: float | list[float], optional
+            Interpolation mode to use. Defaults to
+            ``InterpolationMethods.LINEAR``.
+        pad_mode: highdiom.PadMode | str, optional
+            Mode used to assign values to out of out-of-range voxels.
+        pad_value: float | list[float] | numpy.ndarray, optional
             Value(s) to place into output voxels that fall outside the range of
-            the input array. If a list, its length must match the number of
-            channels (last dimension) of ``array``. Ignored if ``extend`` is
-            ``True``.
-        extend: bool, optional
-            If True, out-of-range voxels use the nearest edge value from the
-            input array instead of ``pad_value``. Defaults to False.
+            the input array if ``pad_mode`` is ``"CONSTANT"``, ignored
+            otherwise. May be a single value, or anything broadcastable to the
+            volume's channel shape using standard NumPy broadcasting rules,
+            allowing for different padding values for each channel.
+        per_channel: bool, optional
+            Whether to calculate padding values for each channel individually
+            when using the ``"MINIMUM"``, ``"MAXIMUM"``, ``"MEAN"``, or
+            ``"MEDIAN"`` pad modes. Ignored when using other pad modes.
 
         Returns
         -------
@@ -2666,11 +2672,12 @@ class VolumeGeometry(_VolumeBase):
 
     def resample_to_geometry(
         self,
-        geometry: _VolumeBase,
+        geometry: Union['VolumeGeometry', 'Volume'],
         *,
         interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
-        pad_value: float | list[float] = 0.0,
-        extend: bool = False,
+        pad_mode: PadModes | str = PadModes.CONSTANT,
+        pad_value: float | list[float] | np.ndarray = 0.0,
+        per_channel: bool = False,
     ) -> Self:
         """Create a new volume by resampling this to a given geometry.
 
@@ -2680,16 +2687,13 @@ class VolumeGeometry(_VolumeBase):
             Volume geometry that defines the geometry onto which this
             volume should be resampled.
         interpolator: highdicom.enum.InterpolationMethods | str, optional
-            Interpolation mode to use. Defaults to
-            ``InterpolationMethods.LINEAR``.
-        pad_value: float | list[float], optional
-            Value(s) to place into output voxels that fall outside the range of
-            the input array. If a list, its length must match the number of
-            channels (last dimension) of ``array``. Ignored if ``extend`` is
-            ``True``.
-        extend: bool, optional
-            If True, out-of-range voxels use the nearest edge value from the
-            input array instead of ``pad_value``. Defaults to False.
+            Ignored for class ``VolumeGeometry``.
+        pad_mode: highdiom.PadMode | str, optional
+            Ignored for class ``VolumeGeometry``.
+        pad_value: float | list[float] | numpy.ndarray, optional
+            Ignored for class ``VolumeGeometry``.
+        per_channel: bool, optional
+            Ignored for class ``VolumeGeometry``.
 
         Returns
         -------
@@ -3994,7 +3998,7 @@ class Volume(_VolumeBase):
         *,
         interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
         pad_mode: PadModes | str = PadModes.CONSTANT,
-        pad_value: float | list[float] = 0.0,
+        pad_value: float | list[float] | np.ndarray = 0.0,
         per_channel: bool = False,
     ) -> Self:
         """Create a new volume by resampling this to a given geometry.
@@ -4009,12 +4013,12 @@ class Volume(_VolumeBase):
             ``InterpolationMethods.LINEAR``.
         pad_mode: highdiom.PadMode | str, optional
             Mode used to assign values to out of out-of-range voxels.
-        pad_value: float | list[float], optional
+        pad_value: float | list[float] | numpy.ndarray, optional
             Value(s) to place into output voxels that fall outside the range of
             the input array if ``pad_mode`` is ``"CONSTANT"``, ignored
             otherwise. May be a single value, or anything broadcastable to the
-            volume's channel shape, allowing for different padding values for
-            each channel.
+            volume's channel shape using standard NumPy broadcasting rules,
+            allowing for different padding values for each channel.
         per_channel: bool, optional
             Whether to calculate padding values for each channel individually
             when using the ``"MINIMUM"``, ``"MAXIMUM"``, ``"MEAN"``, or
