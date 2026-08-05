@@ -3993,8 +3993,9 @@ class Volume(_VolumeBase):
         geometry: Union['VolumeGeometry', 'Volume'],
         *,
         interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
+        pad_mode: PadModes | str = PadModes.CONSTANT,
         pad_value: float | list[float] = 0.0,
-        extend: bool = False,
+        per_channel: bool = False,
     ) -> Self:
         """Create a new volume by resampling this to a given geometry.
 
@@ -4006,14 +4007,18 @@ class Volume(_VolumeBase):
         interpolator: highdicom.enum.InterpolationMethods | str, optional
             Interpolation mode to use. Defaults to
             ``InterpolationMethods.LINEAR``.
+        pad_mode: highdiom.PadMode | str, optional
+            Mode used to assign values to out of out-of-range voxels.
         pad_value: float | list[float], optional
             Value(s) to place into output voxels that fall outside the range of
-            the input array. May be a single value, or anything broadcastable
-            to the volume's channel shape, allowing for different padding values
-            for each channel.
-        extend: bool, optional
-            If True, out-of-range voxels use the nearest edge value from the
-            input array instead of ``pad_value``. Defaults to False.
+            the input array if ``pad_mode`` is ``"CONSTANT"``, ignored
+            otherwise. May be a single value, or anything broadcastable to the
+            volume's channel shape, allowing for different padding values for
+            each channel.
+        per_channel: bool, optional
+            Whether to calculate padding values for each channel individually
+            when using the ``"MINIMUM"``, ``"MAXIMUM"``, ``"MEAN"``, or
+            ``"MEDIAN"`` pad modes. Ignored when using other pad modes.
 
         Returns
         -------
@@ -4021,6 +4026,7 @@ class Volume(_VolumeBase):
             Volume resampled to the given geometry.
 
         """
+        pad_mode = PadModes(pad_mode)
         interpolator = InterpolationMethods(interpolator)
         interpolation_fn = {
             InterpolationMethods.NEAREST: _resample_nearest,
@@ -4061,8 +4067,7 @@ class Volume(_VolumeBase):
         # TODO think about this and make sure it applies to the extend branch below!
         output_dtype = array.dtype
 
-        if extend:
-            # TODO use pad_mode here instead
+        if pad_mode == PadModes.EDGE:
             x_v = np.clip(x, 0, shape[0] - 1)
             y_v = np.clip(y, 0, shape[1] - 1)
             z_v = np.clip(z, 0, shape[2] - 1)
@@ -4077,14 +4082,26 @@ class Volume(_VolumeBase):
                 (z <= (shape[2] - 1))
             )
 
-            pad_value_arr = np.asarray(pad_value, dtype=output_dtype)
-            try:
+            if pad_mode == PadModes.CONSTANT:
+                pad_value_arr = np.asarray(pad_value, dtype=output_dtype)
+                try:
+                    pad_value_arr = np.broadcast_to(pad_value_arr, self.channel_shape)
+                except ValueError as e:
+                    raise ValueError(
+                        f"Provided padding value with shape {pad_value_arr.shape} cannot "
+                        f"be broadcast to the channel shape {self.channel_shape}."
+                    ) from e
+            else:
+                pad_func = {
+                    PadModes.MINIMUM: np.min,
+                    PadModes.MAXIMUM: np.max,
+                    PadModes.MEAN: np.mean,
+                    PadModes.MEDIAN: np.median,
+                }[pad_mode]
+
+                axis = (0, 1, 2) if per_channel else None
+                pad_value_arr = pad_func(array, axis=axis)
                 pad_value_arr = np.broadcast_to(pad_value_arr, self.channel_shape)
-            except ValueError as e:
-                raise ValueError(
-                    f"Provided padding value with shape {pad_value_arr.shape} cannot "
-                    f"be broadcast to the channel shape {self.channel_shape}."
-                ) from e
 
             output = np.full((n, *self.channel_shape), pad_value_arr)
             output[valid] = interpolation_fn(
