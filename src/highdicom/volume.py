@@ -1194,7 +1194,7 @@ class _VolumeBase(ABC):
         pad_width: int | Sequence[int] | Sequence[Sequence[int]],
         *,
         mode: PadModes | str = PadModes.CONSTANT,
-        constant_value: float = 0.0,
+        constant_value: float | Sequence[float] | np.ndarray = 0.0,
         per_channel: bool = False,
     ) -> Self:
         pass
@@ -1309,7 +1309,7 @@ class _VolumeBase(ABC):
         *,
         interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
         pad_mode: PadModes | str = PadModes.CONSTANT,
-        pad_value: float | list[float] | np.ndarray = 0.0,
+        constant_value: float | Sequence[float] | np.ndarray = 0.0,
         per_channel: bool = False,
     ) -> Self:
         """Create a new volume by resampling this to a given geometry.
@@ -1324,7 +1324,7 @@ class _VolumeBase(ABC):
             ``InterpolationMethods.LINEAR``.
         pad_mode: highdiom.PadMode | str, optional
             Mode used to assign values to out of out-of-range voxels.
-        pad_value: float | list[float] | numpy.ndarray, optional
+        constant_value: float | Sequence[float] | numpy.ndarray, optional
             Value(s) to place into output voxels that fall outside the range of
             the input array if ``pad_mode`` is ``"CONSTANT"``, ignored
             otherwise. May be a single value, or anything broadcastable to the
@@ -1753,7 +1753,7 @@ class _VolumeBase(ABC):
         spatial_shape: Sequence[int],
         *,
         mode: PadModes = PadModes.CONSTANT,
-        constant_value: float = 0.0,
+        constant_value: float | Sequence[float] | np.ndarray = 0.0,
         per_channel: bool = False,
     ) -> Self:
         """Pad volume to given spatial shape.
@@ -1773,11 +1773,12 @@ class _VolumeBase(ABC):
         mode: highdicom.PadModes, optional
             Mode to use to pad the array. See :class:`highdicom.PadModes` for
             options.
-        constant_value: Union[float, Sequence[float]], optional
-            Value used to pad when mode is ``"CONSTANT"``. If ``per_channel``
-            if True, a sequence whose length is equal to the number of channels
-            may be passed, and each value will be used for the corresponding
-            channel. With other pad modes, this argument is ignored.
+        constant_value: float | Sequence[float]] | numpy.ndarray, optional
+            Value used to pad when mode is ``"CONSTANT"``. With other pad
+            modes, this argument is ignored. May be a single value, or anything
+            broadcastable to the volume's channel shape using standard NumPy
+            broadcasting rules, allowing for different padding values for each
+            channel.
         per_channel: bool, optional
             For padding modes that involve calculation of image statistics to
             determine the padding value (i.e. ``MINIMUM``, ``MAXIMUM``,
@@ -1861,7 +1862,7 @@ class _VolumeBase(ABC):
         spatial_shape: Sequence[int],
         *,
         mode: PadModes = PadModes.CONSTANT,
-        constant_value: float = 0.0,
+        constant_value: float | Sequence[float] | np.ndarray = 0.0,
         per_channel: bool = False,
     ) -> Self:
         """Pad and/or crop volume to given spatial shape.
@@ -1882,11 +1883,12 @@ class _VolumeBase(ABC):
         mode: highdicom.PadModes, optional
             Mode to use to pad the array, if padding is required. See
             :class:`highdicom.PadModes` for options.
-        constant_value: Union[float, Sequence[float]], optional
-            Value used to pad when mode is ``"CONSTANT"``. If ``per_channel``
-            if True, a sequence whose length is equal to the number of channels
-            may be passed, and each value will be used for the corresponding
-            channel. With other pad modes, this argument is ignored.
+        constant_value: float | Sequence[float]] | numpy.ndarray, optional
+            Value used to pad when mode is ``"CONSTANT"``. With other pad
+            modes, this argument is ignored. May be a single value, or anything
+            broadcastable to the volume's channel shape using standard NumPy
+            broadcasting rules, allowing for different padding values for each
+            channel.
         per_channel: bool, optional
             For padding modes that involve calculation of image statistics to
             determine the padding value (i.e. ``MINIMUM``, ``MAXIMUM``,
@@ -2676,7 +2678,7 @@ class VolumeGeometry(_VolumeBase):
         *,
         interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
         pad_mode: PadModes | str = PadModes.CONSTANT,
-        pad_value: float | list[float] | np.ndarray = 0.0,
+        constant_value: float | Sequence[float] | np.ndarray = 0.0,
         per_channel: bool = False,
     ) -> Self:
         """Create a new volume by resampling this to a given geometry.
@@ -2690,7 +2692,7 @@ class VolumeGeometry(_VolumeBase):
             Ignored for class ``VolumeGeometry``.
         pad_mode: highdiom.PadMode | str, optional
             Ignored for class ``VolumeGeometry``.
-        pad_value: float | list[float] | numpy.ndarray, optional
+        constant_value: float | Sequence[float] | numpy.ndarray, optional
             Ignored for class ``VolumeGeometry``.
         per_channel: bool, optional
             Ignored for class ``VolumeGeometry``.
@@ -3865,7 +3867,7 @@ class Volume(_VolumeBase):
         pad_width: int | Sequence[int] | Sequence[Sequence[int]],
         *,
         mode: PadModes | str = PadModes.CONSTANT,
-        constant_value: float = 0.0,
+        constant_value: float | Sequence[float] | np.ndarray = 0.0,
         per_channel: bool = False,
     ) -> Self:
         """Pad volume along the three spatial dimensions.
@@ -3896,9 +3898,12 @@ class Volume(_VolumeBase):
         mode: Union[highdicom.PadModes, str], optional
             Mode to use to pad the array. See :class:`highdicom.PadModes` for
             options.
-        constant_value: Union[float, Sequence[float]], optional
+        constant_value: float | Sequence[float] | numpy.ndarray, optional
             Value used to pad when mode is ``"CONSTANT"``. With other pad
-            modes, this argument is ignored.
+            modes, this argument is ignored. May be a single value, or anything
+            broadcastable to the volume's channel shape using standard NumPy
+            broadcasting rules, allowing for different padding values for each
+            channel.
         per_channel: bool, optional
             For padding modes that involve calculation of image statistics to
             determine the padding value (i.e. ``MINIMUM``, ``MAXIMUM``,
@@ -3918,6 +3923,8 @@ class Volume(_VolumeBase):
             mode = mode.upper()
         mode = PadModes(mode)
 
+        constant_value_arr = np.asarray(constant_value, dtype=self.dtype)
+
         if mode in (
             PadModes.MINIMUM,
             PadModes.MAXIMUM,
@@ -3925,6 +3932,11 @@ class Volume(_VolumeBase):
             PadModes.MEDIAN,
         ):
             used_mode = PadModes.CONSTANT
+        elif mode == PadModes.CONSTANT:
+            used_mode = mode
+
+            # Need per channel logic if constant value varies for each channel
+            per_channel = constant_value_arr.size > 1
         else:
             used_mode = mode
             # per_channel result is same as default result, so just ignore it
@@ -3936,6 +3948,18 @@ class Volume(_VolumeBase):
         ):
             # Zero or one channels, so can ignore the per_channel logic
             per_channel = False
+
+        try:
+            cval_broadcast = np.broadcast_to(
+                constant_value_arr,
+                self.channel_shape,
+            )
+        except ValueError as e:
+            raise ValueError(
+                "Provided constant value with shape "
+                f"{constant_value_arr.shape} cannot be broadcast to the "
+                f"channel shape {self.channel_shape}."
+            ) from e
 
         new_affine, full_pad_width = self._prepare_pad_width(pad_width)
 
@@ -3973,13 +3997,14 @@ class Volume(_VolumeBase):
             ]
             # preallocate output array
             new_array = np.zeros([*out_spatial_shape, *self.channel_shape])
+
             for cind in itertools.product(
                 *[range(n) for n in self.channel_shape]
             ):
                 indexer = (slice(None), slice(None), slice(None), *cind)
                 new_array[indexer] = pad_array(
                     self.array[indexer],
-                    constant_value
+                    cval_broadcast.__getitem__(*cind)
                 )
         else:
             new_array = pad_array(self.array, constant_value)
@@ -3998,7 +4023,7 @@ class Volume(_VolumeBase):
         *,
         interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
         pad_mode: PadModes | str = PadModes.CONSTANT,
-        pad_value: float | list[float] | np.ndarray = 0.0,
+        constant_value: float | Sequence[float] | np.ndarray = 0.0,
         per_channel: bool = False,
     ) -> Self:
         """Create a new volume by resampling this to a given geometry.
@@ -4013,7 +4038,7 @@ class Volume(_VolumeBase):
             ``InterpolationMethods.LINEAR``.
         pad_mode: highdiom.PadMode | str, optional
             Mode used to assign values to out of out-of-range voxels.
-        pad_value: float | list[float] | numpy.ndarray, optional
+        constant_value: float | Sequence[float] | numpy.ndarray, optional
             Value(s) to place into output voxels that fall outside the range of
             the input array if ``pad_mode`` is ``"CONSTANT"``, ignored
             otherwise. May be a single value, or anything broadcastable to the
@@ -4068,7 +4093,8 @@ class Volume(_VolumeBase):
 
         shape = np.array(self.spatial_shape, dtype=x.dtype)
 
-        # TODO think about this and make sure it applies to the extend branch below!
+        # TODO think about this and make sure it applies to the extend branch
+        # below!
         output_dtype = array.dtype
 
         if pad_mode == PadModes.EDGE:
@@ -4087,13 +4113,20 @@ class Volume(_VolumeBase):
             )
 
             if pad_mode == PadModes.CONSTANT:
-                pad_value_arr = np.asarray(pad_value, dtype=output_dtype)
+                constant_value_arr = np.asarray(
+                    constant_value,
+                    dtype=output_dtype
+                )
                 try:
-                    pad_value_arr = np.broadcast_to(pad_value_arr, self.channel_shape)
+                    constant_value_arr = np.broadcast_to(
+                        constant_value_arr,
+                        self.channel_shape,
+                    )
                 except ValueError as e:
                     raise ValueError(
-                        f"Provided padding value with shape {pad_value_arr.shape} cannot "
-                        f"be broadcast to the channel shape {self.channel_shape}."
+                        "Provided constant value with shape "
+                        f"{constant_value_arr.shape} cannot be broadcast to "
+                        f"the channel shape {self.channel_shape}."
                     ) from e
             else:
                 pad_func = {
@@ -4104,10 +4137,13 @@ class Volume(_VolumeBase):
                 }[pad_mode]
 
                 axis = (0, 1, 2) if per_channel else None
-                pad_value_arr = pad_func(array, axis=axis)
-                pad_value_arr = np.broadcast_to(pad_value_arr, self.channel_shape)
+                constant_value_arr = pad_func(array, axis=axis)
+                constant_value_arr = np.broadcast_to(
+                    constant_value_arr,
+                    self.channel_shape
+                )
 
-            output = np.full((n, *self.channel_shape), pad_value_arr)
+            output = np.full((n, *self.channel_shape), constant_value_arr)
             output[valid] = interpolation_fn(
                 array,
                 x[valid],
