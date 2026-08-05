@@ -132,9 +132,9 @@ def _resample_linear(
     x0 = np.floor(x_v).astype(np.int64)
     y0 = np.floor(y_v).astype(np.int64)
     z0 = np.floor(z_v).astype(np.int64)
-    x1 = x0 + 1
-    y1 = y0 + 1
-    z1 = z0 + 1
+    x1 = np.clip(x0 + 1, 0, array.shape[0] - 1)
+    y1 = np.clip(y0 + 1, 0, array.shape[1] - 1)
+    z1 = np.clip(z0 + 1, 0, array.shape[2] - 1)
     dx = x_v - x0
     dy = y_v - y0
     dz = z_v - z0
@@ -209,46 +209,39 @@ def _resample_cubic(
     y0 = np.floor(y_v).astype(np.int64) - 1
     z0 = np.floor(z_v).astype(np.int64) - 1
 
+    def calc_coefs(t):
+        t2 = t ** 2
+        t3 = t ** 3
+        w0 = -0.5 * t3 + t2 - 0.5 * t
+        w1 = 1.5 * t3 - 2.5 * t2 + 1.0
+        w2 = -1.5 * t3 + 2.0 * t2 + 0.5 * t
+        w3 = 0.5 * t3 - 0.5 * t2
+        return (w0, w1, w2, w3)
+
     tx = x_v - (x0 + 1)
+    coefs_x = calc_coefs(tx)
+
     ty = y_v - (y0 + 1)
+    coefs_y = calc_coefs(ty)
+
     tz = z_v - (z0 + 1)
+    coefs_z = calc_coefs(tz)
 
-    tx2 = tx ** 2
-    tx3 = tx ** 3
-    wx0 = -0.5 * tx3 + tx2 - 0.5 * tx
-    wx1 = 1.5 * tx3 - 2.5 * tx2 + 1.0
-    wx2 = -1.5 * tx3 + 2.0 * tx2 + 0.5 * tx
-    wx3 = 0.5 * tx3 - 0.5 * tx2
-
-    ty2 = ty ** 2
-    ty3 = ty ** 3
-    wy0 = -0.5 * ty3 + ty2 - 0.5 * ty
-    wy1 = 1.5 * ty3 - 2.5 * ty2 + 1.0
-    wy2 = -1.5 * ty3 + 2.0 * ty2 + 0.5 * ty
-    wy3 = 0.5 * ty3 - 0.5 * ty2
-
-    tz2 = tz ** 2
-    tz3 = tz ** 3
-    wz0 = -0.5 * tz3 + tz2 - 0.5 * tz
-    wz1 = 1.5 * tz3 - 2.5 * tz2 + 1.0
-    wz2 = -1.5 * tz3 + 2.0 * tz2 + 0.5 * tz
-    wz3 = 0.5 * tz3 - 0.5 * tz2
-
-    # Due to the need for broadcasting, work on a transposed version of both the input and output arrays
-    # then transpose at the end
+    # Due to the need for broadcasting, work on a transposed version of both
+    # the input and output arrays then transpose at the end
     array_t = array.T
     out = np.zeros((*channel_shape[::-1], x_v.shape[0]), dtype=array.dtype)
 
     shape_i = np.array(spatial_shape, dtype=np.int64)
     for i in range(4):
         xi = np.clip(x0 + i, 0, shape_i[0] - 1)
-        wxi = (wx0, wx1, wx2, wx3)[i]
+        wxi = coefs_x[i]
         for j in range(4):
             yj = np.clip(y0 + j, 0, shape_i[1] - 1)
-            wxy = wxi * (wy0, wy1, wy2, wy3)[j]
+            wxy = wxi * coefs_y[j]
             for k in range(4):
                 zk = np.clip(z0 + k, 0, shape_i[2] - 1)
-                w = wxy * (wz0, wz1, wz2, wz3)[k]
+                w = wxy * coefs_z[k]
                 # Reverse index dimensions on the transposed array
                 out += w * array_t[..., zk, yj, xi]
 
@@ -1785,7 +1778,7 @@ class _VolumeBase(ABC):
             ``MEAN``, ``MEDIAN``), pad each channel separately using the value
             calculated using that channel alone (rather than the statistics of
             the entire array). For other padding modes, this argument makes no
-            difference. This should not the True if the image does not have a
+            difference. This should not be True if the image does not have a
             channel dimension.
 
         Returns
@@ -4048,8 +4041,6 @@ class Volume(_VolumeBase):
 
         array = self._array
 
-        combined = np.linalg.inv(self.affine) @ geometry.affine
-
         n = np.prod(geometry.spatial_shape)
         ranges = [np.arange(d) for d in geometry.spatial_shape]
         grid = np.meshgrid(*ranges, indexing="ij")
@@ -4060,35 +4051,31 @@ class Volume(_VolumeBase):
         )
         output_indices_flat = output_indices_aug.reshape(4, n)
 
-        input_indices_flat = combined @ output_indices_flat
+        combined_affine = np.linalg.inv(self.affine) @ geometry.affine
+        input_indices_flat = combined_affine @ output_indices_flat
 
         x, y, z = input_indices_flat[:3]
 
         shape = np.array(self.spatial_shape, dtype=x.dtype)
 
-        eps = 1e-7
-
         # TODO think about this and make sure it applies to the extend branch below!
         output_dtype = array.dtype
 
         if extend:
-            x_v = np.clip(x, 0, shape[0] - (1 + eps))
-            y_v = np.clip(y, 0, shape[1] - (1 + eps))
-            z_v = np.clip(z, 0, shape[2] - (1 + eps))
+            # TODO use pad_mode here instead
+            x_v = np.clip(x, 0, shape[0] - 1)
+            y_v = np.clip(y, 0, shape[1] - 1)
+            z_v = np.clip(z, 0, shape[2] - 1)
             output = interpolation_fn(array, x_v, y_v, z_v)
         else:
             valid = (
                 (x >= 0) &
-                (x < shape[0]) &
+                (x <= (shape[0] - 1)) &
                 (y >= 0) &
-                (y < shape[1]) &
+                (y <= (shape[1] - 1)) &
                 (z >= 0) &
-                (z < shape[2])
+                (z <= (shape[2] - 1))
             )
-
-            x_v = np.clip(x[valid], 0, shape[0] - (1 + eps))
-            y_v = np.clip(y[valid], 0, shape[1] - (1 + eps))
-            z_v = np.clip(z[valid], 0, shape[2] - (1 + eps))
 
             pad_value_arr = np.asarray(pad_value, dtype=output_dtype)
             try:
@@ -4099,19 +4086,23 @@ class Volume(_VolumeBase):
                     f"be broadcast to the channel shape {self.channel_shape}."
                 ) from e
 
-            # This dtype here controls the output dtype (should match with extend option too)
             output = np.full((n, *self.channel_shape), pad_value_arr)
-            output[valid] = interpolation_fn(array, x_v, y_v, z_v)
+            output[valid] = interpolation_fn(
+                array,
+                x[valid],
+                y[valid],
+                z[valid],
+            )
 
         result = output.reshape((*geometry.spatial_shape, *self.channel_shape))
 
-        channels = None
-        if self.number_of_channel_dimensions > 0:
-            channels = {
-                c: self.get_channel_values(c) for c in self.channel_descriptors
-            }
-
-        return geometry.with_array(array=result, channels=channels)
+        return self.__class__(
+            array=result,
+            affine=geometry.affine,
+            coordinate_system=self.coordinate_system,
+            channels=self._channels,
+            frame_of_reference_uid=self.frame_of_reference_uid,
+        )
 
     def to_simpleitk(self) -> 'SimpleITK.Image':  # noqa: F821
         """Convert the Volume to ``SimpleITK.Image`` format.
