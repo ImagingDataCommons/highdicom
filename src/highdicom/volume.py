@@ -4004,7 +4004,7 @@ class Volume(_VolumeBase):
                 indexer = (slice(None), slice(None), slice(None), *cind)
                 new_array[indexer] = pad_array(
                     self.array[indexer],
-                    cval_broadcast.__getitem__(*cind)
+                    cval_broadcast.__getitem__(cind)
                 )
         else:
             new_array = pad_array(self.array, constant_value)
