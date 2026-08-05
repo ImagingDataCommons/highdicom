@@ -97,9 +97,6 @@ def _resample_nearest(
         Interpolated values of shape ``(N, C)``.
 
     """
-    # xi = np.clip(np.round(x_v), 0, shape[0] - 1).astype(np.int64)
-    # yi = np.clip(np.round(y_v), 0, shape[1] - 1).astype(np.int64)
-    # zi = np.clip(np.round(z_v), 0, shape[2] - 1).astype(np.int64)
     xi = np.round(x_v).astype(np.int64)
     yi = np.round(y_v).astype(np.int64)
     zi = np.round(z_v).astype(np.int64)
