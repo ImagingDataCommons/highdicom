@@ -78,29 +78,31 @@ def _resample_nearest(
     x_v: np.ndarray,
     y_v: np.ndarray,
     z_v: np.ndarray,
-    shape: np.ndarray,
 ) -> np.ndarray:
     """Nearest-neighbor interpolation for a set of voxel coordinates.
 
     Parameters
     ----------
+    Parameters
+    ----------
     array: np.ndarray
-        4D input array of shape ``(X, Y, Z, C)``.
+        Input array of shape ``(X, Y, Z, ...)``, optionally including any
+        number of trailing channel dimensions.
     x_v, y_v, z_v: np.ndarray
-        Clipped spatial coordinates of the voxels to interpolate.
-    shape: np.ndarray
-        Spatial shape ``(X, Y, Z)`` of the input array.
+        1D arrays of shape (N, ) containing clipped spatial coordinates of the
+        voxels to interpolate.
 
     Returns
     -------
     np.ndarray:
-        Interpolated values of shape ``(N, C)``.
+        Interpolated values of shape ``(N, ...)``, where trailing channel
+        dimensions from the input array are maintained.
 
     """
     xi = np.round(x_v).astype(np.int64)
     yi = np.round(y_v).astype(np.int64)
     zi = np.round(z_v).astype(np.int64)
-    return array[xi, yi, zi, :]
+    return array[xi, yi, zi]
 
 
 def _resample_linear(
@@ -108,23 +110,23 @@ def _resample_linear(
     x_v: np.ndarray,
     y_v: np.ndarray,
     z_v: np.ndarray,
-    shape: np.ndarray,
 ) -> np.ndarray:
     """Tri-linear interpolation for a set of voxel coordinates.
 
     Parameters
     ----------
     array: np.ndarray
-        4D input array of shape ``(X, Y, Z, C)``.
+        Input array of shape ``(X, Y, Z, ...)``, optionally including any
+        number of trailing channel dimensions.
     x_v, y_v, z_v: np.ndarray
-        Clipped spatial coordinates of the voxels to interpolate.
-    shape: np.ndarray
-        Spatial shape ``(X, Y, Z)`` of the input array.
+        1D arrays of shape (N, ) containing clipped spatial coordinates of the
+        voxels to interpolate.
 
     Returns
     -------
     np.ndarray:
-        Interpolated values of shape ``(N, C)``.
+        Interpolated values of shape ``(N, ...)``, where trailing channel
+        dimensions from the input array are maintained.
 
     """
     x0 = np.floor(x_v).astype(np.int64)
@@ -137,14 +139,19 @@ def _resample_linear(
     dy = y_v - y0
     dz = z_v - z0
 
-    c000 = array[x0, y0, z0, :]
-    c100 = array[x1, y0, z0, :]
-    c010 = array[x0, y1, z0, :]
-    c110 = array[x1, y1, z0, :]
-    c001 = array[x0, y0, z1, :]
-    c101 = array[x1, y0, z1, :]
-    c011 = array[x0, y1, z1, :]
-    c111 = array[x1, y1, z1, :]
+    # Transpose the array to allow for later broadcasting across channel
+    # dimensions, then undo at the end
+    array_t = array.T
+
+    # Reverse index dimensions on the transposed array
+    c000 = array_t[..., z0, y0, x0]
+    c100 = array_t[..., z0, y0, x1]
+    c010 = array_t[..., z0, y1, x0]
+    c110 = array_t[..., z0, y1, x1]
+    c001 = array_t[..., z1, y0, x0]
+    c101 = array_t[..., z1, y0, x1]
+    c011 = array_t[..., z1, y1, x0]
+    c111 = array_t[..., z1, y1, x1]
 
     dx_m = 1 - dx
     dy_m = 1 - dy
@@ -160,15 +167,15 @@ def _resample_linear(
     w111 = dx * dy * dz
 
     return (
-        c000 * w000[:, None] +
-        c100 * w100[:, None] +
-        c010 * w010[:, None] +
-        c110 * w110[:, None] +
-        c001 * w001[:, None] +
-        c101 * w101[:, None] +
-        c011 * w011[:, None] +
-        c111 * w111[:, None]
-    )
+        c000 * w000 +
+        c100 * w100 +
+        c010 * w010 +
+        c110 * w110 +
+        c001 * w001 +
+        c101 * w101 +
+        c011 * w011 +
+        c111 * w111
+    ).T
 
 
 def _resample_cubic(
@@ -176,7 +183,6 @@ def _resample_cubic(
     x_v: np.ndarray,
     y_v: np.ndarray,
     z_v: np.ndarray,
-    shape: np.ndarray,
 ) -> np.ndarray:
     """Cubic convolution interpolation (Catmull-Rom) for a set of voxel
     coordinates.
@@ -184,19 +190,21 @@ def _resample_cubic(
     Parameters
     ----------
     array: np.ndarray
-        4D input array of shape ``(X, Y, Z, C)``.
+        Input array of shape ``(X, Y, Z, ...)``, optionally including any
+        number of trailing channel dimensions.
     x_v, y_v, z_v: np.ndarray
-        Clipped spatial coordinates of the voxels to interpolate.
-    shape: np.ndarray
-        Spatial shape ``(X, Y, Z)`` of the input array.
+        1D arrays of shape (N, ) containing clipped spatial coordinates of the
+        voxels to interpolate.
 
     Returns
     -------
     np.ndarray:
-        Interpolated values of shape ``(N, C)``.
+        Interpolated values of shape ``(N, ...)``, where trailing channel
+        dimensions from the input array are maintained.
 
     """
-    n_channels = array.shape[-1]
+    spatial_shape = array.shape[:3]
+    channel_shape = array.shape[3:]
     x0 = np.floor(x_v).astype(np.int64) - 1
     y0 = np.floor(y_v).astype(np.int64) - 1
     z0 = np.floor(z_v).astype(np.int64) - 1
@@ -226,8 +234,12 @@ def _resample_cubic(
     wz2 = -1.5 * tz3 + 2.0 * tz2 + 0.5 * tz
     wz3 = 0.5 * tz3 - 0.5 * tz2
 
-    out = np.zeros((x_v.shape[0], n_channels), dtype=array.dtype)
-    shape_i = shape.astype(np.int64)
+    # Due to the need for broadcasting, work on a transposed version of both the input and output arrays
+    # then transpose at the end
+    array_t = array.T
+    out = np.zeros((*channel_shape[::-1], x_v.shape[0]), dtype=array.dtype)
+
+    shape_i = np.array(spatial_shape, dtype=np.int64)
     for i in range(4):
         xi = np.clip(x0 + i, 0, shape_i[0] - 1)
         wxi = (wx0, wx1, wx2, wx3)[i]
@@ -237,9 +249,10 @@ def _resample_cubic(
             for k in range(4):
                 zk = np.clip(z0 + k, 0, shape_i[2] - 1)
                 w = wxy * (wz0, wz1, wz2, wz3)[k]
-                out += w[:, None] * array[xi, yj, zk, :]
+                # Reverse index dimensions on the transposed array
+                out += w * array_t[..., zk, yj, xi]
 
-    return out
+    return out.T
 
 
 class ChannelDescriptor:
@@ -4002,9 +4015,9 @@ class Volume(_VolumeBase):
             ``InterpolationMethods.LINEAR``.
         pad_value: float | list[float], optional
             Value(s) to place into output voxels that fall outside the range of
-            the input array. If a list, its length must match the number of
-            channels (last dimension) of ``array``. Ignored if ``extend`` is
-            ``True``.
+            the input array. May be a single value, or anything broadcastable
+            to the volume's channel shape, allowing for different padding values
+            for each channel.
         extend: bool, optional
             If True, out-of-range voxels use the nearest edge value from the
             input array instead of ``pad_value``. Defaults to False.
@@ -4016,6 +4029,11 @@ class Volume(_VolumeBase):
 
         """
         interpolator = InterpolationMethods(interpolator)
+        interpolation_fn = {
+            InterpolationMethods.NEAREST: _resample_nearest,
+            InterpolationMethods.LINEAR: _resample_linear,
+            InterpolationMethods.CUBIC: _resample_cubic,
+        }[interpolator]
 
         if (
             self.frame_of_reference_uid is not None and
@@ -4028,47 +4046,36 @@ class Volume(_VolumeBase):
                 "within different frames of reference."
             )
 
-        frame_of_reference_uid = None
-        if self.frame_of_reference_uid is not None:
-            frame_of_reference_uid = self.frame_of_reference_uid
-        if geometry.frame_of_reference_uid is not None:
-            frame_of_reference_uid = geometry.frame_of_reference_uid
-
-        # TODO generalise to more than 1 channel dim
-        is_multichannel = self.number_of_channel_dimensions == 1
-        if not is_multichannel:
-            array = self._array[..., None]
-        else:
-            array = self._array
+        array = self._array
 
         combined = np.linalg.inv(self.affine) @ geometry.affine
 
+        n = np.prod(geometry.spatial_shape)
         ranges = [np.arange(d) for d in geometry.spatial_shape]
         grid = np.meshgrid(*ranges, indexing="ij")
         output_indices = np.stack(grid)
-        ones = np.ones_like(output_indices[0])
-        output_indices_h = np.concatenate(
-            [output_indices, ones[None, ...]], axis=0
+        output_indices_aug = np.concatenate(
+            [output_indices, np.ones_like(output_indices[0])[None, ...]],
+            axis=0
         )
-        orig_shape = output_indices_h.shape[1:]
-        n = output_indices_h.size // 4
-        output_indices_flat = output_indices_h.reshape(4, n)
+        output_indices_flat = output_indices_aug.reshape(4, n)
 
         input_indices_flat = combined @ output_indices_flat
 
         x, y, z = input_indices_flat[:3]
 
-        shape = np.array(array.shape[:3], dtype=x.dtype)
-        n_channels = array.shape[-1]
+        shape = np.array(self.spatial_shape, dtype=x.dtype)
 
         eps = 1e-7
 
+        # TODO think about this and make sure it applies to the extend branch below!
+        output_dtype = array.dtype
+
         if extend:
-            x_v = np.clip(x, 0, shape[0] - 1 - eps)
-            y_v = np.clip(y, 0, shape[1] - 1 - eps)
-            z_v = np.clip(z, 0, shape[2] - 1 - eps)
-            valid = slice(None)
-            output = np.empty((n, n_channels), dtype=array.dtype)
+            x_v = np.clip(x, 0, shape[0] - (1 + eps))
+            y_v = np.clip(y, 0, shape[1] - (1 + eps))
+            z_v = np.clip(z, 0, shape[2] - (1 + eps))
+            output = interpolation_fn(array, x_v, y_v, z_v)
         else:
             valid = (
                 (x >= 0) &
@@ -4079,39 +4086,32 @@ class Volume(_VolumeBase):
                 (z < shape[2])
             )
 
-            x_v = np.clip(x[valid], 0, shape[0] - 1 - eps)
-            y_v = np.clip(y[valid], 0, shape[1] - 1 - eps)
-            z_v = np.clip(z[valid], 0, shape[2] - 1 - eps)
+            x_v = np.clip(x[valid], 0, shape[0] - (1 + eps))
+            y_v = np.clip(y[valid], 0, shape[1] - (1 + eps))
+            z_v = np.clip(z[valid], 0, shape[2] - (1 + eps))
 
-            pad_value_arr = np.asarray(pad_value)
-            if pad_value_arr.ndim == 1 and pad_value_arr.shape[0] != n_channels:
-                plural_str = 's' if n_channels > 1 else ''
+            pad_value_arr = np.asarray(pad_value, dtype=output_dtype)
+            try:
+                pad_value_arr = np.broadcast_to(pad_value_arr, self.channel_shape)
+            except ValueError as e:
                 raise ValueError(
-                    f"pad_value has {pad_value_arr.shape[0]} elements but "
-                    f"array has {n_channels} channel{plural_str}"
-                )
-            pad_value_arr = np.broadcast_to(pad_value_arr, (n_channels,))
-            output = np.empty((n, n_channels), dtype=array.dtype)
-            output[:] = pad_value_arr[None, :]
+                    f"Provided padding value with shape {pad_value_arr.shape} cannot "
+                    f"be broadcast to the channel shape {self.channel_shape}."
+                ) from e
 
-        interpolation_fn = {
-            InterpolationMethods.NEAREST: _resample_nearest,
-            InterpolationMethods.LINEAR: _resample_linear,
-            InterpolationMethods.CUBIC: _resample_cubic,
-        }[interpolator]
+            # This dtype here controls the output dtype (should match with extend option too)
+            output = np.full((n, *self.channel_shape), pad_value_arr)
+            output[valid] = interpolation_fn(array, x_v, y_v, z_v)
 
-        output[valid] = interpolation_fn(array, x_v, y_v, z_v, shape)
+        result = output.reshape((*geometry.spatial_shape, *self.channel_shape))
 
-        result = output.reshape((*orig_shape, n_channels))
-        if not is_multichannel:
-            result = result.squeeze(-1)
+        channels = None
+        if self.number_of_channel_dimensions > 0:
+            channels = {
+                c: self.get_channel_values(c) for c in self.channel_descriptors
+            }
 
-        return self.__class__(
-            array=result,
-            affine=geometry.affine,
-            coordinate_system=self.coordinate_system,
-            frame_of_reference_uid=frame_of_reference_uid,
-        )
+        return geometry.with_array(array=result, channels=channels)
 
     def to_simpleitk(self) -> 'SimpleITK.Image':  # noqa: F821
         """Convert the Volume to ``SimpleITK.Image`` format.
