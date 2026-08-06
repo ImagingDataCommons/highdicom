@@ -39,11 +39,7 @@ Creating a volume from an ITK Image:
 
     itk_image = itk.Image(...)
 
-    vol = hd.Volume.from_itk(
-        itk_image=itk_image,
-        coordinate_system='PATIENT',
-        frame_of_reference_uid=None
-    )
+    vol = hd.Volume.from_itk(itk_image)
 
 
 .. _`ITK`: https://itk.org/

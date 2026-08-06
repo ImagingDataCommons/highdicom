@@ -13,7 +13,7 @@ Volume Conversions
 ------------------
 
 Highdicom supports conversions with the ``SimpleITK.Image`` class through the
-:meth:`highdicom.Volume.to_simpletk` and :meth:`highdicom.Volume.from_simpletk`
+:meth:`highdicom.Volume.to_simpleitk` and :meth:`highdicom.Volume.from_simpleitk`
 methods. Like highdicom, SimpleITK uses the "LPS" convention. However, when
 converting to and from NumPy arrays, SimpleITK reverses the order of
 dimensions. This permutation is handled automatically by highdicom and requires
@@ -41,11 +41,7 @@ Creating a volume from a SimpleITK Image:
 
     simpleitk_image = sitk.Image(...)
 
-    vol = hd.Volume.from_simpleitk(
-        simpleitk_image=simpleitk_image,
-        coordinate_system='PATIENT',
-        frame_of_reference_uid=None
-    )
+    vol = hd.Volume.from_simpleitk(simpleitk_image)
 
 
 .. _`ITK`: https://itk.org/

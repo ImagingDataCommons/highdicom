@@ -681,56 +681,6 @@ spatial metadata in the output object is correct.
 
     seg_dataset_matched.save_as('segmentation_matched.dcm')
 
-Volumes To/From NIfTI Files
----------------------------
-
-`NIfTI`_ is a file format used to store volumetric imaging data. It arose from
-neuro-imaging but is now used in other areas of radiology and beyond. When
-converting between highdicom Volumes and NIfTI files, it is critical to
-remember to account for the difference in convention used to specify the
-frame-of-reference coordinate system: highdicom (and DICOM) uses "LPS"
-convention, NIfTI uses "RAS" convention.
-
-We plan to add tools to handle this conversion in the near future, but for now
-these snippets should correctly handle simple situations converting to and from
-NIfTI using the `nibabel`_ package.
-
-Reading a volume from a NIfTI:
-
-.. code-block:: python
-
-   import nibabel as nib
-   import highdicom as hd
-
-
-   nifti_path = '/path/to/nifti.nii'  # or .nii.gz
-   nifti = nib.load(nifti_path)
-
-   vol = hd.Volume(
-       array=nifti.get_fdata(),
-       affine=nifti.affine,
-       coordinate_system="PATIENT",
-       from_reference_convention='RAS',
-   )
-
-Writing a volume to a NIfTI file:
-
-.. code-block:: python
-
-    import nibabel
-    import highdicom as hd
-
-
-    vol = hd.Volume(...)
-
-    nifti = nib.Nifti1Image(
-        vol.array,
-        vol.get_affine('RAS'),
-    )
-
-    nifti_path = '/path/to/nifti.nii'  # or .nii.gz
-    nib.save(nifti, nifti_path)
-
 
 Volumes To/From Other Libraries
 -------------------------------
@@ -744,7 +694,4 @@ visit the following:
 
   - :ref:`ITK <itk_vol>`
   - :ref:`SimpleITK <sitk_vol>`
-
-
-.. _`NIfTI`: https://nifti.nimh.nih.gov/
-.. _`nibabel`: https://nipy.org/nibabel/
+  - :ref:`NiBabel <nibabel_vol>`
