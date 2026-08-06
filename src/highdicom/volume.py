@@ -1,10 +1,11 @@
 """Representations of multidimensional arrays with spatial metadata."""
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from enum import Enum
 from math import floor
 import itertools
 from typing import cast, Union
-from collections.abc import Sequence
+
 from pydicom.tag import BaseTag
 from typing_extensions import Self
 
@@ -14,10 +15,10 @@ from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,
     InterpolationMethods,
+    NiBabelImageClasses,
     PadModes,
     PatientOrientationValuesBiped,
     RGBColorChannels,
-    NiBabelImageClasses,
 )
 from highdicom.spatial import (
     LPS_PATIENT_REFERENCE_CONVENTION,
@@ -44,8 +45,8 @@ from highdicom.uid import UID
 from pydicom.datadict import (
     dictionary_description,
     get_entry,
-    tag_for_keyword,
     keyword_for_tag,
+    tag_for_keyword,
 )
 
 from highdicom._dependency_utils import import_optional_dependency
@@ -81,8 +82,6 @@ def _resample_nearest(
 ) -> np.ndarray:
     """Nearest-neighbor interpolation for a set of voxel coordinates.
 
-    Parameters
-    ----------
     Parameters
     ----------
     array: np.ndarray
