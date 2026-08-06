@@ -96,7 +96,8 @@ def _resample_nearest(
     -------
     np.ndarray:
         Interpolated values of shape ``(N, ...)``, where trailing channel
-        dimensions from the input array are maintained.
+        dimensions from the input array are maintained. Dtype matches dtype of
+        ``array`` input.
 
     """
     xi = np.round(x_v).astype(np.int64)
@@ -126,9 +127,11 @@ def _resample_linear(
     -------
     np.ndarray:
         Interpolated values of shape ``(N, ...)``, where trailing channel
-        dimensions from the input array are maintained.
+        dimensions from the input array are maintained. Dtype matches dtype
+        of coordinate inputs.
 
     """
+    dtype = x_v.dtype
     x0 = np.floor(x_v).astype(np.int64)
     y0 = np.floor(y_v).astype(np.int64)
     z0 = np.floor(z_v).astype(np.int64)
@@ -144,14 +147,14 @@ def _resample_linear(
     array_t = array.T
 
     # Reverse index dimensions on the transposed array
-    c000 = array_t[..., z0, y0, x0]
-    c100 = array_t[..., z0, y0, x1]
-    c010 = array_t[..., z0, y1, x0]
-    c110 = array_t[..., z0, y1, x1]
-    c001 = array_t[..., z1, y0, x0]
-    c101 = array_t[..., z1, y0, x1]
-    c011 = array_t[..., z1, y1, x0]
-    c111 = array_t[..., z1, y1, x1]
+    c000 = np.asarray(array_t[..., z0, y0, x0], dtype=dtype)
+    c100 = np.asarray(array_t[..., z0, y0, x1], dtype=dtype)
+    c010 = np.asarray(array_t[..., z0, y1, x0], dtype=dtype)
+    c110 = np.asarray(array_t[..., z0, y1, x1], dtype=dtype)
+    c001 = np.asarray(array_t[..., z1, y0, x0], dtype=dtype)
+    c101 = np.asarray(array_t[..., z1, y0, x1], dtype=dtype)
+    c011 = np.asarray(array_t[..., z1, y1, x0], dtype=dtype)
+    c111 = np.asarray(array_t[..., z1, y1, x1], dtype=dtype)
 
     dx_m = 1 - dx
     dy_m = 1 - dy
@@ -200,7 +203,8 @@ def _resample_cubic(
     -------
     np.ndarray:
         Interpolated values of shape ``(N, ...)``, where trailing channel
-        dimensions from the input array are maintained.
+        dimensions from the input array are maintained. Dtype matches dtype
+        of coordinate inputs.
 
     """
     spatial_shape = array.shape[:3]
@@ -230,7 +234,7 @@ def _resample_cubic(
     # Due to the need for broadcasting, work on a transposed version of both
     # the input and output arrays then transpose at the end
     array_t = array.T
-    out = np.zeros((*channel_shape[::-1], x_v.shape[0]), dtype=array.dtype)
+    out = np.zeros((*channel_shape[::-1], x_v.shape[0]), dtype=x_v.dtype)
 
     shape_i = np.array(spatial_shape, dtype=np.int64)
     for i in range(4):
@@ -1311,6 +1315,7 @@ class _VolumeBase(ABC):
         pad_mode: PadModes | str = PadModes.CONSTANT,
         constant_value: float | Sequence[float] | np.ndarray = 0.0,
         per_channel: bool = False,
+        dtype: np.dtype = np.float64,
     ) -> Self:
         """Create a new volume by resampling this to a given geometry.
 
@@ -1334,6 +1339,10 @@ class _VolumeBase(ABC):
             Whether to calculate padding values for each channel individually
             when using the ``"MINIMUM"``, ``"MAXIMUM"``, ``"MEAN"``, or
             ``"MEDIAN"`` pad modes. Ignored when using other pad modes.
+        dtype: numpy.dtype
+            Floating point datatype used for internal calculations. Note that
+            depending on the interpolator this may or may not determine the
+            dtype of the output array (see below).
 
         Returns
         -------
@@ -2097,6 +2106,7 @@ class _VolumeBase(ABC):
         *,
         align_voxel_centers: bool = False,
         interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
+        dtype: np.dtype = np.float64,
     ) -> Self:
         """Resample the volume to a new spatial shape.
 
@@ -2116,6 +2126,10 @@ class _VolumeBase(ABC):
             the corners of the corner pixels) are aligned instead.
         interpolator: highdicom.enum.InterpolationMethods | str, optional
             Interpolation mode to use.
+        dtype: numpy.dtype
+            Floating point datatype used for internal calculations. Note that
+            depending on the interpolator this may or may not determine the
+            dtype of the output array (see below).
 
         """
         if len(spatial_shape) != 3:
@@ -2164,6 +2178,7 @@ class _VolumeBase(ABC):
         return self.resample_to_geometry(
             new_geometry,
             interpolator=interpolator,
+            dtype=dtype,
         )
 
     def resample_to_spacing(
@@ -2172,6 +2187,7 @@ class _VolumeBase(ABC):
         *,
         align_voxel_centers: bool = False,
         interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
+        dtype: np.dtype = np.float64,
     ) -> Self:
         """Resample the volume to a new pixel spacing.
 
@@ -2194,6 +2210,10 @@ class _VolumeBase(ABC):
             the corners of the corner pixels) are aligned instead.
         interpolator: highdicom.enum.InterpolationMethods | str, optional
             Interpolation mode to use.
+        dtype: numpy.dtype
+            Floating point datatype used for internal calculations. Note that
+            depending on the interpolator this may or may not determine the
+            dtype of the output array (see below).
 
         """
         if len(spacing) != 3:
@@ -2236,6 +2256,7 @@ class _VolumeBase(ABC):
         return self.resample_to_geometry(
             new_geometry,
             interpolator=interpolator,
+            dtype=dtype,
         )
 
 
@@ -2680,6 +2701,7 @@ class VolumeGeometry(_VolumeBase):
         pad_mode: PadModes | str = PadModes.CONSTANT,
         constant_value: float | Sequence[float] | np.ndarray = 0.0,
         per_channel: bool = False,
+        dtype: np.dtype = np.float64,
     ) -> Self:
         """Create a new volume by resampling this to a given geometry.
 
@@ -2695,6 +2717,8 @@ class VolumeGeometry(_VolumeBase):
         constant_value: float | Sequence[float] | numpy.ndarray, optional
             Ignored for class ``VolumeGeometry``.
         per_channel: bool, optional
+            Ignored for class ``VolumeGeometry``.
+        dtype: numpy.dtype
             Ignored for class ``VolumeGeometry``.
 
         Returns
@@ -4025,6 +4049,7 @@ class Volume(_VolumeBase):
         pad_mode: PadModes | str = PadModes.CONSTANT,
         constant_value: float | Sequence[float] | np.ndarray = 0.0,
         per_channel: bool = False,
+        dtype: np.dtype = np.float64,
     ) -> Self:
         """Create a new volume by resampling this to a given geometry.
 
@@ -4034,8 +4059,7 @@ class Volume(_VolumeBase):
             Volume geometry that defines the geometry onto which this
             volume should be resampled.
         interpolator: highdicom.enum.InterpolationMethods | str, optional
-            Interpolation mode to use. Defaults to
-            ``InterpolationMethods.LINEAR``.
+            Interpolation mode to use.
         pad_mode: highdiom.PadMode | str, optional
             Mode used to assign values to out of out-of-range voxels.
         constant_value: float | Sequence[float] | numpy.ndarray, optional
@@ -4048,11 +4072,20 @@ class Volume(_VolumeBase):
             Whether to calculate padding values for each channel individually
             when using the ``"MINIMUM"``, ``"MAXIMUM"``, ``"MEAN"``, or
             ``"MEDIAN"`` pad modes. Ignored when using other pad modes.
+        dtype: numpy.dtype
+            Floating point datatype used for internal calculations. Note that
+            depending on the interpolator this may or may not determine the
+            dtype of the output array (see below).
 
         Returns
         -------
         Self:
-            Volume resampled to the given geometry.
+            Volume resampled to the given geometry. Dtype is determined by
+            the ``interpolator`` and ``dtype``. When using the ``"NEAREST"``
+            interpolator, the output dtype matches the dtype of the original
+            volume regardless of the value of the ``dtype`` parameter. With
+            ``"LINEAR"`` and ``"CUBIC"`` interpolators, the dtype of the
+            output matches the ``dtype`` parameter.
 
         """
         pad_mode = PadModes(pad_mode)
@@ -4062,6 +4095,18 @@ class Volume(_VolumeBase):
             InterpolationMethods.LINEAR: _resample_linear,
             InterpolationMethods.CUBIC: _resample_cubic,
         }[interpolator]
+
+        dtype = np.dtype(dtype)
+        if dtype.kind != 'f':
+            raise TypeError(
+                "A floating point datatype is required for the dtype "
+                "parameter."
+            )
+
+        if interpolator == InterpolationMethods.NEAREST:
+            output_dtype = self.dtype
+        else:
+            output_dtype = dtype
 
         if (
             self.frame_of_reference_uid is not None and
@@ -4087,15 +4132,13 @@ class Volume(_VolumeBase):
         output_indices_flat = output_indices_aug.reshape(4, n)
 
         combined_affine = np.linalg.inv(self.affine) @ geometry.affine
+        combined_affine = np.asarray(combined_affine, dtype=dtype)
+
         input_indices_flat = combined_affine @ output_indices_flat
 
         x, y, z = input_indices_flat[:3]
 
-        shape = np.array(self.spatial_shape, dtype=x.dtype)
-
-        # TODO think about this and make sure it applies to the extend branch
-        # below!
-        output_dtype = array.dtype
+        shape = np.array(self.spatial_shape, dtype=dtype)
 
         if pad_mode == PadModes.EDGE:
             x_v = np.clip(x, 0, shape[0] - 1)
