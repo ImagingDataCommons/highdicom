@@ -4241,6 +4241,186 @@ class Volume(_VolumeBase):
             from_reference_convention='RAS'
         )
 
+    def to_monai(
+        self,
+        space: str = 'RAS',
+        ensure_channel_first: bool = False,
+    ) -> 'monai.data.MetaTensor':  # noqa: F821
+        """Convert the volume to a ``monai.data.MetaTensor``.
+
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``monai``.
+
+        The Volume is converted to a ``monai.data.Metatensor``. Spatial metadata
+        is preserved through the affine array. By default, metatensors use "RAS"
+        convention, however they can support "LPS" similar to highdicom if
+        specified.
+
+        Parameters
+        ----------
+        space: str
+            Space convention used by the metatensor. Defaults to 'RAS'.
+        ensure_channel_first: bool
+            Whether to convert to a channel first metatensor. Defaults to False.
+
+        Returns
+        -------
+        monai.data.MetaTensor:
+            MetaTensor constructed from the volume.
+
+        Raises
+        ------
+        ValueError
+            When the volume has more than one channel dimension.
+
+        """
+        func = self.to_monai
+        monai = import_optional_dependency(
+            module_name='monai',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        ImageStatsKeys = monai.utils.enums.ImageStatsKeys
+        MetaKeys = monai.utils.enums.MetaKeys
+
+        if self.number_of_channel_dimensions > 1:
+            raise ValueError(
+                'Monai conversion does not currently support'
+                ' volumes with multiple channel dimensions.'
+            )
+
+        meta = {}
+        space = monai.utils.enums.SpaceKeys(space)
+        affine = self.get_affine(space.value)
+
+        meta[MetaKeys.SPACE] = space
+        meta[ImageStatsKeys.SPACING] = self.spacing
+        meta[MetaKeys.SPATIAL_SHAPE] = self.shape[:3]
+        meta[MetaKeys.ORIGINAL_AFFINE] = affine.copy()
+        meta[MetaKeys.AFFINE] = affine.copy()
+        meta[MetaKeys.ORIGINAL_CHANNEL_DIM] = (
+            -1 if self.ndim > 3 else float("nan")
+        )
+
+        metatensor = monai.data.MetaTensor(
+            self.array.copy(),
+            meta=meta
+        )
+
+        if ensure_channel_first:
+            metatensor = monai.transforms.EnsureChannelFirst()(metatensor)
+
+        return metatensor
+
+    @classmethod
+    def from_monai(
+        cls,
+        metatensor: 'monai.data.MetaTensor',  # noqa: F821
+        coordinate_system: CoordinateSystemNames | str = 'PATIENT',
+        frame_of_reference_uid: str | None = None,
+        channels: dict[
+            BaseTag | int | str | ChannelDescriptor,
+            Sequence[int | str | float | Enum]
+        ] | None = None,
+        channel_dim: int = 0
+    ) -> Self:
+        """Construct a Volume from a ``monai.data.MetaTensor``.
+
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``monai``.
+
+        The ``monai.data.MetaTensor`` is converted to a 3D Volume.
+        Spatial metadata is preserved through the affine array. By default,
+        metatensors use "RAS" convention, however they can support "LPS" similar
+        to highdicom. For correct conversions, ensure that the metatensor's
+        metadata specifies the appropriate convention through the space key
+        (``monai.utils.enums.SPACE``).
+
+        Parameters
+        ----------
+        metatensor: monai.data.MetaTensor
+            A ``monai.data.MetaTensor`` to convert to a volume.
+        coordinate_system: highdicom.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
+        channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
+            Specification of channels of the array. Channels are additional
+            dimensions of the array beyond the three spatial dimensions. For
+            each such additional dimension (if any), an item in this dictionary
+            is required to specify the meaning. The dictionary key specifies
+            the meaning of the dimension, which must be either an instance of
+            highdicom.ChannelDescriptor, specifying a DICOM tag whose attribute
+            describes the channel, a a DICOM keyword describing a DICOM
+            attribute, or an integer representing the tag of a DICOM attribute.
+            The corresponding item of the dictionary is a sequence giving the
+            value of the relevant attribute at each index in the array. The
+            insertion order of the dictionary is significant as it is used to
+            match items to the corresponding dimensions of the array (the first
+            item in the dictionary corresponds to axis 3 of the array and so
+            on).
+        channel_dim: int
+            Channel dimension index of the metatensor. Defaults to 0.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the Nibabel image.
+
+        Raises
+        ------
+        ValueError
+            When the metatensor has more than 4 dimensions (multiple channel
+            dimensions are unsupported).
+        ValueError
+            When there are multiple channels and the `channels` argument is
+            not provided.
+
+        """
+        func = cls.from_monai
+        monai = import_optional_dependency(
+            module_name='monai',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        array = metatensor.cpu().detach().numpy()
+
+        if array.ndim > 3:
+            if array.ndim > 4:
+                raise ValueError(
+                    'Monai conversion does not currently support'
+                    ' volumes with multiple channel dimensions.'
+                )
+
+            channel_dim = channel_dim % array.ndim
+            channel_last_perm = [
+                i for i in range(array.ndim) if i != channel_dim
+            ] + [channel_dim]
+            array = array.transpose(channel_last_perm)
+
+            if channels is None:
+                if array.shape[-1] == 1:
+                    array = array.squeeze(-1)
+
+                else:
+                    raise ValueError(
+                        'Monai conversion requires `channels` be specified'
+                        ' for volumes with >=2 channels.'
+                    )
+
+        return cls(
+            array=array,
+            affine=metatensor.affine.cpu().detach().numpy(),
+            coordinate_system=coordinate_system,
+            frame_of_reference_uid=frame_of_reference_uid,
+            channels=channels,
+            from_reference_convention=metatensor.meta.get(
+                monai.utils.enums.MetaKeys.SPACE,
+                monai.utils.enums.SpaceKeys.RAS
+            ).value
+        )
+
 
 class VolumeToVolumeTransformer:
 
