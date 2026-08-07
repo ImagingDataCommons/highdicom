@@ -75,14 +75,13 @@ matrix correctly populated from the source DICOM file.
     # Here we load in an example DICOM segmentation from the highdicom repo test
     # data that contains two segments. Parameters of the get_volume() method
     # control the volume that is extracted. For example, here we choose one of the
-    # two segments and cast to uint32 before converting to ITK
+    # two segments before converting to ITK
     sitk_image = (
         hd.seg.segread("data/test_files/seg_image_ct_binary_overlap.dcm")
         .get_volume(
             segment_numbers=[2],
             relabel=True,
             combine_segments=True,
-            dtype='uint32',
         )
         .to_simpleitk()
     )
