@@ -141,7 +141,7 @@ requiring any user code.
     seg_volume = seg_volume.match_orientation(source_image.get_volume_geometry())
 
     # Now to start creating the segmentation. First we have to describe the segment.
-    # Here, we describe a bone segment produced by an automatic algorithm)
+    # Here, we describe a bone segment produced by an automatic algorithm
     bone_description = hd.seg.SegmentDescription(
         segment_number=1,
         segment_label='Bone',
@@ -155,7 +155,7 @@ requiring any user code.
         )
     )
 
-    # Now construct the DICOM Segmentation Image from the ITK segmentation mask.
+    # Now construct the DICOM Segmentation Image from the segmentation volume.
     # Highdicom will take the spatial information from the itk image (via the
     # highdicom Volume) and compare it to the source image metadata to establish 
     # the spatial relationship between the segmentation mask and the source image
