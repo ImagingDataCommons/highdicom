@@ -63,7 +63,7 @@ Use Cases
 This allows you to work primarily in SimpleITK, while still benefitting from
 highdicom's full feature set for reading segmentations, such as correctly
 combining multiple segments, filtering segments, filling in missing slices,
-lazily retreiving frames, etc. This behavior is not limited to Segmentations,
+lazily retrieving frames, etc. This behavior is not limited to Segmentations,
 and would work equally well with any DICOM image the :class:`highdicom.Image`
 class supports. The resulting SimpleITK image will have its spatial affine
 matrix correctly populated from the source DICOM file.
@@ -139,7 +139,7 @@ requiring any user code.
     # In this case, the Volume has shape (128, 128, 1). highdicom.Segmentation
     # stores volumes split into frames split down the first dimension, so to
     # get the most sensible output we will transpose the volume. We could do
-    # this explicity, or, more straightforwardly, just transpose to match to
+    # this explicitly, or, more straightforwardly, just transpose to match to
     # the orientation of the source image
     seg_volume = seg_volume.match_orientation(source_image.get_volume_geometry())
 
