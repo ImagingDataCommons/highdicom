@@ -133,7 +133,7 @@ requiring any user code.
     # highdicom.Segmentation constructor
     seg_volume = hd.Volume.from_itk(seg_image)
 
-    # In this case, the Volume has shape (128, 128, 1). highdicom.Segmentation
+    # In this case, the Volume has shape (128, 128, 1). highdicom.seg.Segmentation
     # stores volumes split into frames split down the first dimension, so to
     # get the most sensible output we will transpose the volume. We could do
     # this explicitly, or, more straightforwardly, just transpose to match to
