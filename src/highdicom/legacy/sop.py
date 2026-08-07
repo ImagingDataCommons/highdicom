@@ -190,18 +190,15 @@ def _read_ambiguous_vr(dataset: Dataset, kw: str) -> int:
     val = getattr(dataset, kw)
     if (
         dataset.PixelRepresentation == 1 and
-        dataset[kw].VR == "US"
+        dataset[kw].VR == "US" and
+        # Value in this range indicates that correction is
+        # needed, since it is invalid for VR of 'SS'
+        val > 32767
     ):
-        # Incorrect VR is used
-
-        if val > 32767:
-            # Value in this range indicates that correction is
-            # needed, since it is invalid for VR of 'SS'
-
-            # Find the negative number that has the same 16-bit binary
-            # representation as the value found and assume this is what was
-            # intended in the original file
-            return val - 65536
+        # Incorrect VR is used - Find the negative number that has the same
+        # 16-bit binary representation as the value found and assume this is
+        # what was intended in the original file
+        return val - 65536
 
     return val
 
@@ -342,6 +339,7 @@ class _LegacyConversionRunner:
         use_extended_offset_table: bool = False,
         require_volume: bool = False,
         include_dimension_index: bool | None = None,
+        include_enhanced_groups: bool = True,
         strict: bool = False,
         skip_private_attributes: bool = False,
         workers: int | Executor = 0,
@@ -399,6 +397,15 @@ class _LegacyConversionRunner:
             passed with no index. If ``False``, no attempt will be made to sort
             the datasets, they will be encoded in the order they are passed
             without including a dimension index.
+        include_enhanced_groups: bool, optional
+            Include multi-frame functional groups that are not part of the
+            Legacy Enhanced IOD, but are part of the corresponding Enhanced
+            IOD, if information exists in the legacy files to include in them.
+            If ``False``, only those groups explicitly included in the Legacy
+            Converted IOD are created in the new file, and any attributes that
+            do not belong in them are placed into the
+            UnassignedSharedConvertedAttributesSequence or
+            UnassignedPerFrameConvertedAttributesSequence.
         strict: bool, optional
             Whether to use strict requirements on the new converted dataset. If
             True and any attributes required to create a standard-compliant
@@ -483,7 +490,7 @@ class _LegacyConversionRunner:
             "ImagesInAcquisition",
         ]
         self._unused_keywords = {
-            kw for kw in self._keyword_shared_dict.keys()
+            kw for kw in self._keyword_shared_dict
             if kw not in excluded_keywords
         }
 
@@ -815,6 +822,162 @@ class _LegacyConversionRunner:
                 [_AttributeConfig("IrradiationEventUID")],
                 required=False,
             )
+
+        if include_enhanced_groups:
+            if (
+                self._destination.SOPClassUID ==
+                LegacyConvertedEnhancedCTImageStorage
+            ):
+                self._add_functional_group(
+                    "CTAcquisitionDetailsSequence",
+                    [
+                        _AttributeConfig("DataCollectionDiameter"),
+                        _AttributeConfig("GantryDetectorTilt"),
+                        _AttributeConfig("TableHeight"),
+                        _AttributeConfig("RotationDirection"),
+                        _AttributeConfig("RevolutionTime"),
+                        _AttributeConfig("SingleCollimationWidth"),
+                        _AttributeConfig("TotalCollimationWidth"),
+                    ],
+                    required=False,
+                )
+                self._add_functional_group(
+                    "CTReconstructionSequence",
+                    [
+                        _AttributeConfig("ReconstructionDiameter"),
+                        _AttributeConfig("ConvolutionKernel"),
+                    ],
+                    required=False,
+                )
+                self._add_functional_group(
+                    "CTPositionSequence",
+                    [
+                        _AttributeConfig("DataCollectionCenterPatient"),
+                        _AttributeConfig("ReconstructionTargetCenterPatient"),
+                    ],
+                    required=False,
+                )
+                self._add_functional_group(
+                    "CTXRayDetailsSequence",
+                    [
+                        _AttributeConfig("KVP"),
+                        _AttributeConfig("FilterType"),
+                        _AttributeConfig("FocalSpots"),
+                        _AttributeConfig("FilterMaterial"),
+                        _AttributeConfig("CalciumScoringMassFactorPatient"),
+                        _AttributeConfig("CalciumScoringMassFactorDevice"),
+                        _AttributeConfig("EnergyWeightingFactor"),
+                    ],
+                    required=False,
+                )
+                self._add_functional_group(
+                    "CTExposureSequence",
+                    [
+                        _AttributeConfig(
+                            "ExposureTimeInms",
+                            src_kws=["ExposureTimeInms", "ExposureTime"]
+                        ),
+                        _AttributeConfig(
+                            "XRayTubeCurrentInmA",
+                            src_kws=["XRayTubeCurrent", "XRayTubeCurrentInmA"],
+                        ),
+                        _AttributeConfig("ExposureInmAs"),
+                        _AttributeConfig("ImageAndFluoroscopyAreaDoseProduct"),
+                        _AttributeConfig("WaterEquivalentDiameter"),
+                        _AttributeConfig(
+                            "WaterEquivalentDiameterCalculationMethodCodeSequence"  # noqa: E501
+                        ),
+                        _AttributeConfig("ExposureModulationType"),
+                        _AttributeConfig("CTDIvol"),
+                        _AttributeConfig("CTDIPhantomTypeCodeSequence"),
+                    ],
+                    custom_logic_callback=(
+                        self._ct_exposure_custom_logic,
+                    ),
+                    required=False,
+                )
+                self._add_functional_group(
+                    "CTGeometrySequence",
+                    [_AttributeConfig("DistanceSourceToDetector")],
+                    required=False,
+                )
+                self._add_functional_group(
+                    "CTTableDynamicsSequence",
+                    [
+                        _AttributeConfig("TableSpeed"),
+                        _AttributeConfig("TableFeedPerRotation"),
+                        _AttributeConfig("SpiralPitchFactor"),
+                    ],
+                    required=False,
+                )
+
+                self._copy_existing_sequence_to_functional_groups(
+                    "CTAdditionalXRaySourceSequence"
+                )
+                self._copy_existing_sequence_to_functional_groups(
+                    "MultienergyCTCharacteristicsSequence"
+                )
+                self._copy_existing_sequence_to_functional_groups(
+                    "MultienergyCTProcessingSequence"
+                )
+
+            if (
+                self._destination.SOPClassUID ==
+                LegacyConvertedEnhancedMRImageStorage
+            ):
+                self._add_functional_group(
+                    "MRFOVGeometrySequence",
+                    [
+                        _AttributeConfig("PercentSampling"),
+                        _AttributeConfig("PercentPhaseFieldOfView"),
+                        _AttributeConfig("InPlanePhaseEncodingDirection"),
+                    ],
+                    required=False,
+                )
+                self._add_functional_group(
+                    "MRAveragesSequence",
+                    [_AttributeConfig("NumberOfAverages")],
+                    required=False,
+                )
+                self._add_functional_group(
+                    "MRTransmitCoilSequence",
+                    [_AttributeConfig("TransmitCoilName")],
+                    required=False,
+                )
+                self._add_functional_group(
+                    "MRTimingAndRelatedParametersSequence",
+                    [
+                        _AttributeConfig("RepetitionTime"),
+                        _AttributeConfig("EchoTrainLength"),
+                        _AttributeConfig("FlipAngle"),
+                    ],
+                    required=False,
+                )
+                self._add_functional_group(
+                    "MRImagingModifierSequence",
+                    [_AttributeConfig("PixelBandwidth")],
+                    required=False,
+                )
+                self._add_functional_group(
+                    "MRReceiveCoilSequence",
+                    [_AttributeConfig("ReceiveCoilName")],
+                    required=False,
+                )
+
+            if (
+                self._destination.SOPClassUID ==
+                LegacyConvertedEnhancedPETImageStorage
+            ):
+                self._add_functional_group(
+                    "PETReconstructionSequence",
+                    [_AttributeConfig("ReconstructionDiameter")],
+                    required=False,
+                )
+                self._add_functional_group(
+                    "PETFrameAcquisitionSequence",
+                    [_AttributeConfig("TableHeight")],
+                    required=False,
+                )
 
         # Functional grops where entire existing sequences are copied from the
         # source image
@@ -1814,7 +1977,7 @@ class _LegacyConversionRunner:
                         "'FrameLaterality' will be left empty in the "
                         "new legacy converted enhanced dataset."
                     )
-                    logging.warning(msg)
+                    logger.warning(msg)
 
             destination.FrameLaterality = src_laterality
 
@@ -1864,6 +2027,30 @@ class _LegacyConversionRunner:
                         fa_dt += t_delta
 
             destination.FrameAcquisitionDateTime = fa_dt
+
+    def _ct_exposure_custom_logic(
+        self,
+        source: Dataset,
+        destination: Dataset,
+    ) -> None:
+        """Custom logic for the CTExposureSequence.
+
+        This is needed to handle unit conversion for exposure.
+
+        Parameters
+        ----------
+        source: pydicom.Dataset
+            Dataset to copy from.
+        destination: pydicom.Dataset
+            Dataset to copy to.
+
+        """
+        if (
+            "ExposureInmAs" not in destination and
+            "ExposureInuAs" in source
+        ):
+            destination.ExposureInmAs = source.ExposureInuAs / 1000.0
+            self._mark_keyword_used("ExposureInuAs")
 
     def _add_series_description(self) -> None:
         """Add a default series description."""
@@ -2528,13 +2715,14 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         instance_number: int,
         *,
         transfer_syntax_uid: str | None = None,
-        use_extended_offset_table: bool = False,
         require_volume: bool = False,
         strict: bool = False,
         skip_private_attributes: bool = False,
-        contributing_equipment: Sequence[ContributingEquipment] | None = None,
-        workers: int | Executor = 0,
         include_dimension_index: bool | None = None,
+        include_enhanced_groups: bool = True,
+        contributing_equipment: Sequence[ContributingEquipment] | None = None,
+        use_extended_offset_table: bool = False,
+        workers: int | Executor = 0,
         **kwargs: Any,
     ) -> None:
         """
@@ -2564,15 +2752,23 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             are JPEG 2000 (``"1.2.840.10008.1.2.4.91"``) , JPEG 2000 Lossless
             (``"1.2.840.10008.1.2.4.90"``), and JPEG-LS Lossless
             (``"1.2.840.10008.1.2.4.80"``).
-        use_extended_offset_table: bool, optional
-            Include an extended offset table instead of a basic offset table
-            for encapsulated transfer syntaxes. Extended offset tables avoid
-            size limitations on basic offset tables, and separate the offset
-            table from the pixel data by placing it into metadata. However,
-            they may be less widely supported than basic offset tables. This
-            parameter is ignored if using a native (uncompressed) transfer
-            syntax. The default value may change in a future release.
-        include_dimension_index: bool | None = None, optional
+        require_volume: bool, optional
+            If True, raise an error if the legacy datasets do not represent a
+            set of parallel, regularly-spaced frames from the same series. This
+            is not a requirement for the conversion to be valid according to
+            the standard, but users may wish to additionally impose this
+            stricter requirement to ensure the resulting files are easier to
+            work with.
+        strict: bool, optional
+            Whether to use strict requirements on the new converted dataset. If
+            True and any attributes required to create a standard-compliant
+            Legacy Converted Enhanced instance are missing or inconsistent in
+            the legacy source files, an error will be raised. If False, a
+            warning will be raised in the same situation and the attribute will
+            be skipped in the new Legacy Converted Enhanced file.
+        skip_private_attributes: bool, optional
+            Whether to skip copying private attributes to the converted file.
+        include_dimension_index: bool | None, optional
             Whether to include a dimension index within the
             DimensionIndexSequence in the new converted dataset. A dimension
             index describes how the frames are ordered within the instance.
@@ -2599,25 +2795,26 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             passed with no index. If ``False``, no attempt will be made to sort
             the datasets, they will be encoded in the order they are passed
             without including a dimension index.
-        require_volume: bool, optional
-            If True, raise an error if the legacy datasets do not represent a
-            set of parallel, regularly-spaced frames from the same series. This
-            is not a requirement for the conversion to be valid according to
-            the standard, but users may wish to additionally impose this
-            stricter requirement to ensure the resulting files are easier to
-            work with.
-        strict: bool, optional
-            Whether to use strict requirements on the new converted dataset. If
-            True and any attributes required to create a standard-compliant
-            Legacy Converted Enhanced instance are missing or inconsistent in
-            the legacy source files, an error will be raised. If False, a
-            warning will be raised in the same situation and the attribute will
-            be skipped in the new Legacy Converted Enhanced file.
-        skip_private_attributes: bool, optional
-            Whether to skip copying private attributes to the converted file.
+        include_enhanced_groups: bool, optional
+            Include multi-frame functional groups that are not part of the
+            Legacy Enhanced IOD, but are part of the corresponding Enhanced
+            IOD, if information exists in the legacy files to include in them.
+            If ``False``, only those groups explicitly included in the Legacy
+            Converted IOD are created in the new file, and any attributes that
+            do not belong in them are placed into the
+            UnassignedSharedConvertedAttributesSequence or
+            UnassignedPerFrameConvertedAttributesSequence.
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
             Additional equipment that has contributed to the acquisition,
             creation or modification of this instance.
+        use_extended_offset_table: bool, optional
+            Include an extended offset table instead of a basic offset table
+            for encapsulated transfer syntaxes. Extended offset tables avoid
+            size limitations on basic offset tables, and separate the offset
+            table from the pixel data by placing it into metadata. However,
+            they may be less widely supported than basic offset tables. This
+            parameter is ignored if using a native (uncompressed) transfer
+            syntax. The default value may change in a future release.
         workers: int | concurrent.futures.Executor, optional
             Number of worker processes to use for frame compression, if
             compression or transcoding is needed. If 0, no workers are used and
@@ -2731,13 +2928,14 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         _LegacyConversionRunner(
             legacy_datasets,
             destination=self,
-            workers=workers,
-            transfer_syntax_uid=transfer_syntax_uid,
-            use_extended_offset_table=use_extended_offset_table,
-            include_dimension_index=include_dimension_index,
-            skip_private_attributes=skip_private_attributes,
-            strict=strict,
             require_volume=require_volume,
+            transfer_syntax_uid=transfer_syntax_uid,
+            include_dimension_index=include_dimension_index,
+            include_enhanced_groups=include_enhanced_groups,
+            strict=strict,
+            skip_private_attributes=skip_private_attributes,
+            use_extended_offset_table=use_extended_offset_table,
+            workers=workers,
         )
 
         self._build_luts()
