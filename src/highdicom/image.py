@@ -70,6 +70,7 @@ from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,
     DimensionOrganizationTypeValues,
+    PadModes,
     PhotometricInterpretationValues,
     PixelDataKeywords,
     PixelIndexDirections,
@@ -88,6 +89,7 @@ from highdicom.pixels import (
     apply_voi_window,
 )
 from highdicom.spatial import (
+    _DEFAULT_EQUALITY_TOLERANCE,
     _are_orientations_coplanar,
     _are_orientations_equal,
     _check_orientation_consistency,
@@ -8615,7 +8617,11 @@ class Image(_Image):
             channel_spec = {RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B']}
 
         if self.is_tiled:
-            volume_geometry = self._get_volume_geometry()
+            volume_geometry = self._get_volume_geometry(
+                atol=atol,
+                rtol=rtol,
+                perpendicular_tol=perpendicular_tol,
+            )
 
             slice_start, slice_end = self._standardize_slice_indices(
                 slice_start=slice_start,
@@ -8707,9 +8713,28 @@ class Image(_Image):
             channels=channel_spec,
         )
 
-    def get_volume_by_geometry(
+    def get_volume_with_geometry(
         self,
         geometry: Volume | VolumeGeometry,
+        *,
+        dtype: type | str | np.dtype = np.float64,
+        apply_real_world_transform: bool | None = None,
+        real_world_value_map_selector: int | str | Code | CodedConcept = 0,
+        apply_modality_transform: bool | None = None,
+        apply_voi_transform: bool | None = False,
+        voi_transform_selector: int | str | VOILUTTransformation = 0,
+        voi_output_range: tuple[float, float] = (0.0, 1.0),
+        apply_presentation_lut: bool = True,
+        apply_palette_color_lut: bool | None = None,
+        apply_icc_profile: bool | None = None,
+        allow_missing_positions: bool = False,
+        rtol: float | None = None,
+        atol: float | None = None,
+        perpendicular_tol: float | None = None,
+        pad_mode: PadModes = PadModes.CONSTANT,
+        constant_value: float = 0.0,
+        pad_per_channel: bool = False,
+        match_tol: float = _DEFAULT_EQUALITY_TOLERANCE,
     ) -> Volume:
         """Get a volume with a given geometry from the image.
 
@@ -8717,24 +8742,163 @@ class Image(_Image):
         combination of axis permutations, crops, pads, and flips. If this is
         not possible, a ``RuntimeError`` will be raised.
 
-        Importantly, only required frames will be accessed. If the requested
-        volume is much smaller than the full volume contained within the image,
-        this can therefore be much more efficient than retrieving the full
-        volume and manipulating it to match the requested geometry.
+        Importantly, only required frames will be accessed. For multiframe
+        images where the requested volume is much smaller than the full volume
+        contained within the image, this can therefore be much more efficient
+        than retrieving the full volume and manipulating it to match the
+        requested geometry.
 
         Parameters
         ----------
         geometry: highdicom.Volume | highdicom.VolumeGeometry
             Geometry of the requested volume. If this is a full Volume, only
             the geometry is relevant to this operation.
+        dtype: Union[type, str, numpy.dtype], optional
+            Data type of the returned array.
+        apply_real_world_transform: bool | None, optional
+            Whether to apply a real-world value map to the frame.
+            A real-world value maps converts stored pixel values to output
+            values with a real-world meaning, either using a LUT or a linear
+            slope and intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if present but no error will be raised if
+            it is not present.
+
+            Note that if the dataset contains both a modality LUT and a real
+            world value map, the real world value map will be applied
+            preferentially. This also implies that specifying both
+            ``apply_real_world_transform`` and ``apply_modality_transform`` to
+            True is not permitted.
+        real_world_value_map_selector: int | str | pydicom.sr.coding.Code | highdicom.sr.coding.CodedConcept, optional
+            Specification of the real world value map to use (multiple may be
+            present in the dataset). If an int, it is used to index the list of
+            available maps. A negative integer may be used to index from the
+            end of the list following standard Python indexing convention. If a
+            str, the string will be used to match the ``"LUTLabel"`` attribute
+            to select the map. If a ``pydicom.sr.coding.Code`` or
+            ``highdicom.sr.coding.CodedConcept``, this will be used to match
+            the units (contained in the ``"MeasurementUnitsCodeSequence"``
+            attribute).
+        apply_modality_transform: bool | None, optional
+            Whether to apply the modality transform (if present in the
+            dataset) to the frame. The modality transform maps stored pixel
+            values to output values, either using a LUT or rescale slope and
+            intercept.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        apply_voi_transform: bool | None, optional
+            Apply the value-of-interest (VOI) transform (if present in the
+            dataset), which limits the range of pixel values to a particular
+            range of interest using either a windowing operation or a LUT.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present and no real world value
+            map takes precedence, but no error will be raised if it is not
+            present.
+        voi_transform_selector: int | str | highdicom.VOILUTTransformation, optional
+            Specification of the VOI transform to select (multiple may be
+            present). May either be an int or a str. If an int, it is
+            interpreted as a (zero-based) index of the list of VOI transforms
+            to apply. A negative integer may be used to index from the end of
+            the list following standard Python indexing convention. If a str,
+            the string that will be used to match the
+            ``"WindowCenterWidthExplanation"`` or the ``"LUTExplanation"``
+            attributes to choose from multiple VOI transforms. Note that such
+            explanations are optional according to the standard and therefore
+            may not be present. Ignored if ``apply_voi_transform`` is ``False``
+            or no VOI transform is included in the dataset.
+
+            Alternatively, a user-defined
+            :class:`highdicom.VOILUTTransformation` may be supplied.
+            This will override any such transform specified in the dataset.
+        voi_output_range: Tuple[float, float], optional
+            Range of output values to which the VOI range is mapped. Only
+            relevant if ``apply_voi_transform`` is True and a VOI transform is
+            present.
+        apply_palette_color_lut: bool | None, optional
+            Apply the palette color LUT, if present in the dataset. The palette
+            color LUT maps a single sample for each pixel stored in the dataset
+            to a 3 sample-per-pixel color image.
+        apply_presentation_lut: bool, optional
+            Apply the presentation LUT transform to invert the pixel values. If
+            the PresentationLUTShape is present with the value ``'INVERSE'``,
+            or the PresentationLUTShape is not present but the Photometric
+            Interpretation is MONOCHROME1, convert the range of the output
+            pixels corresponds to MONOCHROME2 (in which high values are
+            represent white and low values represent black). Ignored if
+            PhotometricInterpretation is not MONOCHROME1 and the
+            PresentationLUTShape is not present, or if a real world value
+            transform is applied.
+        apply_icc_profile: bool | None, optional
+            Whether colors should be corrected by applying an ICC
+            transform. Will only be performed if metadata contain an
+            ICC Profile.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present, but no error will be
+            raised if it is not present.
+        allow_missing_positions: bool, optional
+            Allow spatial positions the output array to be blank because these
+            frames are omitted from the image. If False and missing positions
+            are found, an error is raised.
+        rtol: float | None, optional
+            Relative tolerance for determining spacing regularity. If slice
+            spacings vary by less that this proportion of the average spacing,
+            they are considered to be regular. If neither ``rtol`` or ``atol``
+            are provided, a default relative tolerance of 0.01 is used.
+        atol: float | None, optional
+            Absolute tolerance for determining spacing regularity. If slice
+            spacings vary by less that this value (in mm), they are considered
+            to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
+        pad_mode: highdicom.PadModes | str, optional
+            Mode to use to pad the array if required to match the geometry. See
+            :class:`highdicom.PadModes` for options.
+        constant_value: float | Sequence[float], optional
+            Value used to pad when mode is ``"CONSTANT"``. With other pad
+            modes, this argument is ignored.
+        pad_per_channel: bool, optional
+            For padding modes that involve calculation of image statistics to
+            determine the padding value (i.e. ``MINIMUM``, ``MAXIMUM``,
+            ``MEAN``, ``MEDIAN``), pad each channel separately using the value
+            calculated using that channel alone (rather than the statistics of
+            the entire array). For other padding modes, this argument makes no
+            difference. This should be True only if the volume has a channel
+            dimension.
+        match_tol: float | None, optional
+            Absolute tolerance used to determine equality of affine matrices
+            when determining whether the image geometry can be manipulated via
+            padding, cropping, flipping, and transposition to give the
+            requested geometry. If None, affine matrices must match exactly.
 
         Returns
         -------
         highdicom.Volume:
             Volume retrieved from the image with the requested geometry.
 
-        """
-        image_geometry = self._get_volume_geometry()
+        """  # noqa: E501
+        image_geometry = self._get_volume_geometry(
+            atol=atol,
+            rtol=rtol,
+            perpendicular_tol=perpendicular_tol,
+        )
 
         # We want to start with the "minimal" volume to avoid loading or
         # processing unnecessary frames. To do this find the operations needed
@@ -8744,18 +8908,24 @@ class Image(_Image):
         _, pad_values, crop_slices = _get_match_operations(
             geometry,
             image_geometry,
+            tol=match_tol,
         )
 
         def process_pad_values(
             pv: tuple[int, int],
             cs: slice,
         ) -> tuple[int, int | None]:
+            # Process pad values to make them usable for cropping in the
+            # inverse operation
             before, after = pv
             if cs.step == 1:
+                # Simple case, need negate "after" so it indexes backwards from
+                # the end
                 start = before
                 end = -after
             elif cs.step == -1:
-                # Order is reversed so need to swap start and end
+                # Order is reversed so as above but also need to swap start and
+                # end
                 start = after
                 end = -before
             else:
@@ -8767,6 +8937,8 @@ class Image(_Image):
                 )
 
             if end == 0:
+                # If no padding at the end (after = 0), set to None since
+                # -0 does not index up until the end
                 end = None
 
             return start, end
@@ -8795,16 +8967,38 @@ class Image(_Image):
                 crop_slices[2],
             )
 
-        # TODO other parameters
-        return self.get_volume(
-            slice_start=slice_start,
-            slice_end=slice_end,
-            row_start=row_start,
-            row_end=row_end,
-            column_start=column_start,
-            column_end=column_end,
-            as_indices=True,
-        ).match_geometry(geometry)
+        return (
+            self
+            .get_volume(
+                slice_start=slice_start,
+                slice_end=slice_end,
+                row_start=row_start,
+                row_end=row_end,
+                column_start=column_start,
+                column_end=column_end,
+                as_indices=True,
+                apply_real_world_transform=apply_real_world_transform,
+                real_world_value_map_selector=real_world_value_map_selector,
+                apply_modality_transform=apply_modality_transform,
+                apply_voi_transform=apply_voi_transform,
+                voi_transform_selector=voi_transform_selector,
+                voi_output_range=voi_output_range,
+                apply_presentation_lut=apply_presentation_lut,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
+                dtype=dtype,
+                atol=atol,
+                rtol=rtol,
+                perpendicular_tol=perpendicular_tol,
+            )
+            .match_geometry(
+                geometry,
+                tol=match_tol,
+                mode=pad_mode,
+                per_channel=pad_per_channel,
+                constant_value=constant_value,
+            )
+        )
 
     def get_total_pixel_matrix(
         self,
