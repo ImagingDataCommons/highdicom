@@ -169,8 +169,9 @@ class SCImage(SOPClass):
             Laterality of the examined body part
         patient_orientation:
                 Union[Tuple[str, str], Tuple[highdicom.PatientOrientationValuesBiped, highdicom.PatientOrientationValuesBiped], Tuple[highdicom.PatientOrientationValuesQuadruped, highdicom.PatientOrientationValuesQuadruped], None], optional
-            Orientation of the patient along the row and column axes of the
-            image (required if `coordinate_system` is ``"PATIENT"``)
+            Orientation of the patient moving from the first to the last row
+            (first item) and from the first to the last column (second item) of
+            the image (required if `coordinate_system` is ``"PATIENT"``)
         anatomical_orientation_type: Union[str, highdicom.AnatomicalOrientationTypeValues, None], optional
             Type of anatomical orientation of patient relative to image (may be
             provide if `coordinate_system` is ``"PATIENT"`` and patient is
