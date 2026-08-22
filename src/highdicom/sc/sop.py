@@ -5,6 +5,7 @@ import datetime
 from typing import Any
 from collections.abc import Sequence
 from typing_extensions import Self
+import warnings
 
 import numpy as np
 from pydicom.uid import SecondaryCaptureImageStorage
@@ -55,56 +56,58 @@ class SCImage(SOPClass):
     """
 
     def __init__(
-            self,
-            pixel_array: np.ndarray,
-            photometric_interpretation: (
-                str |
-                PhotometricInterpretationValues
-            ),
-            bits_allocated: int,
-            coordinate_system: str | CoordinateSystemNames,
-            study_instance_uid: str,
-            series_instance_uid: str,
-            series_number: int,
-            sop_instance_uid: str,
-            instance_number: int,
-            manufacturer: str,
-            patient_id: str | None = None,
-            patient_name: str | PersonName | None = None,
-            patient_birth_date: str | None = None,
-            patient_sex: str | PatientSexValues | None = None,
-            accession_number: str | None = None,
-            study_id: str | None = None,
-            study_date: str | datetime.date | None = None,
-            study_time: str | datetime.time | None = None,
-            referring_physician_name: str | PersonName | None = None,
-            pixel_spacing: tuple[float, float] | None = None,
-            laterality: str | LateralityValues | None = None,
-            patient_orientation: (
-                tuple[str, str] |
-                tuple[
-                    PatientOrientationValuesBiped,
-                    PatientOrientationValuesBiped,
-                ] |
-                tuple[
-                    PatientOrientationValuesQuadruped,
-                    PatientOrientationValuesQuadruped,
-                ]
-            ) | None = None,
-            anatomical_orientation_type: None | (
-                str | AnatomicalOrientationTypeValues
-            ) = None,
-            container_identifier: str | None = None,
-            issuer_of_container_identifier: IssuerOfIdentifier | None = None,
-            specimen_descriptions: None | (
-                Sequence[SpecimenDescription]
-            ) = None,
-            transfer_syntax_uid: str = ExplicitVRLittleEndian,
-            contributing_equipment: Sequence[
-                ContributingEquipment
-            ] | None = None,
-            **kwargs: Any
-        ):
+        self,
+        pixel_array: np.ndarray,
+        photometric_interpretation: (
+            str |
+            PhotometricInterpretationValues
+        ),
+        coordinate_system: str | CoordinateSystemNames,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        series_number: int,
+        sop_instance_uid: str,
+        instance_number: int,
+        manufacturer: str,
+        patient_id: str | None = None,
+        patient_name: str | PersonName | None = None,
+        patient_birth_date: str | None = None,
+        patient_sex: str | PatientSexValues | None = None,
+        accession_number: str | None = None,
+        study_id: str | None = None,
+        study_date: str | datetime.date | None = None,
+        study_time: str | datetime.time | None = None,
+        referring_physician_name: str | PersonName | None = None,
+        pixel_spacing: tuple[float, float] | None = None,
+        laterality: str | LateralityValues | None = None,
+        patient_orientation: (
+            tuple[str, str] |
+            tuple[
+                PatientOrientationValuesBiped,
+                PatientOrientationValuesBiped,
+            ] |
+            tuple[
+                PatientOrientationValuesQuadruped,
+                PatientOrientationValuesQuadruped,
+            ]
+        ) | None = None,
+        anatomical_orientation_type: None | (
+            str | AnatomicalOrientationTypeValues
+        ) = None,
+        container_identifier: str | None = None,
+        issuer_of_container_identifier: IssuerOfIdentifier | None = None,
+        specimen_descriptions: None | (
+            Sequence[SpecimenDescription]
+        ) = None,
+        transfer_syntax_uid: str = ExplicitVRLittleEndian,
+        contributing_equipment: Sequence[
+            ContributingEquipment
+        ] | None = None,
+        *,
+        bits_stored: int | None = None,
+        bits_allocated: int | None = None,
+        **kwargs: Any,
+    ):
         """
 
         Parameters
@@ -125,8 +128,6 @@ class SCImage(SOPClass):
             ``photometric_interpretation must be ``"YBR_ICT"``, if
             ``transfer_syntax_uid`` is ``"JPEG2000Lossless"``,
             ``photometric_interpretation must be ``"YBR_RCT"``.
-        bits_allocated: int
-            Number of bits that should be allocated per pixel value
         coordinate_system: Union[str, highdicom.CoordinateSystemNames]
             Subject (``"PATIENT"`` or ``"SLIDE"``) that was the target of
             imaging
@@ -195,6 +196,19 @@ class SCImage(SOPClass):
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
             Additional equipment that has contributed to the acquisition,
             creation or modification of this instance.
+        bits_stored: int | None, optional
+            Number of bits that should be stored per pixel value. By default,
+            the number of bits per pixel in the input array is assumed. Any
+            provided value must be less than or equal to the number of bits per
+            pixel in the input array.
+        bits_allocated: int | None, optional
+            *Deprecated* in highdicom 0.29.0. This was previously the name for
+            the ``bits_stored`` parameter, but this name was deprecated because
+            it incorrectly described how the attribute was used in the
+            resulting DICOM image. For backwards compatibility, passing
+            ``bits_allocated`` is equivalent to passing ``bits_stored`` and
+            controls the bits stored in the file. This parameter will be
+            removed entirely in a future release.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -243,6 +257,18 @@ class SCImage(SOPClass):
             **kwargs
         )
         self._add_contributing_equipment(contributing_equipment)
+
+        # If we received an integer for coordinate_system, assume that the user
+        # is using the old signature that included the deprecated
+        # 'bits_allocated' with positional arguments
+        if isinstance(coordinate_system, int):
+            raise TypeError(
+                "Use of 'bits_allocated' as a positional argument was deprecated "
+                "in highdicom 0.29.0. Omit the parameter to use the number of bits "
+                "per pixel in the input array as both the number of bits allocated "
+                "and bits stored or specify 'bits_stored' "
+                "as a keyword argument."
+            )
 
         coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.PATIENT:
@@ -324,23 +350,69 @@ class SCImage(SOPClass):
                 'Pixel array must be of type np.bool_, np.uint8 or np.uint16. '
                 f'Found {pixel_array.dtype}.'
             )
-        wrong_bit_depth_assignment = (
-            pixel_array.dtype == np.bool_ and bits_allocated != 1,
-            pixel_array.dtype == np.uint8 and bits_allocated != 8,
-            pixel_array.dtype == np.uint16 and bits_allocated not in (12, 16),
-        )
-        if any(wrong_bit_depth_assignment):
+
+        if bits_allocated is not None:
+            # Handle deprecation of bits_allocated
+            if bits_stored is not None:
+                raise TypeError(
+                    "The 'bits_allocated' parameter is deprecated and must must "
+                    "be provided alongside 'bits_stored'."
+                )
+
+            warnings.warn(
+                "The 'bits_allocated' parameter is deprecated as of highdicom "
+                "0.29.0 and will be removed in a future version of the library. "
+                "Use 'bits_stored' to set the number of bits stored or skip the "
+                "parameter entirely to use the number of bits per pixel in the "
+                "input array.",
+                UserWarning,
+                stacklevel=2,
+            )
+            # Interpret the bits_allocated as bits_stored in line with the old,
+            # deprecated behavior
+            bits_stored = bits_allocated
+
+        if pixel_array.dtype == np.bool_:
+            self.BitsAllocated = 1
+        elif pixel_array.dtype == np.uint8:
+            self.BitsAllocated = 8
+        elif pixel_array.dtype == np.uint16:
+            self.BitsAllocated = 16
+        else:
             raise ValueError('Pixel array has an unexpected bit depth.')
-        if bits_allocated not in (1, 8, 12, 16):
-            raise ValueError('Unexpected number of bits allocated.')
-        if transfer_syntax_uid == RLELossless and bits_allocated % 8 != 0:
+
+        if transfer_syntax_uid == RLELossless and self.BitsAllocated % 8 != 0:
             raise ValueError(
                 'When using run length encoding, bits allocated must be a '
                 'multiple of 8'
             )
-        self.BitsAllocated = bits_allocated
-        self.HighBit = self.BitsAllocated - 1
-        self.BitsStored = self.BitsAllocated
+
+        if bits_stored is not None:
+            if not isinstance(bits_stored, int):
+                raise TypeError("Parameter 'bits_stored' must be an integer.")
+
+            if bits_stored < 1 or bits_stored > self.BitsAllocated:
+                raise ValueError(
+                    "'bits_stored' must be an integer no greater than the "
+                    "number of bits per pixel in the input array."
+                )
+
+            self.BitsStored = bits_stored
+
+            if (
+                bits_stored != self.BitsAllocated and
+                pixel_array.max() >= 2 ** bits_stored
+            ):
+                raise ValueError(
+                    "Provided 'pixel_array' cannot be represented with the "
+                    f"specified number of 'bits_stored' ({bits_stored})."
+                )
+        else:
+            # By default, assume the full range of pixel values in the input
+            # array
+            self.BitsStored = self.BitsAllocated
+
+        self.HighBit = self.BitsStored - 1
         self.PixelRepresentation = 0
         photometric_interpretation = PhotometricInterpretationValues(
             photometric_interpretation
@@ -371,7 +443,7 @@ class SCImage(SOPClass):
                 raise ValueError(
                     'Pixel array has an unexpected number of color channels.'
                 )
-            if bits_allocated != 8:
+            if self.BitsAllocated != 8:
                 raise ValueError('Color images must be 8-bit.')
             if pixel_array.dtype != np.uint8:
                 raise TypeError(
@@ -412,7 +484,7 @@ class SCImage(SOPClass):
             bits_stored=self.BitsStored,
             photometric_interpretation=self.PhotometricInterpretation,
             pixel_representation=self.PixelRepresentation,
-            planar_configuration=getattr(self, 'PlanarConfiguration', None)
+            planar_configuration=self.get('PlanarConfiguration'),
         )
         if self.file_meta.TransferSyntaxUID.is_encapsulated:
             self.PixelData = encapsulate([encoded_frame])
@@ -428,7 +500,6 @@ class SCImage(SOPClass):
             str |
             PhotometricInterpretationValues
         ),
-        bits_allocated: int,
         coordinate_system: str | CoordinateSystemNames,
         series_instance_uid: str,
         series_number: int,
@@ -460,6 +531,9 @@ class SCImage(SOPClass):
         contributing_equipment: Sequence[
             ContributingEquipment
         ] | None = None,
+        *,
+        bits_stored: int | None = None,
+        bits_allocated: int | None = None,
         **kwargs: Any
     ) -> Self:
         """Constructor that copies patient and study from an existing dataset.
@@ -533,6 +607,19 @@ class SCImage(SOPClass):
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
             Additional equipment that has contributed to the acquisition,
             creation or modification of this instance.
+        bits_stored: int | None, optional
+            Number of bits that should be stored per pixel value. By default,
+            the number of bits per pixel in the input array is assumed. Any
+            provided value must be less than or equal to the number of bits per
+            pixel in the input array.
+        bits_allocated: int | None, optional
+            *Deprecated* in highdicom 0.29.0. This was previously the name for
+            the ``bits_stored`` parameter, but this name was deprecated because
+            it incorrectly described how the attribute was used in the
+            resulting DICOM image. For backwards compatibility, passing
+            ``bits_allocated`` is equivalent to passing ``bits_stored`` and
+            controls the bits stored in the file. This parameter will be
+            removed entirely in a future release.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -567,7 +654,6 @@ class SCImage(SOPClass):
         return cls(
             pixel_array=pixel_array,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=ref_dataset.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -598,5 +684,7 @@ class SCImage(SOPClass):
             transfer_syntax_uid=transfer_syntax_uid,
             contributing_equipment=contributing_equipment,
             specific_character_set=specific_character_set,
+            bits_stored=bits_stored,
+            bits_allocated=bits_allocated,
             **kwargs
         )

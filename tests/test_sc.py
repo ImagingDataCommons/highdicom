@@ -74,13 +74,11 @@ class TestSCImage(unittest.TestCase):
         return decoded_frame_arrays[0]
 
     def test_construct_rgb_patient(self):
-        bits_allocated = 8
         photometric_interpretation = 'RGB'
         coordinate_system = 'PATIENT'
         instance = SCImage(
             pixel_array=self._rgb_pixel_array,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -92,7 +90,8 @@ class TestSCImage(unittest.TestCase):
             laterality=self._laterality,
             pixel_spacing=self._pixel_spacing,
         )
-        assert instance.BitsAllocated == bits_allocated
+        assert instance.BitsAllocated == 8
+        assert instance.BitsStored == 8
         assert instance.SamplesPerPixel == 3
         assert instance.PlanarConfiguration == 0
         assert instance.PhotometricInterpretation == photometric_interpretation
@@ -119,13 +118,11 @@ class TestSCImage(unittest.TestCase):
 
     def test_construct_rgb_patient_missing_parameter(self):
         with pytest.raises(TypeError):
-            bits_allocated = 8
             photometric_interpretation = 'RGB'
             coordinate_system = 'PATIENT'
             SCImage(
                 pixel_array=self._rgb_pixel_array,
                 photometric_interpretation=photometric_interpretation,
-                bits_allocated=bits_allocated,
                 coordinate_system=coordinate_system,
                 study_instance_uid=self._study_instance_uid,
                 series_instance_uid=self._series_instance_uid,
@@ -136,7 +133,6 @@ class TestSCImage(unittest.TestCase):
             )
 
     def test_construct_rgb_slide_single_specimen(self):
-        bits_allocated = 8
         photometric_interpretation = 'RGB'
         coordinate_system = 'SLIDE'
         specimen_description = SpecimenDescription(
@@ -146,7 +142,6 @@ class TestSCImage(unittest.TestCase):
         instance = SCImage(
             pixel_array=self._rgb_pixel_array,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -157,7 +152,8 @@ class TestSCImage(unittest.TestCase):
             container_identifier=self._container_identifier,
             specimen_descriptions=[specimen_description]
         )
-        assert instance.BitsAllocated == bits_allocated
+        assert instance.BitsAllocated == 8
+        assert instance.BitsStored == 8
         assert instance.SamplesPerPixel == 3
         assert instance.PlanarConfiguration == 0
         assert instance.PhotometricInterpretation == photometric_interpretation
@@ -185,7 +181,6 @@ class TestSCImage(unittest.TestCase):
             instance.PatientOrientation  # noqa: B018
 
     def test_construct_rgb_slide_single_specimen_missing_parameter(self):
-        bits_allocated = 8
         photometric_interpretation = 'RGB'
         coordinate_system = 'SLIDE'
         specimen_description = SpecimenDescription(
@@ -196,7 +191,6 @@ class TestSCImage(unittest.TestCase):
             SCImage(
                 pixel_array=self._rgb_pixel_array,
                 photometric_interpretation=photometric_interpretation,
-                bits_allocated=bits_allocated,
                 coordinate_system=coordinate_system,
                 study_instance_uid=self._study_instance_uid,
                 series_instance_uid=self._series_instance_uid,
@@ -208,14 +202,12 @@ class TestSCImage(unittest.TestCase):
             )
 
     def test_construct_rgb_slide_single_specimen_missing_parameter_1(self):
-        bits_allocated = 8
         photometric_interpretation = 'RGB'
         coordinate_system = 'SLIDE'
         with pytest.raises(TypeError):
             SCImage(
                 pixel_array=self._rgb_pixel_array,
                 photometric_interpretation=photometric_interpretation,
-                bits_allocated=bits_allocated,
                 coordinate_system=coordinate_system,
                 study_instance_uid=self._study_instance_uid,
                 series_instance_uid=self._series_instance_uid,
@@ -227,13 +219,11 @@ class TestSCImage(unittest.TestCase):
             )
 
     def test_construct_monochrome_patient(self):
-        bits_allocated = 16
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
         instance = SCImage(
             pixel_array=self._monochrome_pixel_array,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -243,7 +233,8 @@ class TestSCImage(unittest.TestCase):
             manufacturer=self._manufacturer,
             patient_orientation=self._patient_orientation
         )
-        assert instance.BitsAllocated == bits_allocated
+        assert instance.BitsAllocated == 16
+        assert instance.BitsStored == 16
         assert instance.SamplesPerPixel == 1
         assert instance.PhotometricInterpretation == photometric_interpretation
         assert instance.StudyInstanceUID == self._study_instance_uid
@@ -266,14 +257,12 @@ class TestSCImage(unittest.TestCase):
             instance.IssuerOfTheContainerIdentifierSequence  # noqa: B018
 
     def test_monochrome_rle(self):
-        bits_allocated = 8  # RLE requires multiple of 8 bits
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256), dtype=np.uint8)
         instance = SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -293,14 +282,12 @@ class TestSCImage(unittest.TestCase):
         )
 
     def test_rgb_rle(self):
-        bits_allocated = 8  # RLE requires multiple of 8 bits
         photometric_interpretation = 'RGB'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
         instance = SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -321,7 +308,6 @@ class TestSCImage(unittest.TestCase):
 
     def test_monochrome_jpeg_baseline(self):
         pytest.importorskip("libjpeg")
-        bits_allocated = 8
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
         frame = np.zeros((256, 256), dtype=np.uint8)
@@ -329,7 +315,6 @@ class TestSCImage(unittest.TestCase):
         instance = SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -351,7 +336,6 @@ class TestSCImage(unittest.TestCase):
 
     def test_rgb_jpeg_baseline(self):
         pytest.importorskip("libjpeg")
-        bits_allocated = 8
         photometric_interpretation = 'YBR_FULL_422'
         coordinate_system = 'PATIENT'
         frame = np.zeros((256, 256, 3), dtype=np.uint8)
@@ -360,7 +344,6 @@ class TestSCImage(unittest.TestCase):
         instance = SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -379,14 +362,12 @@ class TestSCImage(unittest.TestCase):
 
     def test_monochrome_jpeg2000lossless(self):
         pytest.importorskip("openjpeg")
-        bits_allocated = 8
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256), dtype=np.uint8)
         instance = SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -407,14 +388,12 @@ class TestSCImage(unittest.TestCase):
 
     def test_monochrome_jpeg2000(self):
         pytest.importorskip("openjpeg")
-        bits_allocated = 8
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256), dtype=np.uint8)
         instance = SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -436,14 +415,12 @@ class TestSCImage(unittest.TestCase):
 
     def test_rgb_jpeg2000(self):
         pytest.importorskip("openjpeg")
-        bits_allocated = 8
         photometric_interpretation = 'YBR_RCT'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
         instance = SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -464,14 +441,12 @@ class TestSCImage(unittest.TestCase):
 
     def test_monochrome_jpegls(self):
         pytest.importorskip("libjpeg")
-        bits_allocated = 16
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 2**16, size=(256, 256), dtype=np.uint16)
         instance = SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -492,14 +467,12 @@ class TestSCImage(unittest.TestCase):
 
     def test_monochrome_jpegls_near_lossless(self):
         pytest.importorskip("libjpeg")
-        bits_allocated = 16
         photometric_interpretation = 'MONOCHROME2'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 2**16, size=(256, 256), dtype=np.uint16)
         instance = SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -521,14 +494,12 @@ class TestSCImage(unittest.TestCase):
 
     def test_rgb_jpegls(self):
         pytest.importorskip("libjpeg")
-        bits_allocated = 8
         photometric_interpretation = 'RGB'
         coordinate_system = 'PATIENT'
         frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
         instance = SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             study_instance_uid=self._study_instance_uid,
             series_instance_uid=self._series_instance_uid,
@@ -548,14 +519,12 @@ class TestSCImage(unittest.TestCase):
         )
 
     def test_construct_rgb_from_ref_dataset(self):
-        bits_allocated = 8
         photometric_interpretation = 'RGB'
         coordinate_system = 'PATIENT'
         instance = SCImage.from_ref_dataset(
             ref_dataset=self._ref_dataset,
             pixel_array=self._rgb_pixel_array,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
             series_instance_uid=self._series_instance_uid,
             sop_instance_uid=self._sop_instance_uid,
@@ -565,7 +534,8 @@ class TestSCImage(unittest.TestCase):
             patient_orientation=self._patient_orientation,
             laterality=self._laterality
         )
-        assert instance.BitsAllocated == bits_allocated
+        assert instance.BitsAllocated == 8
+        assert instance.BitsStored == 8
         assert instance.SamplesPerPixel == 3
         assert instance.PlanarConfiguration == 0
         assert instance.PhotometricInterpretation == photometric_interpretation
