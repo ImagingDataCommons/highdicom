@@ -1071,6 +1071,57 @@ class _VolumeBase(ABC):
         """
         return tuple(self.direction.T)
 
+    def vertices(
+        self,
+        voxel_centers: bool = False,
+        augmented: bool = False,
+    ) -> np.ndarray:
+        """Get frame-of-coordinates of the vertices of this volume.
+
+        Parameters
+        ----------
+        pixel_centers: bool
+            If True, returns the frame-of-reference coordinates corresponding
+            to the centers of the corner voxels. Otherwise, returns the
+            frame-of-reference coordinates of the outermost vertices of those
+            voxels (i.e. the vertices of the entire volume).
+        augmented: bool = False,
+            If True, return the array with a final column of 1s. This is the
+            form used for working with affine matrices.
+
+        Returns
+        -------
+        numpy.ndarray:
+            (8, 3) array, or (8, 4) if ``augmented`` is True, containing the
+            frame-of-reference coordinates of the vertices of the geometry.
+
+        """
+        if voxel_centers:
+            a = 0.0
+            b0 = self.spatial_shape[0] - 1
+            b1 = self.spatial_shape[1] - 1
+            b2 = self.spatial_shape[2] - 1
+        else:
+            a = -0.5
+            b0 = self.spatial_shape[0] - 0.5
+            b1 = self.spatial_shape[1] - 0.5
+            b2 = self.spatial_shape[2] - 0.5
+
+        indices = np.array(
+            [
+                [a, a, a, a, b0, b0, b0, b0],
+                [a, a, b1, b1, a, a, b1, b1],
+                [a, b2, a, b2, a, b2, a, b2],
+                [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            ]
+        )
+
+        reference_coordinates = np.dot(self._affine, indices)
+        if augmented:
+            return reference_coordinates.T
+
+        return reference_coordinates[:3, :].T
+
     @abstractmethod
     def __getitem__(
         self,
@@ -2257,6 +2308,51 @@ class _VolumeBase(ABC):
             interpolator=interpolator,
             dtype=dtype,
         )
+
+    def crop_or_pad_to_geometry(
+        self,
+        other: Union['Volume', 'VolumeGeometry'],
+    ) -> Self:
+        """Crop and/or pad the volume such that it completely contains another.
+
+        The second volume need not have a direction matrix matching this one.
+        The resulting volume is the smallest geometry that can be formed from
+        this one by some combination of cropping and padding alone while containing
+        the entire second geometry within it.
+
+        """
+        # Express the vertices of the other volume in the local index
+        # coordinate system of this volume
+        vertices_ref = other.vertices(augmented=True).T
+        vertices_local = self.inverse_affine @ vertices_ref
+        print(vertices_local)
+
+        eps = 1e-7
+        start_offset0 = int(np.floor(vertices_local[0].min() + 1.0 - eps))
+        start_offset1 = int(np.floor(vertices_local[1].min() + 1.0 - eps))
+        start_offset2 = int(np.floor(vertices_local[2].min() + 1.0 - eps))
+        end_offset0 = int(np.ceil(vertices_local[0].max() - self.spatial_shape[0] + eps))
+        end_offset1 = int(np.ceil(vertices_local[1].max() - self.spatial_shape[1] + eps))
+        end_offset2 = int(np.ceil(vertices_local[2].max() - self.spatial_shape[2] + eps))
+        print(start_offset0, end_offset0)
+        print(start_offset1, end_offset1)
+        print(start_offset2, end_offset2)
+
+        crop_slices = (
+            slice(max(start_offset0, 0), end_offset0 if end_offset0 < 0 else None),
+            slice(max(start_offset1, 0), end_offset1 if end_offset1 < 0 else None),
+            slice(max(start_offset2, 0), end_offset2 if end_offset2 < 0 else None),
+        )
+        print(crop_slices)
+
+        pad_values = (
+            (max(-start_offset0, 0), max(end_offset0, 0)),
+            (max(-start_offset1, 0), max(end_offset1, 0)),
+            (max(-start_offset2, 0), max(end_offset2, 0)),
+        )
+        print(pad_values)
+
+        return self[crop_slices].pad(pad_values)
 
 
 class VolumeGeometry(_VolumeBase):
@@ -4944,12 +5040,12 @@ def _get_match_operations(
     """
     if (
         a.frame_of_reference_uid is not None and
-        b.frame_of_reference_uid is not None
+        b.frame_of_reference_uid is not None and
+        a.frame_of_reference_uid != a.frame_of_reference_uid
     ):
-        if a.frame_of_reference_uid != a.frame_of_reference_uid:
-            raise RuntimeError(
-                "Volumes do not have matching frame of reference UIDs."
-            )
+        raise RuntimeError(
+            "Volumes do not have matching frames of reference UIDs."
+        )
 
     if a.coordinate_system != b.coordinate_system:
         raise RuntimeError(
