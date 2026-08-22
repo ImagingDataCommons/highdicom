@@ -2320,12 +2320,23 @@ class _VolumeBase(ABC):
         this one by some combination of cropping and padding alone while containing
         the entire second geometry within it.
 
+        Parameters
+        ----------
+        other: highdicom.Volume | highdicom.VolumeGeometry
+            Other geometry that is to be contained within the output geometry.
+
+        Returns
+        -------
+        Self:
+            Volume cropped or padded to the minimum geometry that entirely
+            contains ``other``.
+
         """
+        # TODO handle cases that lead to emtpy cropping
         # Express the vertices of the other volume in the local index
         # coordinate system of this volume
         vertices_ref = other.vertices(augmented=True).T
         vertices_local = self.inverse_affine @ vertices_ref
-        print(vertices_local)
 
         eps = 1e-7
         start_offset0 = int(np.floor(vertices_local[0].min() + 1.0 - eps))
@@ -2334,23 +2345,18 @@ class _VolumeBase(ABC):
         end_offset0 = int(np.ceil(vertices_local[0].max() - self.spatial_shape[0] + eps))
         end_offset1 = int(np.ceil(vertices_local[1].max() - self.spatial_shape[1] + eps))
         end_offset2 = int(np.ceil(vertices_local[2].max() - self.spatial_shape[2] + eps))
-        print(start_offset0, end_offset0)
-        print(start_offset1, end_offset1)
-        print(start_offset2, end_offset2)
 
         crop_slices = (
             slice(max(start_offset0, 0), end_offset0 if end_offset0 < 0 else None),
             slice(max(start_offset1, 0), end_offset1 if end_offset1 < 0 else None),
             slice(max(start_offset2, 0), end_offset2 if end_offset2 < 0 else None),
         )
-        print(crop_slices)
 
         pad_values = (
             (max(-start_offset0, 0), max(end_offset0, 0)),
             (max(-start_offset1, 0), max(end_offset1, 0)),
             (max(-start_offset2, 0), max(end_offset2, 0)),
         )
-        print(pad_values)
 
         return self[crop_slices].pad(pad_values)
 
