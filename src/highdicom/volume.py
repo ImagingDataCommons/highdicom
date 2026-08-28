@@ -4243,7 +4243,7 @@ class Volume(_VolumeBase):
 
     def to_monai(
         self,
-        space: str = 'RAS',
+        convert_to_ras: bool = True,
         ensure_channel_first: bool = False,
     ) -> 'monai.data.MetaTensor':  # noqa: F821
         """Convert the volume to a ``monai.data.MetaTensor``.
@@ -4258,8 +4258,8 @@ class Volume(_VolumeBase):
 
         Parameters
         ----------
-        space: str
-            Space convention used by the metatensor. Defaults to 'RAS'.
+        convert_to_ras: bool
+            Whether to conver from 'LPS' to 'RAS' convention. Defaults to True.
         ensure_channel_first: bool
             Whether to convert to a channel first metatensor. Defaults to False.
 
@@ -4290,7 +4290,12 @@ class Volume(_VolumeBase):
             )
 
         meta = {}
-        space = monai.utils.enums.SpaceKeys(space)
+        if convert_to_ras:
+            space = monai.utils.enums.SpaceKeys.RAS
+
+        else:
+            space = monai.utils.enums.SpaceKeys.LPS
+
         affine = self.get_affine(space.value)
 
         meta[MetaKeys.SPACE] = space
@@ -4366,7 +4371,7 @@ class Volume(_VolumeBase):
         Returns
         -------
         highdicom.Volume:
-            Volume constructed from the Nibabel image.
+            Volume constructed from the monai image.
 
         Raises
         ------

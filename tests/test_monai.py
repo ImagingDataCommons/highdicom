@@ -437,12 +437,12 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
 
 
 @pytest.mark.parametrize(
-    'segfile,channel_first,space,spacing,spatial_shape,affine,sum',
+    'segfile,channel_first,convert_to_ras,spacing,spatial_shape,affine,sum',
     [
         [
             'seg_image_sm_control.dcm',
             True,
-            'RAS',
+            True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
             np.array([[0., 4.99e-04, 0., -23.449374],
@@ -454,7 +454,7 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
         [
             'seg_image_sm_dots_tiled_full.dcm',
             False,
-            'RAS',
+            True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
             np.array([[0., 4.99e-04, 0., -23.449873],
@@ -466,7 +466,7 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
         [
             'seg_image_ct_true_fractional.dcm',
             True,
-            'LPS',
+            False,
             (1.25, 0.488281, 0.488281),
             (3, 16, 16),
             np.array([[0., 0., 0.488281, -125.],
@@ -478,7 +478,7 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
         [
             'seg_image_ct_binary_overlap.dcm',
             False,
-            'LPS',
+            False,
             (1.25, 0.488281, 0.488281),
             (165, 16, 16),
             np.array([[0., 0., 0.488281, -125.],
@@ -490,7 +490,7 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
         [
             'seg_image_sm_numbers.dcm',
             True,
-            'RAS',
+            True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
             np.array([[0., 4.99e-04, 0., -23.449374],
@@ -502,7 +502,7 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
         [
             'seg_image_ct_binary_fractional.dcm',
             True,
-            'RAS',
+            True,
             (1.25, 0.488281, 0.488281),
             (3, 16, 16),
             np.array([[0., 0., -0.488281, 125.],
@@ -514,7 +514,7 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
         [
             'seg_image_ct_binary_single_frame.dcm',
             True,
-            'RAS',
+            True,
             (5.0, 0.661468, 0.661468),
             (1, 128, 128),
             np.array([[0., 0., -0.661468, 158.135803],
@@ -526,7 +526,7 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
         [
             'seg_image_sm_dots.dcm',
             True,
-            'RAS',
+            True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
             np.array([[0., 4.99e-04, 0., -23.449374],
@@ -538,7 +538,7 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
         [
             'seg_image_sm_control_labelmap.dcm',
             True,
-            'RAS',
+            True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
             np.array([[0., 4.99e-04, 0., -23.449873],
@@ -550,7 +550,7 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
         [
             'seg_image_sm_control_labelmap_palette_color.dcm',
             True,
-            'RAS',
+            True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
             np.array([[0., 4.99e-04, 0., -23.449873],
@@ -562,7 +562,7 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
         [
             'seg_image_ct_binary.dcm',
             True,
-            'RAS',
+            True,
             (1.25, 0.488281, 0.488281),
             (3, 16, 16),
             np.array([[0., 0., -0.488281, 125.],
@@ -576,7 +576,7 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
 def test_segmentation(
     segfile,
     channel_first,
-    space,
+    convert_to_ras,
     spacing,
     spatial_shape,
     affine,
@@ -585,10 +585,16 @@ def test_segmentation(
     seg = segread(TEST_DATA / segfile)
     vol = seg.get_volume()
     metatensor = vol.to_monai(
+        convert_to_ras=convert_to_ras,
         ensure_channel_first=channel_first,
-        space=space
     )
     meta = metatensor.meta
+
+    if convert_to_ras:
+        space = monai.utils.enums.SpaceKeys.RAS
+
+    else:
+        space = monai.utils.enums.SpaceKeys.LPS
 
     assert meta[MetaKeys.SPACE] == space
     assert vol.spacing == meta[ImageStatsKeys.SPACING] == spacing
