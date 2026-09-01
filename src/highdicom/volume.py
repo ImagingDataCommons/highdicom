@@ -2312,6 +2312,10 @@ class _VolumeBase(ABC):
     def crop_or_pad_to_geometry(
         self,
         other: Union['Volume', 'VolumeGeometry'],
+        *,
+        pad_mode: PadModes | str = PadModes.CONSTANT,
+        constant_value: float | Sequence[float] | np.ndarray = 0.0,
+        per_channel: bool = False,
     ) -> Self:
         """Crop and/or pad the volume such that it completely contains another.
 
@@ -2324,6 +2328,23 @@ class _VolumeBase(ABC):
         ----------
         other: highdicom.Volume | highdicom.VolumeGeometry
             Other geometry that is to be contained within the output geometry.
+        pad_mode: highdicom.PadModes, optional
+            Mode to use to pad the array. See :class:`highdicom.PadModes` for
+            options.
+        constant_value: float | Sequence[float]] | numpy.ndarray, optional
+            Value used to pad when mode is ``"CONSTANT"``. With other pad
+            modes, this argument is ignored. May be a single value, or anything
+            broadcastable to the volume's channel shape using standard NumPy
+            broadcasting rules, allowing for different padding values for each
+            channel.
+        per_channel: bool, optional
+            For padding modes that involve calculation of image statistics to
+            determine the padding value (i.e. ``MINIMUM``, ``MAXIMUM``,
+            ``MEAN``, ``MEDIAN``), pad each channel separately using the value
+            calculated using that channel alone (rather than the statistics of
+            the entire array). For other padding modes, this argument makes no
+            difference. This should not be True if the image does not have a
+            channel dimension.
 
         Returns
         -------
@@ -2358,7 +2379,12 @@ class _VolumeBase(ABC):
             (max(-start_offset2, 0), max(end_offset2, 0)),
         )
 
-        return self[crop_slices].pad(pad_values)
+        return self[crop_slices].pad(
+            pad_values,
+            mode=pad_mode,
+            constant_value=constant_value,
+            per_channel=per_channel,
+        )
 
 
 class VolumeGeometry(_VolumeBase):
@@ -3425,6 +3451,7 @@ class Volume(_VolumeBase):
             affine=self._affine.copy(),
             coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
+            channels=self._channels,
         )
 
     def with_array(
@@ -4198,15 +4225,16 @@ class Volume(_VolumeBase):
         }[interpolator]
 
         dtype = np.dtype(dtype)
-        if dtype.kind != 'f':
-            raise TypeError(
-                "A floating point datatype is required for the dtype "
-                "parameter."
-            )
 
         if interpolator == InterpolationMethods.NEAREST:
+            # TODO allow appropriate alternatives here
             output_dtype = self.dtype
         else:
+            if dtype.kind != 'f':
+                raise TypeError(
+                    "A floating point datatype is required for the dtype "
+                    "parameter."
+                )
             output_dtype = dtype
 
         if (
@@ -4239,7 +4267,7 @@ class Volume(_VolumeBase):
 
         x, y, z = input_indices_flat[:3]
 
-        shape = np.array(self.spatial_shape, dtype=dtype)
+        shape = np.array(self.spatial_shape, dtype=np.uint64)
 
         if pad_mode == PadModes.EDGE:
             x_v = np.clip(x, 0, shape[0] - 1)
