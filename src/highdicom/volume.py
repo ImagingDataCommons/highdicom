@@ -4259,7 +4259,7 @@ class Volume(_VolumeBase):
         Parameters
         ----------
         convert_to_ras: bool
-            Whether to conver from 'LPS' to 'RAS' convention. Defaults to True.
+            Whether to convert the affine matrix from 'LPS' to 'RAS' convention.
         ensure_channel_first: bool
             Whether to convert to a channel first metatensor. Defaults to False.
 
