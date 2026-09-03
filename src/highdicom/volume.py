@@ -4382,7 +4382,7 @@ class Volume(_VolumeBase):
             When there are multiple channels and the `channels` argument is
             not provided.
 
-        """
+        """  # noqa: E501
         func = cls.from_monai
         monai = import_optional_dependency(
             module_name='monai',
