@@ -830,7 +830,8 @@ class _LegacyConversionRunner:
             ):
                 self._add_functional_group(
                     "CTAcquisitionDetailsSequence",
-                    [
+                    [],
+                    optional_attributes=[
                         _AttributeConfig("DataCollectionDiameter"),
                         _AttributeConfig("GantryDetectorTilt"),
                         _AttributeConfig("TableHeight"),
@@ -843,7 +844,8 @@ class _LegacyConversionRunner:
                 )
                 self._add_functional_group(
                     "CTReconstructionSequence",
-                    [
+                    [],
+                    optional_attributes=[
                         _AttributeConfig("ReconstructionDiameter"),
                         _AttributeConfig("ConvolutionKernel"),
                     ],
@@ -851,7 +853,8 @@ class _LegacyConversionRunner:
                 )
                 self._add_functional_group(
                     "CTPositionSequence",
-                    [
+                    [],
+                    optional_attributes=[
                         _AttributeConfig("DataCollectionCenterPatient"),
                         _AttributeConfig("ReconstructionTargetCenterPatient"),
                     ],
@@ -859,7 +862,8 @@ class _LegacyConversionRunner:
                 )
                 self._add_functional_group(
                     "CTXRayDetailsSequence",
-                    [
+                    [],
+                    optional_attributes=[
                         _AttributeConfig("KVP"),
                         _AttributeConfig("FilterType"),
                         _AttributeConfig("FocalSpots"),
@@ -872,7 +876,8 @@ class _LegacyConversionRunner:
                 )
                 self._add_functional_group(
                     "CTExposureSequence",
-                    [
+                    [],
+                    optional_attributes=[
                         _AttributeConfig(
                             "ExposureTimeInms",
                             src_kws=["ExposureTimeInms", "ExposureTime"]
@@ -892,18 +897,22 @@ class _LegacyConversionRunner:
                         _AttributeConfig("CTDIPhantomTypeCodeSequence"),
                     ],
                     custom_logic_callback=(
-                        self._ct_exposure_custom_logic,
+                        self._ct_exposure_custom_logic
                     ),
                     required=False,
                 )
                 self._add_functional_group(
                     "CTGeometrySequence",
-                    [_AttributeConfig("DistanceSourceToDetector")],
+                    [],
+                    optional_attributes=[
+                        _AttributeConfig("DistanceSourceToDetector")
+                    ],
                     required=False,
                 )
                 self._add_functional_group(
                     "CTTableDynamicsSequence",
-                    [
+                    [],
+                    optional_attributes=[
                         _AttributeConfig("TableSpeed"),
                         _AttributeConfig("TableFeedPerRotation"),
                         _AttributeConfig("SpiralPitchFactor"),
@@ -927,7 +936,8 @@ class _LegacyConversionRunner:
             ):
                 self._add_functional_group(
                     "MRFOVGeometrySequence",
-                    [
+                    [],
+                    optional_attributes=[
                         _AttributeConfig("PercentSampling"),
                         _AttributeConfig("PercentPhaseFieldOfView"),
                         _AttributeConfig("InPlanePhaseEncodingDirection"),
@@ -936,17 +946,20 @@ class _LegacyConversionRunner:
                 )
                 self._add_functional_group(
                     "MRAveragesSequence",
-                    [_AttributeConfig("NumberOfAverages")],
+                    [],
+                    optional_attributes=[_AttributeConfig("NumberOfAverages")],
                     required=False,
                 )
                 self._add_functional_group(
                     "MRTransmitCoilSequence",
-                    [_AttributeConfig("TransmitCoilName")],
+                    [],
+                    optional_attributes=[_AttributeConfig("TransmitCoilName")],
                     required=False,
                 )
                 self._add_functional_group(
                     "MRTimingAndRelatedParametersSequence",
-                    [
+                    [],
+                    optional_attributes=[
                         _AttributeConfig("RepetitionTime"),
                         _AttributeConfig("EchoTrainLength"),
                         _AttributeConfig("FlipAngle"),
@@ -955,12 +968,14 @@ class _LegacyConversionRunner:
                 )
                 self._add_functional_group(
                     "MRImagingModifierSequence",
-                    [_AttributeConfig("PixelBandwidth")],
+                    [],
+                    optional_attributes=[_AttributeConfig("PixelBandwidth")],
                     required=False,
                 )
                 self._add_functional_group(
                     "MRReceiveCoilSequence",
-                    [_AttributeConfig("ReceiveCoilName")],
+                    [],
+                    optional_attributes=[_AttributeConfig("ReceiveCoilName")],
                     required=False,
                 )
 
@@ -970,12 +985,16 @@ class _LegacyConversionRunner:
             ):
                 self._add_functional_group(
                     "PETReconstructionSequence",
-                    [_AttributeConfig("ReconstructionDiameter")],
+                    [],
+                    optional_attributes=[
+                        _AttributeConfig("ReconstructionDiameter")
+                    ],
                     required=False,
                 )
                 self._add_functional_group(
                     "PETFrameAcquisitionSequence",
-                    [_AttributeConfig("TableHeight")],
+                    [],
+                    optional_attributes=[_AttributeConfig("TableHeight")],
                     required=False,
                 )
 
