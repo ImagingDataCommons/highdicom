@@ -4300,7 +4300,7 @@ class Volume(_VolumeBase):
 
         meta[MetaKeys.SPACE] = space
         meta[ImageStatsKeys.SPACING] = self.spacing
-        meta[MetaKeys.SPATIAL_SHAPE] = self.shape[:3]
+        meta[MetaKeys.SPATIAL_SHAPE] = np.array(self.spatial_shape)
         meta[MetaKeys.ORIGINAL_AFFINE] = affine.copy()
         meta[MetaKeys.AFFINE] = affine.copy()
         meta[MetaKeys.ORIGINAL_CHANNEL_DIM] = (
