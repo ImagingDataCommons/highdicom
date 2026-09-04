@@ -1,25 +1,12 @@
-"""Tests for Supplement 247 Eyecare Measurement SR templates (TID 6001/6004/6005).
+"""Tests for Eyecare Measurement SR templates (TID 2120/2123/2124),
+ratified in DICOM PS3.16 2025b (formerly circulated as Supplement 247 draft
+TIDs 6001/6004/6005).
 
 Tests cover:
-- OphthalmologyMeasurementsGroup (TID 6001)
-- CircumpapillaryRNFLKeyMeasurements (TID 6004)
-- MacularThicknessKeyMeasurements (TID 6005)
+- OphthalmologyMeasurementsGroup (TID 2120)
+- CircumpapillaryRNFLKeyMeasurements (TID 2123)
+- MacularThicknessKeyMeasurements (TID 2124)
 - Two ComprehensiveSR roundtrips (serialise → dcmread → verify values survive)
-
-Content item navigation paths (post laterality-nesting fix):
-  group[0]                        → ContainerContentItem "Measurement Group"
-  group[0].ContentSequence[0]     → Finding Site (CodeContentItem)
-  group[0].ContentSequence[0].ContentSequence[0] → Laterality (CodeContentItem)
-  group[0].ContentSequence[1]     → first Measurement NumContentItem (no tracking)
-  group[0].ContentSequence[1]     → Tracking Identifier text (with tracking)
-  group[0].ContentSequence[2]     → first Measurement NumContentItem (with tracking)
-
-  report[0]                       → root ContainerContentItem
-  report[0].ContentSequence[0]    → Language item
-  report[0].ContentSequence[1]    → AlgorithmId item 1
-  report[0].ContentSequence[2]    → AlgorithmId item 2
-  report[0].ContentSequence[3]    → first OphthalmologyMeasurementsGroup container
-  report[0].ContentSequence[4]    → second group container (bilateral)
 """
 
 from io import BytesIO
@@ -31,8 +18,12 @@ from pydicom.sr.codedict import codes
 from pydicom.uid import generate_uid
 
 from highdicom.sr.sop import ComprehensiveSR
-from highdicom.sr.templates import AlgorithmIdentification, Measurement
-from highdicom.sr.templates.tid6000 import (
+from highdicom.sr.templates import (
+    AlgorithmIdentification,
+    Measurement,
+    TrackingIdentifier,
+)
+from highdicom.sr.templates.tid2120 import (
     AverageMacularThickness,
     CircumpapillaryRNFLKeyMeasurements,
     MacularCenterSubfieldThickness,
@@ -52,7 +43,6 @@ from highdicom.sr.templates.tid6000 import (
     RNFLSuperiorThickness,
     RNFLTemporalThickness,
     RNFLNasalThickness,
-    RetinalROIRadius,
     UCUM_MICROLITER,
 )
 
@@ -61,6 +51,13 @@ from highdicom.sr.templates.tid6000 import (
 # ---------------------------------------------------------------------------
 
 _DATA_DIR = Path(__file__).parent.parent / 'data' / 'test_files'
+
+
+def _make_tracking_id(identifier: str = 'ophthalmic-group') -> TrackingIdentifier:
+    # The inherited MeasurementsAndQualitativeEvaluations base class requires
+    # both a human-readable identifier and a UID to be present (not just a
+    # UID), so a non-None identifier must always be supplied.
+    return TrackingIdentifier(identifier=identifier)
 
 
 def _make_rnfl_measurement(value: float = 121.0) -> Measurement:
@@ -84,127 +81,137 @@ def _make_algo(name: str = 'Revo FC130', version: str = '1.0') -> AlgorithmIdent
 
 
 # ---------------------------------------------------------------------------
-# OphthalmologyMeasurementsGroup (TID 6001)
+# OphthalmologyMeasurementsGroup (TID 2120)
 # ---------------------------------------------------------------------------
 
 
 class TestOphthalmologyMeasurementsGroup:
     def test_basic_construction(self):
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[_make_rnfl_measurement()],
         )
         assert len(group) == 1
 
     def test_container_name_is_measurement_group(self):
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[_make_rnfl_measurement()],
         )
         container = group[0]
         assert container.ConceptNameCodeSequence[0].CodeValue == '125007'
 
     def test_template_id(self):
+        """TID 2120 is invoked here, not the TID 1501 base class it reuses."""
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[_make_rnfl_measurement()],
         )
         container = group[0]
-        assert container.ContentTemplateSequence[0].TemplateIdentifier == '6001'
+        assert container.ContentTemplateSequence[0].TemplateIdentifier == '2120'
 
     def test_finding_site_default_is_eye(self):
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[_make_rnfl_measurement()],
         )
-        container = group[0]
-        site_item = container.ContentSequence[0]
-        # Concept name: Finding Site
-        assert site_item.ConceptNameCodeSequence[0].CodeValue == '363698007'
-        # Value: Eye
-        assert site_item.ConceptCodeSequence[0].CodeValue == '81745001'
+        site = group.finding_sites[0]
+        assert site.value == codes.cid4209.Eye
 
     def test_finding_site_custom(self):
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Left,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Left,
             measurements=[_make_rnfl_measurement()],
             finding_site=codes.cid4209.OpticNerveHead,
         )
-        container = group[0]
-        site_item = container.ContentSequence[0]
-        assert site_item.ConceptCodeSequence[0].CodeValue == \
-            codes.cid4209.OpticNerveHead.value
+        site = group.finding_sites[0]
+        assert site.value == codes.cid4209.OpticNerveHead
 
     def test_laterality_nested_inside_finding_site(self):
-        """Row 3 >> in TID 60x1: laterality is child of Finding Site, not container."""
+        """Laterality is a modifier of Finding Site, not of the container."""
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[_make_rnfl_measurement()],
         )
-        container = group[0]
-        site_item = container.ContentSequence[0]
-        # Finding Site must have its own ContentSequence with Laterality inside
-        assert hasattr(site_item, 'ContentSequence')
-        lat_item = site_item.ContentSequence[0]
-        assert lat_item.ConceptNameCodeSequence[0].CodeValue == '272741003'
+        site = group.finding_sites[0]
+        assert hasattr(site, 'ContentSequence')
+        assert site.ContentSequence[0].ConceptNameCodeSequence[0].CodeValue == \
+            '272741003'
 
     def test_laterality_right(self):
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[_make_rnfl_measurement()],
         )
-        lat = group[0].ContentSequence[0].ContentSequence[0]
+        site = group.finding_sites[0]
         # Right eye: EV (24028007, SCT, "Right")
-        assert lat.ConceptCodeSequence[0].CodeValue == '24028007'
+        assert site.laterality.value == '24028007'
 
     def test_laterality_left(self):
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Left,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Left,
             measurements=[_make_rnfl_measurement()],
         )
-        lat = group[0].ContentSequence[0].ContentSequence[0]
+        site = group.finding_sites[0]
         # Left eye: EV (7771000, SCT, "Left")
-        assert lat.ConceptCodeSequence[0].CodeValue == '7771000'
+        assert site.laterality.value == '7771000'
+
+    def test_topographical_modifier(self):
+        group = OphthalmologyMeasurementsGroup(
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
+            measurements=[_make_rnfl_measurement()],
+            topographical_modifier=codes.cid4209.OpticNerveHead,
+        )
+        site = group.finding_sites[0]
+        assert site.topographical_modifier == codes.cid4209.OpticNerveHead
 
     def test_measurement_present(self):
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[_make_rnfl_measurement(121.0)],
         )
-        container = group[0]
-        # Without tracking: measurement is at index 1
-        meas_item = container.ContentSequence[1]
-        assert float(meas_item.MeasuredValueSequence[0].NumericValue) == 121.0
+        measurements = group.get_measurements()
+        assert len(measurements) == 1
+        assert measurements[0].value == 121.0
 
     def test_measurement_unit_micrometer(self):
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[_make_rnfl_measurement()],
         )
-        meas_item = group[0].ContentSequence[1]
-        assert meas_item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0].CodeValue == 'um'
+        assert group.get_measurements()[0].unit == codes.UCUM.Micrometer
 
     def test_tracking_identifier(self):
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id('RNFL-OD-001'),
+            laterality=codes.cid247.Right,
             measurements=[_make_rnfl_measurement()],
-            tracking_identifier='RNFL-OD-001',
         )
-        container = group[0]
-        # With tracking: [0]=site, [1]=tracking, [2]=measurement
-        tracking_item = container.ContentSequence[1]
-        assert tracking_item.ConceptNameCodeSequence[0].CodeValue == '112039'
-        assert tracking_item.TextValue == 'RNFL-OD-001'
+        assert group.tracking_identifier == 'RNFL-OD-001'
+        assert group.tracking_uid is not None
 
-    def test_measurement_index_shifts_with_tracking(self):
-        group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
-            measurements=[_make_rnfl_measurement(99.0)],
-            tracking_identifier='track-01',
-        )
-        # With tracking identifier, measurement moves to index 2
-        meas_item = group[0].ContentSequence[2]
-        assert float(meas_item.MeasuredValueSequence[0].NumericValue) == 99.0
+    def test_tracking_identifier_requires_readable_text(self):
+        """The inherited base class requires both a human-readable
+        identifier and a UID; a bare TrackingIdentifier() (UID only) is
+        rejected even though TID 2120 itself marks tracking identifier as
+        optional overall."""
+        with pytest.raises(ValueError, match="tracking"):
+            OphthalmologyMeasurementsGroup(
+                tracking_identifier=TrackingIdentifier(),
+                laterality=codes.cid247.Right,
+                measurements=[_make_rnfl_measurement()],
+            )
 
     def test_multiple_measurements(self):
         meas_list = [
@@ -213,42 +220,43 @@ class TestOphthalmologyMeasurementsGroup:
             Measurement(name=RNFLSuperiorThickness, value=138.0, unit=codes.UCUM.Micrometer),
         ]
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=meas_list,
         )
-        container = group[0]
-        # [0]=site, [1],[2],[3]=3 measurements
-        assert len(container.ContentSequence) == 4
-        vals = [
-            float(container.ContentSequence[i].MeasuredValueSequence[0].NumericValue)
-            for i in (1, 2, 3)
-        ]
+        vals = [m.value for m in group.get_measurements()]
         assert vals == [121.0, 145.0, 138.0]
 
-    def test_empty_measurements_raises(self):
-        with pytest.raises(ValueError, match="at least one"):
-            OphthalmologyMeasurementsGroup(
-                laterality=codes.cid244.Right,
-                measurements=[],
-            )
+    def test_no_measurements_allowed(self):
+        """TID 2120's Measurement row is conditional on the invoking root
+        template's requirements, not mandatory at this level, so an empty/
+        absent list is accepted here."""
+        group = OphthalmologyMeasurementsGroup(
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
+            measurements=[],
+        )
+        assert group.get_measurements() == []
 
     def test_wrong_measurement_type_raises(self):
         with pytest.raises(TypeError, match="type Measurement"):
             OphthalmologyMeasurementsGroup(
-                laterality=codes.cid244.Right,
+                tracking_identifier=_make_tracking_id(),
+                laterality=codes.cid247.Right,
                 measurements=["not a measurement"],
             )
 
 
 # ---------------------------------------------------------------------------
-# CircumpapillaryRNFLKeyMeasurements (TID 6004)
+# CircumpapillaryRNFLKeyMeasurements (TID 2123)
 # ---------------------------------------------------------------------------
 
 
 class TestCircumpapillaryRNFLKeyMeasurements:
     def _make_group(self, laterality=None) -> OphthalmologyMeasurementsGroup:
-        lat = laterality or codes.cid244.Right
+        lat = laterality or codes.cid247.Right
         return OphthalmologyMeasurementsGroup(
+            tracking_identifier=_make_tracking_id(),
             laterality=lat,
             measurements=[_make_rnfl_measurement()],
         )
@@ -266,15 +274,15 @@ class TestCircumpapillaryRNFLKeyMeasurements:
             measurement_groups=[self._make_group()],
         )
         root = report[0]
-        assert root.ConceptNameCodeSequence[0].CodeValue == 'nnn102'
-        assert root.ConceptNameCodeSequence[0].CodingSchemeDesignator == '99OPHTHALMO'
+        assert root.ConceptNameCodeSequence[0].CodeValue == '131242'
+        assert root.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'DCM'
 
     def test_template_id(self):
         report = CircumpapillaryRNFLKeyMeasurements(
             algorithm_id=_make_algo(),
             measurement_groups=[self._make_group()],
         )
-        assert report[0].ContentTemplateSequence[0].TemplateIdentifier == '6004'
+        assert report[0].ContentTemplateSequence[0].TemplateIdentifier == '2123'
 
     def test_content_sequence_structure(self):
         report = CircumpapillaryRNFLKeyMeasurements(
@@ -295,8 +303,8 @@ class TestCircumpapillaryRNFLKeyMeasurements:
         assert algo_name_item.TextValue == 'MyOCT'
 
     def test_bilateral(self):
-        od_group = self._make_group(codes.cid244.Right)
-        os_group = self._make_group(codes.cid244.Left)
+        od_group = self._make_group(codes.cid247.Right)
+        os_group = self._make_group(codes.cid247.Left)
         report = CircumpapillaryRNFLKeyMeasurements(
             algorithm_id=_make_algo(),
             measurement_groups=[od_group, os_group],
@@ -306,8 +314,8 @@ class TestCircumpapillaryRNFLKeyMeasurements:
         assert len(root.ContentSequence) == 5
 
     def test_laterality_in_bilateral(self):
-        od_group = self._make_group(codes.cid244.Right)
-        os_group = self._make_group(codes.cid244.Left)
+        od_group = self._make_group(codes.cid247.Right)
+        os_group = self._make_group(codes.cid247.Left)
         report = CircumpapillaryRNFLKeyMeasurements(
             algorithm_id=_make_algo(),
             measurement_groups=[od_group, os_group],
@@ -316,10 +324,13 @@ class TestCircumpapillaryRNFLKeyMeasurements:
         od_container = root.ContentSequence[3]
         os_container = root.ContentSequence[4]
 
-        od_lat = od_container.ContentSequence[0].ContentSequence[0]
-        os_lat = os_container.ContentSequence[0].ContentSequence[0]
-        assert od_lat.ConceptCodeSequence[0].CodeValue == '24028007'  # Right
-        assert os_lat.ConceptCodeSequence[0].CodeValue == '7771000'   # Left
+        od_lat = od_group.finding_sites[0].laterality
+        os_lat = os_group.finding_sites[0].laterality
+        assert od_lat.value == '24028007'  # Right
+        assert os_lat.value == '7771000'   # Left
+        # sanity: the containers landed at the expected root positions
+        assert od_container.ConceptNameCodeSequence[0].CodeValue == '125007'
+        assert os_container.ConceptNameCodeSequence[0].CodeValue == '125007'
 
     def test_more_than_two_groups_raises(self):
         with pytest.raises(ValueError, match="at most two"):
@@ -353,19 +364,18 @@ class TestCircumpapillaryRNFLKeyMeasurements:
                 measurement_groups=["not a group"],
             )
 
-    def test_rnfl_codes_are_99ophthalmo(self):
-        """All RNFL measurement concept names use scheme 99OPHTHALMO."""
-        for concept in (
-            RNFLAverageThickness,
-            RNFLInferiorThickness,
-            RNFLSuperiorThickness,
-            RNFLTemporalThickness,
-            RNFLNasalThickness,
-            RetinalROIRadius,
-        ):
-            assert concept.scheme_designator == '99OPHTHALMO', (
-                f"{concept.meaning} should use 99OPHTHALMO, got {concept.scheme_designator}"
-            )
+    def test_rnfl_codes_are_final_dcm_codes(self):
+        """RNFL measurement concept names use final, ratified DCM codes."""
+        expected = {
+            RNFLAverageThickness: '131264',
+            RNFLInferiorThickness: '131265',
+            RNFLSuperiorThickness: '131266',
+            RNFLTemporalThickness: '131267',
+            RNFLNasalThickness: '131268',
+        }
+        for concept, value in expected.items():
+            assert concept.scheme_designator == 'DCM'
+            assert concept.value == value
 
     def test_full_rnfl_quadrants(self):
         """All five RNFL quadrant measurements encode correctly."""
@@ -377,30 +387,29 @@ class TestCircumpapillaryRNFLKeyMeasurements:
             Measurement(name=RNFLNasalThickness,     value=95.0,  unit=codes.UCUM.Micrometer),
         ]
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=meas_list,
         )
         report = CircumpapillaryRNFLKeyMeasurements(
             algorithm_id=_make_algo(),
             measurement_groups=[group],
         )
-        root = report[0]
-        mg_container = root.ContentSequence[3]
-        # [0]=site, [1..5]=5 measurements
-        assert len(mg_container.ContentSequence) == 6
-        avg = mg_container.ContentSequence[1]
-        assert float(avg.MeasuredValueSequence[0].NumericValue) == 121.0
+        assert len(report) == 1
+        vals = [m.value for m in group.get_measurements()]
+        assert vals == [121.0, 145.0, 138.0, 80.0, 95.0]
 
 
 # ---------------------------------------------------------------------------
-# MacularThicknessKeyMeasurements (TID 6005)
+# MacularThicknessKeyMeasurements (TID 2124)
 # ---------------------------------------------------------------------------
 
 
 class TestMacularThicknessKeyMeasurements:
     def _make_group(self, value: float = 281.4) -> OphthalmologyMeasurementsGroup:
         return OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[_make_macular_measurement(value)],
         )
 
@@ -417,15 +426,15 @@ class TestMacularThicknessKeyMeasurements:
             measurement_groups=[self._make_group()],
         )
         root = report[0]
-        assert root.ConceptNameCodeSequence[0].CodeValue == 'nnn103'
-        assert root.ConceptNameCodeSequence[0].CodingSchemeDesignator == '99OPHTHALMO'
+        assert root.ConceptNameCodeSequence[0].CodeValue == '131243'
+        assert root.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'DCM'
 
     def test_template_id(self):
         report = MacularThicknessKeyMeasurements(
             algorithm_id=_make_algo(),
             measurement_groups=[self._make_group()],
         )
-        assert report[0].ContentTemplateSequence[0].TemplateIdentifier == '6005'
+        assert report[0].ContentTemplateSequence[0].TemplateIdentifier == '2124'
 
     def test_content_sequence_structure(self):
         report = MacularThicknessKeyMeasurements(
@@ -455,9 +464,9 @@ class TestMacularThicknessKeyMeasurements:
                 f"{concept.meaning} should use LN, got {concept.scheme_designator}"
             )
 
-    def test_average_macular_thickness_is_99ophthalmo(self):
-        assert AverageMacularThickness.scheme_designator == '99OPHTHALMO'
-        assert AverageMacularThickness.value == 'nnn250'
+    def test_average_macular_thickness_is_final_dcm_code(self):
+        assert AverageMacularThickness.scheme_designator == 'DCM'
+        assert AverageMacularThickness.value == '131255'
 
     def test_ucum_microliter_constant(self):
         """UCUM_MICROLITER is 'uL' from scheme UCUM."""
@@ -472,11 +481,11 @@ class TestMacularThicknessKeyMeasurements:
             unit=UCUM_MICROLITER,
         )
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[meas],
         )
-        meas_item = group[0].ContentSequence[1]
-        assert meas_item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0].CodeValue == 'uL'
+        assert group.get_measurements()[0].unit == UCUM_MICROLITER
 
     def test_full_etdrs_grid(self):
         """Nine ETDRS subfields + total volume encode correctly."""
@@ -493,47 +502,42 @@ class TestMacularThicknessKeyMeasurements:
             Measurement(name=MacularTotalVolume,              value=8.42,  unit=UCUM_MICROLITER),
         ]
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=meas_list,
         )
         report = MacularThicknessKeyMeasurements(
             algorithm_id=_make_algo(),
             measurement_groups=[group],
         )
-        root = report[0]
-        mg_container = root.ContentSequence[3]
-        # [0]=site, [1..10]=10 measurements
-        assert len(mg_container.ContentSequence) == 11
+        assert len(report) == 1
 
-        # Verify CMT value
-        cmt_item = mg_container.ContentSequence[1]
-        assert float(cmt_item.MeasuredValueSequence[0].NumericValue) == 281.4
-
-        # Verify total volume uses uL
-        vol_item = mg_container.ContentSequence[10]
-        assert vol_item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0].CodeValue == 'uL'
+        measurements = group.get_measurements()
+        assert len(measurements) == 10
+        assert measurements[0].value == 281.4
+        assert measurements[-1].unit == UCUM_MICROLITER
 
     def test_bilateral_macular(self):
         od = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[_make_macular_measurement(281.4)],
         )
-        os = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Left,
+        os_ = OphthalmologyMeasurementsGroup(
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Left,
             measurements=[_make_macular_measurement(275.0)],
         )
         report = MacularThicknessKeyMeasurements(
             algorithm_id=_make_algo(),
-            measurement_groups=[od, os],
+            measurement_groups=[od, os_],
         )
         root = report[0]
         # [0]=Language, [1],[2]=AlgoId, [3]=OD, [4]=OS
         assert len(root.ContentSequence) == 5
 
-        od_meas = root.ContentSequence[3].ContentSequence[1]
-        os_meas = root.ContentSequence[4].ContentSequence[1]
-        assert float(od_meas.MeasuredValueSequence[0].NumericValue) == 281.4
-        assert float(os_meas.MeasuredValueSequence[0].NumericValue) == 275.0
+        assert od.get_measurements()[0].value == 281.4
+        assert os_.get_measurements()[0].value == 275.0
 
     def test_more_than_two_groups_raises(self):
         with pytest.raises(ValueError, match="at most two"):
@@ -560,14 +564,15 @@ class TestRoundtrip:
         return dcmread(str(_DATA_DIR / 'ct_image.dcm'))
 
     def test_rnfl_roundtrip(self, ref_ds):
-        """TID 6004: numeric value 121.0 µm and code 'nnn400' survive dcmread."""
+        """TID 2123: numeric value 121.0 µm and code '131264' survive dcmread."""
         meas = Measurement(
             name=RNFLAverageThickness,
             value=121.0,
             unit=codes.UCUM.Micrometer,
         )
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[meas],
         )
         template = CircumpapillaryRNFLKeyMeasurements(
@@ -593,20 +598,25 @@ class TestRoundtrip:
         # children directly: [0]=Language, [1][2]=AlgoId, [3]=MeasGroup
         mg = sr_back.ContentSequence[3]
         assert mg.ValueType == 'CONTAINER'
-        meas_item = mg.ContentSequence[1]
+        meas_items = [
+            item for item in mg.ContentSequence if item.ValueType == 'NUM'
+        ]
+        assert len(meas_items) == 1
+        meas_item = meas_items[0]
         assert float(meas_item.MeasuredValueSequence[0].NumericValue) == 121.0
-        assert meas_item.ConceptNameCodeSequence[0].CodeValue == 'nnn400'
+        assert meas_item.ConceptNameCodeSequence[0].CodeValue == '131264'
         assert meas_item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0].CodeValue == 'um'
 
     def test_macular_roundtrip_loinc_code_survives(self, ref_ds):
-        """TID 6005: LOINC code '57109-1' (CMT) survives serialisation."""
+        """TID 2124: LOINC code '57109-1' (CMT) survives serialisation."""
         meas = Measurement(
             name=MacularCenterSubfieldThickness,
             value=281.4,
             unit=codes.UCUM.Micrometer,
         )
         group = OphthalmologyMeasurementsGroup(
-            laterality=codes.cid244.Right,
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
             measurements=[meas],
         )
         template = MacularThicknessKeyMeasurements(
@@ -632,7 +642,11 @@ class TestRoundtrip:
         # children directly: [0]=Language, [1][2]=AlgoId, [3]=MeasGroup
         mg = sr_back.ContentSequence[3]
         assert mg.ValueType == 'CONTAINER'
-        meas_item = mg.ContentSequence[1]
+        meas_items = [
+            item for item in mg.ContentSequence if item.ValueType == 'NUM'
+        ]
+        assert len(meas_items) == 1
+        meas_item = meas_items[0]
         assert float(meas_item.MeasuredValueSequence[0].NumericValue) == 281.4
         assert meas_item.ConceptNameCodeSequence[0].CodeValue == '57109-1'
         assert meas_item.ConceptNameCodeSequence[0].CodingSchemeDesignator == 'LN'
