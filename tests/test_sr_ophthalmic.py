@@ -3,8 +3,12 @@ ratified in DICOM PS3.16 2025b (formerly circulated as Supplement 247 draft
 TIDs 6001/6004/6005).
 
 Tests cover:
-- OphthalmologyMeasurementsGroup (TID 2120)
-- CircumpapillaryRNFLKeyMeasurements (TID 2123)
+- OphthalmologyMeasurementsGroup (TID 2120, generic)
+- RNFLSectorMeasurementsGroup / RNFLClockfaceMeasurementsGroup (TID 2120,
+  specialized for TID 2123 rows 5/6)
+- MacularMeasurementsGroup (TID 2120, specialized for TID 2124 row 5)
+- CircumpapillaryRNFLKeyMeasurements (TID 2123), including the bilateral
+  RNFL-symmetry conformance rule
 - MacularThicknessKeyMeasurements (TID 2124)
 - Two ComprehensiveSR roundtrips (serialise → dcmread → verify values survive)
 """
@@ -26,11 +30,13 @@ from highdicom.sr.templates import (
 from highdicom.sr.templates.tid2120 import (
     AverageMacularThickness,
     CircumpapillaryRNFLKeyMeasurements,
+    GarwayHeathSectors,
     MacularCenterSubfieldThickness,
     MacularInnerSuperiorThickness,
     MacularInnerNasalThickness,
     MacularInnerInferiorThickness,
     MacularInnerTemporalThickness,
+    MacularMeasurementsGroup,
     MacularOuterSuperiorThickness,
     MacularOuterNasalThickness,
     MacularOuterInferiorThickness,
@@ -38,11 +44,17 @@ from highdicom.sr.templates.tid2120 import (
     MacularThicknessKeyMeasurements,
     MacularTotalVolume,
     OphthalmologyMeasurementsGroup,
+    QuadrantSectors,
     RNFLAverageThickness,
+    RNFLClockfaceMeasurementsGroup,
+    RNFLClockfaceMethod,
     RNFLInferiorThickness,
+    RNFLSectorMeasurementsGroup,
     RNFLSuperiorThickness,
+    RNFLSymmetry,
     RNFLTemporalThickness,
     RNFLNasalThickness,
+    RetinalROIWidth,
     UCUM_MICROLITER,
 )
 
@@ -80,8 +92,42 @@ def _make_algo(name: str = 'Revo FC130', version: str = '1.0') -> AlgorithmIdent
     return AlgorithmIdentification(name=name, version=version)
 
 
+def _make_sector_group(
+    laterality=None, identifier: str = 'RNFL-sector', **kwargs
+) -> RNFLSectorMeasurementsGroup:
+    kwargs.setdefault('average', 121.0)
+    return RNFLSectorMeasurementsGroup(
+        tracking_identifier=_make_tracking_id(identifier),
+        laterality=laterality or codes.cid247.Right,
+        sector_method=GarwayHeathSectors,
+        retinal_roi_width=3.4,
+        **kwargs,
+    )
+
+
+def _make_clockface_group(
+    laterality=None, identifier: str = 'RNFL-clockface', **kwargs
+) -> RNFLClockfaceMeasurementsGroup:
+    kwargs.setdefault('clockface_measurements', {1: 100.0, 6: 95.0})
+    return RNFLClockfaceMeasurementsGroup(
+        tracking_identifier=_make_tracking_id(identifier),
+        laterality=laterality or codes.cid247.Right,
+        **kwargs,
+    )
+
+
+def _make_macular_group(
+    value: float = 281.4, laterality=None
+) -> MacularMeasurementsGroup:
+    return MacularMeasurementsGroup(
+        tracking_identifier=_make_tracking_id('Macula'),
+        laterality=laterality or codes.cid247.Right,
+        center_subfield=value,
+    )
+
+
 # ---------------------------------------------------------------------------
-# OphthalmologyMeasurementsGroup (TID 2120)
+# OphthalmologyMeasurementsGroup (TID 2120, generic)
 # ---------------------------------------------------------------------------
 
 
@@ -248,30 +294,158 @@ class TestOphthalmologyMeasurementsGroup:
 
 
 # ---------------------------------------------------------------------------
+# RNFLSectorMeasurementsGroup (TID 2120, sector role, TID 2123 Row 5)
+# ---------------------------------------------------------------------------
+
+
+class TestRNFLSectorMeasurementsGroup:
+    def test_basic_construction(self):
+        group = _make_sector_group()
+        assert len(group) == 1
+
+    def test_roi_width_and_average_present(self):
+        group = _make_sector_group(average=121.0)
+        measurements = {m.name: m.value for m in group.get_measurements()}
+        assert measurements[RetinalROIWidth] == 3.4
+        assert measurements[RNFLAverageThickness] == 121.0
+
+    def test_roi_width_unit_is_mm(self):
+        group = _make_sector_group()
+        roi = next(
+            m for m in group.get_measurements() if m.name == RetinalROIWidth
+        )
+        assert roi.unit == codes.UCUM.Millimeter
+
+    def test_all_optional_quadrants(self):
+        group = _make_sector_group(
+            average=121.0,
+            inferior=145.0,
+            superior=138.0,
+            temporal=80.0,
+            nasal=95.0,
+            nasal_superior=90.0,
+            nasal_inferior=92.0,
+            temporal_inferior=78.0,
+            temporal_superior=82.0,
+        )
+        # ROI width + 9 optional measurements
+        assert len(group.get_measurements()) == 10
+
+    def test_method_is_sector_method(self):
+        group = _make_sector_group()
+        assert group.method == GarwayHeathSectors
+
+    def test_invalid_sector_method_raises(self):
+        with pytest.raises(ValueError, match="CID 4282"):
+            RNFLSectorMeasurementsGroup(
+                tracking_identifier=_make_tracking_id(),
+                laterality=codes.cid247.Right,
+                sector_method=codes.SCT.Eye,
+                retinal_roi_width=3.4,
+            )
+
+    def test_accepts_any_cid4282_method(self):
+        group = RNFLSectorMeasurementsGroup(
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
+            sector_method=QuadrantSectors,
+            retinal_roi_width=3.0,
+        )
+        assert group.method == QuadrantSectors
+
+    def test_template_id_is_2120(self):
+        group = _make_sector_group()
+        assert group[0].ContentTemplateSequence[0].TemplateIdentifier == '2120'
+
+
+# ---------------------------------------------------------------------------
+# RNFLClockfaceMeasurementsGroup (TID 2120, clockface role, TID 2123 Row 6)
+# ---------------------------------------------------------------------------
+
+
+class TestRNFLClockfaceMeasurementsGroup:
+    def test_basic_construction(self):
+        group = _make_clockface_group()
+        assert len(group) == 1
+
+    def test_method_is_fixed_clockface_method(self):
+        group = _make_clockface_group()
+        assert group.method == RNFLClockfaceMethod
+
+    def test_positions_encode_correctly(self):
+        group = _make_clockface_group(
+            clockface_measurements={1: 100.0, 2: 105.0, 12: 98.0}
+        )
+        measurements = {m.name.value: m.value for m in group.get_measurements()}
+        assert measurements['131276'] == 100.0  # position 1
+        assert measurements['131277'] == 105.0  # position 2
+        assert measurements['131287'] == 98.0   # position 12
+
+    def test_roi_width_optional_and_encodes(self):
+        group = _make_clockface_group(retinal_roi_width=3.6)
+        roi = next(
+            m for m in group.get_measurements() if m.name == RetinalROIWidth
+        )
+        assert roi.value == 3.6
+        assert roi.unit == codes.UCUM.Millimeter
+
+    def test_empty_measurements_raises(self):
+        with pytest.raises(ValueError, match="at least one"):
+            RNFLClockfaceMeasurementsGroup(
+                tracking_identifier=_make_tracking_id(),
+                laterality=codes.cid247.Right,
+                clockface_measurements={},
+            )
+
+    def test_invalid_position_raises(self):
+        with pytest.raises(ValueError, match="1 to 12"):
+            RNFLClockfaceMeasurementsGroup(
+                tracking_identifier=_make_tracking_id(),
+                laterality=codes.cid247.Right,
+                clockface_measurements={0: 100.0},
+            )
+        with pytest.raises(ValueError, match="1 to 12"):
+            RNFLClockfaceMeasurementsGroup(
+                tracking_identifier=_make_tracking_id(),
+                laterality=codes.cid247.Right,
+                clockface_measurements={13: 100.0},
+            )
+
+
+# ---------------------------------------------------------------------------
 # CircumpapillaryRNFLKeyMeasurements (TID 2123)
 # ---------------------------------------------------------------------------
 
 
 class TestCircumpapillaryRNFLKeyMeasurements:
-    def _make_group(self, laterality=None) -> OphthalmologyMeasurementsGroup:
-        lat = laterality or codes.cid247.Right
-        return OphthalmologyMeasurementsGroup(
-            tracking_identifier=_make_tracking_id(),
-            laterality=lat,
-            measurements=[_make_rnfl_measurement()],
-        )
-
-    def test_basic_construction(self):
+    def test_basic_construction_sector_only(self):
         report = CircumpapillaryRNFLKeyMeasurements(
             algorithm_id=_make_algo(),
-            measurement_groups=[self._make_group()],
+            sector_measurement_groups=[_make_sector_group()],
         )
         assert len(report) == 1
+
+    def test_basic_construction_clockface_only(self):
+        report = CircumpapillaryRNFLKeyMeasurements(
+            algorithm_id=_make_algo(),
+            clockface_measurement_groups=[_make_clockface_group()],
+        )
+        assert len(report) == 1
+
+    def test_sector_and_clockface_combined(self):
+        report = CircumpapillaryRNFLKeyMeasurements(
+            algorithm_id=_make_algo(),
+            sector_measurement_groups=[_make_sector_group()],
+            clockface_measurement_groups=[_make_clockface_group()],
+        )
+        root = report[0]
+        # [0]=Language, [1][2]=AlgoId, [3]=sector group, [4]=clockface group
+        assert len(root.ContentSequence) == 5
 
     def test_root_container_code(self):
         report = CircumpapillaryRNFLKeyMeasurements(
             algorithm_id=_make_algo(),
-            measurement_groups=[self._make_group()],
+            sector_measurement_groups=[_make_sector_group()],
         )
         root = report[0]
         assert root.ConceptNameCodeSequence[0].CodeValue == '131242'
@@ -280,88 +454,109 @@ class TestCircumpapillaryRNFLKeyMeasurements:
     def test_template_id(self):
         report = CircumpapillaryRNFLKeyMeasurements(
             algorithm_id=_make_algo(),
-            measurement_groups=[self._make_group()],
+            sector_measurement_groups=[_make_sector_group()],
         )
         assert report[0].ContentTemplateSequence[0].TemplateIdentifier == '2123'
-
-    def test_content_sequence_structure(self):
-        report = CircumpapillaryRNFLKeyMeasurements(
-            algorithm_id=_make_algo(),
-            measurement_groups=[self._make_group()],
-        )
-        root = report[0]
-        # [0]=Language, [1],[2]=AlgoId (2 items), [3]=Measurement Group
-        assert len(root.ContentSequence) == 4
 
     def test_algo_id_present(self):
         report = CircumpapillaryRNFLKeyMeasurements(
             algorithm_id=_make_algo('MyOCT', '2.3'),
-            measurement_groups=[self._make_group()],
+            sector_measurement_groups=[_make_sector_group()],
         )
         root = report[0]
         algo_name_item = root.ContentSequence[1]
         assert algo_name_item.TextValue == 'MyOCT'
 
-    def test_bilateral(self):
-        od_group = self._make_group(codes.cid247.Right)
-        os_group = self._make_group(codes.cid247.Left)
+    def test_bilateral_sector_requires_symmetry(self):
+        od = _make_sector_group(codes.cid247.Right, identifier='OD')
+        os_ = _make_sector_group(codes.cid247.Left, identifier='OS')
+        with pytest.raises(ValueError, match="rnfl_symmetry"):
+            CircumpapillaryRNFLKeyMeasurements(
+                algorithm_id=_make_algo(),
+                sector_measurement_groups=[od, os_],
+            )
+
+    def test_bilateral_sector_with_symmetry_succeeds(self):
+        od = _make_sector_group(codes.cid247.Right, identifier='OD')
+        os_ = _make_sector_group(codes.cid247.Left, identifier='OS')
         report = CircumpapillaryRNFLKeyMeasurements(
             algorithm_id=_make_algo(),
-            measurement_groups=[od_group, os_group],
+            sector_measurement_groups=[od, os_],
+            rnfl_symmetry=97.3,
         )
         root = report[0]
-        # [0]=Language, [1],[2]=AlgoId, [3]=OD group, [4]=OS group
-        assert len(root.ContentSequence) == 5
+        symmetry_items = [
+            item for item in root.ContentSequence
+            if getattr(item, 'ValueType', None) == 'NUM' and
+            item.ConceptNameCodeSequence[0].CodeValue == '131273'
+        ]
+        assert len(symmetry_items) == 1
+        assert float(symmetry_items[0].MeasuredValueSequence[0].NumericValue) == 97.3
 
-    def test_laterality_in_bilateral(self):
-        od_group = self._make_group(codes.cid247.Right)
-        os_group = self._make_group(codes.cid247.Left)
-        report = CircumpapillaryRNFLKeyMeasurements(
-            algorithm_id=_make_algo(),
-            measurement_groups=[od_group, os_group],
-        )
-        root = report[0]
-        od_container = root.ContentSequence[3]
-        os_container = root.ContentSequence[4]
+    def test_bilateral_across_sector_and_clockface_requires_symmetry(self):
+        """Bilaterality is judged across both group lists combined."""
+        od = _make_sector_group(codes.cid247.Right, identifier='OD')
+        os_ = _make_clockface_group(codes.cid247.Left, identifier='OS')
+        with pytest.raises(ValueError, match="rnfl_symmetry"):
+            CircumpapillaryRNFLKeyMeasurements(
+                algorithm_id=_make_algo(),
+                sector_measurement_groups=[od],
+                clockface_measurement_groups=[os_],
+            )
 
-        od_lat = od_group.finding_sites[0].laterality
-        os_lat = os_group.finding_sites[0].laterality
-        assert od_lat.value == '24028007'  # Right
-        assert os_lat.value == '7771000'   # Left
-        # sanity: the containers landed at the expected root positions
-        assert od_container.ConceptNameCodeSequence[0].CodeValue == '125007'
-        assert os_container.ConceptNameCodeSequence[0].CodeValue == '125007'
+    def test_unilateral_rejects_symmetry(self):
+        with pytest.raises(ValueError, match="only applicable"):
+            CircumpapillaryRNFLKeyMeasurements(
+                algorithm_id=_make_algo(),
+                sector_measurement_groups=[_make_sector_group()],
+                rnfl_symmetry=97.3,
+            )
 
-    def test_more_than_two_groups_raises(self):
+    def test_neither_group_list_raises(self):
+        with pytest.raises(ValueError, match="At least one"):
+            CircumpapillaryRNFLKeyMeasurements(algorithm_id=_make_algo())
+
+    def test_more_than_two_sector_groups_raises(self):
         with pytest.raises(ValueError, match="at most two"):
             CircumpapillaryRNFLKeyMeasurements(
                 algorithm_id=_make_algo(),
-                measurement_groups=[
-                    self._make_group(),
-                    self._make_group(),
-                    self._make_group(),
+                sector_measurement_groups=[
+                    _make_sector_group(identifier='1'),
+                    _make_sector_group(identifier='2'),
+                    _make_sector_group(identifier='3'),
                 ],
             )
 
-    def test_empty_groups_raises(self):
-        with pytest.raises(ValueError, match="at least one"):
+    def test_more_than_two_clockface_groups_raises(self):
+        with pytest.raises(ValueError, match="at most two"):
             CircumpapillaryRNFLKeyMeasurements(
                 algorithm_id=_make_algo(),
-                measurement_groups=[],
+                clockface_measurement_groups=[
+                    _make_clockface_group(identifier='1'),
+                    _make_clockface_group(identifier='2'),
+                    _make_clockface_group(identifier='3'),
+                ],
             )
 
     def test_wrong_algo_type_raises(self):
         with pytest.raises(TypeError, match="AlgorithmIdentification"):
             CircumpapillaryRNFLKeyMeasurements(
                 algorithm_id="not an algo",
-                measurement_groups=[self._make_group()],
+                sector_measurement_groups=[_make_sector_group()],
             )
 
-    def test_wrong_group_type_raises(self):
-        with pytest.raises(TypeError, match="OphthalmologyMeasurementsGroup"):
+    def test_wrong_sector_group_type_raises(self):
+        with pytest.raises(TypeError, match="RNFLSectorMeasurementsGroup"):
             CircumpapillaryRNFLKeyMeasurements(
                 algorithm_id=_make_algo(),
-                measurement_groups=["not a group"],
+                sector_measurement_groups=["not a group"],
+            )
+
+    def test_wrong_clockface_group_type_raises(self):
+        with pytest.raises(TypeError, match="RNFLClockfaceMeasurementsGroup"):
+            CircumpapillaryRNFLKeyMeasurements(
+                algorithm_id=_make_algo(),
+                clockface_measurement_groups=["not a group"],
             )
 
     def test_rnfl_codes_are_final_dcm_codes(self):
@@ -372,32 +567,70 @@ class TestCircumpapillaryRNFLKeyMeasurements:
             RNFLSuperiorThickness: '131266',
             RNFLTemporalThickness: '131267',
             RNFLNasalThickness: '131268',
+            RetinalROIWidth: '131274',
+            RNFLSymmetry: '131273',
         }
         for concept, value in expected.items():
             assert concept.scheme_designator == 'DCM'
             assert concept.value == value
 
-    def test_full_rnfl_quadrants(self):
-        """All five RNFL quadrant measurements encode correctly."""
-        meas_list = [
-            Measurement(name=RNFLAverageThickness,  value=121.0, unit=codes.UCUM.Micrometer),
-            Measurement(name=RNFLInferiorThickness,  value=145.0, unit=codes.UCUM.Micrometer),
-            Measurement(name=RNFLSuperiorThickness,  value=138.0, unit=codes.UCUM.Micrometer),
-            Measurement(name=RNFLTemporalThickness,  value=80.0,  unit=codes.UCUM.Micrometer),
-            Measurement(name=RNFLNasalThickness,     value=95.0,  unit=codes.UCUM.Micrometer),
-        ]
-        group = OphthalmologyMeasurementsGroup(
+
+# ---------------------------------------------------------------------------
+# MacularMeasurementsGroup (TID 2120, macular role, TID 2124 Row 5)
+# ---------------------------------------------------------------------------
+
+
+class TestMacularMeasurementsGroup:
+    def test_basic_construction(self):
+        group = _make_macular_group()
+        assert len(group) == 1
+
+    def test_center_subfield_value(self):
+        group = _make_macular_group(281.4)
+        measurements = {m.name: m.value for m in group.get_measurements()}
+        assert measurements[MacularCenterSubfieldThickness] == 281.4
+
+    def test_total_volume_unit_is_ul(self):
+        group = MacularMeasurementsGroup(
             tracking_identifier=_make_tracking_id(),
             laterality=codes.cid247.Right,
-            measurements=meas_list,
+            total_volume=8.42,
         )
-        report = CircumpapillaryRNFLKeyMeasurements(
-            algorithm_id=_make_algo(),
-            measurement_groups=[group],
+        vol = next(
+            m for m in group.get_measurements() if m.name == MacularTotalVolume
         )
-        assert len(report) == 1
-        vals = [m.value for m in group.get_measurements()]
-        assert vals == [121.0, 145.0, 138.0, 80.0, 95.0]
+        assert vol.unit == UCUM_MICROLITER
+
+    def test_full_etdrs_grid(self):
+        group = MacularMeasurementsGroup(
+            tracking_identifier=_make_tracking_id(),
+            laterality=codes.cid247.Right,
+            center_point=270.0,
+            center_subfield=281.4,
+            inner_superior=338.0,
+            inner_nasal=350.0,
+            inner_inferior=335.0,
+            inner_temporal=320.0,
+            outer_superior=290.0,
+            outer_nasal=305.0,
+            outer_inferior=285.0,
+            outer_temporal=265.0,
+            total_volume=8.42,
+            average_thickness=300.1,
+        )
+        # 11 micrometer-unit measurements + total volume
+        assert len(group.get_measurements()) == 12
+
+    def test_no_measurements_raises(self):
+        with pytest.raises(ValueError, match="At least one"):
+            MacularMeasurementsGroup(
+                tracking_identifier=_make_tracking_id(),
+                laterality=codes.cid247.Right,
+            )
+
+    def test_template_id_is_2120(self):
+        group = _make_macular_group()
+        assert group[0].ContentTemplateSequence[0].TemplateIdentifier == '2120'
 
 
 # ---------------------------------------------------------------------------
@@ -406,24 +639,17 @@ class TestCircumpapillaryRNFLKeyMeasurements:
 
 
 class TestMacularThicknessKeyMeasurements:
-    def _make_group(self, value: float = 281.4) -> OphthalmologyMeasurementsGroup:
-        return OphthalmologyMeasurementsGroup(
-            tracking_identifier=_make_tracking_id(),
-            laterality=codes.cid247.Right,
-            measurements=[_make_macular_measurement(value)],
-        )
-
     def test_basic_construction(self):
         report = MacularThicknessKeyMeasurements(
             algorithm_id=_make_algo(),
-            measurement_groups=[self._make_group()],
+            measurement_groups=[_make_macular_group()],
         )
         assert len(report) == 1
 
     def test_root_container_code(self):
         report = MacularThicknessKeyMeasurements(
             algorithm_id=_make_algo(),
-            measurement_groups=[self._make_group()],
+            measurement_groups=[_make_macular_group()],
         )
         root = report[0]
         assert root.ConceptNameCodeSequence[0].CodeValue == '131243'
@@ -432,14 +658,14 @@ class TestMacularThicknessKeyMeasurements:
     def test_template_id(self):
         report = MacularThicknessKeyMeasurements(
             algorithm_id=_make_algo(),
-            measurement_groups=[self._make_group()],
+            measurement_groups=[_make_macular_group()],
         )
         assert report[0].ContentTemplateSequence[0].TemplateIdentifier == '2124'
 
     def test_content_sequence_structure(self):
         report = MacularThicknessKeyMeasurements(
             algorithm_id=_make_algo(),
-            measurement_groups=[self._make_group()],
+            measurement_groups=[_make_macular_group()],
         )
         root = report[0]
         # [0]=Language, [1],[2]=AlgoId (2 items), [3]=Measurement Group
@@ -473,61 +699,9 @@ class TestMacularThicknessKeyMeasurements:
         assert UCUM_MICROLITER.value == 'uL'
         assert UCUM_MICROLITER.scheme_designator == 'UCUM'
 
-    def test_total_volume_uses_ul(self):
-        """MacularTotalVolume measurement must use UCUM_MICROLITER unit."""
-        meas = Measurement(
-            name=MacularTotalVolume,
-            value=8.42,
-            unit=UCUM_MICROLITER,
-        )
-        group = OphthalmologyMeasurementsGroup(
-            tracking_identifier=_make_tracking_id(),
-            laterality=codes.cid247.Right,
-            measurements=[meas],
-        )
-        assert group.get_measurements()[0].unit == UCUM_MICROLITER
-
-    def test_full_etdrs_grid(self):
-        """Nine ETDRS subfields + total volume encode correctly."""
-        meas_list = [
-            Measurement(name=MacularCenterSubfieldThickness,  value=281.4, unit=codes.UCUM.Micrometer),
-            Measurement(name=MacularInnerSuperiorThickness,   value=338.0, unit=codes.UCUM.Micrometer),
-            Measurement(name=MacularInnerNasalThickness,      value=350.0, unit=codes.UCUM.Micrometer),
-            Measurement(name=MacularInnerInferiorThickness,   value=335.0, unit=codes.UCUM.Micrometer),
-            Measurement(name=MacularInnerTemporalThickness,   value=320.0, unit=codes.UCUM.Micrometer),
-            Measurement(name=MacularOuterSuperiorThickness,   value=290.0, unit=codes.UCUM.Micrometer),
-            Measurement(name=MacularOuterNasalThickness,      value=305.0, unit=codes.UCUM.Micrometer),
-            Measurement(name=MacularOuterInferiorThickness,   value=285.0, unit=codes.UCUM.Micrometer),
-            Measurement(name=MacularOuterTemporalThickness,   value=265.0, unit=codes.UCUM.Micrometer),
-            Measurement(name=MacularTotalVolume,              value=8.42,  unit=UCUM_MICROLITER),
-        ]
-        group = OphthalmologyMeasurementsGroup(
-            tracking_identifier=_make_tracking_id(),
-            laterality=codes.cid247.Right,
-            measurements=meas_list,
-        )
-        report = MacularThicknessKeyMeasurements(
-            algorithm_id=_make_algo(),
-            measurement_groups=[group],
-        )
-        assert len(report) == 1
-
-        measurements = group.get_measurements()
-        assert len(measurements) == 10
-        assert measurements[0].value == 281.4
-        assert measurements[-1].unit == UCUM_MICROLITER
-
     def test_bilateral_macular(self):
-        od = OphthalmologyMeasurementsGroup(
-            tracking_identifier=_make_tracking_id(),
-            laterality=codes.cid247.Right,
-            measurements=[_make_macular_measurement(281.4)],
-        )
-        os_ = OphthalmologyMeasurementsGroup(
-            tracking_identifier=_make_tracking_id(),
-            laterality=codes.cid247.Left,
-            measurements=[_make_macular_measurement(275.0)],
-        )
+        od = _make_macular_group(281.4, codes.cid247.Right)
+        os_ = _make_macular_group(275.0, codes.cid247.Left)
         report = MacularThicknessKeyMeasurements(
             algorithm_id=_make_algo(),
             measurement_groups=[od, os_],
@@ -544,10 +718,17 @@ class TestMacularThicknessKeyMeasurements:
             MacularThicknessKeyMeasurements(
                 algorithm_id=_make_algo(),
                 measurement_groups=[
-                    self._make_group(),
-                    self._make_group(),
-                    self._make_group(),
+                    _make_macular_group(),
+                    _make_macular_group(),
+                    _make_macular_group(),
                 ],
+            )
+
+    def test_wrong_group_type_raises(self):
+        with pytest.raises(TypeError, match="MacularMeasurementsGroup"):
+            MacularThicknessKeyMeasurements(
+                algorithm_id=_make_algo(),
+                measurement_groups=["not a group"],
             )
 
 
@@ -565,19 +746,10 @@ class TestRoundtrip:
 
     def test_rnfl_roundtrip(self, ref_ds):
         """TID 2123: numeric value 121.0 µm and code '131264' survive dcmread."""
-        meas = Measurement(
-            name=RNFLAverageThickness,
-            value=121.0,
-            unit=codes.UCUM.Micrometer,
-        )
-        group = OphthalmologyMeasurementsGroup(
-            tracking_identifier=_make_tracking_id(),
-            laterality=codes.cid247.Right,
-            measurements=[meas],
-        )
+        group = _make_sector_group(average=121.0)
         template = CircumpapillaryRNFLKeyMeasurements(
             algorithm_id=_make_algo(),
-            measurement_groups=[group],
+            sector_measurement_groups=[group],
         )
 
         sr = ComprehensiveSR(
@@ -598,27 +770,20 @@ class TestRoundtrip:
         # children directly: [0]=Language, [1][2]=AlgoId, [3]=MeasGroup
         mg = sr_back.ContentSequence[3]
         assert mg.ValueType == 'CONTAINER'
-        meas_items = [
-            item for item in mg.ContentSequence if item.ValueType == 'NUM'
-        ]
-        assert len(meas_items) == 1
-        meas_item = meas_items[0]
-        assert float(meas_item.MeasuredValueSequence[0].NumericValue) == 121.0
-        assert meas_item.ConceptNameCodeSequence[0].CodeValue == '131264'
-        assert meas_item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0].CodeValue == 'um'
+        meas_items = {
+            item.ConceptNameCodeSequence[0].CodeValue: item
+            for item in mg.ContentSequence if item.ValueType == 'NUM'
+        }
+        avg_item = meas_items['131264']
+        assert float(avg_item.MeasuredValueSequence[0].NumericValue) == 121.0
+        assert avg_item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence[0].CodeValue == 'um'
+        # Retinal ROI width (mandatory) also survives
+        roi_item = meas_items['131274']
+        assert float(roi_item.MeasuredValueSequence[0].NumericValue) == 3.4
 
     def test_macular_roundtrip_loinc_code_survives(self, ref_ds):
         """TID 2124: LOINC code '57109-1' (CMT) survives serialisation."""
-        meas = Measurement(
-            name=MacularCenterSubfieldThickness,
-            value=281.4,
-            unit=codes.UCUM.Micrometer,
-        )
-        group = OphthalmologyMeasurementsGroup(
-            tracking_identifier=_make_tracking_id(),
-            laterality=codes.cid247.Right,
-            measurements=[meas],
-        )
+        group = _make_macular_group(281.4)
         template = MacularThicknessKeyMeasurements(
             algorithm_id=_make_algo(),
             measurement_groups=[group],

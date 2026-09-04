@@ -43,8 +43,11 @@ from highdicom.sr.templates.tid1500 import (
 # Eyecare Measurement Templates (TID 2120, 2123, 2124)
 from highdicom.sr.templates.tid2120 import (
     CircumpapillaryRNFLKeyMeasurements,
+    MacularMeasurementsGroup,
     MacularThicknessKeyMeasurements,
     OphthalmologyMeasurementsGroup,
+    RNFLClockfaceMeasurementsGroup,
+    RNFLSectorMeasurementsGroup,
 )
 
 __all__ = [
@@ -76,6 +79,9 @@ __all__ = [
     "VolumetricROIMeasurementsAndQualitativeEvaluations",
     # Eyecare Measurement Templates family
     "OphthalmologyMeasurementsGroup",
+    "RNFLSectorMeasurementsGroup",
+    "RNFLClockfaceMeasurementsGroup",
+    "MacularMeasurementsGroup",
     "CircumpapillaryRNFLKeyMeasurements",
     "MacularThicknessKeyMeasurements",
 ]
