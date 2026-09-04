@@ -2084,6 +2084,80 @@ def test_transcode_custom_workers():
     assert np.array_equal(converted.pixel_array, expected_pixels)
 
 
+def test_enhanced_functional_groups():
+    """Test functional groups from enhanced IODs."""
+    # Some test files that have a lot of attributes that can be placed into the
+    # enhanced CT functional groups
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166', read=True),
+    ]
+
+    converted = LegacyConvertedEnhancedCTImage(
+        ct_files,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    sfgs = (
+        converted
+        .SharedFunctionalGroupsSequence[0]
+    )
+    unassigned_shared_seq = (
+        sfgs
+        .UnassignedSharedConvertedAttributesSequence[0]
+    )
+
+    expected_attributes = [
+        ('CTAcquisitionDetailsSequence', 'DataCollectionDiameter'),
+        ('CTAcquisitionDetailsSequence', 'TableHeight'),
+        ('CTGeometrySequence', 'DistanceSourceToDetector'),
+        ('CTReconstructionSequence', 'ConvolutionKernel'),
+        ('CTXRayDetailsSequence', 'KVP'),
+    ]
+
+    for seq_kw, attr_kw in expected_attributes:
+        # Check the enhanced group is present and the element is not placed in
+        # the unassigned groups
+        seq = getattr(sfgs, seq_kw)[0]
+        val = getattr(seq, attr_kw)
+        orig_val = getattr(ct_files[0], attr_kw)
+        assert val == orig_val
+
+        assert not hasattr(unassigned_shared_seq, seq_kw)
+
+    # Now try without the enhanced functional IOD
+    converted = LegacyConvertedEnhancedCTImage(
+        ct_files,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        include_enhanced_groups=False,
+    )
+
+    sfgs = (
+        converted
+        .SharedFunctionalGroupsSequence[0]
+    )
+    unassigned_shared_seq = (
+        sfgs
+        .UnassignedSharedConvertedAttributesSequence[0]
+    )
+
+    for seq_kw, attr_kw in expected_attributes:
+        # Check the enhanced group is not present so the element is placed in
+        # the unassigned groups
+        assert not hasattr(sfgs, seq_kw)
+
+        val = getattr(unassigned_shared_seq, attr_kw)
+        orig_val = getattr(ct_files[0], attr_kw)
+        assert val == orig_val
+
+
 def test_from_dataset(modality: Modality) -> None:
     LegacyConvertedClass = MODALITY_CLASS_MAP[modality]
     data_generator = DicomGenerator(5)
