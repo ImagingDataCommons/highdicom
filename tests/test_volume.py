@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 import pydicom
 from pydicom.sr.codedict import codes
@@ -22,6 +23,7 @@ from highdicom import (
     get_volume_from_series,
     imread,
 )
+from highdicom.enum import InterpolationMethods
 from highdicom.seg import (
     Segmentation,
     SegmentDescription,
@@ -1437,10 +1439,10 @@ def test_reassign_dtype(dtype):
         coordinate_system='PATIENT',
     )
 
-    if any([
+    if any(
         np.issubdtype(dtype, t) for t in
         [np.floating, np.integer, np.bool_]
-    ]):
+    ):
         volume.array = np.zeros((10, 10, 10), dtype=dtype)
 
     else:
@@ -1452,3 +1454,125 @@ def test_reassign_dtype(dtype):
             )
         ):
             volume.array = np.zeros((10, 10, 10), dtype=dtype)
+
+
+@pytest.mark.parametrize(
+    "interpolator",
+    ["NEAREST", InterpolationMethods.LINEAR, "CUBIC"],
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [np.uint8, np.uint16, np.float32, np.float64, np.int32],
+)
+def test_resample_identity_sm(interpolator, dtype):
+    """"Resample a volume to the identical geometry."""
+    file_path = Path(__file__)
+    test_dir = file_path.parent.parent.joinpath('data', 'test_files')
+    vol = imread(
+        test_dir / "sm_image_control.dcm"
+    ).get_volume(dtype=dtype)
+
+    geom = vol.get_geometry()
+
+    resampled = vol.resample_to_geometry(
+        geom,
+        interpolator=interpolator,
+    )
+
+    assert resampled.dtype == dtype
+    assert np.allclose(vol.array, resampled.array)
+    assert resampled.geometry_equal(resampled)
+
+
+@pytest.mark.parametrize(
+    "interpolator",
+    ["NEAREST", InterpolationMethods.LINEAR, "CUBIC"],
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [np.float32, np.float64, np.int32],
+)
+def test_resample_identity_ct(interpolator, dtype):
+    """"Resample a volume to the identical geometry."""
+    test_file = get_testdata_file('eCT_Supplemental.dcm')
+    vol = imread(test_file).get_volume(dtype=dtype)
+
+    geom = vol.get_geometry()
+
+    resampled = vol.resample_to_geometry(
+        geom,
+        interpolator=interpolator,
+    )
+
+    assert resampled.dtype == dtype
+    assert np.allclose(vol.array, resampled.array)
+    assert resampled.geometry_equal(resampled)
+
+
+@pytest.mark.parametrize(
+    "interpolator",
+    ["NEAREST", InterpolationMethods.LINEAR, "CUBIC"],
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [np.uint8, np.uint16, np.float32, np.float64, np.int32],
+)
+def test_resample_rotated_and_flipped_sm(interpolator, dtype):
+    """"Resample a volume rotated and flipped from the original geometry."""
+    file_path = Path(__file__)
+    test_dir = file_path.parent.parent.joinpath('data', 'test_files')
+    vol = imread(
+        test_dir / "sm_image_control.dcm"
+    ).get_volume(dtype=dtype)
+
+    geom = (
+        vol
+        .get_geometry()
+        .permute_spatial_axes([2, 1, 0])
+        .flip_spatial(1)
+    )
+
+    resampled = vol.resample_to_geometry(
+        geom,
+        interpolator=interpolator,
+    )
+
+    expected_array = np.flip(np.transpose(vol.array, [2, 1, 0, 3]), 1)
+    assert resampled.dtype == dtype
+    assert np.allclose(resampled.array, expected_array)
+    assert resampled.geometry_equal(resampled)
+    assert np.allclose(resampled.array, expected_array)
+    assert resampled.geometry_equal(resampled)
+
+
+@pytest.mark.parametrize(
+    "interpolator",
+    ["NEAREST", InterpolationMethods.LINEAR, "CUBIC"],
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [np.float32, np.float64, np.int32],
+)
+def test_resample_rotated_and_flipped_ct(interpolator, dtype):
+    """"Resample a volume rotated and flipped from the original geometry."""
+    test_file = get_testdata_file('eCT_Supplemental.dcm')
+    vol = imread(test_file).get_volume(dtype=dtype)
+
+    geom = (
+        vol
+        .get_geometry()
+        .permute_spatial_axes([2, 1, 0])
+        .flip_spatial(1)
+    )
+
+    resampled = vol.resample_to_geometry(
+        geom,
+        interpolator=interpolator,
+    )
+
+    expected_array = np.flip(np.transpose(vol.array, [2, 1, 0]), 1)
+    assert resampled.dtype == dtype
+    assert np.allclose(resampled.array, expected_array)
+    assert resampled.geometry_equal(resampled)
+    assert np.allclose(resampled.array, expected_array)
+    assert resampled.geometry_equal(resampled)
