@@ -8714,7 +8714,7 @@ class Image(_Image):
             channels=channel_spec,
         )
 
-    def get_volume_with_geometry(
+    def match_geometry(
         self,
         geometry: Volume | VolumeGeometry,
         *,
@@ -9001,7 +9001,7 @@ class Image(_Image):
             )
         )
 
-    def resample_to_volume_geometry(
+    def resample_to_geometry(
         self,
         geometry: Volume | VolumeGeometry,
         *,
@@ -9192,7 +9192,7 @@ class Image(_Image):
 
         return (
             self
-            .get_volume_with_geometry(
+            .match_geometry(
                 geometry_to_extract,
                 apply_real_world_transform=apply_real_world_transform,
                 real_world_value_map_selector=real_world_value_map_selector,
