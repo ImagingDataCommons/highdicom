@@ -9214,7 +9214,6 @@ class Image(_Image):
                 pad_mode=pad_mode,
                 constant_value=constant_value,
                 per_channel=pad_per_channel,
-                dtype=dtype,
             )
         )
 
