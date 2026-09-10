@@ -4259,7 +4259,7 @@ class Volume(_VolumeBase):
         Parameters
         ----------
         convert_to_ras: bool
-            Whether to conver from 'LPS' to 'RAS' convention. Defaults to True.
+            Whether to convert the affine matrix from 'LPS' to 'RAS' convention.
         ensure_channel_first: bool
             Whether to convert to a channel first metatensor. Defaults to False.
 
@@ -4300,7 +4300,7 @@ class Volume(_VolumeBase):
 
         meta[MetaKeys.SPACE] = space
         meta[ImageStatsKeys.SPACING] = self.spacing
-        meta[MetaKeys.SPATIAL_SHAPE] = self.shape[:3]
+        meta[MetaKeys.SPATIAL_SHAPE] = np.array(self.spatial_shape)
         meta[MetaKeys.ORIGINAL_AFFINE] = affine.copy()
         meta[MetaKeys.AFFINE] = affine.copy()
         meta[MetaKeys.ORIGINAL_CHANNEL_DIM] = (
