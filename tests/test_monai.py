@@ -598,7 +598,7 @@ def test_segmentation(
 
     assert meta[MetaKeys.SPACE] == space
     assert vol.spacing == meta[ImageStatsKeys.SPACING] == spacing
-    assert vol.shape[:3] == meta[MetaKeys.SPATIAL_SHAPE] == spatial_shape
+    assert (np.array(vol.spatial_shape) == meta[MetaKeys.SPATIAL_SHAPE]).all()
     assert (
         metatensor.shape[1:] if channel_first else metatensor.shape[:3] ==
         spatial_shape
