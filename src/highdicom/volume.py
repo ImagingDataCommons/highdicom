@@ -4308,7 +4308,7 @@ class Volume(_VolumeBase):
         )
 
         metatensor = monai.data.MetaTensor(
-            self.array.copy(),
+            np.ascontiguousarray(self.array),
             meta=meta
         )
 
