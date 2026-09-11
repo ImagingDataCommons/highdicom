@@ -4389,30 +4389,30 @@ class Volume(_VolumeBase):
             feature=f'{func.__module__}.{func.__qualname__}'
         )
 
-        array = metatensor.cpu().detach().numpy()
-
-        if array.ndim > 3:
-            if array.ndim > 4:
+        if metatensor.ndim > 3:
+            if metatensor.ndim > 4:
                 raise ValueError(
                     'Monai conversion does not currently support'
                     ' volumes with multiple channel dimensions.'
                 )
 
-            channel_dim = channel_dim % array.ndim
+            channel_dim = channel_dim % metatensor.ndim
             channel_last_perm = [
-                i for i in range(array.ndim) if i != channel_dim
+                i for i in range(metatensor.ndim) if i != channel_dim
             ] + [channel_dim]
-            array = array.transpose(channel_last_perm)
+            metatensor = metatensor.permute(channel_last_perm)
 
             if channels is None:
-                if array.shape[-1] == 1:
-                    array = array.squeeze(-1)
+                if metatensor.shape[-1] == 1:
+                    metatensor = metatensor.squeeze(-1)
 
                 else:
                     raise ValueError(
                         'Monai conversion requires `channels` be specified'
                         ' for volumes with >=2 channels.'
                     )
+
+        array = metatensor.cpu().detach().numpy()
 
         return cls(
             array=array,
