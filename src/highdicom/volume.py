@@ -4300,7 +4300,7 @@ class Volume(_VolumeBase):
                 except OverflowError as e:
                     raise TypeError(
                         "Provided constant value is not representable in "
-                        "the Volume's dtype."
+                        "the volume's dtype."
                     ) from e
                 try:
                     constant_value_arr = np.broadcast_to(

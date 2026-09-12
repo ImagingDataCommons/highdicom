@@ -1735,14 +1735,15 @@ def test_resample_with_padding_sm(interpolator, dtype, pad_mode, per_channel):
             vol.array[:, 0, :],
         )
     else:
+        axes = (0, 1, 2) if per_channel else None
         if PadModes(pad_mode) == PadModes.MAXIMUM:
-            pad_value = vol.array.max()
+            pad_value = vol.array.max(axis=axes)
         elif PadModes(pad_mode) == PadModes.MINIMUM:
-            pad_value = vol.array.min()
+            pad_value = vol.array.min(axis=axes)
         elif PadModes(pad_mode) == PadModes.MEDIAN:
-            pad_value = np.median(vol.array)
+            pad_value = np.median(vol.array, axis=axes)
         elif PadModes(pad_mode) == PadModes.MEAN:
-            pad_value = np.mean(vol.array)
+            pad_value = np.mean(vol.array, axis=axes)
         else:
             pad_value = constant_value
 
@@ -1751,10 +1752,24 @@ def test_resample_with_padding_sm(interpolator, dtype, pad_mode, per_channel):
 
         pad_value = np.asarray(pad_value, dtype=dtype)
 
-        expected_array = np.pad(
-            vol.array,
-            [(pad_width, pad_width)] * 3 + [(0, 0)],  # don't pad channels
-            constant_values=pad_value,
-        )
+        expected_array = np.full((*geom.spatial_shape, 3), pad_value)
+        expected_array[
+            pad_width:-pad_width,
+            pad_width:-pad_width,
+            pad_width:-pad_width
+        ] = vol.array
 
         assert np.allclose(resampled.array, expected_array)
+
+
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint32, np.int32])
+def test_resample_wrong_constant_value_dtype(dtype):
+    vol = Volume(
+        np.zeros((5, 5, 5), dtype=dtype),
+        np.eye(4),
+        coordinate_system="PATIENT",
+    )
+
+    msg = "sdlkjsdflk"
+    with pytest.raises(TypeError, match=msg):
+        vol.resample_to_geometry(vol.get_geometry(), constant_value=0.65)
