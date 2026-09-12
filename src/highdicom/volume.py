@@ -2331,8 +2331,8 @@ class _VolumeBase(ABC):
 
         The second volume need not have a direction matrix matching this one.
         The resulting volume is the smallest geometry that can be formed from
-        this one by some combination of cropping and padding alone while containing
-        the entire second geometry within it.
+        this one by some combination of cropping and padding alone while
+        containing the entire second geometry within it.
 
         Parameters
         ----------
@@ -2373,14 +2373,26 @@ class _VolumeBase(ABC):
         start_offset0 = int(np.floor(vertices_local[0].min() + 1.0 - eps))
         start_offset1 = int(np.floor(vertices_local[1].min() + 1.0 - eps))
         start_offset2 = int(np.floor(vertices_local[2].min() + 1.0 - eps))
-        end_offset0 = int(np.ceil(vertices_local[0].max() - self.spatial_shape[0] + eps))
-        end_offset1 = int(np.ceil(vertices_local[1].max() - self.spatial_shape[1] + eps))
-        end_offset2 = int(np.ceil(vertices_local[2].max() - self.spatial_shape[2] + eps))
+        end_offset0 = int(
+            np.ceil(vertices_local[0].max() - self.spatial_shape[0] + eps)
+        )
+        end_offset1 = int(
+            np.ceil(vertices_local[1].max() - self.spatial_shape[1] + eps)
+        )
+        end_offset2 = int(
+            np.ceil(vertices_local[2].max() - self.spatial_shape[2] + eps)
+        )
 
         crop_slices = (
-            slice(max(start_offset0, 0), end_offset0 if end_offset0 < 0 else None),
-            slice(max(start_offset1, 0), end_offset1 if end_offset1 < 0 else None),
-            slice(max(start_offset2, 0), end_offset2 if end_offset2 < 0 else None),
+            slice(
+                max(start_offset0, 0), end_offset0 if end_offset0 < 0 else None
+            ),
+            slice(
+                max(start_offset1, 0), end_offset1 if end_offset1 < 0 else None
+            ),
+            slice(
+                max(start_offset2, 0), end_offset2 if end_offset2 < 0 else None
+            ),
         )
 
         pad_values = (
@@ -4269,15 +4281,27 @@ class Volume(_VolumeBase):
                 (z >= -eps) &
                 (z <= (shape[2] - 1 + eps))
             )
-            x_v = np.clip(x, 0, shape[0] - 1)
-            y_v = np.clip(y, 0, shape[1] - 1)
-            z_v = np.clip(z, 0, shape[2] - 1)
+            x_v = np.clip(x[valid], 0, shape[0] - 1)
+            y_v = np.clip(y[valid], 0, shape[1] - 1)
+            z_v = np.clip(z[valid], 0, shape[2] - 1)
 
             if pad_mode == PadModes.CONSTANT:
-                constant_value_arr = np.asarray(
-                    constant_value,
-                    dtype=self.dtype,
-                )
+                if isinstance(constant_value, np.ndarray):
+                    # If the provided constant values are not representable in
+                    # the volume's dtype, this will force an overflow error
+                    # when the value is cast back to an array in next step
+                    constant_value = constant_value.tolist()
+
+                try:
+                    constant_value_arr = np.asarray(
+                        constant_value,
+                        dtype=self.dtype,
+                    )
+                except OverflowError as e:
+                    raise TypeError(
+                        "Provided constant value is not representable in "
+                        "the Volume's dtype."
+                    ) from e
                 try:
                     constant_value_arr = np.broadcast_to(
                         constant_value_arr,
@@ -4299,6 +4323,19 @@ class Volume(_VolumeBase):
 
                 axis = (0, 1, 2) if per_channel else None
                 constant_value_arr = pad_func(array, axis=axis)
+
+                if pad_mode in (PadModes.MEAN, PadModes.MEDIAN):
+                    # Mean and median of an array may not have same data type
+                    # as the array, unlike the other options
+                    if self.dtype.kind in ('u', 'i'):
+                        # Integer types needed rounding
+                        constant_value_arr = np.round(constant_value_arr)
+
+                    constant_value_arr = np.asarray(
+                        constant_value_arr,
+                        dtype=self.dtype
+                    )
+
                 constant_value_arr = np.broadcast_to(
                     constant_value_arr,
                     self.channel_shape

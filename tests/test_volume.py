@@ -1464,7 +1464,11 @@ def test_reassign_dtype(dtype):
     "dtype",
     [np.uint8, np.uint16, np.float32, np.float64, np.int32],
 )
-def test_resample_identity_sm(interpolator, dtype):
+@pytest.mark.parametrize(
+    "pad_mode",
+    [PadModes.EDGE, PadModes.CONSTANT],
+)
+def test_resample_identity_sm(interpolator, dtype, pad_mode):
     """"Resample a volume to the identical geometry."""
     file_path = Path(__file__)
     test_dir = file_path.parent.parent.joinpath('data', 'test_files')
@@ -1477,11 +1481,12 @@ def test_resample_identity_sm(interpolator, dtype):
     resampled = vol.resample_to_geometry(
         geom,
         interpolator=interpolator,
+        pad_mode=pad_mode,
     )
 
     assert resampled.dtype == dtype
     assert np.allclose(vol.array, resampled.array)
-    assert resampled.geometry_equal(resampled)
+    assert resampled.geometry_equal(geom)
 
 
 @pytest.mark.parametrize(
@@ -1492,7 +1497,11 @@ def test_resample_identity_sm(interpolator, dtype):
     "dtype",
     [np.float32, np.float64, np.int32],
 )
-def test_resample_identity_ct(interpolator, dtype):
+@pytest.mark.parametrize(
+    "pad_mode",
+    [PadModes.EDGE, PadModes.CONSTANT],
+)
+def test_resample_identity_ct(interpolator, dtype, pad_mode):
     """"Resample a volume to the identical geometry."""
     test_file = get_testdata_file('eCT_Supplemental.dcm')
     vol = imread(test_file).get_volume(dtype=dtype)
@@ -1502,11 +1511,12 @@ def test_resample_identity_ct(interpolator, dtype):
     resampled = vol.resample_to_geometry(
         geom,
         interpolator=interpolator,
+        pad_mode=pad_mode,
     )
 
     assert resampled.dtype == dtype
     assert np.allclose(vol.array, resampled.array)
-    assert resampled.geometry_equal(resampled)
+    assert resampled.geometry_equal(geom)
 
 
 @pytest.mark.parametrize(
@@ -1517,7 +1527,11 @@ def test_resample_identity_ct(interpolator, dtype):
     "dtype",
     [np.uint8, np.uint16, np.float32, np.float64, np.int32],
 )
-def test_resample_rotated_and_flipped_sm(interpolator, dtype):
+@pytest.mark.parametrize(
+    "pad_mode",
+    [PadModes.EDGE, PadModes.CONSTANT],
+)
+def test_resample_rotated_and_flipped_sm(interpolator, dtype, pad_mode):
     """"Resample a volume rotated and flipped from the original geometry."""
     file_path = Path(__file__)
     test_dir = file_path.parent.parent.joinpath('data', 'test_files')
@@ -1535,14 +1549,13 @@ def test_resample_rotated_and_flipped_sm(interpolator, dtype):
     resampled = vol.resample_to_geometry(
         geom,
         interpolator=interpolator,
+        pad_mode=pad_mode,
     )
 
     expected_array = np.flip(np.transpose(vol.array, [2, 1, 0, 3]), 1)
     assert resampled.dtype == dtype
     assert np.allclose(resampled.array, expected_array)
-    assert resampled.geometry_equal(resampled)
-    assert np.allclose(resampled.array, expected_array)
-    assert resampled.geometry_equal(resampled)
+    assert resampled.geometry_equal(geom)
 
 
 @pytest.mark.parametrize(
@@ -1553,7 +1566,11 @@ def test_resample_rotated_and_flipped_sm(interpolator, dtype):
     "dtype",
     [np.float32, np.float64, np.int32],
 )
-def test_resample_rotated_and_flipped_ct(interpolator, dtype):
+@pytest.mark.parametrize(
+    "pad_mode",
+    [PadModes.EDGE, PadModes.CONSTANT],
+)
+def test_resample_rotated_and_flipped_ct(interpolator, dtype, pad_mode):
     """"Resample a volume rotated and flipped from the original geometry."""
     test_file = get_testdata_file('eCT_Supplemental.dcm')
     vol = imread(test_file).get_volume(dtype=dtype)
@@ -1568,11 +1585,176 @@ def test_resample_rotated_and_flipped_ct(interpolator, dtype):
     resampled = vol.resample_to_geometry(
         geom,
         interpolator=interpolator,
+        pad_mode=pad_mode,
     )
 
     expected_array = np.flip(np.transpose(vol.array, [2, 1, 0]), 1)
     assert resampled.dtype == dtype
     assert np.allclose(resampled.array, expected_array)
-    assert resampled.geometry_equal(resampled)
-    assert np.allclose(resampled.array, expected_array)
-    assert resampled.geometry_equal(resampled)
+    assert resampled.geometry_equal(geom)
+
+
+@pytest.mark.parametrize(
+    "interpolator",
+    ["NEAREST", InterpolationMethods.LINEAR, "CUBIC"],
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [np.float32, np.float64, np.int32],
+)
+@pytest.mark.parametrize(
+    "pad_mode",
+    ["MEAN", "MAXIMUM", "MINIMUM", "CONSTANT", PadModes.MEDIAN, "EDGE"],
+)
+def test_resample_with_padding_ct(interpolator, dtype, pad_mode):
+    """"Resample a volume that requires padding."""
+    test_file = get_testdata_file('eCT_Supplemental.dcm')
+
+    # Center part of volume to save some time on tests
+    vol = (
+        imread(test_file)
+        .get_volume(dtype=dtype)
+        .crop_to_spatial_shape([2, 32, 32])
+    )
+
+    pad_width = 2
+    geom = vol.get_geometry().pad(pad_width)
+
+    constant_value = 100
+
+    resampled = vol.resample_to_geometry(
+        geom,
+        interpolator=interpolator,
+        pad_mode=pad_mode,
+        constant_value=constant_value,
+    )
+
+    assert resampled.geometry_equal(geom)
+    assert resampled.dtype == dtype
+
+    if PadModes(pad_mode) == PadModes.EDGE:
+        # Center part (before padding) matches original
+        assert np.allclose(
+            resampled.array[
+                pad_width:-pad_width,
+                pad_width:-pad_width,
+                pad_width:-pad_width
+            ],
+            vol.array,
+        )
+
+        # Edge matches edge
+        assert np.allclose(
+            resampled.array[
+                pad_width:-pad_width,
+                0,
+                pad_width:-pad_width
+            ],
+            vol.array[:, 0, :],
+        )
+    else:
+        if PadModes(pad_mode) == PadModes.MAXIMUM:
+            pad_value = vol.array.max()
+        elif PadModes(pad_mode) == PadModes.MINIMUM:
+            pad_value = vol.array.min()
+        elif PadModes(pad_mode) == PadModes.MEDIAN:
+            pad_value = np.median(vol.array)
+        elif PadModes(pad_mode) == PadModes.MEAN:
+            pad_value = np.mean(vol.array)
+        else:
+            pad_value = constant_value
+
+        if np.dtype(dtype).kind in ('u', 'i'):
+            pad_value = np.round(pad_value)
+
+        pad_value = np.asarray(pad_value, dtype=dtype)
+
+        expected_array = np.pad(vol.array, pad_width, constant_values=pad_value)
+
+        assert np.allclose(resampled.array, expected_array)
+
+
+@pytest.mark.parametrize(
+    "interpolator",
+    ["NEAREST", InterpolationMethods.LINEAR, "CUBIC"],
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [np.uint8, np.uint16, np.float32, np.float64, np.int32],
+)
+@pytest.mark.parametrize(
+    "pad_mode",
+    ["MEAN", "MAXIMUM", "MINIMUM", "CONSTANT", PadModes.MEDIAN, "EDGE"],
+)
+@pytest.mark.parametrize(
+    "per_channel",
+    [False, True],
+)
+def test_resample_with_padding_sm(interpolator, dtype, pad_mode, per_channel):
+    """"Resample a volume that requires padding."""
+    file_path = Path(__file__)
+    test_dir = file_path.parent.parent.joinpath('data', 'test_files')
+    vol = imread(
+        test_dir / "sm_image_control.dcm"
+    ).get_volume(dtype=dtype)
+
+    pad_width = 2
+    geom = vol.get_geometry().pad(pad_width)
+
+    constant_value = 100
+
+    resampled = vol.resample_to_geometry(
+        geom,
+        interpolator=interpolator,
+        pad_mode=pad_mode,
+        constant_value=constant_value,
+        per_channel=per_channel,
+    )
+
+    assert resampled.geometry_equal(geom)
+    assert resampled.dtype == dtype
+
+    if PadModes(pad_mode) == PadModes.EDGE:
+        # Center part (before padding) matches original
+        assert np.allclose(
+            resampled.array[
+                pad_width:-pad_width,
+                pad_width:-pad_width,
+                pad_width:-pad_width
+            ],
+            vol.array,
+        )
+
+        # Edge matches edge
+        assert np.allclose(
+            resampled.array[
+                pad_width:-pad_width,
+                0,
+                pad_width:-pad_width
+            ],
+            vol.array[:, 0, :],
+        )
+    else:
+        if PadModes(pad_mode) == PadModes.MAXIMUM:
+            pad_value = vol.array.max()
+        elif PadModes(pad_mode) == PadModes.MINIMUM:
+            pad_value = vol.array.min()
+        elif PadModes(pad_mode) == PadModes.MEDIAN:
+            pad_value = np.median(vol.array)
+        elif PadModes(pad_mode) == PadModes.MEAN:
+            pad_value = np.mean(vol.array)
+        else:
+            pad_value = constant_value
+
+        if np.dtype(dtype).kind in ('u', 'i'):
+            pad_value = np.round(pad_value)
+
+        pad_value = np.asarray(pad_value, dtype=dtype)
+
+        expected_array = np.pad(
+            vol.array,
+            [(pad_width, pad_width)] * 3 + [(0, 0)],  # don't pad channels
+            constant_values=pad_value,
+        )
+
+        assert np.allclose(resampled.array, expected_array)
