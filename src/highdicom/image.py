@@ -8733,7 +8733,7 @@ class Image(_Image):
         atol: float | None = None,
         perpendicular_tol: float | None = None,
         pad_mode: PadModes = PadModes.CONSTANT,
-        constant_value: float = 0.0,
+        constant_value: float | Sequence[float] | np.ndarray = 0,
         pad_per_channel: bool = False,
         match_tol: float = _DEFAULT_EQUALITY_TOLERANCE,
     ) -> Volume:
@@ -8872,7 +8872,7 @@ class Image(_Image):
         pad_mode: highdicom.PadModes | str, optional
             Mode to use to pad the array if required to match the geometry. See
             :class:`highdicom.PadModes` for options.
-        constant_value: float | Sequence[float], optional
+        constant_value: float | Sequence[float] | numpy.ndarray, optional
             Value used to pad when mode is ``"CONSTANT"``. With other pad
             modes, this argument is ignored.
         pad_per_channel: bool, optional

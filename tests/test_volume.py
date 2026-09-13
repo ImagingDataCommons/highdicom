@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import numpy as np
 import pydicom
 from pydicom.sr.codedict import codes
@@ -1005,12 +1006,15 @@ def test_pad(mode):
 
     padded = vol.pad(10, mode=mode)
     assert padded.spatial_shape == (40, 40, 70)
+    assert padded.dtype == vol.dtype
 
     padded = vol.pad([5, 10], mode=mode)
     assert padded.spatial_shape == (35, 35, 65)
+    assert padded.dtype == vol.dtype
 
     padded = vol.pad([[5, 10], [10, 10], [25, 15]], mode=mode)
     assert padded.spatial_shape == (35, 40, 90)
+    assert padded.dtype == vol.dtype
 
 
 @pytest.mark.parametrize('mode', list(PadModes))
@@ -1027,10 +1031,14 @@ def test_pad_with_channels(mode, per_channel):
 
     padded = vol.pad(10, mode=mode, per_channel=per_channel)
     assert padded.spatial_shape == (40, 40, 70)
+    assert padded.channel_shape == vol.channel_shape
+    assert padded.dtype == vol.dtype
     assert padded.match_geometry(vol).geometry_equal(vol)
 
     padded = vol.pad([5, 10], mode=mode, per_channel=per_channel)
     assert padded.spatial_shape == (35, 35, 65)
+    assert padded.channel_shape == vol.channel_shape
+    assert padded.dtype == vol.dtype
     assert padded.match_geometry(vol).geometry_equal(vol)
 
     padded = vol.pad(
@@ -1039,6 +1047,8 @@ def test_pad_with_channels(mode, per_channel):
         per_channel=per_channel
     )
     assert padded.spatial_shape == (35, 40, 90)
+    assert padded.channel_shape == vol.channel_shape
+    assert padded.dtype == vol.dtype
     assert padded.match_geometry(vol).geometry_equal(vol)
 
 
@@ -1048,6 +1058,7 @@ def test_pad_to_spatial_shape():
     shape = (10, 600, 600)
     padded = vol.pad_to_spatial_shape(shape)
     assert padded.spatial_shape == shape
+    assert padded.channel_shape == ()
 
     assert padded.match_geometry(vol).geometry_equal(vol)
 
@@ -1058,6 +1069,7 @@ def test_pad_or_crop_to_spatial_shape():
     shape = (10, 240, 240)
     padded = vol.pad_or_crop_to_spatial_shape(shape)
     assert padded.spatial_shape == shape
+    assert padded.channel_shape == ()
 
     assert padded.match_geometry(vol).geometry_equal(vol)
 
@@ -1770,6 +1782,113 @@ def test_resample_wrong_constant_value_dtype(dtype):
         coordinate_system="PATIENT",
     )
 
-    msg = "sdlkjsdflk"
+    msg = (
+        "Values in constant_value must be integers for a volume "
+        "with an integer datatype."
+    )
     with pytest.raises(TypeError, match=msg):
         vol.resample_to_geometry(vol.get_geometry(), constant_value=0.65)
+    with pytest.raises(TypeError, match=msg):
+        vol.resample_to_geometry(vol.get_geometry(), constant_value=[0.65])
+
+    msg = (
+        "Datatype of constant_value does not match datatype of the volume."
+    )
+    with pytest.raises(TypeError, match=msg):
+        vol.resample_to_geometry(
+            vol.get_geometry(),
+            constant_value=np.array([0.65])
+        )
+
+
+@pytest.mark.parametrize(
+    "channel_shape,val", [
+        ((), 0),
+        ((4, ), 2),
+        ((4, ), [1, 2, 3, 4]),
+        ((3, 4), 2),
+        ((3, 4), [1, 2, 3, 4]),
+        ((3, 4), [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 12, 12]]),
+    ]
+)
+def test_resample_constant_value_shape(channel_shape, val):
+    channels = {}
+
+    if len(channel_shape) >= 1:
+        channels["SegmentNumber"] = list(range(channel_shape[0]))
+    if len(channel_shape) >= 2:
+        channels["OpticalPathIdentifier"] = [
+            f"c{i}" for i in range(channel_shape[1])
+        ]
+
+    vol = Volume(
+        np.zeros((5, 5, 5) + channel_shape, dtype=np.uint8),
+        np.eye(4),
+        coordinate_system="PATIENT",
+        channels=channels,
+    )
+
+    padded_geom = vol.get_geometry().pad(3)
+
+    out = vol.resample_to_geometry(padded_geom, constant_value=val)
+
+    assert np.array_equal(
+        out.array[0, 0, 0],
+        np.broadcast_to(val, channel_shape),
+    )
+
+    vol.resample_to_geometry(
+        vol.get_geometry(), constant_value=np.array(val, dtype=np.uint8))
+
+    assert np.array_equal(
+        out.array[0, 0, 0],
+        np.broadcast_to(val, channel_shape),
+    )
+
+
+@pytest.mark.parametrize(
+    "channel_shape,val_shape", [
+        ((), (1, )),
+        ((), (2, )),
+        ((1, ), (2, )),
+        ((3, 4), (3, )),
+        ((3, 4), (4, 3)),
+        ((3, 4), (3, 3)),
+        ((3, 4), (3, 4, 4)),
+    ]
+)
+def test_resample_wrong_constant_value_shape(channel_shape, val_shape):
+    channels = {}
+
+    if len(channel_shape) >= 1:
+        channels["SegmentNumber"] = list(range(channel_shape[0]))
+    if len(channel_shape) >= 2:
+        channels["OpticalPathIdentifier"] = [
+            f"c{i}" for i in range(channel_shape[1])
+        ]
+
+    vol = Volume(
+        np.zeros((5, 5, 5) + channel_shape, dtype=np.uint8),
+        np.eye(4),
+        coordinate_system="PATIENT",
+        channels=channels,
+    )
+
+    val = np.zeros(val_shape, dtype=np.uint8)
+
+    msg = (
+        f"Provided constant value with shape {val_shape} cannot be "
+        f"broadcast to the channel shape {channel_shape}."
+    )
+    with pytest.raises(ValueError, match=re.escape(msg)):
+        vol.resample_to_geometry(vol.get_geometry(), constant_value=val)
+
+    msg = (
+        f"Provided constant value with shape {val_shape} cannot be "
+        f"broadcast to the channel shape {channel_shape}."
+    )
+    with pytest.raises(ValueError, match=re.escape(msg)):
+        vol.resample_to_geometry(
+            vol.get_geometry(),
+            constant_value=val.tolist()
+        )
