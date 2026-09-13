@@ -1980,3 +1980,65 @@ def test_resample_to_spacing_align_centers():
     assert resampled.spacing == (0.5, 0.5, 0.5)
     assert resampled.position == (0.0, 0.0, 0.0)
     assert np.all(resampled.array == 1)
+
+
+def test_resample_geometry_to_spatial_shape():
+    geom = VolumeGeometry(
+        np.eye(4),
+        spatial_shape=(5, 5, 5),
+        coordinate_system="PATIENT",
+    )
+
+    resampled = geom.resample_to_spatial_shape((10, 10, 10))
+    assert isinstance(resampled, VolumeGeometry)
+    assert resampled.spatial_shape == (10, 10, 10)
+    assert resampled.spacing == (0.5, 0.5, 0.5)
+    assert resampled.position == (-0.25, -0.25, -0.25)
+
+
+def test_resample_geometry_to_spatial_shape_align_centers():
+    geom = VolumeGeometry(
+        np.eye(4),
+        spatial_shape=(5, 5, 5),
+        coordinate_system="PATIENT",
+    )
+
+    resampled = geom.resample_to_spatial_shape(
+        (10, 10, 10),
+        align_voxel_centers=True,
+    )
+    assert isinstance(resampled, VolumeGeometry)
+    assert resampled.spatial_shape == (10, 10, 10)
+    assert resampled.spacing == (4 / 9, 4 / 9, 4 / 9)
+    assert resampled.position == (0.0, 0.0, 0.0)
+
+
+def test_resample_geometry_to_spacing():
+    geom = VolumeGeometry(
+        np.eye(4),
+        spatial_shape=(5, 5, 5),
+        coordinate_system="PATIENT",
+    )
+
+    resampled = geom.resample_to_spacing((0.5, 0.5, 0.5))
+    assert isinstance(resampled, VolumeGeometry)
+    assert resampled.spatial_shape == (10, 10, 10)
+    assert resampled.spacing == (0.5, 0.5, 0.5)
+    assert resampled.position == (-0.25, -0.25, -0.25)
+
+
+def test_resample_geometry_to_spacing_align_centers():
+    geom = VolumeGeometry(
+        np.eye(4),
+        spatial_shape=(5, 5, 5),
+        coordinate_system="PATIENT",
+    )
+
+    resampled = geom.resample_to_spacing(
+        (0.5, 0.5, 0.5),
+        align_voxel_centers=True,
+    )
+    assert isinstance(resampled, VolumeGeometry)
+    assert resampled.spatial_shape == (9, 9, 9)
+    assert resampled.spacing == (0.5, 0.5, 0.5)
+    assert resampled.position == (0.0, 0.0, 0.0)
