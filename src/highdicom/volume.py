@@ -2238,6 +2238,7 @@ class _VolumeBase(ABC):
         return self.resample_to_geometry(
             new_geometry,
             interpolator=interpolator,
+            pad_mode=PadModes.EDGE,
         )
 
     def resample_to_spacing(
@@ -2316,6 +2317,7 @@ class _VolumeBase(ABC):
         return self.resample_to_geometry(
             new_geometry,
             interpolator=interpolator,
+            pad_mode=PadModes.EDGE,
         )
 
     def crop_or_pad_to_hull(

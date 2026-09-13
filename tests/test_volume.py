@@ -1918,3 +1918,65 @@ def test_resample_nonintersecting(interpolator, pad_mode):
 
     expected_value = 0 if pad_mode == "CONSTANT" else 1
     assert np.all(resampled.array == expected_value)
+
+
+def test_resample_to_spatial_shape():
+    vol = Volume(
+        np.ones((5, 5, 5), dtype=np.uint8),
+        np.eye(4),
+        coordinate_system="PATIENT",
+    )
+
+    resampled = vol.resample_to_spatial_shape((10, 10, 10))
+    assert resampled.spatial_shape == (10, 10, 10)
+    assert resampled.spacing == (0.5, 0.5, 0.5)
+    assert resampled.position == (-0.25, -0.25, -0.25)
+    assert np.all(resampled.array == 1)
+
+
+def test_resample_to_spatial_shape_align_centers():
+    vol = Volume(
+        np.ones((5, 5, 5), dtype=np.uint8),
+        np.eye(4),
+        coordinate_system="PATIENT",
+    )
+
+    resampled = vol.resample_to_spatial_shape(
+        (10, 10, 10),
+        align_voxel_centers=True,
+    )
+    assert resampled.spatial_shape == (10, 10, 10)
+    assert resampled.spacing == (4 / 9, 4 / 9, 4 / 9)
+    assert resampled.position == (0.0, 0.0, 0.0)
+    assert np.all(resampled.array == 1)
+
+
+def test_resample_to_spacing():
+    vol = Volume(
+        np.ones((5, 5, 5), dtype=np.uint8),
+        np.eye(4),
+        coordinate_system="PATIENT",
+    )
+
+    resampled = vol.resample_to_spacing((0.5, 0.5, 0.5))
+    assert resampled.spatial_shape == (10, 10, 10)
+    assert resampled.spacing == (0.5, 0.5, 0.5)
+    assert resampled.position == (-0.25, -0.25, -0.25)
+    assert np.all(resampled.array == 1)
+
+
+def test_resample_to_spacing_align_centers():
+    vol = Volume(
+        np.ones((5, 5, 5), dtype=np.uint8),
+        np.eye(4),
+        coordinate_system="PATIENT",
+    )
+
+    resampled = vol.resample_to_spacing(
+        (0.5, 0.5, 0.5),
+        align_voxel_centers=True,
+    )
+    assert resampled.spatial_shape == (9, 9, 9)
+    assert resampled.spacing == (0.5, 0.5, 0.5)
+    assert resampled.position == (0.0, 0.0, 0.0)
+    assert np.all(resampled.array == 1)
