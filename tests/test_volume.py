@@ -1892,3 +1892,29 @@ def test_resample_wrong_constant_value_shape(channel_shape, val_shape):
             vol.get_geometry(),
             constant_value=val.tolist()
         )
+
+
+@pytest.mark.parametrize("pad_mode", ["EDGE", "CONSTANT", "MEAN"])
+@pytest.mark.parametrize(
+    "interpolator",
+    ["NEAREST", "LINEAR", "CUBIC"],
+)
+def test_resample_nonintersecting(interpolator, pad_mode):
+    vol = Volume(
+        np.ones((5, 5, 5), dtype=np.uint8),
+        np.eye(4),
+        coordinate_system="PATIENT",
+    )
+
+    geom = vol.get_geometry().pad([(0, 10)] * 3)[-5:, -5:, -5:]
+
+    resampled = vol.resample_to_geometry(
+        geom,
+        interpolator=interpolator,
+        pad_mode=pad_mode,
+    )
+
+    assert resampled.shape == (5, 5, 5)
+
+    expected_value = 0 if pad_mode == "CONSTANT" else 1
+    assert np.all(resampled.array == expected_value)
