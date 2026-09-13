@@ -9185,7 +9185,7 @@ class Image(_Image):
             perpendicular_tol=perpendicular_tol,
         )
 
-        geometry_to_extract = image_geometry.crop_or_pad_to_geometry(geometry)
+        geometry_to_extract = image_geometry.crop_or_pad_to_hull(geometry)
 
         # TODO alternative path if there is no overlap?
         # TODO think through padding

@@ -2318,7 +2318,7 @@ class _VolumeBase(ABC):
             interpolator=interpolator,
         )
 
-    def crop_or_pad_to_geometry(
+    def crop_or_pad_to_hull(
         self,
         other: Union['Volume', 'VolumeGeometry'],
         *,
