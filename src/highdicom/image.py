@@ -9021,7 +9021,7 @@ class Image(_Image):
         perpendicular_tol: float | None = None,
         interpolator: InterpolationMethods | str = InterpolationMethods.LINEAR,
         pad_mode: PadModes = PadModes.CONSTANT,
-        constant_value: float = 0.0,
+        constant_value: float | Sequence[float] | np.ndarray = 0,
         pad_per_channel: bool = False,
     ) -> Volume:
         """Get a volume with a given geometry from the image.
@@ -9161,7 +9161,7 @@ class Image(_Image):
         pad_mode: highdicom.PadModes | str, optional
             Mode to use to pad the array if required to match the geometry. See
             :class:`highdicom.PadModes` for options.
-        constant_value: float | Sequence[float], optional
+        constant_value: float | Sequence[float] | numpy.ndarray, optional
             Value used to pad when mode is ``"CONSTANT"``. With other pad
             modes, this argument is ignored.
         pad_per_channel: bool, optional
