@@ -2364,7 +2364,6 @@ class _VolumeBase(ABC):
             contains ``other``.
 
         """
-        # TODO handle cases that lead to emtpy cropping
         # Express the vertices of the other volume in the local index
         # coordinate system of this volume
         vertices_ref = other.vertices(augmented=True).T
@@ -2384,6 +2383,12 @@ class _VolumeBase(ABC):
             np.ceil(vertices_local[2].max() - self.spatial_shape[2] + eps)
         )
 
+        pad_values = (
+            (max(-start_offset0, 0), max(end_offset0, 0)),
+            (max(-start_offset1, 0), max(end_offset1, 0)),
+            (max(-start_offset2, 0), max(end_offset2, 0)),
+        )
+
         crop_slices = (
             slice(
                 max(start_offset0, 0), end_offset0 if end_offset0 < 0 else None
@@ -2396,18 +2401,12 @@ class _VolumeBase(ABC):
             ),
         )
 
-        pad_values = (
-            (max(-start_offset0, 0), max(end_offset0, 0)),
-            (max(-start_offset1, 0), max(end_offset1, 0)),
-            (max(-start_offset2, 0), max(end_offset2, 0)),
-        )
-
-        return self[crop_slices].pad(
+        return self.pad(
             pad_values,
             mode=pad_mode,
             constant_value=constant_value,
             per_channel=per_channel,
-        )
+        )[crop_slices]
 
 
 class VolumeGeometry(_VolumeBase):

@@ -2042,3 +2042,102 @@ def test_resample_geometry_to_spacing_align_centers():
     assert resampled.spatial_shape == (9, 9, 9)
     assert resampled.spacing == (0.5, 0.5, 0.5)
     assert resampled.position == (0.0, 0.0, 0.0)
+
+
+@pytest.mark.parametrize(
+    "affine",
+    [
+        np.eye(4),
+        np.array(
+            [
+                [np.cos(np.radians(30)), -np.sin(np.radians(30)), 0.0, -34.0],
+                [np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0, 45.2],
+                [0.0, 0.0, 1.0, -1.2],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        )
+    ],
+)
+def test_crop_to_hull_aligned(affine):
+    # Cropping to a hull that is produced from the original volume by cropping
+    # and/or padding should give an exact match
+    vol = Volume(
+        np.ones((5, 5, 5)),
+        affine,
+        "PATIENT",
+    )
+
+    # To itself
+    hull = vol.crop_or_pad_to_hull(vol)
+    assert hull.geometry_equal(vol)
+    assert np.array_equal(hull.array, vol.array)
+
+    # To a padded version of itself
+    padded_vol = vol.pad(3)
+    hull = vol.crop_or_pad_to_hull(padded_vol)
+    assert hull.geometry_equal(padded_vol)
+    assert np.array_equal(hull.array, padded_vol.array)
+
+    # To a cropped and padded version of itself
+    crop_pad_vol = vol.pad([(3, 3), (0, 0), (0, 0)])[:, 1:-1, 2:-2]
+    hull = vol.crop_or_pad_to_hull(crop_pad_vol)
+    assert hull.geometry_equal(crop_pad_vol)
+    assert np.array_equal(hull.array, crop_pad_vol.array)
+
+    # As before with rotations and flips
+    rot_flip_vol = (
+        vol
+        .pad([(3, 3), (0, 0), (0, 0)])
+        [:, 1:-1, 2:-2]
+        .permute_spatial_axes([0, 2, 1])
+        .flip_spatial(1)
+    )
+    hull = vol.crop_or_pad_to_hull(rot_flip_vol)
+    # Result will not be flipped or permuted
+    rot_flip_hull = (
+        hull
+        .permute_spatial_axes([0, 2, 1])
+        .flip_spatial(1)
+    )
+    assert rot_flip_hull.geometry_equal(rot_flip_vol)
+    assert np.array_equal(rot_flip_hull.array, rot_flip_vol.array)
+
+    # A non-intersecting volume
+    non_intersecting_vol = (
+        vol.pad([(5, 0), (0, 5), (0, 0)])
+        [:2, -2:, :]
+    )
+    hull = vol.crop_or_pad_to_hull(non_intersecting_vol)
+    assert hull.geometry_equal(non_intersecting_vol)
+    assert np.array_equal(hull.array, non_intersecting_vol.array)
+
+
+def test_crop_to_hull_nonaligned():
+    # Cropping to a hull that has a different direction to the original
+    vol = Volume.from_components(
+        np.ones((5, 5, 5)),
+        direction=np.eye(3),
+        spacing=[5., 5.0, 5.0],
+        center_position=[10., 10.0, 10.0],
+        coordinate_system="PATIENT",
+    )
+
+    geom = VolumeGeometry.from_components(
+        direction=np.array(
+            [
+                [np.cos(np.radians(30)), -np.sin(np.radians(30)), 0.0],
+                [np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0],
+                [0.0, 0.0, 1.0],
+            ]
+        ),
+        spacing=[2.5, 2.5, 2.5],
+        spatial_shape=(10, 10, 10),  # same extent
+        center_position=vol.center_position,
+        coordinate_system="PATIENT",
+    )
+
+    hull = vol.crop_or_pad_to_hull(geom)
+    assert vol.spacing == hull.spacing
+    assert np.array_equal(vol.direction, hull.direction)
+    assert vol.center_position == hull.center_position
+    assert hull.spatial_shape == (7, 7, 5)
