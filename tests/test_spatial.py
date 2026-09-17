@@ -1047,6 +1047,46 @@ def test_get_volume_positions_missing():
     assert volume_positions is None
 
 
+def test_get_volume_positions_missing_tolerance_units():
+    # 'atol' is documented in mm and must mean the same thing whatever the
+    # slice spacing is, including when missing slices are allowed. Previously
+    # the deviation was measured in multiples of the spacing, so the same
+    # physical error was accepted at wide spacings and rejected at narrow ones.
+    orientation = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+    error = 0.5  # mm, out of place by more than atol below
+
+    for spacing in [1.0, 5.0, 10.0, 20.0]:
+        positions = [
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, spacing],
+            [0.0, 0.0, 2 * spacing + error],
+        ]
+        out_spacing, volume_positions = get_volume_positions(
+            positions,
+            orientation,
+            allow_missing_positions=True,
+            atol=0.1,
+        )
+        assert out_spacing is None
+        assert volume_positions is None
+
+    # A deviation smaller than 'atol' remains acceptable at every spacing
+    for spacing in [1.0, 5.0, 10.0, 20.0]:
+        positions = [
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, spacing],
+            [0.0, 0.0, 2 * spacing + 0.05],
+        ]
+        out_spacing, volume_positions = get_volume_positions(
+            positions,
+            orientation,
+            allow_missing_positions=True,
+            atol=0.1,
+        )
+        assert out_spacing is not None
+        assert volume_positions is not None
+
+
 def test_get_volume_positions_missing_duplicates():
     # Test ability to determine spacing and volume positions with missing
     # slices and duplicate positions
