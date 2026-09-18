@@ -120,7 +120,9 @@ representing a liver that has been manually segmented.
 In this second example, we describe a segment representing a tumor that has
 been automatically segmented by an artificial intelligence algorithm. For this,
 we must first provide more information about the algorithm used in an
-:class:`highdicom.AlgorithmIdentificationSequence`.
+:class:`highdicom.AlgorithmIdentificationSequence`. We also add tracking
+information in order to unambiguously re-identify this particular tumor
+elsewhere.
 
 .. code-block:: python
 
@@ -142,6 +144,8 @@ we must first provide more information about the algorithm used in an
         algorithm_identification=algorithm_identification,
         anatomic_regions=[codes.SCT.Kidney],
         display_color=hd.color.CIELabColor.from_rgb(0, 0, 255),
+        tracking_id="lesion1",
+        tracking_uid=hd.UID(),
     )
 
 For a description of how to access segment metadata in existing segmentations,
