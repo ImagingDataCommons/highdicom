@@ -776,7 +776,12 @@ class AlgorithmIdentification(Template):
 
 class TrackingIdentifier(Template):
 
-    """:dcm:`TID 4108 <part16/sect_TID_4108.html>` Tracking Identifier"""
+    """:dcm:`TID 4108 <part16/sect_TID_4108.html>` Tracking Identifier
+
+    Identifier used to track a single region of interest across multiple
+    images or imaging studies.
+
+    """
 
     def __init__(
         self,
@@ -2479,7 +2484,8 @@ class Measurement(Template):
             Qualification of numeric measurement value or as an alternative
             qualitative description
         tracking_identifier: Union[highdicom.sr.TrackingIdentifier, None], optional
-            Identifier for tracking measurements
+            Identifier for tracking measurements across multiple images or
+            imaging studies.
         algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
             Identification of algorithm used for making measurements
         derivation: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
@@ -2776,7 +2782,8 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            Identifier for tracking measurements
+            Identifier for tracking measurements across multiple images or
+            imaging studies.
         referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             Referenced real world value map for region of interest
         time_point_context: Union[highdicom.sr.TimePointContext, None], optional
@@ -3176,7 +3183,8 @@ class MeasurementsAndQualitativeEvaluations(
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            Identifier for tracking measurements
+            Identifier for tracking measurements across multiple images or
+            imaging studies.
         referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             Referenced real world value map for region of interest
         time_point_context: Union[highdicom.sr.TimePointContext, None], optional
@@ -3296,7 +3304,8 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            Identifier for tracking measurements
+            Identifier for tracking regions of interest across multiple images
+            or imaging studies.
         referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], Sequence[highdicom.sr.ImageRegion3D], None], optional
             Regions of interest in source image(s)
         referenced_segment: Union[highdicom.sr.ReferencedSegment, highdicom.sr.ReferencedSegmentationFrame, None], optional
@@ -3458,7 +3467,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            Identifier for tracking measurements
+            Identifier for tracking regions of interest across multiple images
+            or imaging studies.
         referenced_region: Union[highdicom.sr.ImageRegion, highdicom.sr.ImageRegion3D, None], optional
             Region of interest in source image
         referenced_segment: Union[highdicom.sr.ReferencedSegmentationFrame, None], optional
@@ -3741,7 +3751,8 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            Identifier for tracking measurements
+            Identifier for tracking regions of interest across multiple images
+            or imaging studies.
         referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], None], optional
             Regions of interest in source image(s)
         referenced_volume_surface: Union[highdicom.sr.VolumeSurface, None], optional

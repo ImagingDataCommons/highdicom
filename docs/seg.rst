@@ -75,10 +75,15 @@ description includes the following information:
   This is passed as a sequence of coded values as either
   :class:`highdicom.sr.CodedConcept`, or :class:`pydicom.sr.coding.Code`
   objects.
-- **Tracking ID and UID**: (Optional) These allow you to provide, respectively,
-  a human readable ID and unique ID to a specific segment. This can be used,
-  for example, to uniquely identify particular lesions over multiple imaging
-  studies. These are passed as strings.
+- **Tracking ID and UID**: (Optional) These allow you to provide identifiers
+  for a specific segment. TrackingID is intended as a human readable ID unique
+  within a particular setting (e.g. a particular healthcare institution or
+  research project) whereas TrackingUID is a globally unique ID. As an example,
+  segmentation of a lesion monitored for progression can be assigned the same
+  tracking identifiers, allowing you to link and monitor segmentaton-derived
+  tumor volume changes over time. As another example, tracking identifiers can
+  identify segmentations of the same lesion in different imaging modalities
+  within the same imaging study. studies. Both are passed as strings.
 - **Display Color**: (Optional) You can provide a recommended color as a
   :class:`highdicom.color.CIELabColor` to use when displaying this segment.
   Some viewers will use this information to decide what color to render the
@@ -115,7 +120,9 @@ representing a liver that has been manually segmented.
 In this second example, we describe a segment representing a tumor that has
 been automatically segmented by an artificial intelligence algorithm. For this,
 we must first provide more information about the algorithm used in an
-:class:`highdicom.AlgorithmIdentificationSequence`.
+:class:`highdicom.AlgorithmIdentificationSequence`. We also add tracking
+information in order to unambiguously re-identify this particular tumor
+elsewhere.
 
 .. code-block:: python
 
@@ -137,6 +144,8 @@ we must first provide more information about the algorithm used in an
         algorithm_identification=algorithm_identification,
         anatomic_regions=[codes.SCT.Kidney],
         display_color=hd.color.CIELabColor.from_rgb(0, 0, 255),
+        tracking_id="lesion1",
+        tracking_uid=hd.UID(),
     )
 
 For a description of how to access segment metadata in existing segmentations,
