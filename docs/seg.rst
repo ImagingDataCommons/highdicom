@@ -77,7 +77,7 @@ description includes the following information:
   objects.
 - **Tracking ID and UID**: (Optional) These allow you to provide identifiers
   for a specific segment. TrackingID is intended as a human readable ID unique
-  within a particular setting (e.g. a particular healthcare insitution or
+  within a particular setting (e.g. a particular healthcare institution or
   research project) whereas TrackingUID is a globally unique ID. As an example,
   segmentation of a lesion monitored for progression can be assigned the same
   tracking identifiers, allowing you to link and monitor segmentaton-derived
