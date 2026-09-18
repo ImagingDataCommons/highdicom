@@ -75,10 +75,15 @@ description includes the following information:
   This is passed as a sequence of coded values as either
   :class:`highdicom.sr.CodedConcept`, or :class:`pydicom.sr.coding.Code`
   objects.
-- **Tracking ID and UID**: (Optional) These allow you to provide, respectively,
-  a human readable ID and unique ID to a specific segment. This can be used,
-  for example, to uniquely identify particular lesions over multiple imaging
-  studies. These are passed as strings.
+- **Tracking ID and UID**: (Optional) These allow you to provide identifiers
+  for a specific segment. TrackingID is intended as a human readable ID unique
+  within a particular setting (e.g. a particular healthcare insitution or
+  research project) whereas TrackingUID is a globally unique ID. As an example,
+  segmentation of a lesion monitored for progression can be assigned the same
+  tracking identifiers, allowing you to link and monitor segmentaton-derived
+  tumor volume changes over time. As another example, tracking identifiers can
+  identify segmentations of the same lesion in different imaging modalities
+  within the same imaging study. studies. Both are passed as strings.
 - **Display Color**: (Optional) You can provide a recommended color as a
   :class:`highdicom.color.CIELabColor` to use when displaying this segment.
   Some viewers will use this information to decide what color to render the
