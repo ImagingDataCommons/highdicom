@@ -4244,6 +4244,7 @@ class Volume(_VolumeBase):
     def to_monai(
         self,
         convert_to_ras: bool = True,
+        squeeze_dim: None | int = None,
         ensure_channel_first: bool = False,
     ) -> 'monai.data.MetaTensor':  # noqa: F821
         """Convert the volume to a ``monai.data.MetaTensor``.
@@ -4260,6 +4261,9 @@ class Volume(_VolumeBase):
         ----------
         convert_to_ras: bool
             Whether to convert the affine matrix from 'LPS' to 'RAS' convention.
+        squeeze_dim: None | int
+            Index of a singleton dimension to squeeze, must be a spatial dimension.
+            Defaults to None.
         ensure_channel_first: bool
             Whether to convert to a channel first metatensor. Defaults to False.
 
@@ -4297,6 +4301,17 @@ class Volume(_VolumeBase):
             space = monai.utils.enums.SpaceKeys.LPS
 
         affine = self.get_affine(space.value)
+
+        keep_dims = [0, 1, 2, 3]
+        if squeeze_dim is not None:
+            if squeeze_dim not in [0, 1, 2]:
+                raise ValueError(
+                    'If provided, `squeeze_dim` must be a spatial'
+                    ' dimension (0, 1, 2).'
+                )
+            keep_dims.pop(squeeze_dim)
+
+            affine = affine[np.ix_(keep_dims, keep_dims)]
 
         meta[MetaKeys.SPACE] = space
         meta[ImageStatsKeys.SPACING] = self.spacing

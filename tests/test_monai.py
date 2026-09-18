@@ -44,9 +44,14 @@ def read_github_zip_volume_and_metatensor(url: str):
 
         series = [pydicom.dcmread(f) for f in Path(temp_dir).glob('**/*.dcm')]
 
-        metatensor = monai.transforms.LoadImage(reader="ITKReader")(
-            Path(str(zipfilename)[:-4])
-        )
+        try:
+            pydicom.config.enforce_valid_values = False
+            metatensor = monai.transforms.LoadImage(reader="PydicomReader")(
+                Path(str(zipfilename)[:-4])
+            )
+
+        finally:
+            pydicom.config.enforce_valid_values = True
 
     return get_volume_from_series(series), series, metatensor
 
@@ -60,7 +65,12 @@ def read_github_series_volume_and_metatensor(urls: Sequence[str]):
 
             series.append(pydicom.dcmread(filename))
 
-        metatensor = monai.transforms.LoadImage(reader="ITKReader")(temp_dir)
+        try:
+            pydicom.config.enforce_valid_values = False
+            metatensor = monai.transforms.LoadImage(reader="PydicomReader")(temp_dir)
+
+        finally:
+            pydicom.config.enforce_valid_values = True
 
     return get_volume_from_series(series), series, metatensor
 
