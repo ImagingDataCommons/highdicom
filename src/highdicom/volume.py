@@ -4262,8 +4262,8 @@ class Volume(_VolumeBase):
         convert_to_ras: bool
             Whether to convert the affine matrix from 'LPS' to 'RAS' convention.
         squeeze_dim: None | int
-            Index of a singleton dimension to squeeze, must be a spatial dimension.
-            Defaults to None.
+            Index of a singleton dimension to squeeze (must be a spatial
+            dimension). Defaults to None.
         ensure_channel_first: bool
             Whether to convert to a channel first metatensor. Defaults to False.
 
@@ -4276,6 +4276,8 @@ class Volume(_VolumeBase):
         ------
         ValueError
             When the volume has more than one channel dimension.
+        ValueError
+            When squeeze_dim does not correspond to a spatial dimension.
 
         """
         func = self.to_monai
@@ -4301,31 +4303,48 @@ class Volume(_VolumeBase):
             space = monai.utils.enums.SpaceKeys.LPS
 
         affine = self.get_affine(space.value)
+        array = np.ascontiguousarray(self.array)
 
-        keep_dims = [0, 1, 2, 3]
+        keep_cols = [i for i in range(3) if i != squeeze_dim]
         if squeeze_dim is not None:
             if squeeze_dim not in [0, 1, 2]:
                 raise ValueError(
                     'If provided, `squeeze_dim` must be a spatial'
                     ' dimension (0, 1, 2).'
                 )
-            keep_dims.pop(squeeze_dim)
 
-            affine = affine[np.ix_(keep_dims, keep_dims)]
+            if array.shape[squeeze_dim] != 1:
+                raise ValueError(
+                    f'`squeeze_dim={squeeze_dim}` does not correspond'
+                    ' to a singleton dimension. Array has shape:'
+                    f' {array.shape}.'
+                )
+
+            u = affine[:, keep_cols[0]][:3]
+            v = affine[:, keep_cols[1]][:3]
+
+            norm = np.cross(u, v)
+            drop_row = int(np.argmax(np.abs(norm)))
+
+            affine = np.delete(
+                np.delete(affine, drop_row, axis=0),
+                squeeze_dim,
+                axis=1
+            )
+            array = array.squeeze(squeeze_dim)
 
         meta[MetaKeys.SPACE] = space
-        meta[ImageStatsKeys.SPACING] = self.spacing
-        meta[MetaKeys.SPATIAL_SHAPE] = np.array(self.spatial_shape)
+        meta[ImageStatsKeys.SPACING] = tuple([
+            self.spacing[i] for i in keep_cols
+        ])
+        meta[MetaKeys.SPATIAL_SHAPE] = np.array(self.spatial_shape)[keep_cols]
         meta[MetaKeys.ORIGINAL_AFFINE] = affine.copy()
         meta[MetaKeys.AFFINE] = affine.copy()
         meta[MetaKeys.ORIGINAL_CHANNEL_DIM] = (
             -1 if self.ndim > 3 else float("nan")
         )
 
-        metatensor = monai.data.MetaTensor(
-            np.ascontiguousarray(self.array),
-            meta=meta
-        )
+        metatensor = monai.data.MetaTensor(array, meta=meta)
 
         if ensure_channel_first:
             metatensor = monai.transforms.EnsureChannelFirst()(metatensor)

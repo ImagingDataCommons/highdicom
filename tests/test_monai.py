@@ -3,7 +3,7 @@ import tempfile
 import pytest
 import pydicom
 import zipfile
-
+import re
 
 from pathlib import Path
 from typing import Sequence
@@ -67,7 +67,9 @@ def read_github_series_volume_and_metatensor(urls: Sequence[str]):
 
         try:
             pydicom.config.enforce_valid_values = False
-            metatensor = monai.transforms.LoadImage(reader="PydicomReader")(temp_dir)
+            metatensor = monai.transforms.LoadImage(
+                reader="PydicomReader"
+            )(temp_dir)
 
         finally:
             pydicom.config.enforce_valid_values = True
@@ -455,8 +457,8 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
             True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
-            np.array([[0., 4.99e-04, 0., -23.449374],
-                      [0., 0., 4.99e-04, -25.691075],
+            np.array([[0., 4.99e-4, 0., -23.449374],
+                      [0., 0., 4.99e-4, -25.691075],
                       [1., 0., 0., 1.01],
                       [0., 0., 0., 1.]]),
             523
@@ -467,8 +469,8 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
             True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
-            np.array([[0., 4.99e-04, 0., -23.449873],
-                      [0., 0., 4.99e-04, -25.691574],
+            np.array([[0., 4.99e-4, 0., -23.449873],
+                      [0., 0., 4.99e-4, -25.691574],
                       [1., 0., 0., 0.],
                       [0., 0., 0., 1.]]),
             200
@@ -503,8 +505,8 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
             True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
-            np.array([[0., 4.99e-04, 0., -23.449374],
-                      [0., 0., 4.99e-04, -25.691075],
+            np.array([[0., 4.99e-4, 0., -23.449374],
+                      [0., 0., 4.99e-4, -25.691075],
                       [1., 0., 0., 1.01],
                       [0., 0., 0., 1.]]),
             523
@@ -539,8 +541,8 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
             True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
-            np.array([[0., 4.99e-04, 0., -23.449374],
-                      [0., 0., 4.99e-04, -25.691075],
+            np.array([[0., 4.99e-4, 0., -23.449374],
+                      [0., 0., 4.99e-4, -25.691075],
                       [1., 0., 0., 1.01],
                       [0., 0., 0., 1.]]),
             200
@@ -551,8 +553,8 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
             True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
-            np.array([[0., 4.99e-04, 0., -23.449873],
-                      [0., 0., 4.99e-04, -25.691574],
+            np.array([[0., 4.99e-4, 0., -23.449873],
+                      [0., 0., 4.99e-4, -25.691574],
                       [1., 0., 0., 0.],
                       [0., 0., 0., 1.]]),
             523
@@ -563,8 +565,8 @@ def test_metatensor_equivalence_series(dcm_urls: Sequence[str]):
             True,
             (1.0, 0.000499, 0.000499),
             (1, 50, 50),
-            np.array([[0., 4.99e-04, 0., -23.449873],
-                      [0., 0., 4.99e-04, -25.691574],
+            np.array([[0., 4.99e-4, 0., -23.449873],
+                      [0., 0., 4.99e-4, -25.691574],
                       [1., 0., 0., 0.],
                       [0., 0., 0., 1.]]),
             523
@@ -621,7 +623,61 @@ def test_segmentation(
     assert vol.array.sum() == metatensor.numpy().sum() == sum
 
 
-def test_multichannel_volume():
+def test_channels():
+    array = np.zeros((10, 10, 10, 1))
+    volume = Volume.from_attributes(
+        array=array,
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=2.0,
+        channels={'OpticalPathIdentifier': ['path1']},
+        coordinate_system="PATIENT",
+    )
+
+    metatensor = volume.to_monai(ensure_channel_first=False)
+    assert metatensor.shape == (10, 10, 10, 1)
+
+    array = np.zeros((10, 10, 10, 1))
+    volume = Volume.from_attributes(
+        array=array,
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=2.0,
+        channels={'OpticalPathIdentifier': ['path1']},
+        coordinate_system="PATIENT",
+    )
+
+    metatensor = volume.to_monai(ensure_channel_first=True)
+    assert metatensor.shape == (1, 10, 10, 10)
+
+    array = np.zeros((10, 10, 10))
+    volume = Volume.from_attributes(
+        array=array,
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=2.0,
+        coordinate_system="PATIENT",
+    )
+
+    metatensor = volume.to_monai(ensure_channel_first=False)
+    assert metatensor.shape == (10, 10, 10)
+
+    array = np.zeros((10, 10, 10))
+    volume = Volume.from_attributes(
+        array=array,
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        spacing_between_slices=2.0,
+        coordinate_system="PATIENT",
+    )
+
+    metatensor = volume.to_monai(ensure_channel_first=True)
+    assert metatensor.shape == (1, 10, 10, 10)
+
     array = np.zeros((10, 10, 10, 2))
     volume = Volume.from_attributes(
         array=array,
@@ -703,3 +759,98 @@ def test_multichannel_volume():
         )
     ):
         Volume.from_monai(metatensor)
+
+
+def test_squeeze():
+    volume = Volume(
+        array=np.random.rand(1, 10, 10),
+        affine=np.array([[0., 4.99e-4, 0., -23.449374],
+                         [0., 0., 4.99e-4, -25.691075],
+                         [1., 0., 0., 1.01],
+                         [0., 0., 0., 1.]]),
+        coordinate_system="PATIENT",
+    )
+    squeeze_dim = 0
+
+    metatensor = volume.to_monai(squeeze_dim=squeeze_dim, convert_to_ras=False)
+    assert (
+        volume.array.squeeze(squeeze_dim) == metatensor.numpy()
+    ).all()
+    assert (metatensor.affine == np.array([[4.99e-4, 0., -23.449374],
+                                           [0., 4.99e-4, -25.691075],
+                                           [0., 0., 1.]])).all()
+
+    volume = Volume(
+        array=np.random.rand(10, 1, 10),
+        affine=np.array([[0., 4.99e-4, 0., -23.449374],
+                         [0., 0., 4.99e-4, -25.691075],
+                         [1., 0., 0., 1.01],
+                         [0., 0., 0., 1.]]),
+        coordinate_system="PATIENT",
+    )
+    squeeze_dim = 1
+
+    metatensor = volume.to_monai(squeeze_dim=squeeze_dim, convert_to_ras=False)
+    assert (
+        volume.array.squeeze(squeeze_dim) == metatensor.numpy()
+    ).all()
+    assert (metatensor.affine == np.array([[0., 4.99e-4, -25.691075],
+                                           [1., 0., 1.01],
+                                           [0., 0., 1.]])).all()
+
+    volume = Volume(
+        array=np.random.rand(10, 10, 1),
+        affine=np.array([[0., 4.99e-4, 0., -23.449374],
+                         [0., 0., 4.99e-4, -25.691075],
+                         [1., 0., 0., 1.01],
+                         [0., 0., 0., 1.]]),
+        coordinate_system="PATIENT",
+    )
+    squeeze_dim = 2
+
+    metatensor = volume.to_monai(squeeze_dim=squeeze_dim, convert_to_ras=False)
+    assert (
+        volume.array.squeeze(squeeze_dim) == metatensor.numpy()
+    ).all()
+    assert (metatensor.affine == np.array([[0., 4.99e-4, -23.449374],
+                                           [1., 0., 1.01],
+                                           [0., 0., 1.]])).all()
+
+    volume = Volume(
+        array=np.random.rand(1, 10, 10),
+        affine=np.array([[0., 4.99e-4, 0., -23.449374],
+                         [0., 0., 4.99e-4, -25.691075],
+                         [1., 0., 0., 1.01],
+                         [0., 0., 0., 1.]]),
+        coordinate_system="PATIENT",
+    )
+    squeeze_dim = 3
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            'If provided, `squeeze_dim` must be a spatial'
+            ' dimension (0, 1, 2).'
+        )
+    ):
+        metatensor = volume.to_monai(squeeze_dim=squeeze_dim)
+
+    volume = Volume(
+        array=np.random.rand(10, 10, 10),
+        affine=np.array([[0., 4.99e-4, 0., -23.449374],
+                         [0., 0., 4.99e-4, -25.691075],
+                         [1., 0., 0., 1.01],
+                         [0., 0., 0., 1.]]),
+        coordinate_system="PATIENT",
+    )
+    squeeze_dim = 0
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            f'`squeeze_dim={squeeze_dim}` does not correspond'
+            ' to a singleton dimension. Array has shape:'
+            f' {volume.array.shape}.'
+        )
+    ):
+        metatensor = volume.to_monai(squeeze_dim=squeeze_dim)
