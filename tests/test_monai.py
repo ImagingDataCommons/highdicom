@@ -798,18 +798,130 @@ def test_channels():
         Volume.from_monai(metatensor)
 
 
-def test_squeeze():
-    volume = Volume(
-        array=np.random.rand(1, 10, 10),
-        affine=np.array([[0., 4.99e-4, 0., -23.449374],
-                         [0., 0., 4.99e-4, -25.691075],
-                         [1., 0., 0., 1.01],
-                         [0., 0., 0., 1.]]),
-        coordinate_system="PATIENT",
-    )
-    squeeze_dim = 0
-
-    metatensor = volume.to_monai(squeeze_dim=squeeze_dim, convert_to_ras=False)
+@pytest.mark.parametrize(
+    'volume,squeeze_dim',
+    [
+        [
+            Volume(
+                array=np.random.rand(1, 10, 10),
+                affine=np.array(
+                    [[0., 4.99e-4, 0., -23.449374],
+                     [0., 0., 4.99e-4, -25.691075],
+                     [1., 0., 0., 1.01],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            0
+        ],
+        [
+            Volume(
+                array=np.random.rand(10, 1, 10),
+                affine=np.array(
+                    [[0., 4.99e-04, 0., -23.449873],
+                     [0., 0., 4.99e-04, -25.691574],
+                     [1., 0., 0., 0.],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            1
+        ],
+        [
+            Volume(
+                array=np.random.rand(10, 10, 1),
+                affine=np.array(
+                    [[0., 4.99e-04, 0., -23.449873],
+                     [0., 0., 4.99e-04, -25.691574],
+                     [1., 0., 0., 0.],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            2
+        ],
+        [
+            Volume(
+                array=np.random.rand(1, 10, 10),
+                affine=np.array(
+                    [[0.51484336, -2.45034467, -0.29838402, 31.96125748],
+                     [0.84430051, 1.01480423, -1.0149242, 19.85095778],
+                     [1.16995367, 0.34594871, 0.86372826, -39.22734667],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            0
+        ],
+        [
+            Volume(
+                array=np.random.rand(10, 1, 10),
+                affine=np.array(
+                    [[-6.62073016e-03, -0.648063598, 6.39172474e-02, -25.55167],
+                     [-0.786401952, -1.4152762e-02, -1.50316788, -12.367773],
+                     [0.950988641, -1.621514e-02, -1.24257108, -11.5527702],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            1
+        ],
+        [
+            Volume(
+                array=np.random.rand(10, 10, 1),
+                affine=np.array(
+                    [[0.783406238, 0.312050746, 2.29152341e-02, 45.850208],
+                     [7.69377955e-02, -0.998526806, -0.712275579, -49.9411473],
+                     [-9.27305439e-02, 1.80779755, -0.397376895, 18.0307572],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            2
+        ],
+        [
+            Volume(
+                array=np.random.rand(1, 10, 10),
+                affine=np.array(
+                    [[-1.8249537, 0.357257741, -0.365592144, 35.5553115],
+                     [1.06765446, 0.586750214, -0.637285403, 18.5404252],
+                     [-2.58571459e-02, -0.987438965, -0.510956107, 27.5584146],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            0
+        ],
+        [
+            Volume(
+                array=np.random.rand(10, 1, 10),
+                affine=np.array(
+                    [[0.40659061, -0.14035702, 2.52546278, -22.24126432],
+                     [-2.01663853, -0.32789655, 0.12001713, -27.24361216],
+                     [1.09727089, -0.55062153, -0.71522747, -25.00163784],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            1
+        ],
+        [
+            Volume(
+                array=np.random.rand(10, 10, 1),
+                affine=np.array(
+                    [[-0.692324440, 1.81254936, 0.770028884, 19.9835788],
+                     [-1.01187701, -1.29172094, 1.06442359, 4.6090612],
+                     [2.01112784, -2.59508652e-02, 0.800633129, -38.2126518],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            2
+        ],
+    ]
+)
+def test_squeeze_affine(volume, squeeze_dim):
+    metatensor = volume.to_monai(squeeze_dim=squeeze_dim)
 
     assert (
         volume.array.squeeze(squeeze_dim) == metatensor.numpy()
@@ -821,48 +933,8 @@ def test_squeeze():
         shape=volume.shape
     )
 
-    volume = Volume(
-        array=np.random.rand(10, 1, 10),
-        affine=np.array([[0., 4.99e-4, 0., -23.449374],
-                         [0., 0., 4.99e-4, -25.691075],
-                         [1., 0., 0., 1.01],
-                         [0., 0., 0., 1.]]),
-        coordinate_system="PATIENT",
-    )
-    squeeze_dim = 1
 
-    metatensor = volume.to_monai(squeeze_dim=squeeze_dim, convert_to_ras=False)
-    assert (
-        volume.array.squeeze(squeeze_dim) == metatensor.numpy()
-    ).all()
-    validate_affine(
-        affine_3d=volume.affine,
-        affine_2d=metatensor.affine.numpy(),
-        squeeze_dim=squeeze_dim,
-        shape=volume.shape
-    )
-
-    volume = Volume(
-        array=np.random.rand(10, 10, 1),
-        affine=np.array([[0., 4.99e-4, 0., -23.449374],
-                         [0., 0., 4.99e-4, -25.691075],
-                         [1., 0., 0., 1.01],
-                         [0., 0., 0., 1.]]),
-        coordinate_system="PATIENT",
-    )
-    squeeze_dim = 2
-
-    metatensor = volume.to_monai(squeeze_dim=squeeze_dim, convert_to_ras=False)
-    assert (
-        volume.array.squeeze(squeeze_dim) == metatensor.numpy()
-    ).all()
-    validate_affine(
-        affine_3d=volume.affine,
-        affine_2d=metatensor.affine.numpy(),
-        squeeze_dim=squeeze_dim,
-        shape=volume.shape
-    )
-
+def test_squeeze_errors():
     volume = Volume(
         array=np.random.rand(1, 10, 10),
         affine=np.array([[0., 4.99e-4, 0., -23.449374],
@@ -880,7 +952,7 @@ def test_squeeze():
             ' dimension (0, 1, 2).'
         )
     ):
-        metatensor = volume.to_monai(squeeze_dim=squeeze_dim)
+        volume.to_monai(squeeze_dim=squeeze_dim)
 
     volume = Volume(
         array=np.random.rand(10, 10, 10),
@@ -900,4 +972,4 @@ def test_squeeze():
             f' {volume.array.shape}.'
         )
     ):
-        metatensor = volume.to_monai(squeeze_dim=squeeze_dim)
+        volume.to_monai(squeeze_dim=squeeze_dim)
