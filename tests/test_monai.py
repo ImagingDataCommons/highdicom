@@ -77,6 +77,43 @@ def read_github_series_volume_and_metatensor(urls: Sequence[str]):
     return get_volume_from_series(series), series, metatensor
 
 
+def validate_affine(
+    affine_3d: np.ndarray,
+    affine_2d: np.ndarray,
+    squeeze_dim: int,
+    shape: Sequence[int]
+):
+    keep_cols = [i for i in range(3) if i != squeeze_dim]
+    u = affine_3d[:3, keep_cols[0]]
+    v = affine_3d[:3, keep_cols[1]]
+    origin = affine_3d[:3, 3]
+
+    e_0 = u / np.linalg.norm(u)
+    v_perp = v - (np.dot(v, e_0) * e_0)
+    e_1 = v_perp / np.linalg.norm(v_perp)
+
+    basis = np.column_stack([e_0, e_1])
+
+    origin_2d = basis.T @ origin
+    origin_offset = origin - basis @ origin_2d
+
+    for x in range(shape[keep_cols[0]]):
+        for y in range(shape[keep_cols[1]]):
+            vox_3d = np.zeros(3)
+            vox_3d[keep_cols[0]] = x
+            vox_3d[keep_cols[1]] = y
+            world_3d = affine_3d[:3, :3] @ vox_3d + affine_3d[:3, 3]
+
+            vox_2d = np.array([x, y])
+            world_2d = affine_2d[:2, :2] @ vox_2d + affine_2d[:2, 2]
+            world_3d_recon = basis @ world_2d + origin_offset
+
+            assert np.allclose(
+                world_3d,
+                world_3d_recon
+            )
+
+
 @pytest.mark.parametrize(
     'vol',
     [
@@ -773,12 +810,16 @@ def test_squeeze():
     squeeze_dim = 0
 
     metatensor = volume.to_monai(squeeze_dim=squeeze_dim, convert_to_ras=False)
+
     assert (
         volume.array.squeeze(squeeze_dim) == metatensor.numpy()
     ).all()
-    assert (metatensor.affine == np.array([[4.99e-4, 0., -23.449374],
-                                           [0., 4.99e-4, -25.691075],
-                                           [0., 0., 1.]])).all()
+    validate_affine(
+        affine_3d=volume.affine,
+        affine_2d=metatensor.affine.numpy(),
+        squeeze_dim=squeeze_dim,
+        shape=volume.shape
+    )
 
     volume = Volume(
         array=np.random.rand(10, 1, 10),
@@ -794,9 +835,12 @@ def test_squeeze():
     assert (
         volume.array.squeeze(squeeze_dim) == metatensor.numpy()
     ).all()
-    assert (metatensor.affine == np.array([[0., 4.99e-4, -25.691075],
-                                           [1., 0., 1.01],
-                                           [0., 0., 1.]])).all()
+    validate_affine(
+        affine_3d=volume.affine,
+        affine_2d=metatensor.affine.numpy(),
+        squeeze_dim=squeeze_dim,
+        shape=volume.shape
+    )
 
     volume = Volume(
         array=np.random.rand(10, 10, 1),
@@ -812,9 +856,12 @@ def test_squeeze():
     assert (
         volume.array.squeeze(squeeze_dim) == metatensor.numpy()
     ).all()
-    assert (metatensor.affine == np.array([[0., 4.99e-4, -23.449374],
-                                           [1., 0., 1.01],
-                                           [0., 0., 1.]])).all()
+    validate_affine(
+        affine_3d=volume.affine,
+        affine_2d=metatensor.affine.numpy(),
+        squeeze_dim=squeeze_dim,
+        shape=volume.shape
+    )
 
     volume = Volume(
         array=np.random.rand(1, 10, 10),

@@ -4320,16 +4320,19 @@ class Volume(_VolumeBase):
                     f' {array.shape}.'
                 )
 
-            u = affine[:, keep_cols[0]][:3]
-            v = affine[:, keep_cols[1]][:3]
+            u = affine[:3, keep_cols[0]]
+            v = affine[:3, keep_cols[1]]
+            origin = affine[:3, 3]
 
-            norm = np.cross(u, v)
-            drop_row = int(np.argmax(np.abs(norm)))
+            # define new orthonormal basis (e_0, e_1)
+            e_0 = u / np.linalg.norm(u)
+            v_perp = v - (np.dot(v, e_0) * e_0)
+            e_1 = v_perp / np.linalg.norm(v_perp)
 
-            affine = np.delete(
-                np.delete(affine, drop_row, axis=0),
-                squeeze_dim,
-                axis=1
+            affine = np.array(
+                [[np.dot(u, e_0), np.dot(v, e_0), np.dot(origin, e_0)],
+                 [np.dot(u, e_1), np.dot(v, e_1), np.dot(origin, e_1)],
+                 [0, 0, 1]]
             )
             array = array.squeeze(squeeze_dim)
 
