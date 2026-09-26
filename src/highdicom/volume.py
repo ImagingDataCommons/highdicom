@@ -2972,6 +2972,7 @@ class Volume(_VolumeBase):
             affine=self._affine.copy(),
             coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
+            channels=self._channels,
         )
 
     def with_array(
