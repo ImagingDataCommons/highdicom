@@ -1584,3 +1584,15 @@ def test_reassign_dtype(dtype):
             )
         ):
             volume.array = np.zeros((10, 10, 10), dtype=dtype)
+
+
+def test_copy_keeps_channels():
+    vol = Volume(
+        array=np.zeros((2, 3, 3, 2), dtype=np.uint8),
+        affine=np.eye(4),
+        coordinate_system="PATIENT",
+        channels={'SegmentNumber': [1, 2]},
+    )
+    copied = vol.copy()
+    assert copied.channel_shape == vol.channel_shape
+    assert copied.get_channel_values('SegmentNumber') == [1, 2]
