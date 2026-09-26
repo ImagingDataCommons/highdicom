@@ -8871,7 +8871,8 @@ class Image(_Image):
             1.00. If ``None``, the default value of ``1e-3`` is used.
         pad_mode: highdicom.PadModes | str, optional
             Mode to use to pad the array if required to match the geometry. See
-            :class:`highdicom.PadModes` for options.
+            :class:`highdicom.PadModes` for options. All padding operations
+            occur after any pixel transforms have been applied.
         constant_value: float | Sequence[float] | numpy.ndarray, optional
             Value used to pad when mode is ``"CONSTANT"``. With other pad
             modes, this argument is ignored.

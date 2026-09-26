@@ -23,6 +23,7 @@ from highdicom.content import (
     _add_icc_profile_attributes,
     VOILUTTransformation,
 )
+from highdicom.enum import PadModes
 from highdicom.image import (
     _CombinedPixelTransform,
     _DimensionIndexSequence,
@@ -1571,3 +1572,149 @@ def test_imread_missing_referenced_instances():
     dcm.ReferencedSeriesSequence = [ref_series]
 
     Image.from_dataset(dcm, copy=False)
+
+
+def test_match_geometry_ct_full():
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    full_vol = im.get_volume()
+
+    geometry = im.get_volume_geometry()
+
+    matched_vol = im.match_geometry(geometry)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+def test_match_geometry_ct_crop():
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    full_vol = im.get_volume().crop_to_spatial_shape((2, 24, 24))
+
+    geometry = im.get_volume_geometry().crop_to_spatial_shape((2, 24, 24))
+
+    matched_vol = im.match_geometry(geometry)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+def test_match_geometry_ct_crop_flip_transpose():
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    full_vol = (
+        im
+        .get_volume()
+        .crop_to_spatial_shape((2, 24, 24))
+        .flip_spatial(2)
+        .permute_spatial_axes((1, 2, 0))
+    )
+
+    geometry = (
+        im
+        .get_volume_geometry()
+        .crop_to_spatial_shape((2, 24, 24))
+        .flip_spatial(2)
+        .permute_spatial_axes((1, 2, 0))
+    )
+
+    matched_vol = im.match_geometry(geometry)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+@pytest.mark.parametrize(
+    'mode',
+    [
+        PadModes.CONSTANT,
+        PadModes.MAXIMUM,
+        PadModes.MINIMUM,
+        PadModes.MEAN,
+        PadModes.MEDIAN,
+        'EDGE',
+    ]
+)
+def test_match_geometry_ct_pad(mode):
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    full_vol = im.get_volume().pad(5, mode=mode)
+
+    geometry = im.get_volume_geometry().pad(5)
+
+    matched_vol = im.match_geometry(geometry, pad_mode=mode)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+def test_match_geometry_sm_full():
+    f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    full_vol = im.get_volume()
+
+    geometry = im.get_volume_geometry()
+
+    matched_vol = im.match_geometry(geometry)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+def test_match_geometry_sm_crop():
+    f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    full_vol = im.get_volume().crop_to_spatial_shape((1, 20, 25))
+
+    geometry = im.get_volume_geometry().crop_to_spatial_shape((1, 20, 25))
+
+    matched_vol = im.match_geometry(geometry)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+def test_match_geometry_sm_crop_flip_transpose():
+    f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    full_vol = (
+        im
+        .get_volume()
+        .crop_to_spatial_shape((1, 16, 32))
+        .flip_spatial(1)
+        .permute_spatial_axes((1, 2, 0))
+    )
+
+    geometry = (
+        im
+        .get_volume_geometry()
+        .crop_to_spatial_shape((1, 16, 32))
+        .flip_spatial(1)
+        .permute_spatial_axes((1, 2, 0))
+    )
+
+    matched_vol = im.match_geometry(geometry)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+@pytest.mark.parametrize(
+    'mode',
+    [
+        PadModes.CONSTANT,
+        PadModes.MAXIMUM,
+        PadModes.MINIMUM,
+        PadModes.MEAN,
+        PadModes.MEDIAN,
+        'EDGE',
+    ]
+)
+def test_match_geometry_sm_pad(mode):
+    f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    full_vol = im.get_volume().pad(5, mode=mode)
+
+    geometry = im.get_volume_geometry().pad(5)
+
+    matched_vol = im.match_geometry(geometry, pad_mode=mode)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
