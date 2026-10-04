@@ -7252,3 +7252,101 @@ class TestPyramid:
             assert src_spacing == seg_spacing
             assert 'SeriesDate' in seg
             assert 'SeriesTime' in seg
+
+
+@pytest.mark.parametrize('combine_segments', [False, True])
+def test_match_geometry_full(combine_segments: bool):
+    f = (
+        Path(__file__).parent.parent /
+        'data/test_files/seg_image_sm_control.dcm'
+    )
+    im = segread(f)
+
+    full_vol = im.get_volume(combine_segments=combine_segments)
+
+    geometry = im.get_volume_geometry()
+
+    matched_vol = im.match_geometry(geometry, combine_segments=combine_segments)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+@pytest.mark.parametrize('combine_segments', [False, True])
+def test_match_geometry_crop(combine_segments: bool):
+    f = (
+        Path(__file__).parent.parent /
+        'data/test_files/seg_image_sm_control.dcm'
+    )
+    im = segread(f)
+
+    full_vol = im.get_volume(
+        combine_segments=combine_segments
+    ).crop_to_spatial_shape((1, 24, 24))
+
+    geometry = im.get_volume_geometry().crop_to_spatial_shape((1, 24, 24))
+
+    matched_vol = im.match_geometry(geometry, combine_segments=combine_segments)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+@pytest.mark.parametrize('combine_segments', [False, True])
+def test_match_geometry_crop_flip_transpose(combine_segments: bool):
+    f = (
+        Path(__file__).parent.parent /
+        'data/test_files/seg_image_sm_control.dcm'
+    )
+    im = segread(f)
+
+    full_vol = (
+        im
+        .get_volume(combine_segments=combine_segments)
+        .crop_to_spatial_shape((1, 24, 24))
+        .flip_spatial(2)
+        .permute_spatial_axes((1, 2, 0))
+    )
+
+    geometry = (
+        im
+        .get_volume_geometry()
+        .crop_to_spatial_shape((1, 24, 24))
+        .flip_spatial(2)
+        .permute_spatial_axes((1, 2, 0))
+    )
+
+    matched_vol = im.match_geometry(geometry, combine_segments=combine_segments)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+@pytest.mark.parametrize('combine_segments', [False, True])
+def test_match_geometry_pad(combine_segments: bool):
+    f = (
+        Path(__file__).parent.parent /
+        'data/test_files/seg_image_sm_control.dcm'
+    )
+    im = segread(f)
+
+    full_vol = im.get_volume(combine_segments=combine_segments).pad(5)
+
+    geometry = im.get_volume_geometry().pad(5)
+
+    matched_vol = im.match_geometry(geometry, combine_segments=combine_segments)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+def test_match_geometry_fractional():
+    f = (
+        Path(__file__).parent.parent /
+        'data/test_files/seg_image_ct_true_fractional.dcm'
+    )
+    im = segread(f)
+
+    full_vol = im.get_volume()
+
+    geometry = im.get_volume_geometry()
+
+    matched_vol = im.match_geometry(geometry)
+    assert np.array_equal(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)

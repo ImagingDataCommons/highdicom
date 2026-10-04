@@ -8286,6 +8286,151 @@ class _Image(SOPClass):
                     for (rp, cp, fi, *channel) in self._db_con.execute(query)
                 ), output_shape
 
+    def _find_match_indices(
+        self,
+        geometry: Volume | VolumeGeometry,
+        atol: float | None,
+        rtol: float | None,
+        perpendicular_tol: float | None,
+        match_tol: float,
+    ) -> tuple[
+        int | None,
+        int | None,
+        int | None,
+        int | None,
+        int | None,
+        int | None,
+    ]:
+        """Compute indices of the image's volume to match another geometry.
+
+        Returns the indices of the image's volume geometry needed to create
+        the given geometry from this image. If the given geometry extend outside
+        the image's geometry along a given dimension, no padding is performed
+        and the first/last index is returned as appropriate.
+
+        Parameters
+        ----------
+        geometry: highdicom.Volume | highdicom.VolumeGeometry
+            Geometry to match.
+        rtol: float | None, optional
+            Relative tolerance for determining spacing regularity. If slice
+            spacings vary by less that this proportion of the average spacing,
+            they are considered to be regular. If neither ``rtol`` or ``atol``
+            are provided, a default relative tolerance of 0.01 is used.
+        atol: float | None, optional
+            Absolute tolerance for determining spacing regularity. If slice
+            spacings vary by less that this value (in mm), they are considered
+            to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
+        match_tol: float, optional
+            Absolute tolerance used to determine equality of affine matrices
+            when determining whether the image geometry can be manipulated via
+            padding, cropping, flipping, and transposition to give the
+            requested geometry. If None, affine matrices must match exactly.
+
+        Returns
+        -------
+        slice_start: int | None
+            0-based index for first slice.
+        slice_end: int | None
+            0-based index for one beyond last slice.
+        row_start: int | None
+            0-based index for first row.
+        row_end: int | None
+            0-based index for one beyond last row.
+        column_start: int | None
+            0-based index for first column.
+        column_end: int | None
+            0-based index for one beyond last column.
+
+        """
+        image_geometry = self._get_volume_geometry(
+            atol=atol,
+            rtol=rtol,
+            perpendicular_tol=perpendicular_tol,
+        )
+
+        # We want to start with the "minimal" volume to avoid loading or
+        # processing unnecessary frames. To do this find the operations needed
+        # for the inverse mapping (other volume to the image volume) and use
+        # the padding values as the cropping values when constructing the
+        # volume
+        _, pad_values, crop_slices = _get_match_operations(
+            geometry,
+            image_geometry,
+            tol=match_tol,
+        )
+
+        def process_pad_values(
+            pv: tuple[int, int],
+            cs: slice,
+        ) -> tuple[int, int | None]:
+            # Process pad values to make them usable for cropping in the
+            # inverse operation
+            before, after = pv
+            if cs.step == 1:
+                # Simple case, need to negate "after" so it indexes backwards
+                # from the end
+                start = before
+                end = -after
+            elif cs.step == -1:
+                # Order is reversed so as above but also need to swap start and
+                # end
+                start = after
+                end = -before
+            else:
+                # Step may be an integer greater than one, meaning the reverse
+                # operation is a downsample. But this implies upsampling the
+                # image volume and is therefore not allowed
+                raise RuntimeError(
+                    "Non-integer scale factor required."
+                )
+
+            if end == 0:
+                # If no padding at the end (after = 0), set to None since
+                # -0 does not index up until the end
+                end = None
+
+            return start, end
+
+        if pad_values is None:
+            slice_start = None
+            slice_end = None
+            row_start = None
+            row_end = None
+            column_start = None
+            column_end = None
+        else:
+            if crop_slices is None:
+                crop_slices = [slice(None, None, 1)] * 3
+
+            slice_start, slice_end = process_pad_values(
+                pad_values[0],
+                crop_slices[0],
+            )
+            row_start, row_end = process_pad_values(
+                pad_values[1],
+                crop_slices[1],
+            )
+            column_start, column_end = process_pad_values(
+                pad_values[2],
+                crop_slices[2],
+            )
+
+        return (
+            slice_start,
+            slice_end,
+            row_start,
+            row_end,
+            column_start,
+            column_end,
+        )
+
     @classmethod
     def from_file(
         cls,
@@ -8884,7 +9029,7 @@ class Image(_Image):
             the entire array). For other padding modes, this argument makes no
             difference. This should be True only if the volume has a channel
             dimension.
-        match_tol: float | None, optional
+        match_tol: float, optional
             Absolute tolerance used to determine equality of affine matrices
             when determining whether the image geometry can be manipulated via
             padding, cropping, flipping, and transposition to give the
@@ -8896,78 +9041,20 @@ class Image(_Image):
             Volume retrieved from the image with the requested geometry.
 
         """  # noqa: E501
-        image_geometry = self._get_volume_geometry(
+        (
+            slice_start,
+            slice_end,
+            row_start,
+            row_end,
+            column_start,
+            column_end,
+        ) = self._find_match_indices(
+            geometry,
             atol=atol,
             rtol=rtol,
             perpendicular_tol=perpendicular_tol,
+            match_tol=match_tol
         )
-
-        # We want to start with the "minimal" volume to avoid loading or
-        # processing unnecessary frames. To do this find the operations needed
-        # for the inverse mapping (other volume to the image volume) and use
-        # the padding values as the cropping values when constructing the
-        # volume
-        _, pad_values, crop_slices = _get_match_operations(
-            geometry,
-            image_geometry,
-            tol=match_tol,
-        )
-
-        def process_pad_values(
-            pv: tuple[int, int],
-            cs: slice,
-        ) -> tuple[int, int | None]:
-            # Process pad values to make them usable for cropping in the
-            # inverse operation
-            before, after = pv
-            if cs.step == 1:
-                # Simple case, need negate "after" so it indexes backwards from
-                # the end
-                start = before
-                end = -after
-            elif cs.step == -1:
-                # Order is reversed so as above but also need to swap start and
-                # end
-                start = after
-                end = -before
-            else:
-                # Step may be an integer greater than one, meaning the reverse
-                # operation is a downsample. But this implies upsampling the
-                # image volume and is therefore not allowed
-                raise RuntimeError(
-                    "Non-integer scale factor required."
-                )
-
-            if end == 0:
-                # If no padding at the end (after = 0), set to None since
-                # -0 does not index up until the end
-                end = None
-
-            return start, end
-
-        if pad_values is None:
-            slice_start = None
-            slice_end = None
-            row_start = None
-            row_end = None
-            column_start = None
-            column_end = None
-        else:
-            if crop_slices is None:
-                crop_slices = [slice(None, None, 1)] * 3
-
-            slice_start, slice_end = process_pad_values(
-                pad_values[0],
-                crop_slices[0],
-            )
-            row_start, row_end = process_pad_values(
-                pad_values[1],
-                crop_slices[1],
-            )
-            column_start, column_end = process_pad_values(
-                pad_values[2],
-                crop_slices[2],
-            )
 
         return (
             self
@@ -8979,6 +9066,7 @@ class Image(_Image):
                 column_start=column_start,
                 column_end=column_end,
                 as_indices=True,
+                allow_missing_positions=allow_missing_positions,
                 apply_real_world_transform=apply_real_world_transform,
                 real_world_value_map_selector=real_world_value_map_selector,
                 apply_modality_transform=apply_modality_transform,
@@ -9192,6 +9280,7 @@ class Image(_Image):
             self
             .match_geometry(
                 geometry_to_extract,
+                allow_missing_positions=allow_missing_positions,
                 apply_real_world_transform=apply_real_world_transform,
                 real_world_value_map_selector=real_world_value_map_selector,
                 apply_modality_transform=apply_modality_transform,
