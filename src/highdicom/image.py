@@ -9188,9 +9188,6 @@ class Image(_Image):
 
         geometry_to_extract = image_geometry.crop_or_pad_to_hull(geometry)
 
-        # TODO alternative path if there is no overlap?
-        # TODO think through padding
-
         return (
             self
             .match_geometry(
@@ -9208,11 +9205,15 @@ class Image(_Image):
                 atol=atol,
                 rtol=rtol,
                 perpendicular_tol=perpendicular_tol,
+                pad_mode=pad_mode,
             )
             .resample_to_geometry(
                 geometry,
                 interpolator=interpolator,
-                pad_mode=pad_mode,
+                # No padding should be needed here since padding will have been
+                # handled by the match. Therefore use 'EDGE' mode to remove
+                # edge effects where the new geometry has a higher resolution
+                pad_mode=PadModes.EDGE,
                 constant_value=constant_value,
                 per_channel=pad_per_channel,
             )

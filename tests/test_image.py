@@ -1718,3 +1718,188 @@ def test_match_geometry_sm_pad(mode):
     matched_vol = im.match_geometry(geometry, pad_mode=mode)
     assert np.array_equal(full_vol.array, matched_vol.array)
     assert matched_vol.geometry_equal(full_vol)
+
+
+def test_resample_to_geometry_ct_full():
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    full_vol = im.get_volume()
+
+    geometry = im.get_volume_geometry()
+
+    matched_vol = im.resample_to_geometry(geometry)
+    assert np.allclose(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+@pytest.mark.parametrize(
+    'spacing',
+    [
+        (2.0, 2.0, 2.0),  # downsample
+        (10.0, 0.1, 0.1),  # upsample in x and y
+    ]
+)
+def test_resample_to_geometry_ct_spacing(spacing):
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    full_vol = im.get_volume().resample_to_spacing(spacing)
+
+    geometry = im.get_volume_geometry().resample_to_spacing(spacing)
+
+    matched_vol = im.resample_to_geometry(geometry)
+    assert np.allclose(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+def test_resample_to_geometry_ct_crop():
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    full_vol = im.get_volume().crop_to_spatial_shape((2, 24, 24))
+
+    geometry = im.get_volume_geometry().crop_to_spatial_shape((2, 24, 24))
+
+    matched_vol = im.resample_to_geometry(geometry)
+    assert np.allclose(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+def test_resample_to_geometry_ct_crop_flip_transpose():
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    full_vol = (
+        im
+        .get_volume()
+        .crop_to_spatial_shape((2, 24, 24))
+        .flip_spatial(2)
+        .permute_spatial_axes((1, 2, 0))
+    )
+
+    geometry = (
+        im
+        .get_volume_geometry()
+        .crop_to_spatial_shape((2, 24, 24))
+        .flip_spatial(2)
+        .permute_spatial_axes((1, 2, 0))
+    )
+
+    matched_vol = im.resample_to_geometry(geometry)
+    assert np.allclose(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+@pytest.mark.parametrize(
+    'mode',
+    [
+        PadModes.CONSTANT,
+        PadModes.MAXIMUM,
+        PadModes.MINIMUM,
+        PadModes.MEAN,
+        PadModes.MEDIAN,
+        'EDGE',
+    ]
+)
+def test_resample_to_geometry_ct_pad(mode):
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    full_vol = im.get_volume().pad(5, mode=mode)
+
+    geometry = im.get_volume_geometry().pad(5)
+
+    matched_vol = im.resample_to_geometry(geometry, pad_mode=mode)
+    assert np.allclose(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+def test_resample_to_geometry_sm_full():
+    f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    full_vol = im.get_volume()
+
+    geometry = im.get_volume_geometry()
+
+    matched_vol = im.resample_to_geometry(geometry)
+    assert np.allclose(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+@pytest.mark.parametrize(
+    'spacing',
+    [
+        (1.0, 0.004, 0.004),  # downsample
+        (1.0, 0.0001, 0.0001),  # upsample in x and y
+    ]
+)
+def test_resample_to_geometry_sm_spacing(spacing):
+    f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    full_vol = im.get_volume().resample_to_spacing(spacing)
+
+    geometry = im.get_volume_geometry().resample_to_spacing(spacing)
+
+    matched_vol = im.resample_to_geometry(geometry)
+    assert np.allclose(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+def test_resample_to_geometry_sm_crop():
+    f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    full_vol = im.get_volume().crop_to_spatial_shape((1, 20, 25))
+
+    geometry = im.get_volume_geometry().crop_to_spatial_shape((1, 20, 25))
+
+    matched_vol = im.resample_to_geometry(geometry)
+    assert np.allclose(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+def test_resample_to_geometry_sm_crop_flip_transpose():
+    f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    full_vol = (
+        im
+        .get_volume()
+        .crop_to_spatial_shape((1, 16, 32))
+        .flip_spatial(1)
+        .permute_spatial_axes((1, 2, 0))
+    )
+
+    geometry = (
+        im
+        .get_volume_geometry()
+        .crop_to_spatial_shape((1, 16, 32))
+        .flip_spatial(1)
+        .permute_spatial_axes((1, 2, 0))
+    )
+
+    matched_vol = im.resample_to_geometry(geometry)
+    assert np.allclose(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
+
+
+@pytest.mark.parametrize(
+    'mode',
+    [
+        PadModes.CONSTANT,
+        PadModes.MAXIMUM,
+        PadModes.MINIMUM,
+        PadModes.MEAN,
+        PadModes.MEDIAN,
+        'EDGE',
+    ]
+)
+def test_resample_to_geometry_sm_pad(mode):
+    f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    full_vol = im.get_volume().pad(5, mode=mode)
+
+    geometry = im.get_volume_geometry().pad(5)
+
+    matched_vol = im.resample_to_geometry(geometry, pad_mode=mode)
+    assert np.allclose(full_vol.array, matched_vol.array)
+    assert matched_vol.geometry_equal(full_vol)
