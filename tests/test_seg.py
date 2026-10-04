@@ -11,7 +11,6 @@ import warnings
 import numpy as np
 from pydicom.multival import MultiValue
 import pytest
-from PIL import Image
 
 from pydicom import Dataset
 from pydicom.data import get_testdata_file, get_testdata_files
@@ -6646,40 +6645,52 @@ class TestPyramid:
         self._downsampled_pix_arrays = [self._seg_pix]
         self._downsampled_pix_arrays_multisegment = [self._seg_pix_multisegment]
         self._downsampled_pix_arrays_fractional = [self._seg_pix_fractional]
-        seg_pil = Image.fromarray(self._seg_pix)
-        seg_pil_fractional = Image.fromarray(self._seg_pix_fractional)
-        seg_pil_multisegment = [
-            Image.fromarray(self._seg_pix_multisegment[0, :, :, i])
-            for i in range(self._seg_pix_multisegment.shape[3])
-        ]
+        seg_vol = Volume(
+            self._seg_pix[None],
+            affine=np.eye(4),
+            coordinate_system='SLIDE',
+        )
+        seg_vol_fractional = Volume(
+            self._seg_pix_fractional[None],
+            affine=np.eye(4),
+            coordinate_system='SLIDE',
+        )
+        seg_vol_multisegment = Volume(
+            self._seg_pix_multisegment,
+            affine=np.eye(4),
+            coordinate_system='SLIDE',
+            channels={'SegmentNumber': [0, 1, 2]}
+        )
         pyramid_uid = UID()
         self._source_pyramid = [deepcopy(self._sm_image)]
         self._source_pyramid[0].PyramidUID = pyramid_uid
         for i in range(1, self._n_downsamples):
             f = 2 ** i
             out_size = (
+                1,
                 self._sm_image.TotalPixelMatrixRows // f,
                 self._sm_image.TotalPixelMatrixColumns // f
             )
 
             # Resize the segmentation arrays
-            resized = np.array(
-                seg_pil.resize(out_size, Image.Resampling.NEAREST)
-            )
+            resized = seg_vol.resample_to_spatial_shape(
+                out_size,
+                interpolator='NEAREST',
+            ).array[0]
             self._downsampled_pix_arrays.append(resized)
 
-            resized_fractional = np.array(
-                seg_pil_fractional.resize(out_size, Image.Resampling.BILINEAR)
-            )
+            resized_fractional = seg_vol_fractional.resample_to_spatial_shape(
+                out_size,
+                interpolator='LINEAR',
+            ).array[0]
             self._downsampled_pix_arrays_fractional.append(resized_fractional)
 
-            resized_multisegment = np.stack(
-                [
-                    im.resize(out_size, Image.Resampling.NEAREST)
-                    for im in seg_pil_multisegment
-                ],
-                axis=-1
-            )[None]
+            resized_multisegment = (
+                seg_vol_multisegment.resample_to_spatial_shape(
+                    out_size,
+                    interpolator='NEAREST',
+                ).array
+            )
             self._downsampled_pix_arrays_multisegment.append(
                 resized_multisegment
             )
@@ -6696,8 +6707,8 @@ class TestPyramid:
             pixel_spacing = [src_pixel_spacing[0] * f, src_pixel_spacing[1] * f]
             downsampled_source_im = deepcopy(self._sm_image)
             delattr(downsampled_source_im, 'PixelData')
-            downsampled_source_im.TotalPixelMatrixRows = out_size[0]
-            downsampled_source_im.TotalPixelMatrixColumns = out_size[1]
+            downsampled_source_im.TotalPixelMatrixRows = out_size[1]
+            downsampled_source_im.TotalPixelMatrixColumns = out_size[2]
             (
                 downsampled_source_im
                 .SharedFunctionalGroupsSequence[0]

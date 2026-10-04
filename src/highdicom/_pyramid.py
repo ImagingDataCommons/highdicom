@@ -2,13 +2,13 @@
 from collections.abc import Generator, Sequence
 
 import numpy as np
-from PIL import Image
 from pydicom import Dataset
 from pydicom.uid import VLWholeSlideMicroscopyImageStorage
 
 from highdicom.content import PixelMeasuresSequence
 from highdicom.enum import InterpolationMethods
 from highdicom.uid import UID
+from highdicom.volume import Volume
 
 
 def iter_derived_pyramid_levels(
@@ -232,11 +232,6 @@ def iter_derived_pyramid_levels(
 
     # Map the highdicom interpolation methods enum to value used by Pillow
     interpolator = InterpolationMethods(interpolator)
-    resampler = {
-        InterpolationMethods.NEAREST: Image.Resampling.NEAREST,
-        InterpolationMethods.LINEAR: Image.Resampling.BILINEAR,
-        InterpolationMethods.CUBIC: Image.Resampling.BICUBIC,
-    }[interpolator]
 
     # Checks on consistency of the pixel arrays
     dtype = pixel_arrays[0].dtype
@@ -309,18 +304,25 @@ def iter_derived_pyramid_levels(
             )
 
     if n_pix_arrays == 1:
-        # Create a pillow image for use later with resizing
-        if pixel_arrays[0].ndim == 2:
-            pil_images = [Image.fromarray(pixel_arrays[0])]
-        elif pixel_arrays[0].ndim == 3:
-            # Remove frame dimension before casting
-            pil_images = [Image.fromarray(pixel_arrays[0][0])]
-        else:  # ndim = 4
-            # One "Image" for each channel
-            pil_images = [
-                Image.fromarray(pixel_arrays[0][0, :, :, i])
-                for i in range(pixel_arrays[0].shape[3])
-            ]
+        # Create a Volume for use later with resampling
+        vol_array = pixel_arrays[0]
+        if vol_array.ndim == 2:
+            # Add a singleton first dimension as required by Volume
+            vol_array = vol_array[None]
+
+        # Needs a channel descriptor, so just use a placeholder (it is
+        # discarded later)
+        channels = (
+            {'SegmentNumber': range(pixel_arrays[0].shape[3])}
+            if pixel_arrays[0].ndim == 4 else None
+        )
+
+        volume = Volume(
+            array=vol_array,
+            affine=np.eye(4),
+            coordinate_system='SLIDE',
+            channels=channels,
+        )
 
     # Work "up" pyramid from high to low resolution
     for output_level in range(n_outputs):
@@ -337,25 +339,22 @@ def iter_derived_pyramid_levels(
             else:
                 if n_sources > 1:
                     output_size = (
+                        1,
                         source_image.TotalPixelMatrixColumns,
                         source_image.TotalPixelMatrixRows
                     )
                 else:
                     f = downsample_factors[output_level - 1]
                     output_size = (
+                        1,
                         int(source_images[0].TotalPixelMatrixColumns / f),
                         int(source_images[0].TotalPixelMatrixRows / f)
                     )
 
-                # Resize each channel individually
-                resized_images = [
-                    np.array(im.resize(output_size, resampler))
-                    for im in pil_images
-                ]
-                if len(resized_images) > 1:
-                    pixel_array = np.stack(resized_images, axis=-1)[None]
-                else:
-                    pixel_array = resized_images[0]
+                pixel_array = volume.resample_to_spatial_shape(
+                    output_size,
+                    interpolator=interpolator,
+                ).array
 
         # Standardize shape of pixel array to include singleton frame dimension
         if pixel_array.ndim == 2:

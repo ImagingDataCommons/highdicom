@@ -499,7 +499,7 @@ def _get_spatial_information(
         Dataset representing an image.
     frame_number: Union[int, None], optional
         Specific 1-based frame number. Required if dataset is a multi-frame
-        image. Should be None otherwise.
+        image and for_total_pixel_matrix is False. Should be None otherwise.
     for_total_pixel_matrix: bool, optional
         If True, get spatial information for the total pixel matrix of a tiled
         image. This should only be True if the image is a tiled image and is
