@@ -240,3 +240,31 @@ can be replaced with this to give the same output object:
        ],
        ...,
    )
+
+.. _cielab-d50:
+
+CIELab conversions now use the D50 white point
+----------------------------------------------
+
+DICOM encodes CIELab values (such as Recommended Display CIELab Value) in the
+same way as the ICC Profile Connection Space (see :dcm:`PS3.3 C.10.7.1.1
+<part03/sect_C.10.7.html#sect_C.10.7.1.1>`), i.e. relative to the D50
+illuminant, whereas the native white point of sRGB is D65.
+
+Prior to highdicom 0.29.0, the conversions implemented by
+:class:`highdicom.color.CIELabColor` (``from_rgb``, ``from_string`` and
+``to_rgb``) omitted the chromatic adaptation between the two white points and
+therefore produced CIELab values relative to D65. From highdicom 0.29.0, sRGB
+values are linearized, converted to CIE XYZ (D65), chromatically adapted to
+D50 using the linear Bradford transform, and only then converted to CIELab
+(and vice versa). The matrices and constants used are those of the `CSS Color
+Module Level 4 sample code
+<https://www.w3.org/TR/css-color-4/#color-conversion-code>`_, matching the
+behavior of DCMTK (changed after version 3.7.0) and PixelMed.
+
+No code changes are required, but note that the CIELab values stored in files
+created with highdicom 0.29.0 and later differ slightly from those created
+with earlier versions for the same RGB input. Neutral (gray) colors are
+unaffected; for chromatic colors the a* and b* components change. For example,
+pure red (255, 0, 0) was previously encoded as L*a*b* (53.23, 80.11, 67.22)
+and is now encoded as (54.29, 80.81, 69.89).
