@@ -1938,11 +1938,6 @@ class _VolumeBase(ABC):
             )
             pad_values.append((pad_before, pad_after))
 
-        if not (
-            requires_permute or requires_pad or requires_crop
-        ):
-            new_volume = new_volume.copy()
-
         if requires_pad:
             new_volume = new_volume.pad(
                 pad_values,
@@ -2972,6 +2967,7 @@ class Volume(_VolumeBase):
             affine=self._affine.copy(),
             coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
+            channels=self._channels,
         )
 
     def with_array(
