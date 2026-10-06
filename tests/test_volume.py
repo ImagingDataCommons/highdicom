@@ -458,6 +458,37 @@ def test_volume_multiframe():
         assert np.linalg.norm(v) == spacing
 
 
+def test_copy():
+    array = np.zeros((2, 3, 3), dtype=np.uint8)
+    array[1, 2, 0] = 4
+    vol = Volume(
+        array=array,
+        affine=np.eye(4),
+        coordinate_system="PATIENT",
+    )
+    vol2 = vol.copy()
+    assert np.array_equal(vol.array, vol2.array)
+    assert np.array_equal(vol.affine, vol2.affine)
+    assert not np.shares_memory(vol.array, vol2.array)
+    assert not np.shares_memory(vol.affine, vol2.affine)
+
+
+def test_copy_with_channels():
+    array = np.zeros((2, 3, 3, 2), dtype=np.uint8)
+    array[1, 2, 0] = 4
+    vol = Volume(
+        array=array,
+        affine=np.eye(4),
+        coordinate_system="PATIENT",
+        channels={"SegmentNumber": [1, 2]},
+    )
+    vol2 = vol.copy()
+    assert np.array_equal(vol.array, vol2.array)
+    assert np.array_equal(vol.affine, vol2.affine)
+    assert not np.shares_memory(vol.array, vol2.array)
+    assert not np.shares_memory(vol.affine, vol2.affine)
+
+
 def test_indexing():
     array = np.random.randint(0, 100, (25, 50, 50))
     volume = Volume.from_attributes(
@@ -1119,6 +1150,23 @@ def test_pad_or_crop_to_spatial_shape():
     assert padded.spatial_shape == shape
 
     assert padded.match_geometry(vol).geometry_equal(vol)
+
+
+def test_same_geometry_with_channels():
+    # https://github.com/ImagingDataCommons/highdicom/issues/462
+    vol = Volume.from_components(
+        direction=np.eye(3),
+        center_position=[98.1, 78.4, 23.1],
+        spacing=[0.5, 0.5, 2.0],
+        coordinate_system="PATIENT",
+        array=np.random.randint(0, 10, size=(20, 20, 50, 3)),
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B']},
+    )
+
+    # Match to its own geometry
+    matched = vol.match_geometry(vol.get_geometry())
+    assert np.array_equal(matched.affine, vol.affine)
+    assert np.array_equal(matched.array, vol.array)
 
 
 def test_normalize():
