@@ -2327,6 +2327,7 @@ class _VolumeBase(ABC):
         pad_mode: PadModes | str = PadModes.CONSTANT,
         constant_value: float | Sequence[float] | np.ndarray = 0,
         per_channel: bool = False,
+        crop_buffer: int = 0,
     ) -> Self:
         """Crop and/or pad the volume such that it completely contains another.
 
@@ -2356,6 +2357,15 @@ class _VolumeBase(ABC):
             the entire array). For other padding modes, this argument makes no
             difference. This should not be True if the image does not have a
             channel dimension.
+        crop_buffer: int, optional
+            Number of additional voxels to use as a buffer when cropping. This
+            number of additional voxels, beyond the minimum required to contain
+            the hull, will be included at each edge that requires cropping.
+            This is only applied to edges that are cropped. No further voxels
+            are included at an edge if doing so would result in padding rather
+            than a larger crop. The intended purpose is to account for
+            higher-order interpolators when cropping volumes for later
+            resampling.
 
         Returns
         -------
@@ -2391,13 +2401,25 @@ class _VolumeBase(ABC):
 
         crop_slices = (
             slice(
-                max(start_offset0, 0), end_offset0 if end_offset0 < 0 else None
+                max(start_offset0 - crop_buffer, 0),
+                (
+                    end_offset0 + crop_buffer
+                    if end_offset0 + crop_buffer < 0 else None
+                )
             ),
             slice(
-                max(start_offset1, 0), end_offset1 if end_offset1 < 0 else None
+                max(start_offset1 - crop_buffer, 0),
+                (
+                    end_offset1 + crop_buffer
+                    if end_offset1 + crop_buffer < 0 else None
+                )
             ),
             slice(
-                max(start_offset2, 0), end_offset2 if end_offset2 < 0 else None
+                max(start_offset2 - crop_buffer, 0),
+                (
+                    end_offset2 + crop_buffer
+                    if end_offset2 + crop_buffer < 0 else None
+                )
             ),
         )
 
