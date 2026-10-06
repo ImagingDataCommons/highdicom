@@ -3859,19 +3859,24 @@ def get_volume_positions(
             (origin_distances - origin_distances.min()) / spacing
         )
 
-        is_regular = np.allclose(
-            origin_distance_multiples,
-            origin_distance_multiples.round(),
-            rtol=rtol,
-            atol=atol,
+        # Deviations are measured in mm, against the position each slice would
+        # occupy if it sat exactly on its integer multiple of the spacing.
+        # Comparing the multiples themselves would make the tolerances mean
+        # "fractions of a slice" here but "mm" in the branch below, so the same
+        # 'atol' would accept a larger physical error the wider the spacing.
+        expected_distances = (
+            origin_distance_multiples.round() * spacing +
+            origin_distances.min()
         )
+        deviations = np.abs(origin_distances - expected_distances)
+
+        # 'rtol' is relative to the slice spacing, matching its meaning in the
+        # regularly-spaced branch below, where each spacing is compared with
+        # the nominal spacing.
+        tolerance = atol + rtol * abs(spacing)
+        is_regular = bool((deviations <= tolerance).all())
         if not is_regular:
-            max_deviation = float(
-                np.abs(
-                    origin_distance_multiples -
-                    origin_distance_multiples.round()
-                ).max()
-            )
+            max_deviation = float(deviations.max())
             logger.info("Frame positions are not regularly spaced.")
             logger.debug(
                 f"Maximum spacing deviation from regular: {max_deviation:.2e} "
