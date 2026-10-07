@@ -1,6 +1,7 @@
 """Content that is specific to Annotation IODs."""
 from copy import deepcopy
 from typing import cast
+import warnings
 from collections.abc import Sequence
 from typing_extensions import Self
 
@@ -391,13 +392,10 @@ class AnnotationGroup(Dataset):
             if len(unique_z_values) == 1:
                 self.CommonZCoordinateValue = unique_z_values.item()
                 coordinates_data = coordinates[:, 0:2].flatten()
-                dimensionality = 2
             else:
                 coordinates_data = coordinates.flatten()
-                dimensionality = 3
         else:
             coordinates_data = coordinates.flatten()
-            dimensionality = 2
 
         if coordinates.dtype == np.double:
             self.DoublePointCoordinatesData = coordinates_data.tobytes()
@@ -410,7 +408,9 @@ class AnnotationGroup(Dataset):
             GraphicTypeValues.POLYGON,
             GraphicTypeValues.POLYLINE,
         ):
-            spans = [item.shape[0] * dimensionality for item in graphic_data]
+            # One-based index of the first point (coordinate tuple, not
+            # individual coordinate value) of each annotation
+            spans = [item.shape[0] for item in graphic_data]
             point_indices = np.cumsum(spans, dtype=np.int32) + 1
             point_indices = np.concatenate([
                 np.array([1], dtype=np.int32),
@@ -609,12 +609,11 @@ class AnnotationGroup(Dataset):
                 GraphicTypeValues.POLYGON,
             ):
                 # Variable number of coordinates per point
-                point_indices = np.frombuffer(
-                    self.LongPrimitivePointIndexList,
-                    dtype=np.int32
-                ) - 1
-                split_param = (
-                    point_indices // stored_coordinate_dimensionality
+                split_param = self._get_point_offsets(
+                    number_of_points=len(decoded_coordinates_data),
+                    stored_coordinate_dimensionality=(
+                        stored_coordinate_dimensionality
+                    ),
                 )[1:]
             else:
                 raise ValueError(
@@ -718,68 +717,75 @@ class AnnotationGroup(Dataset):
             units = []
         return (names, value_array, units)
 
-    def _get_coordinate_index(
+    def _get_point_offsets(
         self,
-        annotation_number: int,
-        coordinate_dimensionality: int,
-        number_of_coordinates: int
+        number_of_points: int,
+        stored_coordinate_dimensionality: int,
     ) -> np.ndarray:
-        """Get coordinate index.
+        """Get offsets of the first point of each annotation.
+
+        Values of Long Primitive Point Index List index points (coordinate
+        tuples), not individual coordinate values. However, highdicom
+        versions up to 0.28.1 (and possibly other implementations) encoded
+        the index of the first coordinate value instead. Such legacy
+        encodings are detected and decoded with a warning, where possible.
+        Legacy values that are also valid point indices cannot be
+        distinguished and are interpreted as point indices.
 
         Parameters
         ----------
-        annotation_number: int
-            One-based identification number of the annotation
-        coordinate_dimensionality: int
-            Dimensionality of coordinate points
-        number_of_coordinates: int
-            Total number of coordinate points
+        number_of_points: int
+            Total number of points (coordinate tuples) in the group
+        stored_coordinate_dimensionality: int
+            Number of coordinate values stored per point
 
         Returns
         -------
         numpy.ndarray
-            One-dimensional array of zero-based index values to obtain the
-            coordinate points for a given annotation
+            One-dimensional array of zero-based offsets of the first point of
+            each annotation
 
-        """  # noqa: E501
-        annotation_index = annotation_number - 1
-        graphic_type = self.graphic_type
-        if graphic_type in (
-            GraphicTypeValues.POLYGON,
-            GraphicTypeValues.POLYLINE,
-        ):
-            point_indices = np.frombuffer(
-                self.LongPrimitivePointIndexList,
-                dtype=np.int32
+        """
+        offsets = np.frombuffer(
+            self.LongPrimitivePointIndexList,
+            dtype=np.int32
+        ).astype(np.int64) - 1
+
+        if len(offsets) == 0 or offsets[0] != 0:
+            raise ValueError(
+                'Invalid Long Primitive Point Index List: first value must '
+                'be 1.'
             )
-            start = point_indices[annotation_index] - 1
-            try:
-                end = point_indices[annotation_index + 1] - 1
-            except IndexError:
-                end = number_of_coordinates
-        else:
-            if hasattr(self, 'CommonZCoordinateValue'):
-                stored_coordinate_dimensionality = 2
-            else:
-                stored_coordinate_dimensionality = coordinate_dimensionality
-            if graphic_type in (
-                GraphicTypeValues.ELLIPSE,
-                GraphicTypeValues.RECTANGLE,
+        if np.any(np.diff(offsets) <= 0):
+            raise ValueError(
+                'Invalid Long Primitive Point Index List: values must be '
+                'strictly increasing.'
+            )
+
+        if offsets[-1] >= number_of_points:
+            # Not a valid point index. Check whether the values index
+            # coordinate values instead (legacy encoding).
+            d = stored_coordinate_dimensionality
+            if (
+                np.all(offsets % d == 0) and
+                offsets[-1] < number_of_points * d
             ):
-                length = 4 * stored_coordinate_dimensionality
-            elif graphic_type == GraphicTypeValues.POINT:
-                length = stored_coordinate_dimensionality
+                warnings.warn(
+                    'Values of Long Primitive Point Index List appear to '
+                    'index individual coordinate values rather than points. '
+                    'This non-standard encoding was used by highdicom '
+                    'versions up to 0.28.1. The values will be '
+                    'interpreted accordingly.',
+                    UserWarning,
+                )
+                offsets = offsets // d
             else:
                 raise ValueError(
-                    'Encountered unexpected graphic type '
-                    f'"{graphic_type.value}".'
+                    'Invalid Long Primitive Point Index List: values exceed '
+                    'the number of points.'
                 )
-            start = annotation_index * length
-            end = start + length
 
-        coordinate_index = np.arange(start, end)
-
-        return coordinate_index
+        return offsets
 
     @classmethod
     def from_dataset(
