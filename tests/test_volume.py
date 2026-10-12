@@ -2141,3 +2141,47 @@ def test_crop_to_hull_nonaligned():
     assert np.array_equal(vol.direction, hull.direction)
     assert vol.center_position == hull.center_position
     assert hull.spatial_shape == (7, 7, 5)
+
+
+@pytest.mark.parametrize(
+    "affine",
+    [
+        np.eye(4),
+        np.array(
+            [
+                [np.cos(np.radians(30)), -np.sin(np.radians(30)), 0.0, -34.0],
+                [np.sin(np.radians(30)), np.cos(np.radians(30)), 0.0, 45.2],
+                [0.0, 0.0, 1.0, -1.2],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        )
+    ],
+)
+def test_crop_to_hull_aligned_with_buffer(affine):
+    # Cropping to a hull that is produced from the original volume by cropping
+    # and/or padding with a crop_buffer specified
+    vol = Volume(
+        np.ones((16, 16, 16)),
+        affine,
+        "PATIENT",
+    )
+
+    # To itself - buffer has no effect
+    hull = vol.crop_or_pad_to_hull(vol, crop_buffer=4)
+    assert hull.geometry_equal(vol)
+    assert np.array_equal(hull.array, vol.array)
+
+    # To a cropped version of itself
+    cropped = vol.crop_to_spatial_shape((4, 14, 16))
+    hull = vol.crop_or_pad_to_hull(cropped, crop_buffer=2)
+
+    # expected output is padded by 2 * crop_buffer down axis zero,
+    # padded by 2 down axis 1 (further padding would go beyond original array)
+    # and not padded down axis 2, since that would go beyond original array
+    expected_output = vol.crop_to_spatial_shape((8, 16, 16))
+    assert hull.geometry_equal(expected_output)
+
+    # To a padded version of itself
+    padded = vol.pad_to_spatial_shape((20, 20, 20))
+    hull = vol.crop_or_pad_to_hull(padded, crop_buffer=2)
+    assert hull.geometry_equal(padded)  # crop buffer had no effect

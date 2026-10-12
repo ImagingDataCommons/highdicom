@@ -9268,13 +9268,24 @@ class Image(_Image):
             Volume retrieved from the image with the requested geometry.
 
         """  # noqa: E501
+        interpolator = InterpolationMethods(interpolator)
+
         image_geometry = self._get_volume_geometry(
             atol=atol,
             rtol=rtol,
             perpendicular_tol=perpendicular_tol,
         )
 
-        geometry_to_extract = image_geometry.crop_or_pad_to_hull(geometry)
+        # Crop the full geometry of the image to the hull of the required
+        # region to avoid the need to process unnecessary frames. Include a
+        # buffer depending on the interpolator method, because some make use
+        # of values beyond the minimal crop
+        crop_buffer = 1 if interpolator == InterpolationMethods.CUBIC else 0
+
+        geometry_to_extract = image_geometry.crop_or_pad_to_hull(
+            geometry,
+            crop_buffer=crop_buffer,
+        )
 
         return (
             self

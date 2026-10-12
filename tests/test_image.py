@@ -23,7 +23,7 @@ from highdicom.content import (
     _add_icc_profile_attributes,
     VOILUTTransformation,
 )
-from highdicom.enum import PadModes
+from highdicom.enum import InterpolationMethods, PadModes
 from highdicom.image import (
     _CombinedPixelTransform,
     _DimensionIndexSequence,
@@ -1720,16 +1720,20 @@ def test_match_geometry_sm_pad(mode):
     assert matched_vol.geometry_equal(full_vol)
 
 
-def test_resample_to_geometry_ct_full():
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_ct_full(interpolator):
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
 
     full_vol = im.get_volume()
 
     geometry = im.get_volume_geometry()
 
-    matched_vol = im.resample_to_geometry(geometry)
-    assert np.allclose(full_vol.array, matched_vol.array)
-    assert matched_vol.geometry_equal(full_vol)
+    resampled_vol = im.resample_to_geometry(geometry, interpolator=interpolator)
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
 
 
 @pytest.mark.parametrize(
@@ -1739,31 +1743,81 @@ def test_resample_to_geometry_ct_full():
         (10.0, 0.1, 0.1),  # upsample in x and y
     ]
 )
-def test_resample_to_geometry_ct_spacing(spacing):
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_ct_spacing(spacing, interpolator):
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
 
-    full_vol = im.get_volume().resample_to_spacing(spacing)
+    full_vol = (
+        im
+        .get_volume()
+        .resample_to_spacing(spacing, interpolator=interpolator)
+    )
 
-    geometry = im.get_volume_geometry().resample_to_spacing(spacing)
+    geometry = im .get_volume_geometry().resample_to_spacing(spacing)
 
-    matched_vol = im.resample_to_geometry(geometry)
-    assert np.allclose(full_vol.array, matched_vol.array)
-    assert matched_vol.geometry_equal(full_vol)
+    resampled_vol = im.resample_to_geometry(
+        geometry,
+        interpolator=interpolator,
+    )
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
 
 
-def test_resample_to_geometry_ct_crop():
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_ct_crop(interpolator):
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
 
     full_vol = im.get_volume().crop_to_spatial_shape((2, 24, 24))
 
     geometry = im.get_volume_geometry().crop_to_spatial_shape((2, 24, 24))
 
-    matched_vol = im.resample_to_geometry(geometry)
-    assert np.allclose(full_vol.array, matched_vol.array)
-    assert matched_vol.geometry_equal(full_vol)
+    resampled_vol = im.resample_to_geometry(
+        geometry,
+        interpolator=interpolator,
+    )
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
 
 
-def test_resample_to_geometry_ct_crop_flip_transpose():
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_ct_crop_spacing(interpolator):
+    im = imread(get_testdata_file('eCT_Supplemental.dcm'))
+
+    geometry = (
+        im
+        .get_volume_geometry()
+        .crop_to_spatial_shape((2, 24, 24))
+        .resample_to_spacing([0.75, 0.75, 0.75])
+    )
+
+    full_vol = (
+        im
+        .get_volume()
+        .resample_to_geometry(geometry, interpolator=interpolator)
+    )
+
+    resampled_vol = im.resample_to_geometry(
+        geometry,
+        interpolator=interpolator,
+    )
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
+
+
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_ct_crop_flip_transpose(interpolator):
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
 
     full_vol = (
@@ -1782,9 +1836,9 @@ def test_resample_to_geometry_ct_crop_flip_transpose():
         .permute_spatial_axes((1, 2, 0))
     )
 
-    matched_vol = im.resample_to_geometry(geometry)
-    assert np.allclose(full_vol.array, matched_vol.array)
-    assert matched_vol.geometry_equal(full_vol)
+    resampled_vol = im.resample_to_geometry(geometry, interpolator=interpolator)
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
 
 
 @pytest.mark.parametrize(
@@ -1798,19 +1852,31 @@ def test_resample_to_geometry_ct_crop_flip_transpose():
         'EDGE',
     ]
 )
-def test_resample_to_geometry_ct_pad(mode):
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_ct_pad(mode, interpolator):
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
 
     full_vol = im.get_volume().pad(5, mode=mode)
 
     geometry = im.get_volume_geometry().pad(5)
 
-    matched_vol = im.resample_to_geometry(geometry, pad_mode=mode)
-    assert np.allclose(full_vol.array, matched_vol.array)
-    assert matched_vol.geometry_equal(full_vol)
+    resampled_vol = im.resample_to_geometry(
+        geometry,
+        pad_mode=mode,
+        interpolator=interpolator,
+    )
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
 
 
-def test_resample_to_geometry_sm_full():
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_sm_full(interpolator):
     f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
     im = imread(f)
 
@@ -1818,9 +1884,12 @@ def test_resample_to_geometry_sm_full():
 
     geometry = im.get_volume_geometry()
 
-    matched_vol = im.resample_to_geometry(geometry)
-    assert np.allclose(full_vol.array, matched_vol.array)
-    assert matched_vol.geometry_equal(full_vol)
+    resampled_vol = im.resample_to_geometry(
+        geometry,
+        interpolator=interpolator
+    )
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
 
 
 @pytest.mark.parametrize(
@@ -1830,20 +1899,39 @@ def test_resample_to_geometry_sm_full():
         (1.0, 0.0001, 0.0001),  # upsample in x and y
     ]
 )
-def test_resample_to_geometry_sm_spacing(spacing):
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_sm_spacing(spacing, interpolator):
     f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
     im = imread(f)
 
-    full_vol = im.get_volume().resample_to_spacing(spacing)
+    full_vol = (
+        im
+        .get_volume()
+        .resample_to_spacing(spacing, interpolator=interpolator)
+    )
 
-    geometry = im.get_volume_geometry().resample_to_spacing(spacing)
+    geometry = (
+        im
+        .get_volume_geometry()
+        .resample_to_spacing(spacing, interpolator=interpolator)
+    )
 
-    matched_vol = im.resample_to_geometry(geometry)
-    assert np.allclose(full_vol.array, matched_vol.array)
-    assert matched_vol.geometry_equal(full_vol)
+    resampled_vol = im.resample_to_geometry(
+        geometry,
+        interpolator=interpolator,
+    )
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
 
 
-def test_resample_to_geometry_sm_crop():
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_sm_crop(interpolator):
     f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
     im = imread(f)
 
@@ -1851,12 +1939,42 @@ def test_resample_to_geometry_sm_crop():
 
     geometry = im.get_volume_geometry().crop_to_spatial_shape((1, 20, 25))
 
-    matched_vol = im.resample_to_geometry(geometry)
-    assert np.allclose(full_vol.array, matched_vol.array)
-    assert matched_vol.geometry_equal(full_vol)
+    resampled_vol = im.resample_to_geometry(geometry, interpolator=interpolator)
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
 
 
-def test_resample_to_geometry_sm_crop_flip_transpose():
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_sm_crop_spacing(interpolator):
+    f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
+    im = imread(f)
+
+    geometry = (
+        im
+        .get_volume_geometry()
+        .crop_to_spatial_shape((1, 20, 25))
+        .resample_to_spacing([1.0, 0.0001, 0.0001])
+    )
+
+    full_vol = (
+        im
+        .get_volume()
+        .resample_to_geometry(geometry, interpolator=interpolator)
+    )
+
+    resampled_vol = im.resample_to_geometry(geometry, interpolator=interpolator)
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
+
+
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_sm_crop_flip_transpose(interpolator):
     f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
     im = imread(f)
 
@@ -1876,9 +1994,9 @@ def test_resample_to_geometry_sm_crop_flip_transpose():
         .permute_spatial_axes((1, 2, 0))
     )
 
-    matched_vol = im.resample_to_geometry(geometry)
-    assert np.allclose(full_vol.array, matched_vol.array)
-    assert matched_vol.geometry_equal(full_vol)
+    resampled_vol = im.resample_to_geometry(geometry, interpolator=interpolator)
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
 
 
 @pytest.mark.parametrize(
@@ -1892,7 +2010,11 @@ def test_resample_to_geometry_sm_crop_flip_transpose():
         'EDGE',
     ]
 )
-def test_resample_to_geometry_sm_pad(mode):
+@pytest.mark.parametrize(
+    'interpolator',
+    ['LINEAR', 'CUBIC', InterpolationMethods.NEAREST],
+)
+def test_resample_to_geometry_sm_pad(mode, interpolator):
     f = Path(__file__).parent.parent / 'data/test_files/sm_image_control.dcm'
     im = imread(f)
 
@@ -1900,6 +2022,10 @@ def test_resample_to_geometry_sm_pad(mode):
 
     geometry = im.get_volume_geometry().pad(5)
 
-    matched_vol = im.resample_to_geometry(geometry, pad_mode=mode)
-    assert np.allclose(full_vol.array, matched_vol.array)
-    assert matched_vol.geometry_equal(full_vol)
+    resampled_vol = im.resample_to_geometry(
+        geometry,
+        pad_mode=mode,
+        interpolator=interpolator,
+    )
+    assert np.allclose(full_vol.array, resampled_vol.array)
+    assert resampled_vol.geometry_equal(full_vol)
