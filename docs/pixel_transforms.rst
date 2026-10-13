@@ -1,4 +1,4 @@
-.. _pixel-transforms:
+.. _pixel_transforms:
 
 Pixel Transforms
 ================
