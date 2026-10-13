@@ -9113,16 +9113,12 @@ class Image(_Image):
         constant_value: float | Sequence[float] | np.ndarray = 0,
         pad_per_channel: bool = False,
     ) -> Volume:
-        """Get a volume with a given geometry from the image.
-
-        This will form the requested volume without resampling, using some
-        combination of axis permutations, crops, pads, and flips. If this is
-        not possible, a ``RuntimeError`` will be raised.
+        """Get a volume with a given geometry by resampling the image.
 
         Importantly, only required frames will be accessed. For multiframe
         images where the requested volume is much smaller than the full volume
         contained within the image, this can therefore be much more efficient
-        than retrieving the full volume and manipulating it to match the
+        than retrieving the full volume and resampling it to match the
         requested geometry.
 
         Parameters
@@ -9265,7 +9261,7 @@ class Image(_Image):
         Returns
         -------
         highdicom.Volume:
-            Volume retrieved from the image with the requested geometry.
+            Volume resampled from the image with the requested geometry.
 
         """  # noqa: E501
         interpolator = InterpolationMethods(interpolator)

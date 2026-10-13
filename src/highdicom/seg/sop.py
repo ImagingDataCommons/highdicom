@@ -43,6 +43,8 @@ from highdicom.content import (
 from highdicom.enum import (
     CoordinateSystemNames,
     DimensionOrganizationTypeValues,
+    InterpolationMethods,
+    PadModes,
     PhotometricInterpretationValues,
     PixelRepresentationValues,
 )
@@ -3749,6 +3751,144 @@ class Segmentation(_Image):
                 geometry,
                 tol=match_tol,
                 constant_value=constant_value,
+            )
+        )
+
+    def resample_to_geometry(
+        self,
+        geometry: Volume | VolumeGeometry,
+        *,
+        dtype: type | str | np.dtype | None = None,
+        segment_numbers: Sequence[int] | None = None,
+        combine_segments: bool = False,
+        relabel: bool = False,
+        rescale_fractional: bool = True,
+        skip_overlap_checks: bool = False,
+        apply_palette_color_lut: bool = False,
+        apply_icc_profile: bool | None = None,
+        allow_missing_positions: bool = True,
+        rtol: float | None = None,
+        atol: float | None = None,
+        perpendicular_tol: float | None = None,
+    ) -> Volume:
+        """Get a volume with a given geometry by resampling the segmentation.
+
+        Importantly, only required frames will be accessed. For multiframe
+        segmentations where the requested volume is much smaller than the full
+        volume contained within the segentation, this can therefore be much
+        more efficient than retrieving the full volume and resampling it to
+        match the requested geometry.
+
+        Parameters
+        ----------
+        geometry: highdicom.Volume | highdicom.VolumeGeometry
+            Geometry of the requested volume. If this is a full Volume, only
+            the geometry is relevant to this operation.
+        dtype: Union[type, str, numpy.dtype | None], optional
+            Data type of the returned array. If None, an appropriate type will
+            be chosen automatically. If the returned values are rescaled
+            fractional values, this will be numpy.float32. Otherwise, the
+            smallest unsigned integer type that accommodates all of the output
+            values will be chosen.
+        segment_numbers: Optional[Sequence[int]], optional
+            Sequence containing segment numbers to include. If unspecified,
+            all segments are included.
+        combine_segments: bool, optional
+            If True, combine the different segments into a single label
+            map in which the value of a pixel represents its segment.
+            If False (the default), segments are binary and stacked down the
+            last dimension of the output array.
+        relabel: bool, optional
+            If True and ``combine_segments`` is ``True``, the pixel values in
+            the output array are relabelled into the range ``0`` to
+            ``len(segment_numbers)`` (inclusive) according to the position of
+            the original segment numbers in ``segment_numbers`` parameter.  If
+            ``combine_segments`` is ``False``, this has no effect.
+        rescale_fractional: bool
+            If this is a FRACTIONAL segmentation and ``rescale_fractional`` is
+            True, the raw integer-valued array stored in the segmentation image
+            output will be rescaled by the MaximumFractionalValue such that
+            each pixel lies in the range 0.0 to 1.0. If False, the raw integer
+            values are returned. If the segmentation has BINARY type, this
+            parameter has no effect.
+        skip_overlap_checks: bool
+            If True, skip checks for overlap between different segments. By
+            default, checks are performed to ensure that the segments do not
+            overlap. However, this reduces performance. If checks are skipped
+            and multiple segments do overlap, the segment with the highest
+            segment number (after relabelling, if applicable) will be placed
+            into the output array.
+        apply_palette_color_lut: bool | None, optional
+            Apply the palette color LUT, if present in the dataset. The palette
+            color LUT maps a single sample for each pixel stored in the dataset
+            to a 3 sample-per-pixel color image.
+        apply_icc_profile: bool | None, optional
+            Whether colors should be corrected by applying an ICC
+            transform. Will only be performed if metadata contain an
+            ICC Profile.
+
+            If True, the transform is applied if present, and if not
+            present an error will be raised. If False, the transform will not
+            be applied, regardless of whether it is present. If ``None``, the
+            transform will be applied if it is present, but no error will be
+            raised if it is not present.
+        allow_missing_positions: bool, optional
+            Allow spatial positions the output array to be blank because these
+            frames are omitted from the image. If False and missing positions
+            are found, an error is raised.
+        rtol: float | None, optional
+            Relative tolerance for determining spacing regularity. If slice
+            spacings vary by less that this proportion of the average spacing,
+            they are considered to be regular. If neither ``rtol`` or ``atol``
+            are provided, a default relative tolerance of 0.01 is used.
+        atol: float | None, optional
+            Absolute tolerance for determining spacing regularity. If slice
+            spacings vary by less that this value (in mm), they are considered
+            to be regular. Incompatible with ``rtol``.
+        perpendicular_tol: float | None, optional
+            Tolerance used to determine whether slices are stacked
+            perpendicular to their shared normal vector. The direction of
+            stacking is considered perpendicular if the dot product of its unit
+            vector with the slice normal is within ``perpendicular_tol`` of
+            1.00. If ``None``, the default value of ``1e-3`` is used.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume resampled from the segentation with the requested geometry.
+
+        """
+        image_geometry = self._get_volume_geometry(
+            atol=atol,
+            rtol=rtol,
+            perpendicular_tol=perpendicular_tol,
+        )
+
+        geometry_to_extract = image_geometry.crop_or_pad_to_hull(geometry)
+
+        return (
+            self
+            .match_geometry(
+                geometry_to_extract,
+                segment_numbers=segment_numbers,
+                combine_segments=combine_segments,
+                relabel=relabel,
+                rescale_fractional=rescale_fractional,
+                allow_missing_positions=allow_missing_positions,
+                apply_palette_color_lut=apply_palette_color_lut,
+                apply_icc_profile=apply_icc_profile,
+                dtype=dtype,
+                atol=atol,
+                rtol=rtol,
+                perpendicular_tol=perpendicular_tol,
+            )
+            .resample_to_geometry(
+                geometry,
+                interpolator=InterpolationMethods.NEAREST,
+                # No padding should be needed here since padding will have been
+                # handled by the match. Therefore use 'EDGE' mode to remove
+                # edge effects where the new geometry has a higher resolution
+                pad_mode=PadModes.EDGE,
             )
         )
 
