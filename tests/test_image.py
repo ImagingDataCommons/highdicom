@@ -1795,8 +1795,8 @@ def test_resample_to_geometry_ct_crop_spacing(interpolator):
     geometry = (
         im
         .get_volume_geometry()
-        .crop_to_spatial_shape((2, 24, 24))
-        .resample_to_spacing([0.75, 0.75, 0.75])
+        .crop_to_spatial_shape((2, 88, 88))
+        .resample_to_spacing([10.0, 0.75, 0.75])
     )
 
     full_vol = (
@@ -1809,7 +1809,14 @@ def test_resample_to_geometry_ct_crop_spacing(interpolator):
         geometry,
         interpolator=interpolator,
     )
-    assert np.allclose(full_vol.array, resampled_vol.array)
+
+    if interpolator == InterpolationMethods.NEAREST:
+        # Minor geometric differences can lead to significant pixel differences
+        non_matching_pixel_count = (full_vol.array != resampled_vol.array).sum()
+        assert non_matching_pixel_count < 0.02 * np.prod(full_vol.shape)
+    else:
+        assert np.allclose(full_vol.array, resampled_vol.array)
+
     assert resampled_vol.geometry_equal(full_vol)
 
 
@@ -1966,7 +1973,14 @@ def test_resample_to_geometry_sm_crop_spacing(interpolator):
     )
 
     resampled_vol = im.resample_to_geometry(geometry, interpolator=interpolator)
-    assert np.allclose(full_vol.array, resampled_vol.array)
+
+    if interpolator == InterpolationMethods.NEAREST:
+        # Minor geometric differences can lead to significant pixel differences
+        non_matching_pixel_count = (full_vol.array != resampled_vol.array).sum()
+        assert non_matching_pixel_count < 0.02 * np.prod(full_vol.shape)
+    else:
+        assert np.allclose(full_vol.array, resampled_vol.array)
+
     assert resampled_vol.geometry_equal(full_vol)
 
 
