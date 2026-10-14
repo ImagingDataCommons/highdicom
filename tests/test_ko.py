@@ -20,6 +20,7 @@ from highdicom.sr.value_types import (
     ContentSequence,
     CompositeContentItem,
     ImageContentItem,
+    WaveformContentItem,
 )
 from highdicom.uid import UID
 
@@ -134,6 +135,28 @@ class TestKeyObjectSelection(unittest.TestCase):
             value_type=ValueTypeValues.WAVEFORM
         )
         assert len(references) == 0
+
+    def test_from_sequence_with_waveform_reference(self):
+        ecg_object = Dataset()
+        ecg_object.Modality = 'ECG'
+        ecg_object.SOPClassUID = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        ecg_object.SOPInstanceUID = UID()
+        content = KeyObjectSelection(
+            document_title=self._document_title,
+            referenced_objects=[self._sm_object, ecg_object],
+        )
+        # TID 2010 references waveforms with Value Type WAVEFORM
+        content[0].ContentSequence[1].ValueType = 'WAVEFORM'
+
+        parsed_content = KeyObjectSelection.from_sequence(content)
+        references = parsed_content.get_references(
+            value_type=ValueTypeValues.WAVEFORM
+        )
+        assert len(references) == 1
+        assert isinstance(references[0], WaveformContentItem)
+        assert references[0].referenced_sop_instance_uid == (
+            ecg_object.SOPInstanceUID
+        )
 
     def test_construction_with_missing_parameter(self):
         with pytest.raises(TypeError):
