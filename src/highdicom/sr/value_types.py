@@ -76,6 +76,7 @@ def _assert_value_type(
         ValueTypeValues.TIME: ['Time'],
         ValueTypeValues.TEXT: ['TextValue'],
         ValueTypeValues.UIDREF: ['UID'],
+        ValueTypeValues.WAVEFORM: ['ReferencedSOPSequence'],
     }
     for attr in required_attrs[value_type]:
         if not hasattr(dataset, attr):
@@ -102,6 +103,7 @@ def _get_content_item_class(value_type: ValueTypeValues) -> type:
         ValueTypeValues.TIME: TimeContentItem,
         ValueTypeValues.TEXT: TextContentItem,
         ValueTypeValues.UIDREF: UIDRefContentItem,
+        ValueTypeValues.WAVEFORM: WaveformContentItem,
     }
     return python_types[value_type]
 
@@ -1939,7 +1941,7 @@ class WaveformContentItem(ContentItem):
         referenced_sop_class_uid: str | UID,
         referenced_sop_instance_uid: str | UID,
         referenced_waveform_channels: None | (
-            int | Sequence[int]
+            Sequence[tuple[int, int]]
         ) = None,
         relationship_type: str | RelationshipTypeValues | None = None,
     ) -> None:
@@ -2004,10 +2006,10 @@ class WaveformContentItem(ContentItem):
         """Union[List[Tuple[int, int]], None]: referenced waveform channels"""
         if not hasattr(
             self.ReferencedSOPSequence[0],
-            'ReferencedFrameNumber',
+            'ReferencedWaveformChannels',
         ):
             return None
-        val = self.ReferencedSOPSequence[0].ReferencedFrameNumber
+        val = self.ReferencedSOPSequence[0].ReferencedWaveformChannels
         return [
             (
                 int(val[i]),
@@ -2043,6 +2045,6 @@ class WaveformContentItem(ContentItem):
             dataset_copy = deepcopy(dataset)
         else:
             dataset_copy = dataset
-        _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
+        _assert_value_type(dataset_copy, ValueTypeValues.WAVEFORM)
         item = super()._from_dataset_base(dataset_copy)
         return cast(Self, item)
