@@ -1714,7 +1714,7 @@ class _LegacyConversionRunner:
                                 )
                                 logger.warning(msg)
 
-        if not required and not all_required_attrs_exist:
+        if self._strict and not required and not all_required_attrs_exist:
             # Do not include this functional group. Nothing more to do
             return
 
