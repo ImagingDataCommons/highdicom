@@ -170,6 +170,33 @@ def _istag_group_length(t: BaseTag) -> bool:
     return t.element == 0
 
 
+def _normalize_private_tag(t: BaseTag, ds: Dataset) -> tuple[str, BaseTag]:
+    """Get a normalized representation of a private tag.
+
+    Parameters
+    ----------
+    t: pydicom.tag.BaseTag
+        The tag in question
+    ds: pydicom.Dataset
+        The dataset that the tag is drawn from.
+
+    Returns
+    -------
+    str:
+        Private creator name
+    pydicom.BaseTag:
+        Normalized version of the tag, removing the variable bits (first two
+        hex digits in the element part of the tag).
+
+    """
+    creator_tag = t.private_creator
+    if creator_tag not in ds:
+        creator_name = "UNKNOWN_CREATOR"
+    else:
+        creator_name = ds[t.private_creator].value
+    return creator_name, BaseTag(t & 0xFFFF_00FF)
+
+
 def _read_ambiguous_vr(dataset: Dataset, kw: str) -> int:
     """Read attribute from dataset while coercing ambiguous VR.
 
@@ -429,7 +456,9 @@ class _LegacyConversionRunner:
         self._use_extended_offset_table = use_extended_offset_table
         self._keyword_shared_dict: dict[str, bool] = {}
         self._unused_keywords: set[str] = set()
-        self._private_tag_shared_dict: dict[BaseTag, bool]
+        self._private_tag_shared_dict: dict[
+            tuple[str, BaseTag], tuple[BaseTag, bool]
+        ]
         self._dimension_index_values: list[list[int]] | None = None
 
         (self._keyword_shared_dict, self._private_tag_shared_dict) = (
@@ -1018,7 +1047,10 @@ class _LegacyConversionRunner:
 
     def _find_shared_and_perframe_attributes(
         self,
-    ) -> tuple[dict[str, bool], dict[BaseTag, bool]]:
+    ) -> tuple[
+        dict[str, bool],
+        dict[tuple[str, BaseTag], tuple[BaseTag, bool]]
+    ]:
         """Find attributes present in any dataset and whether they are shared.
 
         Returns
@@ -1028,55 +1060,60 @@ class _LegacyConversionRunner:
             any dataset. The corresponding value is a boolean that indicates
             whether that tag is consistent (in presence and value) across all
             datasets.
-        private_tag_shared_dict: dict[pydicom.tag.BaseTag, bool]
-            Dictionary whose keys include all (standard) keywords present in
-            any dataset. The corresponding value is a boolean that indicates
-            whether that tag is consistent (in presence and value) across all
-            datasets.
+        private_tag_shared_dict: dict[tuple[str, pydicom.BaseTag], tuple[pydicom.BaseTag, bool]]
+            Dictionary whose keys are "normalized" private tag present in any
+            dataset. The normalized tag consists of a tuple containing the
+            private creator str and a bitmasked version of the tag that removes
+            the bits indicating the specific location the tag was placed in
+            this dataset. This combination should be consistent across datasets
+            even if conflicting sets of private tags led to some tags being
+            moved to higher tags.
 
-        """
-        all_keywords_present = set()
-        all_private_tags_present = set()
+            The corresponding value is a tuple containing the original
+            (unnormalized) tag and boolean that indicates whether that tag is
+            consistent (in presence, value and location) across all datasets.
+
+        """  # noqa: E501
+        standard_values_by_keyword: dict[str, list[Any]] = defaultdict(list)
+        private_values_by_creator_tag: dict[
+            tuple[str, BaseTag, BaseTag], list[Any]
+        ] = defaultdict(list)
         for ds in self._legacy_datasets:
-            for t in ds.keys():
+            for e in ds:
                 if (
-                    not _istag_file_meta_information_group(t) and not
-                    _istag_repeating_group(t) and not
-                    _istag_group_length(t)
+                    not _istag_file_meta_information_group(e.tag) and not
+                    _istag_repeating_group(e.tag) and not
+                    _istag_group_length(e.tag) and
+                    e.tag != 0x7FE0_0010  # PixelData
                 ):
-                    if t.is_private and not self._skip_private_attributes:
-                        if not t.is_private_creator:
-                            all_private_tags_present.add(t)
+                    if e.tag.is_private and not self._skip_private_attributes:
+                        if not e.tag.is_private_creator:
+                            private_values_by_creator_tag[
+                                (*_normalize_private_tag(e.tag, ds), e.tag)
+                            ].append(e.value)
                     else:
-                        all_keywords_present.add(keyword_for_tag(t))
+                        kw = keyword_for_tag(e.tag)
+                        standard_values_by_keyword[kw].append(e.value)
 
-        keyword_shared_dict: dict[str, bool] = {}
+        keyword_shared_dict = {
+            kw: (
+                len(values) == len(self._legacy_datasets) and
+                all(v == values[0] for v in values)
+            )
+            for kw, values in standard_values_by_keyword.items()
+        }
 
-        for kw in all_keywords_present:
-            present_in_all = all(kw in ds for ds in self._legacy_datasets)
-
-            same_value_in_all = False
-            if present_in_all:
-                ref_val = getattr(self._legacy_datasets[0], kw)
-                same_value_in_all = all(
-                    getattr(ds, kw) == ref_val for ds in self._legacy_datasets
+        private_tag_shared_dict = {
+            (c, n): (
+                t,
+                (
+                    len(vals) >= 1 and
+                    len(vals) == len(self._legacy_datasets) and
+                    all(v == vals[0] for v in vals)
                 )
-
-            keyword_shared_dict[kw] = present_in_all and same_value_in_all
-
-        private_tag_shared_dict: dict[BaseTag, bool] = {}
-
-        for t in all_private_tags_present:
-            present_in_all = all(t in ds for ds in self._legacy_datasets)
-
-            same_value_in_all = False
-            if present_in_all:
-                ref_val = self._legacy_datasets[0][t].value
-                same_value_in_all = all(
-                    ds[t].value == ref_val for ds in self._legacy_datasets
-                )
-
-            private_tag_shared_dict[t] = present_in_all and same_value_in_all
+            )
+            for (c, n, t), vals in private_values_by_creator_tag.items()
+        }
 
         return keyword_shared_dict, private_tag_shared_dict
 
@@ -2193,7 +2230,7 @@ class _LegacyConversionRunner:
         if any(
             not self._keyword_shared_dict[kw] for kw in self._unused_keywords
         ) or any(
-            not shared for shared in self._private_tag_shared_dict.values()
+            not shared for (_, shared) in self._private_tag_shared_dict.values()
         ):
             for pffg in self._destination.PerFrameFunctionalGroupsSequence:
                 pffg.UnassignedPerFrameConvertedAttributesSequence = [Dataset()]
@@ -2222,7 +2259,7 @@ class _LegacyConversionRunner:
                         )
 
         # Private tags (these will all be unused at this stage)
-        for t, shared in self._private_tag_shared_dict.items():
+        for (t, shared) in self._private_tag_shared_dict.values():
             if shared:
                 self._copy_private_attribute(
                     t,
