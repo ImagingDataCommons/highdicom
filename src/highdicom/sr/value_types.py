@@ -1184,8 +1184,15 @@ class NumContentItem(ContentItem):
             self.NumericValueQualifierCodeSequence = [qualifier]
 
     @property
-    def value(self) -> int | float:
-        """Union[int, float]: measured value"""
+    def value(self) -> int | float | None:
+        """Union[int, float, None]: measured value
+
+        ``None`` if the Measured Value Sequence is empty, in which case the
+        reason for the absence of the value is given by :attr:`qualifier`.
+
+        """
+        if len(self.MeasuredValueSequence) == 0:
+            return None
         item = self.MeasuredValueSequence[0]
         try:
             return float(item.FloatingPointValue)
@@ -1193,8 +1200,14 @@ class NumContentItem(ContentItem):
             return float(item.NumericValue)
 
     @property
-    def unit(self) -> CodedConcept:
-        """highdicom.sr.CodedConcept: unit"""
+    def unit(self) -> CodedConcept | None:
+        """Union[highdicom.sr.CodedConcept, None]: unit
+
+        ``None`` if the Measured Value Sequence is empty.
+
+        """
+        if len(self.MeasuredValueSequence) == 0:
+            return None
         item = self.MeasuredValueSequence[0]
         return item.MeasurementUnitsCodeSequence[0]
 
@@ -1235,14 +1248,17 @@ class NumContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.NUM)
         item = super()._from_dataset_base(dataset_copy)
-        unit_item = (
-            item
-            .MeasuredValueSequence[0]
-            .MeasurementUnitsCodeSequence[0]
-        )
-        item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence = [
-            CodedConcept.from_dataset(unit_item, copy=False)
-        ]
+        # The Measured Value Sequence is type 2 and may be empty, in which
+        # case the Numeric Value Qualifier Code Sequence gives the reason
+        if len(item.MeasuredValueSequence) > 0:
+            unit_item = (
+                item
+                .MeasuredValueSequence[0]
+                .MeasurementUnitsCodeSequence[0]
+            )
+            item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence = [
+                CodedConcept.from_dataset(unit_item, copy=False)
+            ]
         if hasattr(item, 'NumericValueQualifierCodeSequence'):
             qualifier_item = item.NumericValueQualifierCodeSequence[0]
             item.NumericValueQualifierCodeSequence = DataElementSequence([
