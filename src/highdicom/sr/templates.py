@@ -2639,17 +2639,12 @@ class Measurement(Template):
         item = sequence[0]
         if not isinstance(item, NumContentItem):
             raise TypeError('Measurement shall contain a NUM content item.')
-        measurement = cls(
-            name=item.name,
-            value=item.value,
-            unit=item.unit,
-            qualifier=item.qualifier
-        )
-        if 'ContentSequence' in item:
-            measurement[0].ContentSequence = ContentSequence.from_sequence(
-                item.ContentSequence
-            )
-        return measurement
+        # The item is copied rather than passed to the constructor, because
+        # the measured value may be absent (with a qualifier giving the
+        # reason), which the constructor does not support
+        instance = ContentSequence.from_sequence(sequence, is_root=is_root)
+        instance.__class__ = cls
+        return cast(Self, instance)
 
     @property
     def name(self) -> CodedConcept:
@@ -2657,13 +2652,22 @@ class Measurement(Template):
         return self[0].name
 
     @property
-    def value(self) -> int | float:
-        """Union[int, float]: measured value"""
+    def value(self) -> int | float | None:
+        """Union[int, float, None]: measured value
+
+        ``None`` if the measured value is absent, in which case the reason
+        for the absence of the value is given by :attr:`qualifier`.
+
+        """
         return self[0].value
 
     @property
-    def unit(self) -> CodedConcept:
-        """highdicom.sr.CodedConcept: unit"""
+    def unit(self) -> CodedConcept | None:
+        """Union[highdicom.sr.CodedConcept, None]: unit
+
+        ``None`` if the measured value is absent.
+
+        """
         return self[0].unit
 
     @property
