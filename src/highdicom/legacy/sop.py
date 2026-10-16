@@ -312,6 +312,26 @@ def _get_dimension_index_sequence_item(
     return index_ds
 
 
+def _get_allowed_functional_groups(
+    modality: str,
+    include_enhanced_groups: bool,
+) -> set[str]:
+    modules = [
+        f'legacy-converted-enhanced-{modality}-image-multi-frame-functional-groups'
+    ]
+    if include_enhanced_groups:
+        modules.append(f'enhanced-{modality}-image-multi-frame-functional-groups')
+
+    sequences = set()
+    for m in modules:
+        tree = construct_module_tree(m)
+        sequences.update(
+            tree['attributes']['PerFrameFunctionalGroupsSequence']['attributes'].keys()
+        )
+
+    return sequences
+
+
 @dataclass
 class _AttributeConfig:
     """Configuration for how to copy an attribute to the converted instance.
@@ -368,6 +388,7 @@ class _LegacyConversionRunner:
         require_volume: bool = False,
         include_dimension_index: bool | None = None,
         include_enhanced_groups: bool = True,
+        harmonization_configs: list[HarmonizationConfig] | None = None,
         strict: bool = False,
         skip_private_attributes: bool = False,
         workers: int | Executor = 0,
@@ -434,6 +455,8 @@ class _LegacyConversionRunner:
             do not belong in them are placed into the
             UnassignedSharedConvertedAttributesSequence or
             UnassignedPerFrameConvertedAttributesSequence.
+        harmonization_configs: list[highdicom.legacy.config.HarmonizationConfig] | None, optional
+            Harmonization configs with attributes in this functional group.
         strict: bool, optional
             Whether to use strict requirements on the new converted dataset. If
             True and any attributes required to create a standard-compliant
@@ -461,6 +484,27 @@ class _LegacyConversionRunner:
             tuple[str, BaseTag], tuple[BaseTag, bool]
         ]
         self._dimension_index_values: list[list[int]] | None = None
+
+        modality = {
+            LegacyConvertedEnhancedPETImageStorage: "pet",
+            LegacyConvertedEnhancedCTImageStorage: "ct",
+            LegacyConvertedEnhancedMRImageStorage: "mr",
+        }[self._destination.SOPClassUID]
+
+        if harmonization_configs is None:
+            harmonization_configs = []
+
+        allowed_func_groups = _get_allowed_functional_groups(
+            modality,
+            include_enhanced_groups=include_enhanced_groups
+        )
+        for h_cfg in harmonization_configs:
+            if h_cfg.destination_sequence_keyword not in allowed_func_groups:
+                raise ValueError(
+                    "Harmonization configuration uses an inappropriate "
+                    f"functional group: {h_cfg.destination_sequence_keyword}.."
+                )
+        self._harmonization_configs = harmonization_configs
 
         (self._keyword_shared_dict, self._private_tag_shared_dict) = (
             self._find_shared_and_perframe_attributes()
@@ -1605,7 +1649,7 @@ class _LegacyConversionRunner:
         attribute_configs: list[highdicom.legacy.sop._AttributeConfig]
             Configurations for each attribute to place into the sequence.
         harmonization_configs: list[highdicom.legacy.config.HarmonizationConfig] | None, optional
-            Harmonization configs with attributes in this functional group..
+            Harmonization configs with attributes in this functional group.
         custom_logic_callback: Callable[[pydicom.Dataset, pydicom.Dataset], None] | None
             Callback implementing custom logic to call after the other parameters
             have been copied. Takes the source and destination datasets as input
@@ -1667,7 +1711,6 @@ class _LegacyConversionRunner:
         custom_logic_callback: Callable[[Dataset, Dataset], None] | None = None,
         required: bool = True,
         can_be_shared: bool = True,
-        harmonization_configs: list[HarmonizationConfig] | None = None,
     ) -> None:
         """Add a functional group to the destination dataset.
 
@@ -1697,15 +1740,10 @@ class _LegacyConversionRunner:
         can_be_shared: bool
             Whether it is permissible to place this in the shared functional
             groups.
-        harmonization_configs: list[HarmonizationConfig] | None, optional
-            List of harmonization rules for attributes to be placed into this
-            functional group.
 
         """  # noqa: E501
         if optional_attributes is None:
             optional_attributes = []
-        if harmonization_configs is None:
-            harmonization_configs = []
 
         # If any attribute is per-frame, the whole functional group is
         # per-frame
@@ -1745,13 +1783,17 @@ class _LegacyConversionRunner:
                                 )
                                 logger.warning(msg)
 
-        for h_cfg in harmonization_configs:
+        harmonization_configs = []
+        for h_cfg in self._harmonization_configs:
+            if h_cfg.destination_sequence_keyword != sequence_name:
+                continue
+
             all_harmonization_sources_exist = True
             any_harmonization_source_is_per_frame = False
             for t in h_cfg.source_tags:
                 if t.is_private:
                     tup = (cast(str, h_cfg.private_creator_name), t)
-                    if tup not in self._private_tag_shared_dict:
+                    if tup in self._private_tag_shared_dict:
                         if not self._private_tag_shared_dict[tup][1]:
                             any_harmonization_source_is_per_frame = True
                     else:
@@ -1767,6 +1809,7 @@ class _LegacyConversionRunner:
             if all_harmonization_sources_exist:
                 any_attr_has_source = True
                 any_attr_is_per_frame |= any_harmonization_source_is_per_frame
+                harmonization_configs.append(h_cfg)
 
         if self._strict and not required and not all_required_attrs_exist:
             # Do not include this functional group. Nothing more to do
@@ -2832,6 +2875,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         skip_private_attributes: bool = False,
         include_dimension_index: bool | None = None,
         include_enhanced_groups: bool = True,
+        harmonization_configs: list[HarmonizationConfig] | None = None,
         contributing_equipment: Sequence[ContributingEquipment] | None = None,
         use_extended_offset_table: bool = False,
         workers: int | Executor = 0,
@@ -2916,6 +2960,8 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             do not belong in them are placed into the
             UnassignedSharedConvertedAttributesSequence or
             UnassignedPerFrameConvertedAttributesSequence.
+        harmonization_configs: list[highdicom.legacy.config.HarmonizationConfig] | None, optional
+            Harmonization configs with attributes in this functional group.
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
             Additional equipment that has contributed to the acquisition,
             creation or modification of this instance.
@@ -3044,6 +3090,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             transfer_syntax_uid=transfer_syntax_uid,
             include_dimension_index=include_dimension_index,
             include_enhanced_groups=include_enhanced_groups,
+            harmonization_configs=harmonization_configs,
             strict=strict,
             skip_private_attributes=skip_private_attributes,
             use_extended_offset_table=use_extended_offset_table,

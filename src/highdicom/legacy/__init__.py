@@ -7,6 +7,9 @@ from highdicom.legacy.sop import (
     LegacyConvertedEnhancedPETImage,
     lceread,
 )
+from highdicom.legacy.config import (
+    HarmonizationConfig,
+)
 
 SOP_CLASS_UIDS = {
     '1.2.840.10008.5.1.4.1.1.4.4',    # Legacy Converted Enhanced MR Image
@@ -15,6 +18,7 @@ SOP_CLASS_UIDS = {
 }
 
 __all__ = [
+    'HarmonizationConfig',
     'LegacyConvertedEnhancedCTImage',
     'LegacyConvertedEnhancedMRImage',
     'LegacyConvertedEnhancedPETImage',

@@ -15,6 +15,7 @@ class HarmonizationConfig:
     def __init__(
         self,
         destination_keyword: str,
+        destination_sequence_keyword: str,
         source_tags: Sequence[BaseTag],
         private_creator_name: str | None = None,
         mapping: Callable | None = None
@@ -26,6 +27,9 @@ class HarmonizationConfig:
         destination_keyword: str
             DICOM keyword of the (standard) attribute that the result will be
             placed into.
+        destination_sequence_keyword: str
+            DICOM keyword of the (standard) sequence that the resulting
+            attribute will be placed into.
         source_tags: Sequence[pydicom.tag.BaseTag]
             List of tags for attributes that are required in the legacy images
             in order to determine the value for the destination attribute. Tags
@@ -99,6 +103,7 @@ class HarmonizationConfig:
                 )
 
         self.destination_keyword = destination_keyword
+        self.destination_sequence_keyword = destination_sequence_keyword
         self.source_tags = source_tags
         self.private_creator_name = private_creator_name
         self.mapping = mapping
