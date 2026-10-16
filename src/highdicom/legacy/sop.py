@@ -46,6 +46,7 @@ from highdicom.content import VOILUTTransformation
 from highdicom.enum import PhotometricInterpretationValues
 from highdicom.frame import encode_frame, get_lossy_compression_attributes
 from highdicom.image import Image, _Image
+from highdicom.legacy.config import HarmonizationConfig
 from highdicom.spatial import get_series_volume_positions
 from highdicom.sr import CodedConcept
 from highdicom.uid import UID as hd_UID
@@ -1589,6 +1590,7 @@ class _LegacyConversionRunner:
         destination: Dataset,
         sequence_name: str,
         attribute_configs: list[_AttributeConfig],
+        harmonization_configs: list[HarmonizationConfig] | None = None,
         custom_logic_callback: Callable[[Dataset, Dataset], None] | None = None,
     ) -> None:
         """
@@ -1602,6 +1604,8 @@ class _LegacyConversionRunner:
             Name of the sequence where the functional group will be placed.
         attribute_configs: list[highdicom.legacy.sop._AttributeConfig]
             Configurations for each attribute to place into the sequence.
+        harmonization_configs: list[highdicom.legacy.config.HarmonizationConfig] | None, optional
+            Harmonization configs with attributes in this functional group..
         custom_logic_callback: Callable[[pydicom.Dataset, pydicom.Dataset], None] | None
             Callback implementing custom logic to call after the other parameters
             have been copied. Takes the source and destination datasets as input
@@ -1629,6 +1633,27 @@ class _LegacyConversionRunner:
                 if a_cfg.default_val is not None:
                     setattr(item, a_cfg.dest_kw, a_cfg.default_val)
 
+        for h_cfg in (harmonization_configs or []):
+            params = []
+            for t in h_cfg.source_tags:
+                if t.is_private:
+                    tup = (cast(str, h_cfg.private_creator_name), t)
+                    location_tag = self._private_tag_shared_dict[tup][0]
+                else:
+                    location_tag = t
+
+                if location_tag in source:
+                    params.append(source[location_tag].value)
+
+            if len(params) == len(h_cfg.source_tags):
+                if h_cfg.mapping is None:
+                    out = params[0]
+                else:
+                    out = h_cfg.mapping(*params)
+
+                if out is not None:
+                    setattr(item, h_cfg.destination_keyword, out)
+
         if custom_logic_callback is not None:
             custom_logic_callback(source, item)
 
@@ -1642,6 +1667,7 @@ class _LegacyConversionRunner:
         custom_logic_callback: Callable[[Dataset, Dataset], None] | None = None,
         required: bool = True,
         can_be_shared: bool = True,
+        harmonization_configs: list[HarmonizationConfig] | None = None,
     ) -> None:
         """Add a functional group to the destination dataset.
 
@@ -1671,15 +1697,20 @@ class _LegacyConversionRunner:
         can_be_shared: bool
             Whether it is permissible to place this in the shared functional
             groups.
+        harmonization_configs: list[HarmonizationConfig] | None, optional
+            List of harmonization rules for attributes to be placed into this
+            functional group.
 
         """  # noqa: E501
         if optional_attributes is None:
             optional_attributes = []
+        if harmonization_configs is None:
+            harmonization_configs = []
 
         # If any attribute is per-frame, the whole functional group is
         # per-frame
         any_attr_is_per_frame = False
-        any_attr_exists = False
+        any_attr_has_source = False
         all_required_attrs_exist = True
         for configs, required_attr in zip(
             [required_attributes, optional_attributes], [True, False]
@@ -1687,13 +1718,13 @@ class _LegacyConversionRunner:
             for a_cfg in configs:
                 for kw in a_cfg.get_source_keywords():
                     if kw in self._keyword_shared_dict:
-                        any_attr_exists = True
+                        any_attr_has_source = True
                         if not self._keyword_shared_dict[kw]:
                             any_attr_is_per_frame = True
                         break
                 else:
                     if a_cfg.default_val is not None:
-                        any_attr_exists = True
+                        any_attr_has_source = True
                     elif required_attr:
                         all_required_attrs_exist = False
                         if required:
@@ -1714,6 +1745,29 @@ class _LegacyConversionRunner:
                                 )
                                 logger.warning(msg)
 
+        for h_cfg in harmonization_configs:
+            all_harmonization_sources_exist = True
+            any_harmonization_source_is_per_frame = False
+            for t in h_cfg.source_tags:
+                if t.is_private:
+                    tup = (cast(str, h_cfg.private_creator_name), t)
+                    if tup not in self._private_tag_shared_dict:
+                        if not self._private_tag_shared_dict[tup][1]:
+                            any_harmonization_source_is_per_frame = True
+                    else:
+                        all_harmonization_sources_exist = False
+                else:
+                    kw = keyword_for_tag(t)
+                    if kw in self._keyword_shared_dict:
+                        if not self._keyword_shared_dict[kw]:
+                            any_harmonization_source_is_per_frame = True
+                    else:
+                        all_harmonization_sources_exist = False
+
+            if all_harmonization_sources_exist:
+                any_attr_has_source = True
+                any_attr_is_per_frame |= any_harmonization_source_is_per_frame
+
         if self._strict and not required and not all_required_attrs_exist:
             # Do not include this functional group. Nothing more to do
             return
@@ -1733,8 +1787,9 @@ class _LegacyConversionRunner:
                     sequence_name=sequence_name,
                     attribute_configs=attribute_configs,
                     custom_logic_callback=custom_logic_callback,
+                    harmonization_configs=harmonization_configs,
                 )
-        elif any_attr_exists or required:
+        elif any_attr_has_source or required:
             # Use the shared functional groups
             self._copy_to_functional_group(
                 source=self._legacy_datasets[0],
@@ -1742,6 +1797,7 @@ class _LegacyConversionRunner:
                 sequence_name=sequence_name,
                 attribute_configs=attribute_configs,
                 custom_logic_callback=custom_logic_callback,
+                harmonization_configs=harmonization_configs,
             )
 
         # Else nothing to copy
