@@ -200,6 +200,40 @@ def _deduce_color_type(image: Dataset):
     return _ImageColorType.COLOR
 
 
+def _deduce_pixel_data_keyword(image: Dataset) -> PixelDataKeywords:
+    """Deduce the pixel data keyword for an image.
+
+    Parameters
+    ----------
+    image: pydicom.Dataset
+        Image dataset, which may contain only metadata.
+
+    Returns
+    -------
+    highdicom.enum.PixelDataKeywords:
+        Keyword used to store the image's pixel data.
+
+    """
+    for kw in [
+        PixelDataKeywords.PIXEL_DATA,
+        PixelDataKeywords.FLOAT_PIXEL_DATA,
+        PixelDataKeywords.DOUBLE_FLOAT_PIXEL_DATA,
+    ]:
+        if kw.value in image:
+            return kw
+
+    # If only the header is loaded, infer the keyword from the pixel module.
+    # Parametric Maps allow floating point pixels, for which BitsStored is
+    # absent.
+    if image.SOPClassUID == ParametricMapStorage and 'BitsStored' not in image:
+        if image.BitsAllocated == 32:
+            return PixelDataKeywords.FLOAT_PIXEL_DATA
+        elif image.BitsAllocated == 64:
+            return PixelDataKeywords.DOUBLE_FLOAT_PIXEL_DATA
+
+    return PixelDataKeywords.PIXEL_DATA
+
+
 class _CombinedPixelTransform:
 
     """Class representing a combined pixel transform.
@@ -508,37 +542,12 @@ class _CombinedPixelTransform:
         # Determine input type and range of values
         input_range = None
 
-        # Determine what pixel data keyword is present in the image
-        for kw in [
-            PixelDataKeywords.PIXEL_DATA,
-            PixelDataKeywords.FLOAT_PIXEL_DATA,
-            PixelDataKeywords.DOUBLE_FLOAT_PIXEL_DATA,
-        ]:
-            if kw.value in image:
-                self.pixel_keyword = kw
-                break
+        self.pixel_keyword = _deduce_pixel_data_keyword(image)
+        if self.pixel_keyword == PixelDataKeywords.FLOAT_PIXEL_DATA:
+            self.input_dtype: np.dtype = np.dtype(np.float32)
+        elif self.pixel_keyword == PixelDataKeywords.DOUBLE_FLOAT_PIXEL_DATA:
+            self.input_dtype = np.dtype(np.float64)
         else:
-            # No pixel data keyword, which may be due to just the header being
-            # loaded. Parametric Maps are the only SOP Class (currently) that
-            # allows floating point pixels. BitsStored is only present for
-            # PixelData (i.e. when the ImagePixel module is used) and as such
-            # can be used to decude the pixel type
-            if (
-                image.SOPClassUID == ParametricMapStorage and
-                'BitsStored' not in image
-            ):
-                if image.BitsAllocated == 32:
-                    self.input_dtype: np.dtype = np.dtype(np.float32)
-                    self.pixel_keyword = PixelDataKeywords.FLOAT_PIXEL_DATA
-                elif image.BitsAllocated == 64:
-                    self.input_dtype = np.dtype(np.float64)
-                    self.pixel_keyword = (
-                        PixelDataKeywords.DOUBLE_FLOAT_PIXEL_DATA
-                    )
-            else:
-                self.pixel_keyword = PixelDataKeywords.PIXEL_DATA
-
-        if self.pixel_keyword == PixelDataKeywords.PIXEL_DATA:
             if image.PixelRepresentation == 1:
                 if image.BitsAllocated == 8:
                     self.input_dtype = np.dtype(np.int8)
@@ -4576,9 +4585,10 @@ class _Image(SOPClass):
                 bits_allocated=self.BitsAllocated,
                 bits_stored=self.get('BitsAllocated', self.BitsAllocated),
                 photometric_interpretation=self.PhotometricInterpretation,
-                pixel_representation=self.PixelRepresentation,
+                pixel_representation=self.get('PixelRepresentation'),
                 planar_configuration=self.get('PlanarConfiguration'),
                 index=frame_index,
+                pixel_keyword=_deduce_pixel_data_keyword(self),
             )
         else:
             if self.number_of_frames == 1:
@@ -4669,9 +4679,10 @@ class _Image(SOPClass):
                         photometric_interpretation=(
                             self.PhotometricInterpretation
                         ),
-                        pixel_representation=self.PixelRepresentation,
+                        pixel_representation=self.get('PixelRepresentation'),
                         planar_configuration=self.get('PlanarConfiguration'),
                         index=frame_index,
+                        pixel_keyword=_deduce_pixel_data_keyword(self),
                     )
                 else:
                     if self.number_of_frames == 1:

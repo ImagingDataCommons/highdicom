@@ -1378,6 +1378,65 @@ def test_instantiation():
         Image()
 
 
+@pytest.mark.parametrize('dtype', [np.uint16, np.float32, np.float64])
+@pytest.mark.parametrize('lazy_frame_retrieval', [False, True])
+@pytest.mark.parametrize(
+    'method',
+    ['get_frame', 'get_frames', 'get_stored_frame', 'get_stored_frames'],
+)
+def test_get_frames_pmap_rwvm(dtype, lazy_frame_retrieval, method):
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    source_image = pydicom.dcmread(data_dir / 'test_files/ct_image.dcm')
+    pixel_array = np.resize(
+        np.arange(4, dtype=dtype),
+        (source_image.Rows, source_image.Columns),
+    )
+    mapping = RealWorldValueMapping(
+        lut_label='TEST',
+        lut_explanation='Linear map',
+        unit=codes.UCUM.NoUnits,
+        value_range=(0, 3) if dtype == np.uint16 else (0.0, 3.0),
+        slope=2,
+        intercept=1,
+    )
+    pmap = ParametricMap(
+        source_images=[source_image],
+        pixel_array=pixel_array,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        manufacturer='Test',
+        manufacturer_model_name='Test',
+        software_versions='1',
+        device_serial_number='1',
+        contains_recognizable_visual_features=False,
+        real_world_value_mappings=[mapping],
+        voi_lut_transformations=[
+            VOILUTTransformation(window_center=2, window_width=4),
+        ],
+    )
+    stream = BytesIO()
+    pmap.save_as(stream, enforce_file_format=True)
+    image = imread(
+        BytesIO(stream.getvalue()),
+        lazy_frame_retrieval=lazy_frame_retrieval,
+    )
+
+    args = () if method.endswith('frames') else (1,)
+    values = getattr(image, method)(*args)
+    if 'stored' in method:
+        expected = pixel_array
+        assert values.dtype == dtype
+    else:
+        expected = pixel_array.astype(np.float64) * 2 + 1
+        assert values.dtype == np.float64
+    if method.endswith('frames'):
+        expected = expected[None]
+    np.testing.assert_array_equal(values, expected)
+
+
 def test_get_frames():
     f = get_testdata_file('eCT_Supplemental.dcm')
     im = imread(f)
