@@ -2,12 +2,15 @@ import unittest
 from pathlib import Path
 from random import shuffle
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 from pydicom import dcmread
 from pydicom.data import get_testdata_file
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.filebase import DicomBytesIO, DicomFileLike, DicomFile
+from pydicom.tag import ItemTag
 from pydicom.uid import (
     ExplicitVRLittleEndian,
     ParametricMapStorage,
@@ -17,6 +20,25 @@ import pytest
 
 from highdicom.io import ImageFileReader
 from tests.utils import find_readable_images
+
+
+def test_read_frame_raw_rejects_undefined_fragment_length():
+    stream = Mock()
+    stream.read_tag.return_value = (ItemTag.group, ItemTag.element)
+    stream.read_UL.return_value = 0xFFFFFFFF
+    stream.read.side_effect = AssertionError('Payload read must not occur.')
+    reader = SimpleNamespace(
+        number_of_frames=1,
+        _offset_table=[0],
+        _first_frame_offset=0,
+        _fp=stream,
+        transfer_syntax_uid=SimpleNamespace(is_encapsulated=True),
+    )
+
+    with pytest.raises(OSError, match='undefined length'):
+        ImageFileReader.read_frame_raw(reader, 0)
+
+    stream.read.assert_not_called()
 
 
 class TestImageFileReader(unittest.TestCase):
