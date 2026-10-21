@@ -729,6 +729,8 @@ class ImageFileReader:
                 if int(tag) != ItemTag:
                     raise ValueError(f'Failed to read frame #{index}.')
                 length = self._fp.read_UL()
+                if length == 0xFFFFFFFF:
+                    raise OSError('Pixel data fragment has undefined length.')
                 fragments.append(self._fp.read(length))
                 n += 4 + 4 + length
             frame_data = b''.join(fragments)
