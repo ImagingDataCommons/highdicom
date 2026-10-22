@@ -1452,6 +1452,8 @@ class TestVOILUTTransformation(TestCase):
         )
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
+        assert lut.WindowCenterWidthExplanation == 'Soft Tissue Window'
+        assert lut['WindowCenterWidthExplanation'].VM == 1
         assert not lut.has_lut()
 
     def test_construction_multiple(self):
@@ -1462,6 +1464,11 @@ class TestVOILUTTransformation(TestCase):
         )
         assert lut.WindowCenter == [600.0, 40.0]
         assert lut.WindowWidth == [1500.0, 400.0]
+        assert lut.WindowCenterWidthExplanation == [
+            'Lung Window',
+            'Soft Tissue Window',
+        ]
+        assert lut['WindowCenterWidthExplanation'].VM == 2
         assert not lut.has_lut()
 
         input_array_lung = np.array(
