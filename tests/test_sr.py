@@ -66,6 +66,7 @@ from highdicom.sr import (
     SubjectContext,
     SubjectContextDevice,
     SubjectContextSpecimen,
+    TcoordContentItem,
     TextContentItem,
     TimeContentItem,
     TimePointContext,
@@ -80,6 +81,53 @@ from highdicom.sr import (
 from highdicom.sr.content import CoordinatesForMeasurement
 from highdicom.sr.utils import find_content_items
 from highdicom import UID
+
+
+@pytest.mark.parametrize('keyword,attribute,values', [
+    ('referenced_sample_positions', 'ReferencedSamplePositions', [1, 3]),
+    ('referenced_time_offsets', 'ReferencedTimeOffsets', [0.25, 1.25]),
+    ('referenced_date_time', 'ReferencedDateTime', [
+        datetime(2024, 1, 2, 3, 4, 5), datetime(2024, 1, 2, 3, 4, 6),
+    ]),
+])
+@pytest.mark.parametrize('count', [1, 2])
+@pytest.mark.parametrize('decode', [False, True])
+def test_tcoord_value_sequence(keyword, attribute, values, count, decode):
+    item = TcoordContentItem(
+        name=Code('1', '99TEST', 'Time'),
+        temporal_range_type='POINT' if count == 1 else 'SEGMENT',
+        **{keyword: values[:count]},
+    )
+    original = deepcopy(item)
+    if decode:
+        buffer = BytesIO()
+        item.save_as(buffer, implicit_vr=True, little_endian=True)
+        buffer.seek(0)
+        item = TcoordContentItem.from_dataset(dcmread(buffer, force=True))
+
+    stored = getattr(item, attribute)
+    expected = [stored] if count == 1 else list(stored)
+    assert len(item.value) == count
+    assert list(item.value) == expected
+    assert [type(v) for v in item.value] == [type(v) for v in expected]
+    assert item[attribute].VM == count
+    if not decode:
+        assert item == original
+    if count == 2:
+        # Existing multivalue containers remain live, rather than copied.
+        assert item.value is stored
+
+
+def test_tcoord_from_dataset_singleton_preserves_input():
+    item = TcoordContentItem(
+        name=Code('1', '99TEST', 'Time'), temporal_range_type='POINT',
+        referenced_sample_positions=[7],
+    )
+    original = deepcopy(item)
+    decoded = TcoordContentItem.from_dataset(item)
+    assert decoded.value == [7]
+    assert decoded is not item
+    assert item == original
 
 
 def _build_coded_concept_dataset(code: Code) -> Dataset:
