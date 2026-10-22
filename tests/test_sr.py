@@ -74,6 +74,7 @@ from highdicom.sr import (
     ValueTypeValues,
     VolumeSurface,
     VolumetricROIMeasurementsAndQualitativeEvaluations,
+    WaveformContentItem,
     srread,
 )
 from highdicom.sr.content import CoordinatesForMeasurement
@@ -1110,6 +1111,41 @@ class TestContentItem(unittest.TestCase):
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedFrameNumber  # noqa: B018
 
+    def test_waveform_item_construction(self):
+        name = codes.SCT.Source
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        sop_instance_uid = '1.2.3.4'
+        channels = [(1, 1), (1, 2)]
+        i = WaveformContentItem(
+            name=name,
+            referenced_sop_class_uid=sop_class_uid,
+            referenced_sop_instance_uid=sop_instance_uid,
+            referenced_waveform_channels=channels,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        assert i.ValueType == 'WAVEFORM'
+        assert i.ConceptNameCodeSequence[0] == name
+        ref_sop_item = i.ReferencedSOPSequence[0]
+        assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
+        assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
+        assert ref_sop_item.ReferencedWaveformChannels == [1, 1, 1, 2]
+        assert i.value == (sop_class_uid, sop_instance_uid)
+        assert i.referenced_sop_class_uid == sop_class_uid
+        assert i.referenced_sop_instance_uid == sop_instance_uid
+        assert i.referenced_waveform_channels == channels
+
+    def test_waveform_item_construction_without_channels(self):
+        i = WaveformContentItem(
+            name=codes.SCT.Source,
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.9.1.1',
+            referenced_sop_instance_uid='1.2.3.4',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        ref_sop_item = i.ReferencedSOPSequence[0]
+        with pytest.raises(AttributeError):
+            ref_sop_item.ReferencedWaveformChannels  # noqa: B018
+        assert i.referenced_waveform_channels is None
+
     def test_scoord_item_construction_point(self):
         name = codes.DCM.ImageRegion
         graphic_type = GraphicTypeValues.POINT
@@ -1265,6 +1301,68 @@ class TestContentItem(unittest.TestCase):
         assert isinstance(code_item, CodeContentItem)
         assert isinstance(code_item.name, CodedConcept)
         assert isinstance(code_item.value, CodedConcept)
+
+    def test_waveform_item_from_dataset(self):
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        sop_instance_uid = '1.2.3.4'
+        ref_ds = Dataset()
+        ref_ds.ReferencedSOPClassUID = sop_class_uid
+        ref_ds.ReferencedSOPInstanceUID = sop_instance_uid
+        ref_ds.ReferencedWaveformChannels = [1, 2, 1, 3]
+        waveform_ds = Dataset()
+        waveform_ds.ValueType = 'WAVEFORM'
+        waveform_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.SCT.Source)
+        ]
+        waveform_ds.ReferencedSOPSequence = [ref_ds]
+        waveform_ds.RelationshipType = 'CONTAINS'
+
+        item = WaveformContentItem.from_dataset(waveform_ds)
+        assert isinstance(item, WaveformContentItem)
+        assert isinstance(item.name, CodedConcept)
+        assert item.value_type == ValueTypeValues.WAVEFORM
+        assert item.value == (sop_class_uid, sop_instance_uid)
+        assert item.referenced_waveform_channels == [(1, 2), (1, 3)]
+
+    def test_waveform_item_from_dataset_with_wrong_value_type(self):
+        ref_ds = Dataset()
+        ref_ds.ReferencedSOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
+        ref_ds.ReferencedSOPInstanceUID = '1.2.3.4'
+        image_ds = Dataset()
+        image_ds.ValueType = 'IMAGE'
+        image_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.SCT.Source)
+        ]
+        image_ds.ReferencedSOPSequence = [ref_ds]
+        image_ds.RelationshipType = 'CONTAINS'
+
+        with pytest.raises(ValueError):
+            WaveformContentItem.from_dataset(image_ds)
+
+    def test_container_item_from_dataset_with_waveform_item(self):
+        ref_ds = Dataset()
+        ref_ds.ReferencedSOPClassUID = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        ref_ds.ReferencedSOPInstanceUID = '1.2.3.4'
+        waveform_ds = Dataset()
+        waveform_ds.ValueType = 'WAVEFORM'
+        waveform_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.SCT.Source)
+        ]
+        waveform_ds.ReferencedSOPSequence = [ref_ds]
+        waveform_ds.RelationshipType = 'CONTAINS'
+
+        container_ds = Dataset()
+        container_ds.ContinuityOfContent = 'SEPARATE'
+        container_ds.ValueType = 'CONTAINER'
+        container_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.DCM.Manifest)
+        ]
+        container_ds.ContentSequence = [waveform_ds]
+
+        container_item = ContainerContentItem.from_dataset(container_ds)
+        waveform_item = container_item.ContentSequence[0]
+        assert isinstance(waveform_item, WaveformContentItem)
+        assert waveform_item.referenced_waveform_channels is None
 
 
 class TestContentSequence(unittest.TestCase):
