@@ -142,7 +142,6 @@ def test_content_sequence_insert_non_sr_and_rejection_bookkeeping():
     assert len(root_sequence.find(child.name)) == 0
 
 
-
 def test_content_sequence_insert_rejects_non_sr_relationship():
     sequence = ContentSequence([], is_sr=False)
     item = TextContentItem(
