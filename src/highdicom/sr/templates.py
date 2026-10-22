@@ -2642,7 +2642,7 @@ class Measurement(Template):
         # The item is copied rather than passed to the constructor, because
         # the measured value may be absent (with a qualifier giving the
         # reason), which the constructor does not support
-        instance = cls.from_sequence(sequence, is_root=is_root)
+        instance = super().from_sequence(sequence, is_root=is_root)
         instance.__class__ = cls
         return cast(Self, instance)
 

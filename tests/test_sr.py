@@ -2934,10 +2934,8 @@ class TestMeasurement(unittest.TestCase):
             qualifier=qualifier,
             method=self._method,
         )
-        dataset = Dataset(measurement[0])
-        dataset.MeasuredValueSequence = []
-        item = NumContentItem.from_dataset(dataset)
-        retrieved = Measurement.from_sequence([item])
+        measurement[0].MeasuredValueSequence = []
+        retrieved = Measurement.from_sequence(measurement)
         assert isinstance(retrieved, Measurement)
         assert retrieved.name == self._name
         assert retrieved.value is None
