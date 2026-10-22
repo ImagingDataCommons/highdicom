@@ -362,17 +362,27 @@ class ContentSequence(DataElementSequence):
         idx: slice | int,
         val: Iterable[ContentItem] | ContentItem
     ) -> None:   # type: ignore[override]
-        if isinstance(val, Iterable):
-            items = val
+        if isinstance(idx, slice):
+            items = list(cast(Iterable[ContentItem], val))
+            replaced_items = list(self[idx])
+            value: list[ContentItem] | ContentItem = items
         else:
-            items = [val]
+            items = [cast(ContentItem, val)]
+            replaced_items = [self[idx]]
+            value = items[0]
         for i in items:
             if not isinstance(i, ContentItem):
                 raise TypeError(
                     f'Items of "{self.__class__.__name__}" must '
                     'have type ContentItem.'
                 )
-        super().__setitem__(idx, val)  # type: ignore
+        super().__setitem__(idx, value)  # type: ignore
+        for replaced_item in replaced_items:
+            replaced_item = cast(ContentItem, replaced_item)
+            index = self._lut[replaced_item.name].index(replaced_item)
+            del self._lut[replaced_item.name][index]
+        for item in items:
+            self._lut[item.name].append(item)
 
     def __delitem__(
         self,
@@ -416,16 +426,10 @@ class ContentSequence(DataElementSequence):
                 f'Items of "{self.__class__.__name__}" '
                 'must have type ContentItem.'
             )
-        error_message = f'Item "{val.name}" is not in Sequence.'
-        try:
-            matches = self._lut[val.name]
-        except KeyError as e:
-            raise ValueError(error_message) from e
-        try:
-            index = matches.index(val)
-        except ValueError as e:
-            raise ValueError(error_message) from e
-        return index
+        for index, item in enumerate(self):
+            if item is val or item == val:
+                return index
+        raise ValueError(f'Item "{val.name}" is not in Sequence.')
 
     def find(self, name: Code | CodedConcept) -> Self:
         """Find contained content items given their name.
@@ -507,8 +511,27 @@ class ContentSequence(DataElementSequence):
 
         """
         for item in val:
-            self._lut[item.name].append(item)
             self.append(item)
+
+    def __iadd__(  # type: ignore[override]
+        self,
+        other: Union[Iterable[ContentItem], 'ContentSequence']
+    ) -> Self:
+        """Extend the sequence in place with multiple content items.
+
+        Parameters
+        ----------
+        other: Iterable[highdicom.sr.ContentItem, highdicom.sr.ContentSequence]
+            SR Content Items
+
+        Returns
+        -------
+        highdicom.sr.ContentSequence
+            The extended sequence
+
+        """
+        self.extend(other)
+        return self
 
     def insert(   # type: ignore[override]
         self,

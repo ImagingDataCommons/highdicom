@@ -1460,6 +1460,103 @@ class TestContentSequence(unittest.TestCase):
         with pytest.raises(AttributeError):
             ContentSequence([self._root_item_with_rel], is_root=True)
 
+    def test_index(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        another_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='another comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item, other_item, another_item])
+        assert seq.index(self._item) == 0
+        assert seq.index(other_item) == 1
+        assert seq.index(another_item) == 2
+
+    def test_index_missing_item(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item])
+        assert other_item not in seq
+        with pytest.raises(ValueError):
+            seq.index(other_item)
+
+    def test_remove(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item, other_item])
+        seq.remove(other_item)
+        assert len(seq) == 1
+        assert seq[0] is self._item
+        assert other_item not in seq
+        assert len(seq.find(codes.DCM.Comment)) == 0
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
+
+    def test_extend_find(self):
+        seq = ContentSequence()
+        seq.extend([self._item])
+        assert len(seq) == 1
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
+
+    def test_extend_with_no_relationship_find(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq.extend([self._item_no_rel])
+        assert len(seq.find(codes.SCT.FindingSite)) == 0
+
+    def test_iadd_find(self):
+        seq = ContentSequence()
+        seq += [self._item]
+        assert isinstance(seq, ContentSequence)
+        assert len(seq) == 1
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
+
+    def test_iadd_with_no_relationship(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq += [self._item_no_rel]
+
+    def test_setitem(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item])
+        seq[0] = other_item
+        assert len(seq) == 1
+        assert seq[0] is other_item
+        assert len(seq.find(codes.SCT.FindingSite)) == 0
+        assert len(seq.find(codes.DCM.Comment)) == 1
+
+    def test_setitem_slice(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item])
+        seq[0:1] = [other_item, other_item]
+        assert len(seq) == 2
+        assert len(seq.find(codes.SCT.FindingSite)) == 0
+        assert len(seq.find(codes.DCM.Comment)) == 2
+
+    def test_setitem_wrong_type(self):
+        seq = ContentSequence([self._item])
+        with pytest.raises(TypeError):
+            seq[0] = Dataset()
+        assert seq[0] is self._item
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
+
     def test_content_item_setattr(self):
         # Integration test that setting a ContentItem's content sequence
         # should be possible if the items have relationships
