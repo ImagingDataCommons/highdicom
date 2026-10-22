@@ -957,6 +957,24 @@ class TestContentItem(unittest.TestCase):
         qualifier_code_item = i.NumericValueQualifierCodeSequence[0]
         assert qualifier_code_item.CodeValue == qualifier.value
 
+    def test_num_item_from_dataset_without_measured_value(self):
+        # Measured Value Sequence is type 2 and may be empty, in which case
+        # the qualifier gives the reason for the absence of the value
+        qualifier = CodedConcept(*codes.DCM.MeasurementFailure)
+        dataset = Dataset()
+        dataset.RelationshipType = 'CONTAINS'
+        dataset.ValueType = 'NUM'
+        dataset.ConceptNameCodeSequence = [CodedConcept(*codes.SCT.Area)]
+        dataset.MeasuredValueSequence = []
+        dataset.NumericValueQualifierCodeSequence = [qualifier]
+        i = NumContentItem.from_dataset(dataset)
+        assert i.name == codes.SCT.Area
+        assert i.value is None
+        assert i.unit is None
+        assert i.qualifier == qualifier
+        assert isinstance(i.qualifier, CodedConcept)
+        assert len(i.MeasuredValueSequence) == 0
+
     def test_pname_content_item(self):
         name = codes.DCM.PersonObserverName
         value = 'Doe^John'
@@ -3084,6 +3102,42 @@ class TestMeasurement(unittest.TestCase):
             CoordinatesForMeasurement3D
         )
 
+    def test_from_sequence(self):
+        measurement = Measurement(
+            name=self._name,
+            value=self._value,
+            unit=self._unit,
+            tracking_identifier=self._tracking_identifier,
+            method=self._method,
+            finding_sites=[self._finding_site],
+        )
+        retrieved = Measurement.from_sequence(measurement)
+        assert isinstance(retrieved, Measurement)
+        assert retrieved.name == self._name
+        assert retrieved.value == self._value
+        assert retrieved.unit == self._unit
+        assert retrieved.qualifier is None
+        assert retrieved.method == self._method
+        assert retrieved.finding_sites == [self._finding_site]
+
+    def test_from_sequence_without_measured_value(self):
+        qualifier = CodedConcept(*codes.DCM.MeasurementFailure)
+        measurement = Measurement(
+            name=self._name,
+            value=self._value,
+            unit=self._unit,
+            qualifier=qualifier,
+            method=self._method,
+        )
+        measurement[0].MeasuredValueSequence = []
+        retrieved = Measurement.from_sequence(measurement)
+        assert isinstance(retrieved, Measurement)
+        assert retrieved.name == self._name
+        assert retrieved.value is None
+        assert retrieved.unit is None
+        assert retrieved.qualifier == qualifier
+        assert retrieved.method == self._method
+
 
 class TestQualitativeEvaluation(unittest.TestCase):
 
@@ -4786,6 +4840,41 @@ class TestComprehensive3DSR(unittest.TestCase):
         assert isinstance(report.content, ContentSequence)
         assert isinstance(report.content, MeasurementReport)
         assert report is tmp
+
+    def test_from_dataset_measurement_without_value(self):
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+        )
+        # Remove the measured value and give the reason for its absence, as
+        # permitted by the Numeric Measurement Macro
+        qualifier = CodedConcept(*codes.DCM.MeasurementFailure)
+        num_item = find_content_items(
+            report,
+            value_type=ValueTypeValues.NUM,
+            recursive=True
+        )[0]
+        num_item.MeasuredValueSequence = []
+        num_item.NumericValueQualifierCodeSequence = [qualifier]
+        with BytesIO() as fp:
+            report.save_as(fp)
+            fp.seek(0)
+            report = Comprehensive3DSR.from_dataset(dcmread(fp))
+
+        groups = report.content.get_planar_roi_measurement_groups()
+        assert len(groups) == 1
+        measurements = groups[0].get_measurements()
+        assert len(measurements) == 1
+        measurement = measurements[0]
+        assert measurement.name == codes.SCT.AreaOfDefinedRegion
+        assert measurement.value is None
+        assert measurement.unit is None
+        assert measurement.qualifier == qualifier
 
     def test_evidence_duplication(self):
         report = Comprehensive3DSR(
