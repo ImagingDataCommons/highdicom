@@ -1844,6 +1844,49 @@ class TestSegmentation:
             .PixelSpacing == source_image.PixelSpacing
         )
 
+    def test_construction_dx_image_round_trip(self):
+        # This image has a pixel spacing but no frame of reference, so the
+        # Pixel Measures Sequence has no Slice Thickness
+        source_image = dcmread('data/test_files/dx_image.dcm')
+        array = np.zeros(
+            (source_image.Rows, source_image.Columns),
+            dtype=bool
+        )
+        array[10:20, 10:20] = True
+
+        instance = Segmentation(
+            [source_image],
+            array,
+            SegmentationTypeValues.BINARY,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+        )
+        pixel_measures = (
+            instance
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+        )
+        assert pixel_measures.PixelSpacing == source_image.PixelSpacing
+        assert 'SliceThickness' not in pixel_measures
+
+        with BytesIO() as buf:
+            instance.save_as(buf)
+            reread = segread(buf.getvalue())
+
+        assert isinstance(reread, Segmentation)
+        pixels = reread.get_pixels_by_source_instance(
+            source_sop_instance_uids=[source_image.SOPInstanceUID],
+            combine_segments=True,
+        )
+        assert np.array_equal(pixels[0], array)
+
     def test_construction_large_labelmap_monochrome(self):
         n_classes = 300  # force 16 bit
         segment_descriptions = [
