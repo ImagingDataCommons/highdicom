@@ -3422,6 +3422,7 @@ class Volume(_VolumeBase):
         if output_range <= 0.0:
             raise ValueError('Output min must be below output max.')
 
+        array = self.array
         if (
             per_channel and
             self.number_of_channel_dimensions > 0
@@ -3445,6 +3446,12 @@ class Volume(_VolumeBase):
         else:
             imin = self.array.min()
             imax = self.array.max()
+            if np.issubdtype(array.dtype, np.integer):
+                # Unsigned differences preserve adjacent large integer values.
+                array = array.astype(f'u{array.dtype.itemsize}')
+                array -= imin.astype(array.dtype)
+                imax = int(imax) - int(imin)
+                imin = 0
 
             if imin == imax:
                 # Avoid division by zero
@@ -3452,7 +3459,7 @@ class Volume(_VolumeBase):
             else:
                 scale_factor = output_range / (imax - imin)
 
-        new_array = (self.array - imin) * scale_factor + output_min
+        new_array = (array - imin) * scale_factor + output_min
 
         return self.with_array(new_array)
 

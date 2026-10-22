@@ -37,6 +37,64 @@ from highdicom.spatial import (
 from tests.utils import write_and_read_dataset
 
 
+@pytest.mark.parametrize('dtype', [
+    np.int8, np.uint8, np.int16, np.uint16,
+    np.int32, np.uint32, np.int64, np.uint64,
+])
+@pytest.mark.parametrize('output_range', [(0.0, 1.0), (-2.0, 3.0)])
+def test_normalize_min_max_integer_full_range(dtype, output_range):
+    limits = np.iinfo(dtype)
+    values = [int(limits.min), 0, int(limits.max)]
+    array = np.array(values, dtype=dtype).reshape(1, 1, 3)
+    original = array.copy()
+    volume = Volume(array=array, affine=np.eye(4), coordinate_system='PATIENT')
+    lower, upper = output_range
+
+    with np.errstate(over='raise', invalid='raise', divide='raise'):
+        result = volume.normalize_min_max(lower, upper)
+
+    span = int(limits.max) - int(limits.min)
+    expected = np.array([
+        (value - int(limits.min)) / span * (upper - lower) + lower
+        for value in values
+    ]).reshape(1, 1, 3)
+    np.testing.assert_allclose(result.array, expected, rtol=1e-14, atol=1e-14)
+    np.testing.assert_array_equal(volume.array, original)
+    np.testing.assert_array_equal(result.affine, volume.affine)
+
+
+@pytest.mark.parametrize('dtype', [np.int64, np.uint64])
+def test_normalize_min_max_adjacent_large_integers(dtype):
+    maximum = int(np.iinfo(dtype).max)
+    array = np.array([maximum - 2, maximum - 1, maximum], dtype=dtype)
+    volume = Volume(
+        array=array.reshape(1, 1, 3), affine=np.eye(4),
+        coordinate_system='PATIENT',
+    )
+    result = volume.normalize_min_max()
+    np.testing.assert_array_equal(result.array.ravel(), [0.0, 0.5, 1.0])
+
+
+@pytest.mark.parametrize('dtype', [np.int16, np.int64, np.uint64, np.float32])
+def test_normalize_min_max_constant_and_nonmutating(dtype):
+    value = np.iinfo(dtype).max if np.issubdtype(dtype, np.integer) else 3.5
+    array = np.full((2, 2, 2), value, dtype=dtype)
+    volume = Volume(array=array, affine=np.eye(4), coordinate_system='PATIENT')
+    result = volume.normalize_min_max(-2.0, 3.0)
+    np.testing.assert_array_equal(result.array, np.full(array.shape, -2.0))
+    np.testing.assert_array_equal(volume.array, array)
+
+
+@pytest.mark.parametrize('dtype', ['>i2', '<i2', '>u8'])
+def test_normalize_min_max_integer_strided_byte_order(dtype):
+    array = np.arange(24, dtype=np.dtype(dtype)).reshape(2, 3, 4)[:, :, ::-1]
+    original = array.copy()
+    volume = Volume(array=array, affine=np.eye(4), coordinate_system='PATIENT')
+    result = volume.normalize_min_max()
+    np.testing.assert_allclose(result.array, original.astype(float) / 23.0)
+    np.testing.assert_array_equal(volume.array, original)
+
+
 def read_multiframe_ct_volume():
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
     return im.get_volume(), im
