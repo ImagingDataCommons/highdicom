@@ -208,7 +208,8 @@ class SCImage(SOPClass):
             resulting DICOM image. For backwards compatibility, passing
             ``bits_allocated`` is equivalent to passing ``bits_stored`` and
             controls the bits stored in the file. This parameter will be
-            removed entirely in a future release.
+            removed entirely in a future release. To upgrade, pass the value
+            to the keyword-only ``bits_stored`` parameter instead.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
