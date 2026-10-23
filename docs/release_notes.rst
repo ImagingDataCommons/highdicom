@@ -205,6 +205,9 @@ This standardizes the content of the Image Library subcomponents.
 
 .. _pm-voi-transform:
 
+Deprecation of Window Center/Width Parameters in Parametric Map
+---------------------------------------------------------------
+
 In order to unify the API with other places in the library and give further
 flexibility, the ``window_center`` and ``windhow_width`` parameters of the
 :class:`highdicom.pm.ParametricMap` class were deprecated in highdicom
