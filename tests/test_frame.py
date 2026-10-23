@@ -9,6 +9,7 @@ from pydicom.uid import (
     JPEGLSLossless,
     JPEGLSNearLossless,
     JPEGBaseline8Bit,
+    RLELossless,
 )
 
 from highdicom.frame import decode_frame, encode_frame
@@ -645,4 +646,180 @@ def test_encode_signed_color_rejected(
             photometric_interpretation=photometric_interpretation,
             pixel_representation=1,
             planar_configuration=0,
+        )
+
+
+@pytest.mark.parametrize(
+    'transfer_syntax_uid',
+    [JPEG2000, JPEGLSNearLossless, JPEGBaseline8Bit]
+)
+def test_palette_color_rejected_for_lossy(transfer_syntax_uid):
+    frame = np.zeros((64, 64), dtype=np.uint8)
+    with pytest.raises(ValueError):
+        encode_frame(
+            frame,
+            transfer_syntax_uid=transfer_syntax_uid,
+            bits_allocated=8,
+            bits_stored=8,
+            photometric_interpretation='PALETTE COLOR',
+            pixel_representation=0,
+        )
+
+
+@pytest.mark.parametrize(
+    'transfer_syntax_uid',
+    [JPEG2000Lossless, JPEGLSLossless, RLELossless]
+)
+def test_palette_color_bits_allocated(transfer_syntax_uid):
+    # 8 and 16 bit are valid
+    for bits, dtype in [(8, np.uint8), (16, np.uint16)]:
+        frame = np.zeros((64, 64), dtype=dtype)
+        encode_frame(
+            frame,
+            transfer_syntax_uid=transfer_syntax_uid,
+            bits_allocated=bits,
+            bits_stored=bits,
+            photometric_interpretation='PALETTE COLOR',
+            pixel_representation=0,
+        )
+    # 1 bit is not
+    with pytest.raises(ValueError):
+        encode_frame(
+            np.zeros((64, 64), dtype=np.uint8),
+            transfer_syntax_uid=transfer_syntax_uid,
+            bits_allocated=1,
+            bits_stored=1,
+            photometric_interpretation='PALETTE COLOR',
+            pixel_representation=0,
+        )
+
+
+@pytest.mark.parametrize(
+    'transfer_syntax_uid',
+    [JPEGLSLossless, JPEGLSNearLossless]
+)
+def test_jpegls_bits_stored_too_small(transfer_syntax_uid):
+    frame = np.zeros((16, 16), dtype=np.uint8)
+    with pytest.raises(ValueError):
+        encode_frame(
+            frame,
+            transfer_syntax_uid=transfer_syntax_uid,
+            bits_allocated=8,
+            bits_stored=1,
+            photometric_interpretation='MONOCHROME2',
+            pixel_representation=0,
+        )
+
+
+@pytest.mark.parametrize('planar_configuration', [0, 1])
+def test_rle_color_roundtrip(planar_configuration):
+    photometric_interpretation = 'RGB'
+    rng = np.random.default_rng(0)
+    frame = rng.integers(0, 255, (20, 30, 3), dtype=np.uint8)
+    encoded = encode_frame(
+        frame,
+        transfer_syntax_uid=RLELossless,
+        bits_allocated=8,
+        bits_stored=8,
+        photometric_interpretation=photometric_interpretation,
+        pixel_representation=0,
+        planar_configuration=planar_configuration,
+    )
+    decoded = decode_frame(
+        encoded,
+        transfer_syntax_uid=RLELossless,
+        rows=20,
+        columns=30,
+        samples_per_pixel=3,
+        bits_allocated=8,
+        bits_stored=8,
+        photometric_interpretation=photometric_interpretation,
+        pixel_representation=0,
+        planar_configuration=planar_configuration,
+    )
+    np.testing.assert_array_equal(decoded, frame)
+
+
+@pytest.mark.parametrize(
+    'bits,dtype', [(8, np.int8), (16, np.int16)]
+)
+@pytest.mark.parametrize(
+    'photometric_interpretation',
+    ['MONOCHROME1', 'MONOCHROME2']
+)
+def test_rle_signed_monochrome_roundtrip(
+    bits, dtype, photometric_interpretation
+):
+    rng = np.random.default_rng(0)
+    frame = rng.integers(-100, 100, (20, 30)).astype(dtype)
+    encoded = encode_frame(
+        frame,
+        transfer_syntax_uid=RLELossless,
+        bits_allocated=bits,
+        bits_stored=bits,
+        photometric_interpretation=photometric_interpretation,
+        pixel_representation=1,
+    )
+    decoded = decode_frame(
+        encoded,
+        transfer_syntax_uid=RLELossless,
+        rows=20,
+        columns=30,
+        samples_per_pixel=1,
+        bits_allocated=bits,
+        bits_stored=bits,
+        photometric_interpretation=photometric_interpretation,
+        pixel_representation=1,
+    )
+    np.testing.assert_array_equal(decoded, frame)
+
+
+def test_rle_ybr_full_encode():
+    frame = np.zeros((16, 16, 3), dtype=np.uint8)
+    for planar_configuration in (0, 1):
+        encode_frame(
+            frame,
+            transfer_syntax_uid=RLELossless,
+            bits_allocated=8,
+            bits_stored=8,
+            photometric_interpretation='YBR_FULL',
+            pixel_representation=0,
+            planar_configuration=planar_configuration,
+        )
+
+
+@pytest.mark.parametrize(
+    'dtype,shape,photometric_interpretation,pixel_representation,planar',
+    [
+        # monochrome with planar configuration
+        (np.uint8, (16, 16), 'MONOCHROME2', 0, 0),
+        # wrong photometric interpretation (monochrome)
+        (np.uint8, (16, 16), 'RGB', 0, None),
+        # signed palette color
+        (np.int8, (16, 16), 'PALETTE COLOR', 1, None),
+        # color with disallowed photometric interpretation
+        (np.uint8, (16, 16, 3), 'YBR_ICT', 0, 0),
+        (np.uint8, (16, 16, 3), 'MONOCHROME2', 0, 0),
+        # signed color
+        (np.int8, (16, 16, 3), 'RGB', 1, 0),
+    ]
+)
+def test_rle_invalid_combinations(
+    dtype,
+    shape,
+    photometric_interpretation,
+    pixel_representation,
+    planar,
+):
+    array = np.zeros(shape, dtype=dtype)
+    bits = array.dtype.itemsize * 8
+    with pytest.raises(ValueError):
+        encode_frame(
+            array,
+            transfer_syntax_uid=RLELossless,
+            bits_allocated=bits,
+            bits_stored=bits,
+            photometric_interpretation=photometric_interpretation,
+            pixel_representation=pixel_representation,
+            planar_configuration=planar,
         )
