@@ -544,6 +544,9 @@ def test_encode_signed_monochrome_roundtrip(
 ):
     if transfer_syntax_uid == JPEG2000Lossless:
         pytest.importorskip("openjpeg")
+    else:
+        pytest.importorskip("libjpeg")
+
     rng = np.random.default_rng(0)
     low = -(2 ** (bits - 1))
     high = 2 ** (bits - 1)
@@ -611,6 +614,11 @@ def test_encode_jpeg2000_signed_lossy_monochrome():
     [JPEG2000, JPEG2000Lossless, JPEGLSLossless, JPEGLSNearLossless]
 )
 def test_encode_signed_palette_color_rejected(transfer_syntax_uid):
+    if transfer_syntax_uid in (JPEG2000, JPEG2000Lossless):
+        pytest.importorskip("openjpeg")
+    else:
+        pytest.importorskip("libjpeg")
+
     frame = np.zeros((64, 64), dtype=np.int16)
     with pytest.raises(ValueError):
         encode_frame(
@@ -636,6 +644,11 @@ def test_encode_signed_color_rejected(
     transfer_syntax_uid,
     photometric_interpretation,
 ):
+    if transfer_syntax_uid in (JPEG2000, JPEG2000Lossless):
+        pytest.importorskip("openjpeg")
+    else:
+        pytest.importorskip("libjpeg")
+
     frame = np.zeros((64, 64, 3), dtype=np.int8)
     with pytest.raises(ValueError):
         encode_frame(
@@ -654,6 +667,11 @@ def test_encode_signed_color_rejected(
     [JPEG2000, JPEGLSNearLossless, JPEGBaseline8Bit]
 )
 def test_palette_color_rejected_for_lossy(transfer_syntax_uid):
+    if transfer_syntax_uid == JPEG2000:
+        pytest.importorskip("openjpeg")
+    elif transfer_syntax_uid == JPEGLSNearLossless:
+        pytest.importorskip("libjpeg")
+
     frame = np.zeros((64, 64), dtype=np.uint8)
     with pytest.raises(ValueError):
         encode_frame(
@@ -671,6 +689,11 @@ def test_palette_color_rejected_for_lossy(transfer_syntax_uid):
     [JPEG2000Lossless, JPEGLSLossless, RLELossless]
 )
 def test_palette_color_bits_allocated(transfer_syntax_uid):
+    if transfer_syntax_uid == JPEG2000Lossless:
+        pytest.importorskip("openjpeg")
+    elif transfer_syntax_uid == JPEGLSLossless:
+        pytest.importorskip("libjpeg")
+
     # 8 and 16 bit are valid
     for bits, dtype in [(8, np.uint8), (16, np.uint16)]:
         frame = np.zeros((64, 64), dtype=dtype)
@@ -699,6 +722,8 @@ def test_palette_color_bits_allocated(transfer_syntax_uid):
     [JPEGLSLossless, JPEGLSNearLossless]
 )
 def test_jpegls_bits_stored_too_small(transfer_syntax_uid):
+    pytest.importorskip("libjpeg")
+
     frame = np.zeros((16, 16), dtype=np.uint8)
     with pytest.raises(ValueError):
         encode_frame(
