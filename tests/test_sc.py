@@ -673,6 +673,7 @@ def test_valid_monochrome_datatypes(
     read_frame = reread.pixel_array
 
     assert np.array_equal(read_frame, frame)
+    assert np.array_equal(instance.get_frame(1), frame)
 
 
 @pytest.mark.parametrize(

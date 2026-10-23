@@ -40,6 +40,7 @@ from highdicom.enum import (
     PatientOrientationValuesQuadruped,
     PatientSexValues,
 )
+from highdicom.image import Image
 from highdicom.frame import encode_frame
 from highdicom.sc.enum import ConversionTypeValues
 from highdicom.sr.coding import CodedConcept
@@ -49,7 +50,7 @@ from highdicom.valuerep import check_person_name
 logger = logging.getLogger(__name__)
 
 
-class SCImage(SOPClass):
+class SCImage(Image):
 
     """SOP class for a Secondary Capture (SC) Image, which represents a
     single-frame image that was converted from a non-DICOM format.
@@ -238,7 +239,8 @@ class SCImage(SOPClass):
         if referring_physician_name is not None:
             check_person_name(referring_physician_name)
 
-        super().__init__(
+        SOPClass.__init__(
+            self,
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
             series_number=series_number,
@@ -507,6 +509,9 @@ class SCImage(SOPClass):
             self.PixelData = encapsulate([encoded_frame])
         else:
             self.PixelData = encoded_frame
+
+        self._build_luts()
+        self._file_reader = None
 
     @classmethod
     def from_ref_dataset(
