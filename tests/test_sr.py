@@ -82,6 +82,78 @@ from highdicom.sr.utils import find_content_items
 from highdicom import UID
 
 
+def test_content_sequence_queries_preserve_root_context():
+    name = Code('1', '99TEST', 'Root')
+    root = ContainerContentItem(name=name)
+    root.ContentSequence = ContentSequence([
+        TextContentItem(name=Code('2', '99TEST', 'Child'), value='value',
+                        relationship_type='CONTAINS'),
+    ])
+    sequence = ContentSequence([root], is_root=True)
+    for result in (sequence.find(name), sequence.get_nodes()):
+        assert type(result) is ContentSequence
+        assert len(result) == 1
+        assert result[0] is root
+        assert result._is_root
+        assert result._is_sr
+    missing = sequence.find(Code('3', '99TEST', 'Missing'))
+    assert len(missing) == 0
+    assert missing._is_root
+
+
+def test_content_sequence_nodes_preserve_non_sr_context():
+    item = ContainerContentItem(name=Code('1', '99TEST', 'Context'))
+    item.ContentSequence = ContentSequence([])
+    sequence = ContentSequence([item], is_sr=False)
+    result = sequence.get_nodes()
+    assert len(result) == 1
+    assert result[0] is item
+    assert not result._is_root
+    assert not result._is_sr
+
+
+def test_content_sequence_nodes_do_not_reconstruct_template():
+    template = AlgorithmIdentification(name='algorithm', version='1')
+    nodes = template.get_nodes()
+    assert type(nodes) is ContentSequence
+    assert len(nodes) == 0
+    assert nodes._is_root == template._is_root
+    assert nodes._is_sr == template._is_sr
+
+
+def test_content_sequence_insert_non_sr_and_rejection_bookkeeping():
+    item = TextContentItem(name=Code('1', '99TEST', 'Context'), value='value')
+    sequence = ContentSequence([], is_sr=False)
+    sequence.insert(0, item)
+    assert sequence[0] is item
+    assert len(sequence.find(item.name)) == 1
+
+    sr_sequence = ContentSequence([])
+    with pytest.raises(AttributeError):
+        sr_sequence.insert(0, item)
+    assert len(sr_sequence) == 0
+    assert len(sr_sequence.find(item.name)) == 0
+
+    root_sequence = ContentSequence([], is_root=True)
+    child = ContainerContentItem(name=item.name, relationship_type='CONTAINS')
+    with pytest.raises(AttributeError):
+        root_sequence.insert(0, child)
+    assert len(root_sequence) == 0
+    assert len(root_sequence.find(child.name)) == 0
+
+
+def test_content_sequence_insert_rejects_non_sr_relationship():
+    sequence = ContentSequence([], is_sr=False)
+    item = TextContentItem(
+        name=Code('1', '99TEST', 'Context'), value='value',
+        relationship_type='CONTAINS',
+    )
+    with pytest.raises(AttributeError):
+        sequence.insert(0, item)
+    assert len(sequence) == 0
+    assert len(sequence.find(item.name)) == 0
+
+
 def _build_coded_concept_dataset(code: Code) -> Dataset:
     ds = Dataset()
     ds.CodeValue = code[0]
