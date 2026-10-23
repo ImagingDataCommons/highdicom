@@ -309,11 +309,6 @@ def encode_frame(
             )
 
         if transfer_syntax_uid != RLELossless:
-            if pixel_representation != 0:
-                raise ValueError(
-                    'Pixel representation must be 0 for '
-                    f'encoding of image frames with {name} codec.'
-                )
             if samples_per_pixel == 1:
                 if planar_configuration is not None:
                     raise ValueError(
@@ -329,6 +324,14 @@ def encode_frame(
                         'for encoding of monochrome image frames with '
                         f'{name} codec.'
                     )
+                if (
+                    photometric_interpretation == 'PALETTE COLOR' and
+                    pixel_representation != 0
+                ):
+                    raise ValueError(
+                        'Pixel representation must be 0 for encoding of '
+                        f'PALETTE COLOR image frames with {name} codec.'
+                    )
                 if transfer_syntax_uid == JPEG2000Lossless:
                     if bits_allocated not in (1, 8, 16):
                         raise ValueError(
@@ -343,6 +346,11 @@ def encode_frame(
                             f'monochrome image frames with with {name} codec.'
                         )
             elif samples_per_pixel == 3:
+                if pixel_representation != 0:
+                    raise ValueError(
+                        'Pixel representation must be 0 for encoding of '
+                        f'color image frames with {name} codec.'
+                    )
                 if planar_configuration != 0:
                     raise ValueError(
                         'Planar configuration must be 0 for encoding of '
