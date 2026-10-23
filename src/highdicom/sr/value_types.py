@@ -1926,12 +1926,16 @@ class TcoordContentItem(ContentItem):
         """Union[List[int], List[float], List[datetime.datetime]]: time points
         """
         try:
-            return self.ReferencedSamplePositions
+            value = self.ReferencedSamplePositions
         except AttributeError:
             try:
-                return self.ReferencedTimeOffsets
+                value = self.ReferencedTimeOffsets
             except AttributeError:
-                return self.ReferencedDateTime
+                value = self.ReferencedDateTime
+
+        if value is None or isinstance(value, (MultiValue, list, np.ndarray)):
+            return value
+        return [value]
 
     @property
     def temporal_range_type(self) -> TemporalRangeTypeValues:
