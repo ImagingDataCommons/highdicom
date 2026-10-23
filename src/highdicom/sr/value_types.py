@@ -1933,7 +1933,7 @@ class TcoordContentItem(ContentItem):
             except AttributeError:
                 value = self.ReferencedDateTime
 
-        if value is None or isinstance(value, MultiValue):
+        if value is None or isinstance(value, (MultiValue, list, np.ndarray)):
             return value
         return [value]
 
