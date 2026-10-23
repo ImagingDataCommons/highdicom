@@ -240,3 +240,28 @@ can be replaced with this to give the same output object:
        ],
        ...,
    )
+
+Deprecation of ``bits_allocated`` parameter in ``SCImage``
+----------------------------------------------------------
+
+Until highdicom 0.29.0, the constructor of :class:`highdicom.sc.SCImage` (and
+its classmethod :meth:`highdicom.sc.SCImage.from_ref_dataset()`) had a required
+parameter named ``bits_allocated``. However, there were several issues with
+this. Firstly, it would accept a value of 12, which is not valid for use with
+Bits Allocated. For other values, it had to match exactly the number of bits in
+the datatype of the ``pixel_array`` parameter, making it serve no useful
+purpose other than make the API more complex for users.
+
+In version 0.29.0, the parameter was deprecated. The number of bits allocated
+is now inferred from the datatype of ``pixel_array``. By default, the number of
+bits stored will match the number of bits allocated. A new keyword-only
+``bits_stored`` parameter allows you to specify a number of bits stored that
+differs from the number of bits allocated. To minimize disruption for existing
+code, the constructor will continue to accept ``bits_allocated`` as a keyword
+parameter, and treat it as if the same value were passed to ``bits_stored``,
+but issue a warning instructing the user to update the code.
+
+Unfortunately, code that passes ``bits_allocated`` as a positional argument
+will break with this change. In this case, users should either remove this
+argument entirely to have bits allocated and bits stored inferred from the
+pixel array, or specify ``bits_stored`` instead.

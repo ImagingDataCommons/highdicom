@@ -172,7 +172,7 @@ def encode_frame(
                 'must have a signed integer dtype.'
             )
     else:
-        if array.dtype.kind != 'u':
+        if array.dtype.kind not in ('u', 'b'):
             raise ValueError(
                 'When encoding frames with pixel_representation=0, array '
                 'must have an unsigned integer dtype.'

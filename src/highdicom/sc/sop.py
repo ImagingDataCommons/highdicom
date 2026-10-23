@@ -113,9 +113,11 @@ class SCImage(SOPClass):
         Parameters
         ----------
         pixel_array: numpy.ndarray
-            Array of unsigned integer pixel values representing a single-frame
-            image; either a 2D grayscale image or a 3D color image
-            (RGB color space)
+            Array of pixel values representing a single-frame image; either a
+            2D grayscale image with shape (H, W) or a 3D color image with shape
+            (H, W, 3) in the RGB color space. Acceptable datatypes are bool,
+            uint8, uint16, int8, or int32 for grayscale images, and uint8 or
+            uint16 for color images.
         photometric_interpretation: Union[str, highdicom.PhotometricInterpretationValues]
             Interpretation with which to store pixel data in the dataset;
             either ``"MONOCHROME1"`` or ``"MONOCHROME2"`` for single channel
@@ -264,11 +266,11 @@ class SCImage(SOPClass):
         # 'bits_allocated' with positional arguments
         if isinstance(coordinate_system, int):
             raise TypeError(
-                "Use of 'bits_allocated' as a positional argument was deprecated "
-                "in highdicom 0.29.0. Omit the parameter to use the number of bits "
-                "per pixel in the input array as both the number of bits allocated "
-                "and bits stored or specify 'bits_stored' "
-                "as a keyword argument."
+                "Use of 'bits_allocated' as a positional argument was "
+                "deprecated in highdicom 0.29.0. Omit the parameter to use "
+                "the number of bits per pixel in the input array as both "
+                "the number of bits allocated and bits stored or specify "
+                "'bits_stored' as a keyword argument."
             )
 
         coordinate_system = CoordinateSystemNames(coordinate_system)
@@ -345,48 +347,117 @@ class SCImage(SOPClass):
         self.ImageType = ['DERIVED', 'SECONDARY', 'OTHER']
         self.Rows = pixel_array.shape[0]
         self.Columns = pixel_array.shape[1]
-        allowed_types = [np.bool_, np.uint8, np.uint16]
-        if not any(pixel_array.dtype == t for t in allowed_types):
-            raise TypeError(
-                'Pixel array must be of type np.bool_, np.uint8 or np.uint16. '
-                f'Found {pixel_array.dtype}.'
+
+        photometric_interpretation = PhotometricInterpretationValues(
+            photometric_interpretation
+        )
+        if pixel_array.ndim == 3:
+            if pixel_array.shape[-1] != 3:
+                raise ValueError(
+                    'Pixel array has an unexpected number of color channels.'
+                )
+
+            if transfer_syntax_uid == JPEGBaseline8Bit:
+                accepted_interpretations = {
+                    PhotometricInterpretationValues.YBR_FULL_422.value,
+                }
+            elif transfer_syntax_uid == JPEG2000:
+                accepted_interpretations = {
+                    PhotometricInterpretationValues.YBR_ICT.value,
+                }
+            elif transfer_syntax_uid == JPEG2000Lossless:
+                accepted_interpretations = {
+                    PhotometricInterpretationValues.YBR_RCT.value,
+                }
+            else:
+                accepted_interpretations = {
+                    PhotometricInterpretationValues.RGB.value,
+                    PhotometricInterpretationValues.YBR_FULL.value,
+                }
+
+            if photometric_interpretation.value not in accepted_interpretations:
+                raise ValueError(
+                    'Pixel array has an unexpected photometric interpretation.'
+                )
+
+            if pixel_array.dtype.kind != 'u':
+                raise TypeError(
+                    'Pixel array must have an unsigned '
+                    'integer datatype for color images. '
+                    f'Found {pixel_array.dtype}.'
+                )
+
+            self.BitsAllocated = pixel_array.itemsize * 8
+
+            if self.BitsAllocated not in (1, 8, 16, 32):
+                raise TypeError(
+                    'Pixel array has an unexpected bit depth.'
+                )
+
+            self.PhotometricInterpretation = photometric_interpretation.value
+            self.SamplesPerPixel = 3
+            self.PlanarConfiguration = 0
+            self.PixelRepresentation = 0
+
+        elif pixel_array.ndim == 2:
+            accepted_interpretations = {
+                PhotometricInterpretationValues.MONOCHROME1.value,
+                PhotometricInterpretationValues.MONOCHROME2.value,
+            }
+
+            if photometric_interpretation.value not in accepted_interpretations:
+                raise ValueError(
+                    'Pixel array has an unexpected photometric interpretation.'
+                )
+
+            if pixel_array.dtype.kind == 'b':
+                self.BitsAllocated = 1
+                self.PixelRepresentation = 0
+            elif pixel_array.dtype.kind == 'u':
+                self.PixelRepresentation = 0
+                self.BitsAllocated = pixel_array.itemsize * 8
+            elif pixel_array.dtype.kind == 'i':
+                self.PixelRepresentation = 1
+                self.BitsAllocated = pixel_array.itemsize * 8
+            else:
+                raise TypeError(
+                    'Pixel array must have signed or unsigned '
+                    'integer datatype for monochrome images. '
+                    f'Found {pixel_array.dtype}.'
+                )
+
+            if self.BitsAllocated not in (1, 8, 16, 32):
+                raise TypeError(
+                    'Pixel array has an unexpected bit depth.'
+                )
+
+            self.PhotometricInterpretation = photometric_interpretation.value
+            self.SamplesPerPixel = 1
+        else:
+            raise ValueError(
+                'Pixel array has an unexpected number of dimensions.'
             )
 
         if bits_allocated is not None:
             # Handle deprecation of bits_allocated
             if bits_stored is not None:
                 raise TypeError(
-                    "The 'bits_allocated' parameter is deprecated and must must "
-                    "be provided alongside 'bits_stored'."
+                    "The 'bits_allocated' parameter is deprecated and must "
+                    "not be provided alongside 'bits_stored'."
                 )
 
             warnings.warn(
                 "The 'bits_allocated' parameter is deprecated as of highdicom "
-                "0.29.0 and will be removed in a future version of the library. "
-                "Use 'bits_stored' to set the number of bits stored or skip the "
-                "parameter entirely to use the number of bits per pixel in the "
-                "input array.",
+                "0.29.0 and will be removed in a future version of the "
+                "library. Use 'bits_stored' to set the number of bits stored "
+                "or skip the parameter entirely to use the number of bits per "
+                "pixel in the input array as the number of bits allocated.",
                 UserWarning,
                 stacklevel=2,
             )
             # Interpret the bits_allocated as bits_stored in line with the old,
             # deprecated behavior
             bits_stored = bits_allocated
-
-        if pixel_array.dtype == np.bool_:
-            self.BitsAllocated = 1
-        elif pixel_array.dtype == np.uint8:
-            self.BitsAllocated = 8
-        elif pixel_array.dtype == np.uint16:
-            self.BitsAllocated = 16
-        else:
-            raise ValueError('Pixel array has an unexpected bit depth.')
-
-        if transfer_syntax_uid == RLELossless and self.BitsAllocated % 8 != 0:
-            raise ValueError(
-                'When using run length encoding, bits allocated must be a '
-                'multiple of 8'
-            )
 
         if bits_stored is not None:
             if not isinstance(bits_stored, int):
@@ -414,61 +485,6 @@ class SCImage(SOPClass):
             self.BitsStored = self.BitsAllocated
 
         self.HighBit = self.BitsStored - 1
-        self.PixelRepresentation = 0
-        photometric_interpretation = PhotometricInterpretationValues(
-            photometric_interpretation
-        )
-        if pixel_array.ndim == 3:
-            if transfer_syntax_uid == JPEGBaseline8Bit:
-                accepted_interpretations = {
-                    PhotometricInterpretationValues.YBR_FULL_422.value,
-                }
-            elif transfer_syntax_uid == JPEG2000:
-                accepted_interpretations = {
-                    PhotometricInterpretationValues.YBR_ICT.value,
-                }
-            elif transfer_syntax_uid == JPEG2000Lossless:
-                accepted_interpretations = {
-                    PhotometricInterpretationValues.YBR_RCT.value,
-                }
-            else:
-                accepted_interpretations = {
-                    PhotometricInterpretationValues.RGB.value,
-                    PhotometricInterpretationValues.YBR_FULL.value,
-                }
-            if photometric_interpretation.value not in accepted_interpretations:
-                raise ValueError(
-                    'Pixel array has an unexpected photometric interpretation.'
-                )
-            if pixel_array.shape[-1] != 3:
-                raise ValueError(
-                    'Pixel array has an unexpected number of color channels.'
-                )
-            if self.BitsAllocated != 8:
-                raise ValueError('Color images must be 8-bit.')
-            if pixel_array.dtype != np.uint8:
-                raise TypeError(
-                    'Pixel array must have 8-bit unsigned integer data type '
-                    'in case of a color image.'
-                )
-            self.PhotometricInterpretation = photometric_interpretation.value
-            self.SamplesPerPixel = 3
-            self.PlanarConfiguration = 0
-        elif pixel_array.ndim == 2:
-            accepted_interpretations = {
-                PhotometricInterpretationValues.MONOCHROME1.value,
-                PhotometricInterpretationValues.MONOCHROME2.value,
-            }
-            if photometric_interpretation.value not in accepted_interpretations:
-                raise ValueError(
-                    'Pixel array has an unexpected photometric interpretation.'
-                )
-            self.PhotometricInterpretation = photometric_interpretation.value
-            self.SamplesPerPixel = 1
-        else:
-            raise ValueError(
-                'Pixel array has an unexpected number of dimensions.'
-            )
         if pixel_spacing is not None:
             if len(pixel_spacing) != 2:
                 raise ValueError(
