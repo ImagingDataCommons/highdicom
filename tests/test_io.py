@@ -2,15 +2,43 @@ import unittest
 from pathlib import Path
 from random import shuffle
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 from pydicom import dcmread
 from pydicom.data import get_testdata_file
+from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.filebase import DicomBytesIO, DicomFileLike, DicomFile
+from pydicom.tag import ItemTag
+from pydicom.uid import (
+    ExplicitVRLittleEndian,
+    ParametricMapStorage,
+    generate_uid,
+)
 import pytest
 
 from highdicom.io import ImageFileReader
 from tests.utils import find_readable_images
+
+
+def test_read_frame_raw_rejects_undefined_fragment_length():
+    stream = Mock()
+    stream.read_tag.return_value = (ItemTag.group, ItemTag.element)
+    stream.read_UL.return_value = 0xFFFFFFFF
+    stream.read.side_effect = AssertionError('Payload read must not occur.')
+    reader = SimpleNamespace(
+        number_of_frames=1,
+        _offset_table=[0],
+        _first_frame_offset=0,
+        _fp=stream,
+        transfer_syntax_uid=SimpleNamespace(is_encapsulated=True),
+    )
+
+    with pytest.raises(OSError, match='undefined length'):
+        ImageFileReader.read_frame_raw(reader, 0)
+
+    stream.read.assert_not_called()
 
 
 class TestImageFileReader(unittest.TestCase):
@@ -38,6 +66,63 @@ class TestImageFileReader(unittest.TestCase):
                 reader.metadata.Columns,
             )
             np.testing.assert_array_equal(frame, pixel_array)
+
+    def test_read_float_pixel_data(self):
+        cases = [
+            (np.float32, 'FloatPixelData', 32),
+            (np.float64, 'DoubleFloatPixelData', 64),
+        ]
+        with TemporaryDirectory() as temp_dir:
+            for dtype, pixel_keyword, bits_allocated in cases:
+                filename = Path(temp_dir) / f"{pixel_keyword}.dcm"
+                file_meta = FileMetaDataset()
+                file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+                file_meta.MediaStorageSOPClassUID = ParametricMapStorage
+                file_meta.MediaStorageSOPInstanceUID = generate_uid()
+                file_meta.ImplementationClassUID = generate_uid()
+                dataset = FileDataset(
+                    filename,
+                    {},
+                    file_meta=file_meta,
+                    preamble=b"\0" * 128,
+                )
+                dataset.SOPClassUID = file_meta.MediaStorageSOPClassUID
+                dataset.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+                dataset.Rows = 3
+                dataset.Columns = 4
+                dataset.SamplesPerPixel = 1
+                dataset.PhotometricInterpretation = 'MONOCHROME2'
+                dataset.NumberOfFrames = 2
+                dataset.BitsAllocated = bits_allocated
+                pixel_array = np.linspace(
+                    -3.5,
+                    2.25,
+                    num=24,
+                    dtype=dtype,
+                ).reshape(2, 3, 4)
+                setattr(dataset, pixel_keyword, pixel_array.tobytes())
+                dataset.save_as(
+                    filename,
+                    implicit_vr=False,
+                    little_endian=True,
+                )
+
+                with ImageFileReader(filename) as reader:
+                    for frame_index in range(2):
+                        frame = reader.read_frame(frame_index)
+                        assert frame.dtype == dtype
+                        np.testing.assert_array_equal(
+                            frame,
+                            pixel_array[frame_index],
+                        )
+
+    def test_reject_out_of_range_frame_indices(self):
+        filename = str(self._test_dir.joinpath('ct_image.dcm'))
+        with ImageFileReader(filename) as reader:
+            with pytest.raises(ValueError, match="Frame index"):
+                reader.read_frame_raw(-1)
+            with pytest.raises(ValueError, match="Frame index"):
+                reader.read_frame_raw(reader.number_of_frames)
 
     def test_read_multi_frame_ct_image_native(self):
         filename = str(get_testdata_file('eCT_Supplemental.dcm'))

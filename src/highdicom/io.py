@@ -31,6 +31,7 @@ from pydicom.tag import (
 )
 from pydicom.uid import UID, DeflatedExplicitVRLittleEndian
 
+from highdicom.enum import PixelDataKeywords
 from highdicom.frame import decode_frame
 from highdicom.color import ColorManager
 from highdicom.uid import UID as hd_UID
@@ -41,6 +42,11 @@ logger = logging.getLogger(__name__)
 _FLOAT_PIXEL_DATA_TAGS = {0x7FE00008, 0x7FE00009, }
 _UINT_PIXEL_DATA_TAGS = {0x7FE00010, }
 _PIXEL_DATA_TAGS = _FLOAT_PIXEL_DATA_TAGS.union(_UINT_PIXEL_DATA_TAGS)
+_PIXEL_DATA_KEYWORDS = {
+    0x7FE00008: PixelDataKeywords.FLOAT_PIXEL_DATA,
+    0x7FE00009: PixelDataKeywords.DOUBLE_FLOAT_PIXEL_DATA,
+    0x7FE00010: PixelDataKeywords.PIXEL_DATA,
+}
 
 _JPEG_SOI_MARKER = b'\xFF\xD8'  # also JPEG-LS
 _JPEG_EOI_MARKER = b'\xFF\xD9'  # also JPEG-LS
@@ -545,9 +551,7 @@ class ImageFileReader:
             raise ValueError(
                 'Dataset does not represent an image information entity.'
             )
-        self._as_float = False
-        if int(tag) in _FLOAT_PIXEL_DATA_TAGS:
-            self._as_float = True
+        self._pixel_keyword = _PIXEL_DATA_KEYWORDS[int(tag)]
 
         # Reset the file pointer to the beginning of the Pixel Data element
         self._fp.seek(self._pixel_data_offset, 0)
@@ -693,12 +697,18 @@ class ImageFileReader:
 
         Raises
         ------
+        ValueError
+            When `index` is less than 0 or greater than or equal to the number
+            of frames.
         OSError
             When frame could not be read
 
         """
-        if index > self.number_of_frames:
-            raise ValueError('Frame index exceeds number of frames in image.')
+        if index < 0 or index >= self.number_of_frames:
+            raise ValueError(
+                'Frame index must be greater than or equal to 0 and less '
+                'than the number of frames in the image.'
+            )
         logger.debug(f'read frame #{index}')
 
         frame_offset = self._offset_table[index]
@@ -719,6 +729,8 @@ class ImageFileReader:
                 if int(tag) != ItemTag:
                     raise ValueError(f'Failed to read frame #{index}.')
                 length = self._fp.read_UL()
+                if length == 0xFFFFFFFF:
+                    raise OSError('Pixel data fragment has undefined length.')
                 fragments.append(self._fp.read(length))
                 n += 4 + 4 + length
             frame_data = b''.join(fragments)
@@ -751,6 +763,9 @@ class ImageFileReader:
 
         Raises
         ------
+        ValueError
+            When `index` is less than 0 or greater than or equal to the number
+            of frames.
         OSError
             When frame could not be read
 
@@ -759,6 +774,13 @@ class ImageFileReader:
 
         logger.debug(f'decode frame #{index}')
 
+        if self._pixel_keyword == PixelDataKeywords.PIXEL_DATA:
+            bits_stored = self.metadata.BitsStored
+            pixel_representation = self.metadata.PixelRepresentation
+        else:
+            bits_stored = self.metadata.BitsAllocated
+            pixel_representation = None
+
         frame_array = decode_frame(
             frame_data,
             rows=self.metadata.Rows,
@@ -766,13 +788,14 @@ class ImageFileReader:
             samples_per_pixel=self.metadata.SamplesPerPixel,
             transfer_syntax_uid=self.transfer_syntax_uid,
             bits_allocated=self.metadata.BitsAllocated,
-            bits_stored=self.metadata.BitsStored,
+            bits_stored=bits_stored,
             photometric_interpretation=self.metadata.PhotometricInterpretation,
-            pixel_representation=self.metadata.PixelRepresentation,
+            pixel_representation=pixel_representation,
             planar_configuration=getattr(
                 self.metadata, 'PlanarConfiguration', None
             ),
             index=index,
+            pixel_keyword=self._pixel_keyword,
         )
 
         # We don't use the color_correct_frame() function here, since we cache

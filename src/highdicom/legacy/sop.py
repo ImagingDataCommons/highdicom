@@ -1281,22 +1281,30 @@ class _LegacyConversionRunner:
                         )
             else:
                 if have_instance_number:
-                    self._legacy_datasets = sorted(
-                        self._legacy_datasets,
-                        key=lambda ds: int(ds.InstanceNumber)
-                    )
-                    self._dimension_index_values = [
-                        [i] for i in range(1, len(self._legacy_datasets) + 1)
+
+                    # Only use an index if instance numbers are unique
+                    instance_numbers = [
+                        ds.InstanceNumber for ds in self._legacy_datasets
                     ]
 
-                    dimension_index_datasets.append(
-                        _get_dimension_index_sequence_item(
-                            0x0020_0013,  # InstanceNumber
-                            0x0020_9171,  # UnassignedPerFrame...
-                            "Instance Number of converted legacy instance",
-                            dim_org_uid
+                    if len(set(instance_numbers)) == len(self._legacy_datasets):
+                        self._legacy_datasets = sorted(
+                            self._legacy_datasets,
+                            key=lambda ds: int(ds.InstanceNumber)
                         )
-                    )
+                        self._dimension_index_values = [
+                            [i]
+                            for i in range(1, len(self._legacy_datasets) + 1)
+                        ]
+
+                        dimension_index_datasets.append(
+                            _get_dimension_index_sequence_item(
+                                0x0020_0013,  # InstanceNumber
+                                0x0020_9171,  # UnassignedPerFrame...
+                                "Instance Number of converted legacy instance",
+                                dim_org_uid
+                            )
+                        )
 
         if self._dimension_index_values is None:
             if (

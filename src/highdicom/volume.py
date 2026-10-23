@@ -1938,11 +1938,6 @@ class _VolumeBase(ABC):
             )
             pad_values.append((pad_before, pad_after))
 
-        if not (
-            requires_permute or requires_pad or requires_crop
-        ):
-            new_volume = new_volume.copy()
-
         if requires_pad:
             new_volume = new_volume.pad(
                 pad_values,
@@ -2972,6 +2967,7 @@ class Volume(_VolumeBase):
             affine=self._affine.copy(),
             coordinate_system=self.coordinate_system,
             frame_of_reference_uid=self.frame_of_reference_uid,
+            channels=self._channels,
         )
 
     def with_array(
@@ -3428,16 +3424,24 @@ class Volume(_VolumeBase):
 
         if (
             per_channel and
-            self.number_of_channel_dimensions > 1
+            self.number_of_channel_dimensions > 0
         ):
             imin = self.array.min(axis=(0, 1, 2), keepdims=True)
             imax = self.array.max(axis=(0, 1, 2), keepdims=True)
+            if np.issubdtype(self.array.dtype, np.integer):
+                imin = imin.astype(np.float64)
+                imax = imax.astype(np.float64)
 
             peak_to_peak = imax - imin
 
-            # Avoid division by zerp
-            peak_to_peak[peak_to_peak == 0.0] = output_range
-            scale_factor = output_range / peak_to_peak
+            # Constant channels map to output_min; keep their inert scale at
+            # 1.0 while avoiding division by zero.
+            safe_peak_to_peak = np.where(
+                peak_to_peak == 0.0,
+                output_range,
+                peak_to_peak,
+            )
+            scale_factor = output_range / safe_peak_to_peak
         else:
             imin = self.array.min()
             imax = self.array.max()
@@ -3646,7 +3650,10 @@ class Volume(_VolumeBase):
                 for s, (p1, p2) in zip(self.spatial_shape, full_pad_width)
             ]
             # preallocate output array
-            new_array = np.zeros([*out_spatial_shape, *self.channel_shape])
+            new_array = np.zeros(
+                [*out_spatial_shape, *self.channel_shape],
+                dtype=self.array.dtype,
+            )
             for cind in itertools.product(
                 *[range(n) for n in self.channel_shape]
             ):

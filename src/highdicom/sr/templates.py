@@ -776,7 +776,12 @@ class AlgorithmIdentification(Template):
 
 class TrackingIdentifier(Template):
 
-    """:dcm:`TID 4108 <part16/sect_TID_4108.html>` Tracking Identifier"""
+    """:dcm:`TID 4108 <part16/sect_TID_4108.html>` Tracking Identifier
+
+    Identifier used to track a single region of interest across multiple
+    images or imaging studies.
+
+    """
 
     def __init__(
         self,
@@ -2479,7 +2484,8 @@ class Measurement(Template):
             Qualification of numeric measurement value or as an alternative
             qualitative description
         tracking_identifier: Union[highdicom.sr.TrackingIdentifier, None], optional
-            Identifier for tracking measurements
+            Identifier for tracking measurements across multiple images or
+            imaging studies.
         algorithm_id: Union[highdicom.sr.AlgorithmIdentification, None], optional
             Identification of algorithm used for making measurements
         derivation: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
@@ -2633,17 +2639,12 @@ class Measurement(Template):
         item = sequence[0]
         if not isinstance(item, NumContentItem):
             raise TypeError('Measurement shall contain a NUM content item.')
-        measurement = cls(
-            name=item.name,
-            value=item.value,
-            unit=item.unit,
-            qualifier=item.qualifier
-        )
-        if 'ContentSequence' in item:
-            measurement[0].ContentSequence = ContentSequence.from_sequence(
-                item.ContentSequence
-            )
-        return measurement
+        # The item is copied rather than passed to the constructor, because
+        # the measured value may be absent (with a qualifier giving the
+        # reason), which the constructor does not support
+        instance = super().from_sequence(sequence, is_root=is_root)
+        instance.__class__ = cls
+        return cast(Self, instance)
 
     @property
     def name(self) -> CodedConcept:
@@ -2651,13 +2652,22 @@ class Measurement(Template):
         return self[0].name
 
     @property
-    def value(self) -> int | float:
-        """Union[int, float]: measured value"""
+    def value(self) -> int | float | None:
+        """Union[int, float, None]: measured value
+
+        ``None`` if the measured value is absent, in which case the reason
+        for the absence of the value is given by :attr:`qualifier`.
+
+        """
         return self[0].value
 
     @property
-    def unit(self) -> CodedConcept:
-        """highdicom.sr.CodedConcept: unit"""
+    def unit(self) -> CodedConcept | None:
+        """Union[highdicom.sr.CodedConcept, None]: unit
+
+        ``None`` if the measured value is absent.
+
+        """
         return self[0].unit
 
     @property
@@ -2776,7 +2786,8 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            Identifier for tracking measurements
+            Identifier for tracking measurements across multiple images or
+            imaging studies.
         referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             Referenced real world value map for region of interest
         time_point_context: Union[highdicom.sr.TimePointContext, None], optional
@@ -3176,7 +3187,8 @@ class MeasurementsAndQualitativeEvaluations(
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            Identifier for tracking measurements
+            Identifier for tracking measurements across multiple images or
+            imaging studies.
         referenced_real_world_value_map: Union[highdicom.sr.RealWorldValueMap, None], optional
             Referenced real world value map for region of interest
         time_point_context: Union[highdicom.sr.TimePointContext, None], optional
@@ -3296,7 +3308,8 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            Identifier for tracking measurements
+            Identifier for tracking regions of interest across multiple images
+            or imaging studies.
         referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], Sequence[highdicom.sr.ImageRegion3D], None], optional
             Regions of interest in source image(s)
         referenced_segment: Union[highdicom.sr.ReferencedSegment, highdicom.sr.ReferencedSegmentationFrame, None], optional
@@ -3458,7 +3471,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            Identifier for tracking measurements
+            Identifier for tracking regions of interest across multiple images
+            or imaging studies.
         referenced_region: Union[highdicom.sr.ImageRegion, highdicom.sr.ImageRegion3D, None], optional
             Region of interest in source image
         referenced_segment: Union[highdicom.sr.ReferencedSegmentationFrame, None], optional
@@ -3495,9 +3509,9 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
 
         Note
         ----
-        Either a segmentation or a region needs to referenced
-        together with the corresponding source image from which the
-        segmentation or region was obtained.
+        Exactly one of the following parameters must be specified to describe
+        the planar region of interest within the source image:
+        ``referenced_region``, ``referenced_segment``.
 
         """  # noqa: E501
         were_references_provided = [
@@ -3741,7 +3755,8 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         Parameters
         ----------
         tracking_identifier: highdicom.sr.TrackingIdentifier
-            Identifier for tracking measurements
+            Identifier for tracking regions of interest across multiple images
+            or imaging studies.
         referenced_regions: Union[Sequence[highdicom.sr.ImageRegion], None], optional
             Regions of interest in source image(s)
         referenced_volume_surface: Union[highdicom.sr.VolumeSurface, None], optional
@@ -3780,8 +3795,10 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
 
         Note
         ----
-        Either a segmentation, a list of regions or volume needs to referenced
-        together with the corresponding source image(s) or series.
+        Exactly one of the following parameters must be specified to describe
+        the volumetric region of interest within the source image or series:
+        ``referenced_regions``, ``referenced_volume_surface``,
+        ``referenced_segment``.
 
         """  # noqa: E501
         if referenced_regions is not None and any(

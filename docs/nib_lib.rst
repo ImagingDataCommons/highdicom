@@ -41,11 +41,7 @@ Creating a volume from a NiBabel Image:
 
     nibabel_image = nib.Nifti1Image(...)
 
-    vol = hd.Volume.from_nibabel(
-        nibabel_image=nibabel_image,
-        coordinate_system='PATIENT',
-        frame_of_reference_uid=None
-    )
+    vol = hd.Volume.from_nibabel(nibabel_image)
 
 
 .. _`NiBabel`: https://nipy.org/nibabel/

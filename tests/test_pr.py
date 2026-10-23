@@ -84,6 +84,8 @@ class TestSoftcopyVOILUTTransformation(unittest.TestCase):
         )
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
+        assert lut.WindowCenterWidthExplanation == 'Soft Tissue Window'
+        assert lut['WindowCenterWidthExplanation'].VM == 1
 
     def test_construction_multiple(self):
         lut = SoftcopyVOILUTTransformation(
@@ -1468,6 +1470,36 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert (
             gsps.SoftcopyVOILUTSequence[0].WindowCenterWidthExplanation == exps
         )
+
+    def test_construction_with_copy_voi_lut_with_expl(self):
+        new_series = []
+        for dcm in self._ct_series:
+            new_dcm = deepcopy(dcm)
+            new_dcm.WindowCenterWidthExplanation = 'SOFT TISSUE'
+            new_series.append(new_dcm)
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=new_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann_ct],
+            concept_name=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John'
+        )
+        assert len(gsps.SoftcopyVOILUTSequence) == 1
+        reread = write_and_read_dataset(gsps)
+        voi_item = reread.SoftcopyVOILUTSequence[0]
+        assert voi_item.WindowCenterWidthExplanation == 'SOFT TISSUE'
+        assert voi_item['WindowCenterWidthExplanation'].VM == 1
 
     def test_construction_with_copy_voi_lut_empty(self):
         file_path = Path(__file__)
