@@ -52,6 +52,40 @@ def read_ct_series_volume():
     return get_volume_from_series(ct_series), ct_series
 
 
+@pytest.mark.parametrize('volume_type', [Volume, VolumeGeometry])
+def test_reject_singular_affine(volume_type):
+    affine = np.eye(4)
+    affine[:3, 2] = affine[:3, 0] * 1e-6
+
+    kwargs = {
+        'affine': affine,
+        'coordinate_system': "PATIENT",
+    }
+    if volume_type is Volume:
+        kwargs['array'] = np.zeros((2, 2, 2))
+    else:
+        kwargs['spatial_shape'] = (2, 2, 2)
+
+    with pytest.raises(ValueError, match="affine.*orthogonal"):
+        volume_type(**kwargs)
+
+
+@pytest.mark.parametrize('volume_type', [Volume, VolumeGeometry])
+def test_accept_small_independent_affine_scales(volume_type):
+    affine = np.diag([1e-12, 2e-12, 3e-12, 1.0])
+    kwargs = {
+        'affine': affine,
+        'coordinate_system': "PATIENT",
+    }
+    if volume_type is Volume:
+        kwargs['array'] = np.zeros((2, 2, 2))
+    else:
+        kwargs['spatial_shape'] = (2, 2, 2)
+
+    volume = volume_type(**kwargs)
+    assert np.array_equal(volume.affine, affine)
+
+
 def test_transforms():
     array = np.zeros((25, 50, 50))
     orientation = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
@@ -422,6 +456,37 @@ def test_volume_multiframe():
     for v, spacing in zip([v1, v2, v3], volume.spacing):
         assert v.shape == (3, )
         assert np.linalg.norm(v) == spacing
+
+
+def test_copy():
+    array = np.zeros((2, 3, 3), dtype=np.uint8)
+    array[1, 2, 0] = 4
+    vol = Volume(
+        array=array,
+        affine=np.eye(4),
+        coordinate_system="PATIENT",
+    )
+    vol2 = vol.copy()
+    assert np.array_equal(vol.array, vol2.array)
+    assert np.array_equal(vol.affine, vol2.affine)
+    assert not np.shares_memory(vol.array, vol2.array)
+    assert not np.shares_memory(vol.affine, vol2.affine)
+
+
+def test_copy_with_channels():
+    array = np.zeros((2, 3, 3, 2), dtype=np.uint8)
+    array[1, 2, 0] = 4
+    vol = Volume(
+        array=array,
+        affine=np.eye(4),
+        coordinate_system="PATIENT",
+        channels={"SegmentNumber": [1, 2]},
+    )
+    vol2 = vol.copy()
+    assert np.array_equal(vol.array, vol2.array)
+    assert np.array_equal(vol.affine, vol2.affine)
+    assert not np.shares_memory(vol.array, vol2.array)
+    assert not np.shares_memory(vol.affine, vol2.affine)
 
 
 def test_indexing():
@@ -1040,6 +1105,33 @@ def test_pad_with_channels(mode, per_channel):
     assert padded.match_geometry(vol).geometry_equal(vol)
 
 
+@pytest.mark.parametrize('dtype', [np.uint16, np.float32])
+def test_pad_per_channel_preserves_dtype(dtype):
+    array = np.stack(
+        [
+            np.arange(1, 9).reshape(2, 2, 2),
+            np.arange(101, 109).reshape(2, 2, 2),
+        ],
+        axis=-1,
+    ).astype(dtype)
+    volume = Volume(
+        array,
+        np.eye(4),
+        coordinate_system="PATIENT",
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: [
+            RGBColorChannels.R,
+            RGBColorChannels.G,
+        ]},
+    )
+
+    padded = volume.pad(1, mode=PadModes.MINIMUM, per_channel=True)
+
+    expected = np.full((4, 4, 4, 2), [1, 101], dtype=dtype)
+    expected[1:-1, 1:-1, 1:-1] = array
+    assert padded.array.dtype == dtype
+    assert np.array_equal(padded.array, expected)
+
+
 def test_pad_to_spatial_shape():
     vol, _ = read_multiframe_ct_volume()
 
@@ -1060,6 +1152,23 @@ def test_pad_or_crop_to_spatial_shape():
     assert padded.match_geometry(vol).geometry_equal(vol)
 
 
+def test_same_geometry_with_channels():
+    # https://github.com/ImagingDataCommons/highdicom/issues/462
+    vol = Volume.from_components(
+        direction=np.eye(3),
+        center_position=[98.1, 78.4, 23.1],
+        spacing=[0.5, 0.5, 2.0],
+        coordinate_system="PATIENT",
+        array=np.random.randint(0, 10, size=(20, 20, 50, 3)),
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: ['R', 'G', 'B']},
+    )
+
+    # Match to its own geometry
+    matched = vol.match_geometry(vol.get_geometry())
+    assert np.array_equal(matched.affine, vol.affine)
+    assert np.array_equal(matched.array, vol.array)
+
+
 def test_normalize():
     vol, _ = read_multiframe_ct_volume()
 
@@ -1070,6 +1179,77 @@ def test_normalize():
     normed = vol.normalize_min_max()
     assert np.isclose(normed.array.min(), 0.0)
     assert np.isclose(normed.array.max(), 1.0)
+
+
+def test_normalize_min_max_per_channel_single_dimension():
+    first_channel = np.arange(8, dtype=np.float32).reshape(2, 2, 2)
+    second_channel = 100.0 + 10.0 * first_channel
+    array = np.stack([first_channel, second_channel], axis=-1)
+    volume = Volume(
+        array,
+        np.eye(4),
+        coordinate_system="PATIENT",
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: [
+            RGBColorChannels.R,
+            RGBColorChannels.G,
+        ]},
+    )
+    assert volume.number_of_channel_dimensions == 1
+
+    normalized = volume.normalize_min_max(per_channel=True)
+
+    assert np.allclose(normalized.array.min(axis=(0, 1, 2)), 0.0)
+    assert np.allclose(normalized.array.max(axis=(0, 1, 2)), 1.0)
+
+
+def test_normalize_min_max_per_channel_constant_integer_channel():
+    first_channel = np.full((2, 2, 2), 7, dtype=np.uint16)
+    second_channel = np.arange(8, dtype=np.uint16).reshape(2, 2, 2)
+    array = np.stack([first_channel, second_channel], axis=-1)
+    volume = Volume(
+        array,
+        np.eye(4),
+        coordinate_system="PATIENT",
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: [
+            RGBColorChannels.R,
+            RGBColorChannels.G,
+        ]},
+    )
+
+    normalized = volume.normalize_min_max(
+        output_min=-2.0,
+        output_max=3.0,
+        per_channel=True,
+    )
+
+    assert np.isfinite(normalized.array).all()
+    assert np.allclose(normalized.array[..., 0], -2.0)
+    assert np.isclose(normalized.array[..., 1].min(), -2.0)
+    assert np.isclose(normalized.array[..., 1].max(), 3.0)
+
+
+def test_normalize_min_max_per_channel_signed_integer_range():
+    first_channel = np.array(
+        [-32768, -24576, -16384, -8192, 0, 8192, 16384, 32767],
+        dtype=np.int16,
+    ).reshape(2, 2, 2)
+    second_channel = np.arange(8, dtype=np.int16).reshape(2, 2, 2)
+    array = np.stack([first_channel, second_channel], axis=-1)
+    volume = Volume(
+        array,
+        np.eye(4),
+        coordinate_system="PATIENT",
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: [
+            RGBColorChannels.R,
+            RGBColorChannels.G,
+        ]},
+    )
+
+    normalized = volume.normalize_min_max(per_channel=True)
+
+    assert np.isfinite(normalized.array).all()
+    assert np.allclose(normalized.array.min(axis=(0, 1, 2)), 0.0)
+    assert np.allclose(normalized.array.max(axis=(0, 1, 2)), 1.0)
 
 
 def test_normalize_uniform():

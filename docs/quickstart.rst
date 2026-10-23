@@ -155,7 +155,7 @@ Computed Tomography (CT) images:
         algorithm_type=hd.seg.SegmentAlgorithmTypeValues.AUTOMATIC,
         algorithm_identification=algorithm_identification,
         tracking_uid=hd.UID(),
-        tracking_id='test segmentation of computed tomography image'
+        tracking_id='test segmentation of computed tomography image',
     )
 
     # Create the Segmentation instance

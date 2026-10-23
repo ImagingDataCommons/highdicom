@@ -12,6 +12,7 @@ from highdicom.spatial import (
     ReferenceToImageTransformer,
     ReferenceToPixelTransformer,
     _are_images_coplanar,
+    _is_matrix_orthogonal,
     _normalize_patient_orientation,
     _transform_affine_matrix,
     create_rotation_matrix,
@@ -727,6 +728,32 @@ def test_map_coordinates_between_images(params, inputs, expected_outputs):
 
 
 @pytest.mark.parametrize(
+    'matrix',
+    [
+        pytest.param(
+            np.diag([1.0, 1.0, 0.0]),
+            id='zero-column',
+        ),
+        pytest.param(
+            np.array([
+                [1.0, 0.0, 1e-6],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0],
+            ]),
+            id='small-dependent-column',
+        ),
+    ],
+)
+def test_is_matrix_orthogonal_rejects_degenerate_columns(matrix):
+    assert not _is_matrix_orthogonal(matrix, require_unit=False)
+
+
+def test_is_matrix_orthogonal_accepts_small_independent_scales():
+    matrix = np.diag([1e-12, 2e-12, 3e-12])
+    assert _is_matrix_orthogonal(matrix, require_unit=False)
+
+
+@pytest.mark.parametrize(
     'image_orientation,orientation_str',
     [
         ([1, 0, 0, 0, 1, 0], 'LPH'),
@@ -1018,6 +1045,46 @@ def test_get_volume_positions_missing():
     )
     assert spacing is None
     assert volume_positions is None
+
+
+def test_get_volume_positions_missing_tolerance_units():
+    # 'atol' is documented in mm and must mean the same thing whatever the
+    # slice spacing is, including when missing slices are allowed. Previously
+    # the deviation was measured in multiples of the spacing, so the same
+    # physical error was accepted at wide spacings and rejected at narrow ones.
+    orientation = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+    error = 0.5  # mm, out of place by more than atol below
+
+    for spacing in [1.0, 5.0, 10.0, 20.0]:
+        positions = [
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, spacing],
+            [0.0, 0.0, 2 * spacing + error],
+        ]
+        out_spacing, volume_positions = get_volume_positions(
+            positions,
+            orientation,
+            allow_missing_positions=True,
+            atol=0.1,
+        )
+        assert out_spacing is None
+        assert volume_positions is None
+
+    # A deviation smaller than 'atol' remains acceptable at every spacing
+    for spacing in [1.0, 5.0, 10.0, 20.0]:
+        positions = [
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, spacing],
+            [0.0, 0.0, 2 * spacing + 0.05],
+        ]
+        out_spacing, volume_positions = get_volume_positions(
+            positions,
+            orientation,
+            allow_missing_positions=True,
+            atol=0.1,
+        )
+        assert out_spacing is not None
+        assert volume_positions is not None
 
 
 def test_get_volume_positions_missing_duplicates():

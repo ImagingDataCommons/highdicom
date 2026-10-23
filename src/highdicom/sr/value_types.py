@@ -76,6 +76,7 @@ def _assert_value_type(
         ValueTypeValues.TIME: ['Time'],
         ValueTypeValues.TEXT: ['TextValue'],
         ValueTypeValues.UIDREF: ['UID'],
+        ValueTypeValues.WAVEFORM: ['ReferencedSOPSequence'],
     }
     for attr in required_attrs[value_type]:
         if not hasattr(dataset, attr):
@@ -102,6 +103,7 @@ def _get_content_item_class(value_type: ValueTypeValues) -> type:
         ValueTypeValues.TIME: TimeContentItem,
         ValueTypeValues.TEXT: TextContentItem,
         ValueTypeValues.UIDREF: UIDRefContentItem,
+        ValueTypeValues.WAVEFORM: WaveformContentItem,
     }
     return python_types[value_type]
 
@@ -360,17 +362,27 @@ class ContentSequence(DataElementSequence):
         idx: slice | int,
         val: Iterable[ContentItem] | ContentItem
     ) -> None:   # type: ignore[override]
-        if isinstance(val, Iterable):
-            items = val
+        if isinstance(idx, slice):
+            items = list(cast(Iterable[ContentItem], val))
+            replaced_items = list(self[idx])
+            value: list[ContentItem] | ContentItem = items
         else:
-            items = [val]
+            items = [cast(ContentItem, val)]
+            replaced_items = [self[idx]]
+            value = items[0]
         for i in items:
             if not isinstance(i, ContentItem):
                 raise TypeError(
                     f'Items of "{self.__class__.__name__}" must '
                     'have type ContentItem.'
                 )
-        super().__setitem__(idx, val)  # type: ignore
+        super().__setitem__(idx, value)  # type: ignore
+        for replaced_item in replaced_items:
+            replaced_item = cast(ContentItem, replaced_item)
+            index = self._lut[replaced_item.name].index(replaced_item)
+            del self._lut[replaced_item.name][index]
+        for item in items:
+            self._lut[item.name].append(item)
 
     def __delitem__(
         self,
@@ -414,16 +426,10 @@ class ContentSequence(DataElementSequence):
                 f'Items of "{self.__class__.__name__}" '
                 'must have type ContentItem.'
             )
-        error_message = f'Item "{val.name}" is not in Sequence.'
-        try:
-            matches = self._lut[val.name]
-        except KeyError as e:
-            raise ValueError(error_message) from e
-        try:
-            index = matches.index(val)
-        except ValueError as e:
-            raise ValueError(error_message) from e
-        return index
+        for index, item in enumerate(self):
+            if item is val or item == val:
+                return index
+        raise ValueError(f'Item "{val.name}" is not in Sequence.')
 
     def find(self, name: Code | CodedConcept) -> Self:
         """Find contained content items given their name.
@@ -505,8 +511,27 @@ class ContentSequence(DataElementSequence):
 
         """
         for item in val:
-            self._lut[item.name].append(item)
             self.append(item)
+
+    def __iadd__(  # type: ignore[override]
+        self,
+        other: Union[Iterable[ContentItem], 'ContentSequence']
+    ) -> Self:
+        """Extend the sequence in place with multiple content items.
+
+        Parameters
+        ----------
+        other: Iterable[highdicom.sr.ContentItem, highdicom.sr.ContentSequence]
+            SR Content Items
+
+        Returns
+        -------
+        highdicom.sr.ContentSequence
+            The extended sequence
+
+        """
+        self.extend(other)
+        return self
 
     def insert(   # type: ignore[override]
         self,
@@ -1184,8 +1209,15 @@ class NumContentItem(ContentItem):
             self.NumericValueQualifierCodeSequence = [qualifier]
 
     @property
-    def value(self) -> int | float:
-        """Union[int, float]: measured value"""
+    def value(self) -> int | float | None:
+        """Union[int, float, None]: measured value
+
+        ``None`` if the Measured Value Sequence is empty, in which case the
+        reason for the absence of the value is given by :attr:`qualifier`.
+
+        """
+        if len(self.MeasuredValueSequence) == 0:
+            return None
         item = self.MeasuredValueSequence[0]
         try:
             return float(item.FloatingPointValue)
@@ -1193,8 +1225,14 @@ class NumContentItem(ContentItem):
             return float(item.NumericValue)
 
     @property
-    def unit(self) -> CodedConcept:
-        """highdicom.sr.CodedConcept: unit"""
+    def unit(self) -> CodedConcept | None:
+        """Union[highdicom.sr.CodedConcept, None]: unit
+
+        ``None`` if the Measured Value Sequence is empty.
+
+        """
+        if len(self.MeasuredValueSequence) == 0:
+            return None
         item = self.MeasuredValueSequence[0]
         return item.MeasurementUnitsCodeSequence[0]
 
@@ -1235,14 +1273,17 @@ class NumContentItem(ContentItem):
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.NUM)
         item = super()._from_dataset_base(dataset_copy)
-        unit_item = (
-            item
-            .MeasuredValueSequence[0]
-            .MeasurementUnitsCodeSequence[0]
-        )
-        item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence = [
-            CodedConcept.from_dataset(unit_item, copy=False)
-        ]
+        # The Measured Value Sequence is type 2 and may be empty, in which
+        # case the Numeric Value Qualifier Code Sequence gives the reason
+        if len(item.MeasuredValueSequence) > 0:
+            unit_item = (
+                item
+                .MeasuredValueSequence[0]
+                .MeasurementUnitsCodeSequence[0]
+            )
+            item.MeasuredValueSequence[0].MeasurementUnitsCodeSequence = [
+                CodedConcept.from_dataset(unit_item, copy=False)
+            ]
         if hasattr(item, 'NumericValueQualifierCodeSequence'):
             qualifier_item = item.NumericValueQualifierCodeSequence[0]
             item.NumericValueQualifierCodeSequence = DataElementSequence([
@@ -1939,7 +1980,7 @@ class WaveformContentItem(ContentItem):
         referenced_sop_class_uid: str | UID,
         referenced_sop_instance_uid: str | UID,
         referenced_waveform_channels: None | (
-            int | Sequence[int]
+            Sequence[tuple[int, int]]
         ) = None,
         relationship_type: str | RelationshipTypeValues | None = None,
     ) -> None:
@@ -2004,10 +2045,10 @@ class WaveformContentItem(ContentItem):
         """Union[List[Tuple[int, int]], None]: referenced waveform channels"""
         if not hasattr(
             self.ReferencedSOPSequence[0],
-            'ReferencedFrameNumber',
+            'ReferencedWaveformChannels',
         ):
             return None
-        val = self.ReferencedSOPSequence[0].ReferencedFrameNumber
+        val = self.ReferencedSOPSequence[0].ReferencedWaveformChannels
         return [
             (
                 int(val[i]),
@@ -2043,6 +2084,6 @@ class WaveformContentItem(ContentItem):
             dataset_copy = deepcopy(dataset)
         else:
             dataset_copy = dataset
-        _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
+        _assert_value_type(dataset_copy, ValueTypeValues.WAVEFORM)
         item = super()._from_dataset_base(dataset_copy)
         return cast(Self, item)

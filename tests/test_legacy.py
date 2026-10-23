@@ -102,6 +102,7 @@ class DicomGenerator:
         orientation_mat: list,
         position_vec: list,
         series_uid: str,
+        frame_of_reference_uid: str,
         first_slice_offset: float = 0,
         frameset_idx: int = 0,
         color: bool = False,
@@ -111,7 +112,6 @@ class DicomGenerator:
         slice_pos = first_slice_offset
         slice_thickness = self._slice_thickness
         study_uid = self._study_uid
-        frame_of_ref_uid = UID()
         date_ = DA(datetime.now().date())
         age = timedelta(days=45 * 365)
         time_ = TM(datetime.now().time())
@@ -167,7 +167,7 @@ class DicomGenerator:
                 self._pixel_spacing, self._pixel_spacing
             ]
             tmp_dataset.PatientName = 'Doe^John'
-            tmp_dataset.FrameOfReferenceUID = frame_of_ref_uid
+            tmp_dataset.FrameOfReferenceUID = frame_of_reference_uid
             tmp_dataset.SOPClassUID = MODALITY_LEGACY_SOP_CLASS_MAP[modality]
             tmp_dataset.SOPInstanceUID = UID()
             tmp_dataset.SeriesInstanceUID = series_uid
@@ -189,7 +189,7 @@ class DicomGenerator:
             tmp_dataset.Modality = modality.name
             tmp_dataset.PatientAge = '064Y'
             tmp_dataset.PatientBirthDate = DA(date_ - age)
-            tmp_dataset.PatientID = 'ID{:05d}'.format(frameset_idx)
+            tmp_dataset.PatientID = 'Patient0'
             tmp_dataset.PatientIdentityRemoved = 'YES'
             tmp_dataset.PatientPosition = 'FFS'
             tmp_dataset.PatientSex = 'F'
@@ -247,6 +247,7 @@ class DicomGenerator:
             self._x_position_vec,
         ]
         se_uid = UID()
+        for_uid = UID()
         for i in range(frame_set_count):
             if parallel:
                 pos = poses[0]
@@ -261,6 +262,7 @@ class DicomGenerator:
                         orient,
                         pos,
                         se_uid,
+                        for_uid,
                         i * 50,
                         i,
                         color=color,
@@ -274,6 +276,7 @@ class DicomGenerator:
                         orient,
                         pos,
                         se_uid,
+                        for_uid,
                         i * 50,
                         i,
                         color=color,
@@ -1553,6 +1556,28 @@ def test_unsorted():
         )
 
 
+def test_duplicate_instance_number():
+    # Combining two series is valid if other attributes are consistent
+    data_generator = DicomGenerator(4)
+    legacy_datasets = data_generator.generate_mixed_framesets(
+        Modality.PT, 2, False, True
+    )
+
+    # Override instance number
+    for ds in legacy_datasets:
+        ds.InstanceNumber = 1
+
+    converted = LegacyConvertedEnhancedPETImage(
+        legacy_datasets=legacy_datasets,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    assert not hasattr(converted, "DimensionIndexSequence")
+
+
 @pytest.mark.parametrize(
     'body_part_examined,region,expected_laterality',
     [
@@ -2082,6 +2107,80 @@ def test_transcode_custom_workers():
         [ds.pixel_array for ds in reversed(legacy_datasets)]
     )
     assert np.array_equal(converted.pixel_array, expected_pixels)
+
+
+def test_enhanced_functional_groups():
+    """Test functional groups from enhanced IODs."""
+    # Some test files that have a lot of attributes that can be placed into the
+    # enhanced CT functional groups
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166', read=True),
+    ]
+
+    converted = LegacyConvertedEnhancedCTImage(
+        ct_files,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    sfgs = (
+        converted
+        .SharedFunctionalGroupsSequence[0]
+    )
+    unassigned_shared_seq = (
+        sfgs
+        .UnassignedSharedConvertedAttributesSequence[0]
+    )
+
+    expected_attributes = [
+        ('CTAcquisitionDetailsSequence', 'DataCollectionDiameter'),
+        ('CTAcquisitionDetailsSequence', 'TableHeight'),
+        ('CTGeometrySequence', 'DistanceSourceToDetector'),
+        ('CTReconstructionSequence', 'ConvolutionKernel'),
+        ('CTXRayDetailsSequence', 'KVP'),
+    ]
+
+    for seq_kw, attr_kw in expected_attributes:
+        # Check the enhanced group is present and the element is not placed in
+        # the unassigned groups
+        seq = getattr(sfgs, seq_kw)[0]
+        val = getattr(seq, attr_kw)
+        orig_val = getattr(ct_files[0], attr_kw)
+        assert val == orig_val
+
+        assert not hasattr(unassigned_shared_seq, seq_kw)
+
+    # Now try without the enhanced functional IOD
+    converted = LegacyConvertedEnhancedCTImage(
+        ct_files,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        include_enhanced_groups=False,
+    )
+
+    sfgs = (
+        converted
+        .SharedFunctionalGroupsSequence[0]
+    )
+    unassigned_shared_seq = (
+        sfgs
+        .UnassignedSharedConvertedAttributesSequence[0]
+    )
+
+    for seq_kw, attr_kw in expected_attributes:
+        # Check the enhanced group is not present so the element is placed in
+        # the unassigned groups
+        assert not hasattr(sfgs, seq_kw)
+
+        val = getattr(unassigned_shared_seq, attr_kw)
+        orig_val = getattr(ct_files[0], attr_kw)
+        assert val == orig_val
 
 
 def test_from_dataset(modality: Modality) -> None:

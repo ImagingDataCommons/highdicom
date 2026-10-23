@@ -77,9 +77,13 @@ class SegmentDescription(Dataset):
             Information useful for identification of the algorithm, such
             as its name or version. Required unless the algorithm type is `MANUAL`
         tracking_uid: Union[str, None], optional
-            Unique tracking identifier (universally unique)
+            Unique tracking identifier (universally unique). This is intended
+            to provide an identifier to track this segment across multiple
+            imaging studies.
         tracking_id: Union[str, None], optional
-            Tracking identifier (unique only with the domain of use)
+            Tracking identifier (unique only with the domain of use). This is
+            intended to provide an identifier to track this segment across
+            multiple imaging studies.
         anatomic_regions: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], None], optional
             Anatomic region(s) into which segment falls,
             e.g. ``Code("41216001", "SCT", "Prostate")``

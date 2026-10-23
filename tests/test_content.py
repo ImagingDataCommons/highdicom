@@ -4,6 +4,7 @@ from unittest import TestCase
 import pytest
 from pydicom import dcmread
 from pydicom.dataset import Dataset
+from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.data import get_testdata_file, get_testdata_files
@@ -806,6 +807,45 @@ class TestPixelMeasuresSequence(TestCase):
         item = seq[0]
         assert item.SpacingBetweenSlices == spacing_between_slices
 
+    def test_from_sequence_without_slice_thickness(self):
+        # Slice Thickness is type 1C and absent without a frame of reference
+        item = Dataset()
+        item.PixelSpacing = [0.5, 0.5]
+        seq = PixelMeasuresSequence.from_sequence(
+            DataElementSequence([item])
+        )
+        assert isinstance(seq, PixelMeasuresSequence)
+        assert seq[0].PixelSpacing == [0.5, 0.5]
+        assert 'SliceThickness' not in seq[0]
+
+    def test_from_sequence_missing_pixel_spacing(self):
+        item = Dataset()
+        item.SliceThickness = 1.0
+        with pytest.raises(AttributeError):
+            PixelMeasuresSequence.from_sequence(DataElementSequence([item]))
+
+    def test_eq_without_slice_thickness(self):
+        seq = PixelMeasuresSequence(
+            pixel_spacing=[0.5, 0.5],
+            slice_thickness=None,
+        )
+        same = PixelMeasuresSequence(
+            pixel_spacing=[0.5, 0.5],
+            slice_thickness=None,
+        )
+        with_thickness = PixelMeasuresSequence(
+            pixel_spacing=[0.5, 0.5],
+            slice_thickness=1.0,
+        )
+        other_spacing = PixelMeasuresSequence(
+            pixel_spacing=[0.2, 0.2],
+            slice_thickness=None,
+        )
+        assert seq == same
+        assert not seq == with_thickness
+        assert not with_thickness == seq
+        assert not seq == other_spacing
+
 
 class TestSpecimenCollection(TestCase):
 
@@ -1453,6 +1493,8 @@ class TestVOILUTTransformation(TestCase):
         )
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
+        assert lut.WindowCenterWidthExplanation == 'Soft Tissue Window'
+        assert lut['WindowCenterWidthExplanation'].VM == 1
         assert not lut.has_lut()
 
     def test_construction_multiple(self):
@@ -1463,6 +1505,11 @@ class TestVOILUTTransformation(TestCase):
         )
         assert lut.WindowCenter == [600.0, 40.0]
         assert lut.WindowWidth == [1500.0, 400.0]
+        assert lut.WindowCenterWidthExplanation == [
+            'Lung Window',
+            'Soft Tissue Window',
+        ]
+        assert lut['WindowCenterWidthExplanation'].VM == 2
         assert not lut.has_lut()
 
         input_array_lung = np.array(

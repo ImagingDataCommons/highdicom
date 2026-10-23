@@ -74,6 +74,7 @@ from highdicom.sr import (
     ValueTypeValues,
     VolumeSurface,
     VolumetricROIMeasurementsAndQualitativeEvaluations,
+    WaveformContentItem,
     srread,
 )
 from highdicom.sr.content import CoordinatesForMeasurement
@@ -956,6 +957,24 @@ class TestContentItem(unittest.TestCase):
         qualifier_code_item = i.NumericValueQualifierCodeSequence[0]
         assert qualifier_code_item.CodeValue == qualifier.value
 
+    def test_num_item_from_dataset_without_measured_value(self):
+        # Measured Value Sequence is type 2 and may be empty, in which case
+        # the qualifier gives the reason for the absence of the value
+        qualifier = CodedConcept(*codes.DCM.MeasurementFailure)
+        dataset = Dataset()
+        dataset.RelationshipType = 'CONTAINS'
+        dataset.ValueType = 'NUM'
+        dataset.ConceptNameCodeSequence = [CodedConcept(*codes.SCT.Area)]
+        dataset.MeasuredValueSequence = []
+        dataset.NumericValueQualifierCodeSequence = [qualifier]
+        i = NumContentItem.from_dataset(dataset)
+        assert i.name == codes.SCT.Area
+        assert i.value is None
+        assert i.unit is None
+        assert i.qualifier == qualifier
+        assert isinstance(i.qualifier, CodedConcept)
+        assert len(i.MeasuredValueSequence) == 0
+
     def test_pname_content_item(self):
         name = codes.DCM.PersonObserverName
         value = 'Doe^John'
@@ -1109,6 +1128,41 @@ class TestContentItem(unittest.TestCase):
         assert i.referenced_segment_numbers == [segment_number]
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedFrameNumber  # noqa: B018
+
+    def test_waveform_item_construction(self):
+        name = codes.SCT.Source
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        sop_instance_uid = '1.2.3.4'
+        channels = [(1, 1), (1, 2)]
+        i = WaveformContentItem(
+            name=name,
+            referenced_sop_class_uid=sop_class_uid,
+            referenced_sop_instance_uid=sop_instance_uid,
+            referenced_waveform_channels=channels,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        assert i.ValueType == 'WAVEFORM'
+        assert i.ConceptNameCodeSequence[0] == name
+        ref_sop_item = i.ReferencedSOPSequence[0]
+        assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
+        assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
+        assert ref_sop_item.ReferencedWaveformChannels == [1, 1, 1, 2]
+        assert i.value == (sop_class_uid, sop_instance_uid)
+        assert i.referenced_sop_class_uid == sop_class_uid
+        assert i.referenced_sop_instance_uid == sop_instance_uid
+        assert i.referenced_waveform_channels == channels
+
+    def test_waveform_item_construction_without_channels(self):
+        i = WaveformContentItem(
+            name=codes.SCT.Source,
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.9.1.1',
+            referenced_sop_instance_uid='1.2.3.4',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        ref_sop_item = i.ReferencedSOPSequence[0]
+        with pytest.raises(AttributeError):
+            ref_sop_item.ReferencedWaveformChannels  # noqa: B018
+        assert i.referenced_waveform_channels is None
 
     def test_scoord_item_construction_point(self):
         name = codes.DCM.ImageRegion
@@ -1266,6 +1320,68 @@ class TestContentItem(unittest.TestCase):
         assert isinstance(code_item.name, CodedConcept)
         assert isinstance(code_item.value, CodedConcept)
 
+    def test_waveform_item_from_dataset(self):
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        sop_instance_uid = '1.2.3.4'
+        ref_ds = Dataset()
+        ref_ds.ReferencedSOPClassUID = sop_class_uid
+        ref_ds.ReferencedSOPInstanceUID = sop_instance_uid
+        ref_ds.ReferencedWaveformChannels = [1, 2, 1, 3]
+        waveform_ds = Dataset()
+        waveform_ds.ValueType = 'WAVEFORM'
+        waveform_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.SCT.Source)
+        ]
+        waveform_ds.ReferencedSOPSequence = [ref_ds]
+        waveform_ds.RelationshipType = 'CONTAINS'
+
+        item = WaveformContentItem.from_dataset(waveform_ds)
+        assert isinstance(item, WaveformContentItem)
+        assert isinstance(item.name, CodedConcept)
+        assert item.value_type == ValueTypeValues.WAVEFORM
+        assert item.value == (sop_class_uid, sop_instance_uid)
+        assert item.referenced_waveform_channels == [(1, 2), (1, 3)]
+
+    def test_waveform_item_from_dataset_with_wrong_value_type(self):
+        ref_ds = Dataset()
+        ref_ds.ReferencedSOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
+        ref_ds.ReferencedSOPInstanceUID = '1.2.3.4'
+        image_ds = Dataset()
+        image_ds.ValueType = 'IMAGE'
+        image_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.SCT.Source)
+        ]
+        image_ds.ReferencedSOPSequence = [ref_ds]
+        image_ds.RelationshipType = 'CONTAINS'
+
+        with pytest.raises(ValueError):
+            WaveformContentItem.from_dataset(image_ds)
+
+    def test_container_item_from_dataset_with_waveform_item(self):
+        ref_ds = Dataset()
+        ref_ds.ReferencedSOPClassUID = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        ref_ds.ReferencedSOPInstanceUID = '1.2.3.4'
+        waveform_ds = Dataset()
+        waveform_ds.ValueType = 'WAVEFORM'
+        waveform_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.SCT.Source)
+        ]
+        waveform_ds.ReferencedSOPSequence = [ref_ds]
+        waveform_ds.RelationshipType = 'CONTAINS'
+
+        container_ds = Dataset()
+        container_ds.ContinuityOfContent = 'SEPARATE'
+        container_ds.ValueType = 'CONTAINER'
+        container_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.DCM.Manifest)
+        ]
+        container_ds.ContentSequence = [waveform_ds]
+
+        container_item = ContainerContentItem.from_dataset(container_ds)
+        waveform_item = container_item.ContentSequence[0]
+        assert isinstance(waveform_item, WaveformContentItem)
+        assert waveform_item.referenced_waveform_channels is None
+
 
 class TestContentSequence(unittest.TestCase):
 
@@ -1361,6 +1477,103 @@ class TestContentSequence(unittest.TestCase):
     def test_construct_root_with_relationship(self):
         with pytest.raises(AttributeError):
             ContentSequence([self._root_item_with_rel], is_root=True)
+
+    def test_index(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        another_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='another comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item, other_item, another_item])
+        assert seq.index(self._item) == 0
+        assert seq.index(other_item) == 1
+        assert seq.index(another_item) == 2
+
+    def test_index_missing_item(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item])
+        assert other_item not in seq
+        with pytest.raises(ValueError):
+            seq.index(other_item)
+
+    def test_remove(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item, other_item])
+        seq.remove(other_item)
+        assert len(seq) == 1
+        assert seq[0] is self._item
+        assert other_item not in seq
+        assert len(seq.find(codes.DCM.Comment)) == 0
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
+
+    def test_extend_find(self):
+        seq = ContentSequence()
+        seq.extend([self._item])
+        assert len(seq) == 1
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
+
+    def test_extend_with_no_relationship_find(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq.extend([self._item_no_rel])
+        assert len(seq.find(codes.SCT.FindingSite)) == 0
+
+    def test_iadd_find(self):
+        seq = ContentSequence()
+        seq += [self._item]
+        assert isinstance(seq, ContentSequence)
+        assert len(seq) == 1
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
+
+    def test_iadd_with_no_relationship(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq += [self._item_no_rel]
+
+    def test_setitem(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item])
+        seq[0] = other_item
+        assert len(seq) == 1
+        assert seq[0] is other_item
+        assert len(seq.find(codes.SCT.FindingSite)) == 0
+        assert len(seq.find(codes.DCM.Comment)) == 1
+
+    def test_setitem_slice(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item])
+        seq[0:1] = [other_item, other_item]
+        assert len(seq) == 2
+        assert len(seq.find(codes.SCT.FindingSite)) == 0
+        assert len(seq.find(codes.DCM.Comment)) == 2
+
+    def test_setitem_wrong_type(self):
+        seq = ContentSequence([self._item])
+        with pytest.raises(TypeError):
+            seq[0] = Dataset()
+        assert seq[0] is self._item
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
 
     def test_content_item_setattr(self):
         # Integration test that setting a ContentItem's content sequence
@@ -2888,6 +3101,42 @@ class TestMeasurement(unittest.TestCase):
             measurement.referenced_coordinates[1],
             CoordinatesForMeasurement3D
         )
+
+    def test_from_sequence(self):
+        measurement = Measurement(
+            name=self._name,
+            value=self._value,
+            unit=self._unit,
+            tracking_identifier=self._tracking_identifier,
+            method=self._method,
+            finding_sites=[self._finding_site],
+        )
+        retrieved = Measurement.from_sequence(measurement)
+        assert isinstance(retrieved, Measurement)
+        assert retrieved.name == self._name
+        assert retrieved.value == self._value
+        assert retrieved.unit == self._unit
+        assert retrieved.qualifier is None
+        assert retrieved.method == self._method
+        assert retrieved.finding_sites == [self._finding_site]
+
+    def test_from_sequence_without_measured_value(self):
+        qualifier = CodedConcept(*codes.DCM.MeasurementFailure)
+        measurement = Measurement(
+            name=self._name,
+            value=self._value,
+            unit=self._unit,
+            qualifier=qualifier,
+            method=self._method,
+        )
+        measurement[0].MeasuredValueSequence = []
+        retrieved = Measurement.from_sequence(measurement)
+        assert isinstance(retrieved, Measurement)
+        assert retrieved.name == self._name
+        assert retrieved.value is None
+        assert retrieved.unit is None
+        assert retrieved.qualifier == qualifier
+        assert retrieved.method == self._method
 
 
 class TestQualitativeEvaluation(unittest.TestCase):
@@ -4591,6 +4840,41 @@ class TestComprehensive3DSR(unittest.TestCase):
         assert isinstance(report.content, ContentSequence)
         assert isinstance(report.content, MeasurementReport)
         assert report is tmp
+
+    def test_from_dataset_measurement_without_value(self):
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+        )
+        # Remove the measured value and give the reason for its absence, as
+        # permitted by the Numeric Measurement Macro
+        qualifier = CodedConcept(*codes.DCM.MeasurementFailure)
+        num_item = find_content_items(
+            report,
+            value_type=ValueTypeValues.NUM,
+            recursive=True
+        )[0]
+        num_item.MeasuredValueSequence = []
+        num_item.NumericValueQualifierCodeSequence = [qualifier]
+        with BytesIO() as fp:
+            report.save_as(fp)
+            fp.seek(0)
+            report = Comprehensive3DSR.from_dataset(dcmread(fp))
+
+        groups = report.content.get_planar_roi_measurement_groups()
+        assert len(groups) == 1
+        measurements = groups[0].get_measurements()
+        assert len(measurements) == 1
+        measurement = measurements[0]
+        assert measurement.name == codes.SCT.AreaOfDefinedRegion
+        assert measurement.value is None
+        assert measurement.unit is None
+        assert measurement.qualifier == qualifier
 
     def test_evidence_duplication(self):
         report = Comprehensive3DSR(
