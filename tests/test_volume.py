@@ -1310,6 +1310,33 @@ def test_normalize_min_max_per_channel_signed_integer_range():
     assert np.allclose(normalized.array.max(axis=(0, 1, 2)), 1.0)
 
 
+@pytest.mark.parametrize('dtype', [np.int64, np.uint64])
+def test_normalize_min_max_per_channel_adjacent_large_integers(dtype):
+    maximum = int(np.iinfo(dtype).max)
+    first_channel = np.array(
+        [maximum - 2, maximum - 1, maximum], dtype=dtype,
+    )
+    second_channel = np.array([10, 20, 30], dtype=dtype)
+    array = np.stack([first_channel, second_channel], axis=-1)
+    array = array.reshape(1, 1, 3, 2)
+    volume = Volume(
+        array=array,
+        affine=np.eye(4),
+        coordinate_system='PATIENT',
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: [
+            RGBColorChannels.R,
+            RGBColorChannels.G,
+        ]},
+    )
+
+    normalized = volume.normalize_min_max(per_channel=True)
+
+    expected = np.array([0.0, 0.5, 1.0])
+    np.testing.assert_allclose(normalized.array[0, 0, :, 0], expected)
+    np.testing.assert_allclose(normalized.array[0, 0, :, 1], expected)
+    np.testing.assert_array_equal(volume.array, array)
+
+
 def test_normalize_uniform():
     # Normaliztion when std is zero
     arr = np.ones((10, 10, 10))

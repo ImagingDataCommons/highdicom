@@ -3423,16 +3423,39 @@ class Volume(_VolumeBase):
             raise ValueError('Output min must be below output max.')
 
         array = self.array
-        if (
+        is_per_channel = (
             per_channel and
             self.number_of_channel_dimensions > 0
-        ):
-            imin = self.array.min(axis=(0, 1, 2), keepdims=True)
-            imax = self.array.max(axis=(0, 1, 2), keepdims=True)
-            if np.issubdtype(self.array.dtype, np.integer):
-                imin = imin.astype(np.float64)
-                imax = imax.astype(np.float64)
+        )
+        if is_per_channel:
+            imin = array.min(axis=(0, 1, 2), keepdims=True)
+            imax = array.max(axis=(0, 1, 2), keepdims=True)
+        else:
+            imin = array.min()
+            imax = array.max()
 
+        if np.issubdtype(array.dtype, np.integer):
+            # Subtract in the matching unsigned dtype before converting to
+            # float, retaining small differences near 64-bit integer limits.
+            # Write directly into the floating output to avoid an additional
+            # full-volume unsigned array allocation.
+            unsigned_dtype = np.dtype(f'u{array.dtype.itemsize}')
+            new_array = np.empty(array.shape, dtype=np.float64)
+            np.subtract(
+                array, imin, out=new_array, dtype=unsigned_dtype,
+                casting='unsafe',
+            )
+            peak_to_peak = np.subtract(
+                imax, imin, dtype=unsigned_dtype, casting='unsafe',
+            )
+            safe_peak_to_peak = np.where(
+                peak_to_peak == 0, output_range, peak_to_peak,
+            )
+            new_array *= output_range / safe_peak_to_peak
+            new_array += output_min
+            return self.with_array(new_array)
+
+        if is_per_channel:
             peak_to_peak = imax - imin
 
             # Constant channels map to output_min; keep their inert scale at
@@ -3444,15 +3467,6 @@ class Volume(_VolumeBase):
             )
             scale_factor = output_range / safe_peak_to_peak
         else:
-            imin = self.array.min()
-            imax = self.array.max()
-            if np.issubdtype(array.dtype, np.integer):
-                # Unsigned differences preserve adjacent large integer values.
-                array = array.astype(f'u{array.dtype.itemsize}')
-                array -= imin.astype(array.dtype)
-                imax = int(imax) - int(imin)
-                imin = 0
-
             if imin == imax:
                 # Avoid division by zero
                 scale_factor = 1.0
