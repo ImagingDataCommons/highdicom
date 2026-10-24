@@ -280,7 +280,9 @@ class ContentCreatorIdentificationCodeSequence(DataElementSequence):
                     'pydicom.sr.coding.Code or '
                     'highdicom.sr.CodedConcept.'
                 )
-            item.InstitutionCodeSequence = [institution_code]
+            item.InstitutionCodeSequence = [
+                CodedConcept.from_code(institution_code)
+            ]
 
         if person_address is not None:
             _check_short_text(person_address)
@@ -2617,8 +2619,10 @@ class ModalityLUTTransformation(Dataset):
                     'Argument "rescale_type" must be specified when '
                     '"modality_lut" is not specified.'
                 )
-            self.RescaleIntercept = format_number_as_ds(rescale_intercept)
-            self.RescaleSlope = format_number_as_ds(rescale_slope)
+            self.RescaleIntercept = format_number_as_ds(
+                float(rescale_intercept)
+            )
+            self.RescaleSlope = format_number_as_ds(float(rescale_slope))
             if isinstance(rescale_type, RescaleTypeValues):
                 self.RescaleType = rescale_type.value
             else:

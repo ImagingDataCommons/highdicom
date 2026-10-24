@@ -122,6 +122,22 @@ class TestContentCreatorIdentification(TestCase):
             creator_id_item.InstitutionalDepartmentTypeCodeSequence[0]
         assert (department_code.CodeValue == self._department_code.value)
 
+    def test_construction_institution_code_from_code(self):
+        institution_code = Code(
+            value='1',
+            meaning='MGH',
+            scheme_designator='HOSPITAL_NAMES',
+        )
+        creator_id = ContentCreatorIdentificationCodeSequence(
+            person_identification_codes=self._person_codes,
+            institution_name=self._institution_name,
+            institution_code=institution_code,
+        )
+        institution_item = creator_id[0].InstitutionCodeSequence[0]
+        assert isinstance(institution_item, CodedConcept)
+        assert institution_item.CodeValue == institution_code.value
+        assert institution_item.CodeMeaning == institution_code.meaning
+
 
 class TestContributingEquipment:
 
@@ -575,6 +591,18 @@ class TestModalityLUTTransformation(TestCase):
         )
         with pytest.raises(ValueError, match=msg):
             transf.apply(self._input_array.astype(np.float32), dtype=np.int64)
+
+    def test_with_scale_int(self):
+        transf = ModalityLUTTransformation(
+            rescale_type=RescaleTypeValues.HU,
+            rescale_slope=1,
+            rescale_intercept=-1024,
+        )
+        assert transf.RescaleSlope == 1.0
+        assert transf.RescaleIntercept == -1024.0
+
+        out = transf.apply(self._input_array)
+        assert np.array_equal(out, self._input_array.astype(float) - 1024)
 
     def test_with_scale_2(self):
         transf = ModalityLUTTransformation(
