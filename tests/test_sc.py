@@ -16,7 +16,7 @@ from pydicom.uid import (
 )
 from pydicom.valuerep import DA, TM
 
-from highdicom import SpecimenDescription
+from highdicom import IssuerOfIdentifier, SpecimenDescription
 from highdicom.sc import SCImage
 from highdicom import UID
 from highdicom.frame import decode_frame
@@ -183,6 +183,31 @@ class TestSCImage(unittest.TestCase):
         with pytest.raises(AttributeError):
             instance.Laterality  # noqa: B018
             instance.PatientOrientation  # noqa: B018
+
+    def test_construct_rgb_slide_with_issuer_of_container_identifier(self):
+        issuer = IssuerOfIdentifier('ISSUER')
+        specimen_description = SpecimenDescription(
+            specimen_id=self._specimen_identifier,
+            specimen_uid=self._specimen_uid
+        )
+        instance = SCImage(
+            pixel_array=self._rgb_pixel_array,
+            photometric_interpretation='RGB',
+            bits_allocated=8,
+            coordinate_system='SLIDE',
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            container_identifier=self._container_identifier,
+            issuer_of_container_identifier=issuer,
+            specimen_descriptions=[specimen_description]
+        )
+        assert len(instance.IssuerOfTheContainerIdentifierSequence) == 1
+        issuer_item = instance.IssuerOfTheContainerIdentifierSequence[0]
+        assert issuer_item.LocalNamespaceEntityID == 'ISSUER'
 
     def test_construct_rgb_slide_single_specimen_missing_parameter(self):
         bits_allocated = 8

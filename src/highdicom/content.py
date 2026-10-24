@@ -280,7 +280,9 @@ class ContentCreatorIdentificationCodeSequence(DataElementSequence):
                     'pydicom.sr.coding.Code or '
                     'highdicom.sr.CodedConcept.'
                 )
-            item.InstitutionCodeSequence = [institution_code]
+            item.InstitutionCodeSequence = [
+                CodedConcept.from_code(institution_code)
+            ]
 
         if person_address is not None:
             _check_short_text(person_address)
@@ -402,8 +404,8 @@ class PixelMeasuresSequence(DataElementSequence):
             )
         if len(sequence) != 1:
             raise ValueError('Sequence must contain a single item.')
-        req_kws = ['SliceThickness', 'PixelSpacing']
-        if not all(hasattr(sequence[0], kw) for kw in req_kws):
+        # Slice Thickness is only required if there is a frame of reference
+        if not hasattr(sequence[0], 'PixelSpacing'):
             raise AttributeError(
                 'Sequence does not have the required attributes for '
                 'a Pixel Measures Sequence.'
@@ -440,8 +442,9 @@ class PixelMeasuresSequence(DataElementSequence):
             hasattr(self[0], 'SliceThickness')
         ):
             return False
-        if other[0].SliceThickness != self[0].SliceThickness:
-            return False
+        if hasattr(self[0], 'SliceThickness'):
+            if other[0].SliceThickness != self[0].SliceThickness:
+                return False
         if other[0].PixelSpacing != self[0].PixelSpacing:
             return False
         if (
@@ -2375,7 +2378,10 @@ class VOILUTTransformation(Dataset):
                     )
                 for exp in window_explanation:
                     _check_long_string(exp)
-            self.WindowCenterWidthExplanation = list(window_explanation)
+            if isinstance(window_explanation, str):
+                self.WindowCenterWidthExplanation = window_explanation
+            else:
+                self.WindowCenterWidthExplanation = list(window_explanation)
         if voi_lut_function is not None:
             if window_center is None:
                 raise TypeError(
@@ -2613,8 +2619,10 @@ class ModalityLUTTransformation(Dataset):
                     'Argument "rescale_type" must be specified when '
                     '"modality_lut" is not specified.'
                 )
-            self.RescaleIntercept = format_number_as_ds(rescale_intercept)
-            self.RescaleSlope = format_number_as_ds(rescale_slope)
+            self.RescaleIntercept = format_number_as_ds(
+                float(rescale_intercept)
+            )
+            self.RescaleSlope = format_number_as_ds(float(rescale_slope))
             if isinstance(rescale_type, RescaleTypeValues):
                 self.RescaleType = rescale_type.value
             else:

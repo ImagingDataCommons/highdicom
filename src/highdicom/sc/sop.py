@@ -298,7 +298,7 @@ class SCImage(SOPClass):
             self.ContainerIdentifier = container_identifier
             self.IssuerOfTheContainerIdentifierSequence: list[Dataset] = []
             if issuer_of_container_identifier is not None:
-                self.IssuerOftheContainerIdentifierSequence.append(
+                self.IssuerOfTheContainerIdentifierSequence.append(
                     issuer_of_container_identifier
                 )
             code: Code = codes.SCT.MicroscopeSlide

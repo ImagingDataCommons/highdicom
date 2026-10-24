@@ -4,6 +4,7 @@ from unittest import TestCase
 import pytest
 from pydicom import dcmread
 from pydicom.dataset import Dataset
+from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.data import get_testdata_file, get_testdata_files
@@ -120,6 +121,22 @@ class TestContentCreatorIdentification(TestCase):
         department_code = \
             creator_id_item.InstitutionalDepartmentTypeCodeSequence[0]
         assert (department_code.CodeValue == self._department_code.value)
+
+    def test_construction_institution_code_from_code(self):
+        institution_code = Code(
+            value='1',
+            meaning='MGH',
+            scheme_designator='HOSPITAL_NAMES',
+        )
+        creator_id = ContentCreatorIdentificationCodeSequence(
+            person_identification_codes=self._person_codes,
+            institution_name=self._institution_name,
+            institution_code=institution_code,
+        )
+        institution_item = creator_id[0].InstitutionCodeSequence[0]
+        assert isinstance(institution_item, CodedConcept)
+        assert institution_item.CodeValue == institution_code.value
+        assert institution_item.CodeMeaning == institution_code.meaning
 
 
 class TestContributingEquipment:
@@ -575,6 +592,18 @@ class TestModalityLUTTransformation(TestCase):
         with pytest.raises(ValueError, match=msg):
             transf.apply(self._input_array.astype(np.float32), dtype=np.int64)
 
+    def test_with_scale_int(self):
+        transf = ModalityLUTTransformation(
+            rescale_type=RescaleTypeValues.HU,
+            rescale_slope=1,
+            rescale_intercept=-1024,
+        )
+        assert transf.RescaleSlope == 1.0
+        assert transf.RescaleIntercept == -1024.0
+
+        out = transf.apply(self._input_array)
+        assert np.array_equal(out, self._input_array.astype(float) - 1024)
+
     def test_with_scale_2(self):
         transf = ModalityLUTTransformation(
             rescale_type=RescaleTypeValues.HU,
@@ -804,6 +833,45 @@ class TestPixelMeasuresSequence(TestCase):
         assert len(seq) == 1
         item = seq[0]
         assert item.SpacingBetweenSlices == spacing_between_slices
+
+    def test_from_sequence_without_slice_thickness(self):
+        # Slice Thickness is type 1C and absent without a frame of reference
+        item = Dataset()
+        item.PixelSpacing = [0.5, 0.5]
+        seq = PixelMeasuresSequence.from_sequence(
+            DataElementSequence([item])
+        )
+        assert isinstance(seq, PixelMeasuresSequence)
+        assert seq[0].PixelSpacing == [0.5, 0.5]
+        assert 'SliceThickness' not in seq[0]
+
+    def test_from_sequence_missing_pixel_spacing(self):
+        item = Dataset()
+        item.SliceThickness = 1.0
+        with pytest.raises(AttributeError):
+            PixelMeasuresSequence.from_sequence(DataElementSequence([item]))
+
+    def test_eq_without_slice_thickness(self):
+        seq = PixelMeasuresSequence(
+            pixel_spacing=[0.5, 0.5],
+            slice_thickness=None,
+        )
+        same = PixelMeasuresSequence(
+            pixel_spacing=[0.5, 0.5],
+            slice_thickness=None,
+        )
+        with_thickness = PixelMeasuresSequence(
+            pixel_spacing=[0.5, 0.5],
+            slice_thickness=1.0,
+        )
+        other_spacing = PixelMeasuresSequence(
+            pixel_spacing=[0.2, 0.2],
+            slice_thickness=None,
+        )
+        assert seq == same
+        assert not seq == with_thickness
+        assert not with_thickness == seq
+        assert not seq == other_spacing
 
 
 class TestSpecimenCollection(TestCase):
@@ -1452,6 +1520,8 @@ class TestVOILUTTransformation(TestCase):
         )
         assert lut.WindowCenter == 40.0
         assert lut.WindowWidth == 400.0
+        assert lut.WindowCenterWidthExplanation == 'Soft Tissue Window'
+        assert lut['WindowCenterWidthExplanation'].VM == 1
         assert not lut.has_lut()
 
     def test_construction_multiple(self):
@@ -1462,6 +1532,11 @@ class TestVOILUTTransformation(TestCase):
         )
         assert lut.WindowCenter == [600.0, 40.0]
         assert lut.WindowWidth == [1500.0, 400.0]
+        assert lut.WindowCenterWidthExplanation == [
+            'Lung Window',
+            'Soft Tissue Window',
+        ]
+        assert lut['WindowCenterWidthExplanation'].VM == 2
         assert not lut.has_lut()
 
         input_array_lung = np.array(
