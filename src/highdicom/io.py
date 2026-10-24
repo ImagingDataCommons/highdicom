@@ -735,7 +735,17 @@ class ImageFileReader:
                 n += 4 + 4 + length
             frame_data = b''.join(fragments)
         else:
-            frame_data = self._fp.read(self._bytes_per_frame_uncompressed)
+            if self.metadata.BitsAllocated == 1:
+                # Frames are not padded to a whole number of bytes, so a frame
+                # may start part way through a byte and span one byte more
+                # than the frame size rounded up to a whole number of bytes
+                frame_end = (
+                    (index + 1) * self._pixels_per_frame + 7
+                ) // 8
+                n_bytes = frame_end - frame_offset
+            else:
+                n_bytes = self._bytes_per_frame_uncompressed
+            frame_data = self._fp.read(n_bytes)
 
         if len(frame_data) == 0:
             raise OSError(f'Failed to read frame #{index}.')
