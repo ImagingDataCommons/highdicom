@@ -1102,6 +1102,33 @@ def test_empty_rescale_slope_intercept_behaves_as_missing():
             assert tf._effective_slope_intercept is None
 
 
+@pytest.mark.parametrize('lazy', [False, True])
+def test_get_frame_bits_stored_less_than_bits_allocated(lazy):
+    # 12 bits stored in 16 bits allocated, signed, without sign extension of
+    # the unused high bits: -1 is stored as 0x0FFF
+    dataset = pydicom.dcmread(get_testdata_file('MR_small.dcm'))
+    dataset.BitsStored = 12
+    dataset.HighBit = 11
+    dataset.PixelRepresentation = 1
+    stored = np.full((dataset.Rows, dataset.Columns), 0x0FFF, np.uint16)
+    stored[0, :] = 0x07FF
+    dataset.PixelData = stored.tobytes()
+    expected = dataset.pixel_array
+    assert expected[0, 0] == 2047
+    assert expected[1, 0] == -1
+
+    buf = BytesIO()
+    dataset.save_as(buf)
+    buf.seek(0)
+    im = imread(buf, lazy_frame_retrieval=lazy)
+
+    assert np.array_equal(im.get_stored_frame(1), expected)
+    assert np.array_equal(
+        im.get_frame(1, apply_modality_transform=False),
+        expected,
+    )
+
+
 def test_get_volume_multiframe_ct():
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
     volume = im.get_volume()
