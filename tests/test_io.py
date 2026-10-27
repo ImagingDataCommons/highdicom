@@ -160,8 +160,15 @@ class TestImageFileReader(unittest.TestCase):
                 little_endian=True,
             )
 
+            n_pixels = rows * columns
             with ImageFileReader(filename) as reader:
                 for frame_index in range(number_of_frames):
+                    # The raw frame starts at the byte holding its first
+                    # bit and ends at the byte holding its last bit
+                    start = (frame_index * n_pixels) // 8
+                    stop = ((frame_index + 1) * n_pixels + 7) // 8
+                    raw = reader.read_frame_raw(frame_index)
+                    assert raw == dataset.PixelData[start:stop]
                     frame = reader.read_frame(frame_index)
                     np.testing.assert_array_equal(
                         frame,
