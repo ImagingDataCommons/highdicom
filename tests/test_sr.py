@@ -3288,6 +3288,44 @@ class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert sop_class_uid == '1.2.840.10008.5.1.4.1.1.2.2'
         assert src_image.referenced_sop_instance_uid == self._src_instance_uid
 
+    def test_get_measurements_and_evaluations_with_context(self):
+        time_point_context = TimePointContext(
+            time_point='first',
+            time_point_type=codes.DCM.Posttreatment,
+            time_point_order=1,
+            temporal_offset_from_event=LongitudinalTemporalOffsetFromEvent(
+                value=5,
+                unit=Code('d', 'UCUM', 'days'),
+                event_type=codes.DCM.Baseline
+            )
+        )
+        qualitative_evaluations = [
+            QualitativeEvaluation(
+                name=codes.SCT.AssociatedMorphology,
+                value=codes.SCT.Neoplasm
+            ),
+        ]
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            time_point_context=time_point_context,
+            finding_category=codes.SCT.MorphologicallyAbnormalStructure,
+            finding_type=codes.SCT.Neoplasm,
+            measurements=self._measurements,
+            qualitative_evaluations=qualitative_evaluations,
+        )
+        parsed = MeasurementsAndQualitativeEvaluations.from_sequence(template)
+        for group in (template, parsed):
+            measurements = group.get_measurements()
+            assert len(measurements) == 1
+            assert measurements[0].name == codes.SCT.Area
+            evaluations = group.get_qualitative_evaluations()
+            assert len(evaluations) == 1
+            assert evaluations[0].name == codes.SCT.AssociatedMorphology
+            assert group.finding_category == (
+                codes.SCT.MorphologicallyAbnormalStructure
+            )
+            assert group.finding_type == codes.SCT.Neoplasm
+
 
 class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
 

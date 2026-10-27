@@ -3114,6 +3114,10 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         return [
             Measurement.from_sequence([item])
             for item in matches
+            if item.name not in (
+                codes.DCM.TimePointOrder,
+                codes.DCM.LongitudinalTemporalOffsetFromEvent,
+            )
         ]
 
     def get_qualitative_evaluations(
@@ -3151,7 +3155,9 @@ class _MeasurementsAndQualitativeEvaluations(Template):
             if item.name not in (
                 codes.DCM.Finding,
                 codes.SCT.FindingSite,
-                codes.SCT.MeasurementMethod
+                codes.SCT.MeasurementMethod,
+                Code('276214006', 'SCT', 'Finding category'),
+                codes.DCM.TimePointType,
             )
         ]
 
