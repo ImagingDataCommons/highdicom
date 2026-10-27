@@ -371,6 +371,76 @@ class TestLUT(TestCase):
         assert lut.LUTExplanation == self._explanation
 
 
+@pytest.mark.parametrize('dtype', [np.uint8, np.uint16])
+@pytest.mark.parametrize('length', [1, 3, 256, 65535, 65536])
+def test_lut_descriptor_length(dtype, length):
+    data = np.arange(length, dtype=np.uint16).astype(dtype)
+    lut = LUT(first_mapped_value=0, lut_data=data)
+
+    assert lut.LUTDescriptor[0] == (0 if length == 65536 else length)
+    assert lut.number_of_entries == length
+    assert lut.lut_data.dtype == dtype
+    np.testing.assert_array_equal(lut.lut_data, data)
+    np.testing.assert_array_equal(
+        lut.apply(np.array([0, length - 1])),
+        data[[0, -1]],
+    )
+
+
+@pytest.mark.parametrize('dtype', [np.uint8, np.uint16])
+def test_lut_from_dataset_maximum_length(dtype):
+    data = np.arange(65536, dtype=np.uint16).astype(dtype)
+    dataset = Dataset()
+    dataset.LUTDescriptor = [0, 0, np.dtype(dtype).itemsize * 8]
+    dataset.LUTData = data.tobytes()
+
+    lut = LUT.from_dataset(dataset)
+
+    assert lut.number_of_entries == 65536
+    assert lut.lut_data.dtype == dtype
+    np.testing.assert_array_equal(lut.lut_data, data)
+
+
+@pytest.mark.parametrize('dtype', [np.uint8, np.uint16])
+def test_lut_maximum_length_truncated_data(dtype):
+    data = np.arange(65536, dtype=np.uint16).astype(dtype)
+    lut = LUT(first_mapped_value=0, lut_data=data)
+    lut.LUTData = data[:-1].tobytes()
+
+    with pytest.raises(RuntimeError, match='Length of LUTData'):
+        _ = lut.lut_data
+
+
+@pytest.mark.parametrize('copy', [None, True, False])
+def test_lut_from_dataset_copy(copy):
+    data = np.array([10, 20], dtype=np.uint16)
+    dataset = Dataset()
+    dataset.LUTDescriptor = [2, 0, 16]
+    dataset.LUTData = data.tobytes()
+
+    if copy is None:
+        lut = LUT.from_dataset(dataset)
+    else:
+        lut = LUT.from_dataset(dataset, copy=copy)
+
+    assert isinstance(lut, LUT)
+    np.testing.assert_array_equal(lut.lut_data, data)
+    if copy is False:
+        assert lut is dataset
+    else:
+        assert lut is not dataset
+        assert type(dataset) is Dataset
+
+    lut.LUTDescriptor[1] = 4
+    lut.LUTData = np.array([30, 40], dtype=np.uint16).tobytes()
+    if copy is False:
+        assert dataset.LUTDescriptor == [2, 4, 16]
+        assert dataset.LUTData == lut.LUTData
+    else:
+        assert dataset.LUTDescriptor == [2, 0, 16]
+        assert dataset.LUTData == data.tobytes()
+
+
 class TestModalityLUT(TestCase):
 
     def setUp(self):
