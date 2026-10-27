@@ -3495,6 +3495,24 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert group.finding_category == self._finding_category
         assert group.finding_sites == self._finding_sites
 
+    def test_get_qualitative_evaluations_with_geometric_purpose(self):
+        group = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_region=self._region,
+            qualitative_evaluations=self._qualitative_evaluations,
+            geometric_purpose=self._geometric_purpose
+        )
+        parsed = PlanarROIMeasurementsAndQualitativeEvaluations.from_sequence(
+            group
+        )
+        for item in (group, parsed):
+            evaluations = item.get_qualitative_evaluations()
+            assert len(evaluations) == 1
+            assert evaluations[0].name == self._qualitative_evaluations[0].name
+            assert item.get_qualitative_evaluations(
+                name=codes.DCM.GeometricPurposeOfRegion
+            ) == []
+
     def test_constructed_without_human_readable_tracking_identifier(self):
         tracking_identifier = TrackingIdentifier(
             uid=generate_uid()

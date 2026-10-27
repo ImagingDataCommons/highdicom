@@ -3158,6 +3158,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
                 codes.SCT.MeasurementMethod,
                 Code('276214006', 'SCT', 'Finding category'),
                 codes.DCM.TimePointType,
+                codes.DCM.GeometricPurposeOfRegion,
             )
         ]
 
