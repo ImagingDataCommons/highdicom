@@ -429,7 +429,18 @@ def apply_voi_window(
     if array.dtype != dtype:
         array = array.astype(dtype)
 
-    if voi_lut_function in (
+    if (
+        voi_lut_function == VOILUTFunctionValues.LINEAR and
+        window_width == 1
+    ):
+        # A LINEAR window of width 1 is a threshold at c - 0.5, see
+        # PS3.3 C.11.2.1.2.1
+        is_above = array > window_center - 0.5
+        if invert:
+            is_above = ~is_above
+        array = np.where(is_above, output_max, output_min).astype(dtype)
+
+    elif voi_lut_function in (
         VOILUTFunctionValues.LINEAR,
         VOILUTFunctionValues.LINEAR_EXACT,
     ):

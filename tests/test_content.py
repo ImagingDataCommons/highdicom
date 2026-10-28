@@ -39,6 +39,7 @@ from highdicom import (
     VOILUTTransformation,
     VOILUTFunctionValues,
 )
+from highdicom.pixels import apply_voi_window
 from highdicom.sr.value_types import (
     CodeContentItem,
     TextContentItem,
@@ -1833,6 +1834,45 @@ class TestVOILUTTransformation(TestCase):
         )
         assert np.array_equal(expected, out)
         assert out.dtype == np.float32
+
+    def test_construction_linear_width_one(self):
+        # A width of 1 is a threshold at c - 0.5 (PS3.3 C.11.2.1.2.1)
+        lut = VOILUTTransformation(
+            window_center=100.5,
+            window_width=1.0,
+        )
+        assert lut.WindowWidth == 1.0
+
+        input_array = np.array([99, 100, 101], np.uint16)
+
+        out = lut.apply(array=input_array)
+        assert np.array_equal(out, [0.0, 0.0, 1.0])
+        assert out.dtype == np.float64
+
+        out = lut.apply(
+            array=input_array,
+            output_range=(10.0, 20.0),
+            invert=True,
+            dtype=np.float32,
+        )
+        assert np.array_equal(out, [20.0, 20.0, 10.0])
+        assert out.dtype == np.float32
+
+        # Examples from the standard, for an output range of 0 to 255
+        out = apply_voi_window(
+            np.array([2047.0, 2047.5, 2048.0]),
+            window_center=2048,
+            window_width=1,
+            output_range=(0.0, 255.0),
+        )
+        assert np.array_equal(out, [0.0, 0.0, 255.0])
+        out = apply_voi_window(
+            np.array([-1.0, -0.5, 0.0]),
+            window_center=0,
+            window_width=1,
+            output_range=(0.0, 255.0),
+        )
+        assert np.array_equal(out, [0.0, 0.0, 255.0])
 
     def test_construction_luts(self):
         lut = VOILUTTransformation(voi_luts=[self._lut])
