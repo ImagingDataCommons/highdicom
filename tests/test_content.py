@@ -1874,6 +1874,35 @@ class TestVOILUTTransformation(TestCase):
         )
         assert np.array_equal(out, [0.0, 0.0, 255.0])
 
+    def test_apply_voi_window_invalid_width(self):
+        # PS3.3 C.11.2.1.2.1 and C.11.2.1.3
+        cases = [
+            ('LINEAR', 0.5),
+            ('LINEAR', 0.0),
+            ('LINEAR_EXACT', 0.0),
+            ('LINEAR_EXACT', -1.0),
+            ('SIGMOID', 0.0),
+            ('SIGMOID', -1.0),
+        ]
+        for voi_lut_function, window_width in cases:
+            with pytest.raises(ValueError, match='Window width'):
+                apply_voi_window(
+                    np.array([0.0, 1.0]),
+                    window_center=0.5,
+                    window_width=window_width,
+                    voi_lut_function=voi_lut_function,
+                )
+
+    def test_apply_voi_window_width_below_one(self):
+        for voi_lut_function in ['LINEAR_EXACT', 'SIGMOID']:
+            out = apply_voi_window(
+                np.array([0.0, 0.5, 1.0]),
+                window_center=0.5,
+                window_width=0.5,
+                voi_lut_function=voi_lut_function,
+            )
+            assert np.all(np.isfinite(out))
+
     def test_construction_luts(self):
         lut = VOILUTTransformation(voi_luts=[self._lut])
         assert len(lut.VOILUTSequence) == 1

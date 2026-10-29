@@ -409,6 +409,18 @@ def apply_voi_window(
 
     """
     voi_lut_function = VOILUTFunctionValues(voi_lut_function)
+    # PS3.3 C.11.2.1.2.1 and C.11.2.1.3
+    if voi_lut_function == VOILUTFunctionValues.LINEAR:
+        if window_width < 1:
+            raise ValueError(
+                'Window width must be at least 1 for the LINEAR VOI LUT '
+                'function.'
+            )
+    elif window_width <= 0:
+        raise ValueError(
+            'Window width must be greater than 0 for the '
+            f'{voi_lut_function.value} VOI LUT function.'
+        )
     output_min, output_max = output_range
     if output_min >= output_max:
         raise ValueError(
@@ -438,7 +450,11 @@ def apply_voi_window(
         is_above = array > window_center - 0.5
         if invert:
             is_above = ~is_above
-        array = np.where(is_above, output_max, output_min).astype(dtype)
+        array = np.where(
+            is_above,
+            dtype.type(output_max),
+            dtype.type(output_min),
+        )
 
     elif voi_lut_function in (
         VOILUTFunctionValues.LINEAR,
