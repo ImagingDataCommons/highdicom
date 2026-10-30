@@ -84,11 +84,13 @@ class SegmentDescription(Dataset):
             e.g. ``Code("49755003", "SCT", "Morphologically Abnormal Structure")``
             (see :dcm:`CID 7150 <part16/sect_CID_7150.html>`
             "Segmentation Property Categories")
-        segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+        segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, highdicom.seg.SegmentedPropertyType]
             Property the segment represents,
             e.g. ``Code("108369006", "SCT", "Neoplasm")``
-            (see :dcm:`CID 7151 <part16/sect_CID_7151.html>`
-            "Segmentation Property Types")
+            (see :dcm:`CID 7151 <part16/sect_CID_7151.html>` "Segmentation
+            Property Types"). Use a
+            :class:`highdicom.seg.SegmentedPropertyType` to pass a code with
+            modifiers (such as specifying laterality).
         algorithm_type: Union[str, highdicom.seg.SegmentAlgorithmTypeValues]
             Type of algorithm
         algorithm_identification: Union[highdicom.AlgorithmIdentificationSequence, None], optional
@@ -108,10 +110,14 @@ class SegmentDescription(Dataset):
             (see :dcm:`CID 4 <part16/sect_CID_4.html>`
             "Anatomic Region", :dcm:`CID 4031 <part16/sect_CID_4031.html>`
             "Common Anatomic Regions", as as well as other CIDs for
-            domain-specific anatomic regions)
+            domain-specific anatomic regions). Use a list of
+            :class:`highdicom.AnatomicRegion` to pass a code with
+            modifiers (such as specifying laterality).
         primary_anatomic_structures: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, highdicom.PrimaryAnatomicStructure]], None], optional
-            Anatomic structure(s) the segment represents
-            (see CIDs for domain-specific primary anatomic structures)
+            Anatomic structure(s) the segment represents (see CIDs for
+            domain-specific primary anatomic structures). Use a list of
+            :class:`highdicom.PrimaryAnatomicStructure` to pass a code with
+            modifiers (such as specifying laterality).
         display_color: Union[highdicom.color.CIELabColor, None], optional
             A recommended color to render this segment.
 
