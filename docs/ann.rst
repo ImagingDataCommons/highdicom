@@ -292,6 +292,36 @@ of matching groups, since the filters may match multiple groups.
     )
     assert len(groups) == 1 and isinstance(groups[0], hd.ann.AnnotationGroup)
 
+The annotated property type of a group may include modifier codes (for example
+to specify laterality), represented by
+:class:`highdicom.ann.AnnotatedPropertyType`. When filtering, a plain
+:class:`pydicom.sr.coding.Code` or :class:`highdicom.sr.CodedConcept` matches
+the root code only and ignores any modifiers, whereas an
+:class:`highdicom.ann.AnnotatedPropertyType` matches only groups whose root
+code and complete set of modifiers are the same.
+
+.. code-block:: python
+
+    # Matches any group with a "Nucleus" type, whether or not it has modifiers
+    groups = ann.get_annotation_groups(
+        annotated_property_type=Code('84640000', 'SCT', 'Nucleus'),
+    )
+
+    # Matches only groups with a "Nucleus" type that has no modifiers
+    groups = ann.get_annotation_groups(
+        annotated_property_type=hd.ann.AnnotatedPropertyType(
+            Code('84640000', 'SCT', 'Nucleus')
+        ),
+    )
+
+    # Matches only groups with a "Nucleus" type with a "Left" modifier
+    groups = ann.get_annotation_groups(
+        annotated_property_type=hd.ann.AnnotatedPropertyType(
+            Code('84640000', 'SCT', 'Nucleus'),
+            modifiers=[Code('7771000', 'SCT', 'Left')],
+        ),
+    )
+
 
 Extracting Information From Annotation Groups
 ---------------------------------------------

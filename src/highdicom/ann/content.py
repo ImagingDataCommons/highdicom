@@ -14,8 +14,12 @@ from highdicom.ann.enum import (
     GraphicTypeValues,
 )
 from highdicom.color import CIELabColor
-from highdicom.content import AlgorithmIdentificationSequence
-from highdicom.sr.coding import CodedConcept
+from highdicom.content import (
+    AlgorithmIdentificationSequence,
+    AnatomicRegion,
+    PrimaryAnatomicStructure,
+)
+from highdicom.sr.coding import CodedConcept, _ModifiedCodedConcept
 from highdicom.uid import UID
 from highdicom._standard_utils import check_required_attributes
 
@@ -171,6 +175,21 @@ class Measurements(Dataset):
         return cast(Self, measurements)
 
 
+class AnnotatedPropertyType(_ModifiedCodedConcept):
+    """Dataset describing the property that an annotation group represents.
+
+    This class may be used instead of a plain
+    :class:`highdicom.sr.CodedConcept` in order to include modifier codes that
+    describe characteristics of the annotated property.
+
+    See :dcm:`CID 8135 <part16/sect_CID_8135.html>` "Microscopy Annotation
+    Property Types" for the appropriate context group for the root concept.
+    No context group is defined for modifier codes.
+
+    """
+    _MODIFIER_SEQUENCE_NAME = "AnnotationPropertyTypeModifierCodeSequence"
+
+
 class AnnotationGroup(Dataset):
 
     """Dataset describing a group of annotations."""
@@ -181,7 +200,7 @@ class AnnotationGroup(Dataset):
         uid: str,
         label: str,
         annotated_property_category: Code | CodedConcept,
-        annotated_property_type: Code | CodedConcept,
+        annotated_property_type: Code | CodedConcept | AnnotatedPropertyType,
         graphic_type: str | GraphicTypeValues,
         graphic_data: Sequence[np.ndarray],
         algorithm_type: str | AnnotationGroupGenerationTypeValues,
@@ -191,10 +210,10 @@ class AnnotationGroup(Dataset):
         measurements: Sequence[Measurements] | None = None,
         description: str | None = None,
         anatomic_regions: None | (
-            Sequence[Code | CodedConcept]
+            Sequence[Code | CodedConcept | AnatomicRegion]
         ) = None,
         primary_anatomic_structures: None | (
-            Sequence[Code | CodedConcept]
+            Sequence[Code | CodedConcept | PrimaryAnatomicStructure]
         ) = None,
         display_color: CIELabColor | None = None,
     ):
@@ -213,11 +232,13 @@ class AnnotationGroup(Dataset):
             ``Code("49755003", "SCT", "Morphologically Abnormal Structure")``
             (see :dcm:`CID 7150 <part16/sect_CID_7150.html>`
             "Segmentation Property Categories")
-        annotated_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+        annotated_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, highdicom.ann.AnnotatedPropertyType]
             Property the annotated regions of interest represents, e.g.,
             ``Code("108369006", "SCT", "Neoplasm")``
             (see :dcm:`CID 8135 <part16/sect_CID_8135.html>`
-            "Microscopy Annotation Property Types")
+            "Microscopy Annotation Property Types"). Use a
+            :class:`highdicom.ann.AnnotatedPropertyType` to additionally
+            specify modifier codes, such as laterality.
         graphic_type: Union[str, highdicom.ann.GraphicTypeValues]
             Graphic type of annotated regions of interest
         graphic_data: Sequence[numpy.ndarray]
@@ -235,11 +256,14 @@ class AnnotationGroup(Dataset):
             interest
         description: Union[str, None], optional
             Description of the annotation group
-        anatomic_regions: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], None], optional
-            Anatomic region(s) into which annotations fall
-        primary_anatomic_structures: Union[Sequence[Union[highdicom.sr.Code, highdicom.sr.CodedConcept]], None], optional
+        anatomic_regions: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, highdicom.AnatomicRegion]], None], optional
+            Anatomic region(s) into which annotations fall. Use
+            :class:`highdicom.AnatomicRegion` to include modifier codes.
+        primary_anatomic_structures: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, highdicom.PrimaryAnatomicStructure]], None], optional
             Anatomic structure(s) the annotations represent
-            (see CIDs for domain-specific primary anatomic structures)
+            (see CIDs for domain-specific primary anatomic structures). Use
+            :class:`highdicom.PrimaryAnatomicStructure` to include modifier
+            codes.
         display_color: Union[highdicom.color.CIELabColor, None], optional
             A recommended color to render this annotation group.
 
@@ -276,6 +300,11 @@ class AnnotationGroup(Dataset):
             self.AnnotationGroupAlgorithmIdentificationSequence = \
                 algorithm_identification
 
+        if isinstance(annotated_property_category, _ModifiedCodedConcept):
+            raise TypeError(
+                "Argument 'annotated_property_category' should not have "
+                f"type {annotated_property_category.__class__.__name__}."
+            )
         if isinstance(annotated_property_category, Code):
             self.AnnotationPropertyCategoryCodeSequence = [
                 CodedConcept.from_code(annotated_property_category)
@@ -284,14 +313,20 @@ class AnnotationGroup(Dataset):
             self.AnnotationPropertyCategoryCodeSequence = [
                 annotated_property_category,
             ]
-        if isinstance(annotated_property_type, Code):
-            self.AnnotationPropertyTypeCodeSequence = [
-                CodedConcept.from_code(annotated_property_type),
-            ]
-        else:
-            self.AnnotationPropertyTypeCodeSequence = [
-                annotated_property_type,
-            ]
+
+        if (
+            isinstance(annotated_property_type, _ModifiedCodedConcept) and not
+            isinstance(annotated_property_type, AnnotatedPropertyType)
+        ):
+            raise TypeError(
+                "Argument 'annotated_property_type' should not have "
+                f"type {annotated_property_type.__class__.__name__}."
+            )
+        if not isinstance(annotated_property_type, AnnotatedPropertyType):
+            annotated_property_type = AnnotatedPropertyType(
+                annotated_property_type
+            )
+        self.AnnotationPropertyTypeCodeSequence = [annotated_property_type]
 
         self.NumberOfAnnotations = len(graphic_data)
         graphic_type = GraphicTypeValues(graphic_type)
@@ -444,15 +479,36 @@ class AnnotationGroup(Dataset):
                 self.MeasurementsSequence.append(item)
 
         if anatomic_regions is not None:
-            self.AnatomicRegionSequence = [
-                CodedConcept.from_code(region)
-                for region in anatomic_regions
-            ]
+            checked_regions = []
+            for region in anatomic_regions:
+                if (
+                    isinstance(region, _ModifiedCodedConcept) and not
+                    isinstance(region, AnatomicRegion)
+                ):
+                    raise TypeError(
+                        "Items of 'anatomic_regions' should not have "
+                        f"type {region.__class__.__name__}."
+                    )
+                checked_regions.append(AnatomicRegion.from_code(region))
+
+            self.AnatomicRegionSequence = checked_regions
+
         if primary_anatomic_structures is not None:
-            self.PrimaryAnatomicStructureSequence = [
-                CodedConcept.from_code(structure)
-                for structure in primary_anatomic_structures
-            ]
+            checked_structures = []
+            for structure in primary_anatomic_structures:
+                if (
+                    isinstance(structure, _ModifiedCodedConcept) and not
+                    isinstance(structure, PrimaryAnatomicStructure)
+                ):
+                    raise TypeError(
+                        "Items of 'primary_anatomic_structures' should not "
+                        f"have type {structure.__class__.__name__}."
+                    )
+                checked_structures.append(
+                    PrimaryAnatomicStructure.from_code(structure)
+                )
+
+            self.PrimaryAnatomicStructureSequence = checked_structures
 
     @property
     def label(self) -> str:
@@ -480,8 +536,9 @@ class AnnotationGroup(Dataset):
         return self.AnnotationPropertyCategoryCodeSequence[0]
 
     @property
-    def annotated_property_type(self) -> CodedConcept:
-        """highdicom.sr.CodedConcept: coded annotated property type"""
+    def annotated_property_type(self) -> AnnotatedPropertyType:
+        """highdicom.ann.AnnotatedPropertyType: coded annotated property type
+        """
         return self.AnnotationPropertyTypeCodeSequence[0]
 
     @property
@@ -504,8 +561,8 @@ class AnnotationGroup(Dataset):
         return None
 
     @property
-    def anatomic_regions(self) -> list[CodedConcept]:
-        """List[highdicom.sr.CodedConcept]:
+    def anatomic_regions(self) -> list[AnatomicRegion]:
+        """List[highdicom.AnatomicRegion]:
             List of anatomic regions into which the annotations fall.
             May be empty.
 
@@ -515,8 +572,8 @@ class AnnotationGroup(Dataset):
         return list(self.AnatomicRegionSequence)
 
     @property
-    def primary_anatomic_structures(self) -> list[CodedConcept]:
-        """List[highdicom.sr.CodedConcept]:
+    def primary_anatomic_structures(self) -> list[PrimaryAnatomicStructure]:
+        """List[highdicom.PrimaryAnatomicStructure]:
             List of anatomic structures the annotations represent.
             May be empty.
 
@@ -827,7 +884,7 @@ class AnnotationGroup(Dataset):
             )
         ]
         group.AnnotationPropertyTypeCodeSequence = [
-            CodedConcept.from_dataset(
+            AnnotatedPropertyType.from_dataset(
                 group.AnnotationPropertyTypeCodeSequence[0],
                 copy=copy,
             )
@@ -845,12 +902,12 @@ class AnnotationGroup(Dataset):
             ]
         if hasattr(group, 'AnatomicRegionSequence'):
             group.AnatomicRegionSequence = [
-                CodedConcept.from_dataset(ds, copy=copy)
+                AnatomicRegion.from_dataset(ds, copy=copy)
                 for ds in group.AnatomicRegionSequence
             ]
         if hasattr(group, 'PrimaryAnatomicStructureSequence'):
             group.PrimaryAnatomicStructureSequence = [
-                CodedConcept.from_dataset(ds, copy=copy)
+                PrimaryAnatomicStructure.from_dataset(ds, copy=copy)
                 for ds in group.PrimaryAnatomicStructureSequence
             ]
 
