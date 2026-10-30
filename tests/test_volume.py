@@ -1181,6 +1181,64 @@ def test_normalize():
     assert np.isclose(normed.array.max(), 1.0)
 
 
+@pytest.mark.parametrize('dtype', [
+    np.int8, np.uint8, np.int16, np.uint16,
+    np.int32, np.uint32, np.int64, np.uint64,
+])
+@pytest.mark.parametrize('output_range', [(0.0, 1.0), (-2.0, 3.0)])
+def test_normalize_min_max_integer_full_range(dtype, output_range):
+    limits = np.iinfo(dtype)
+    values = [int(limits.min), 0, int(limits.max)]
+    array = np.array(values, dtype=dtype).reshape(1, 1, 3)
+    original = array.copy()
+    volume = Volume(array=array, affine=np.eye(4), coordinate_system='PATIENT')
+    lower, upper = output_range
+
+    with np.errstate(over='raise', invalid='raise', divide='raise'):
+        result = volume.normalize_min_max(lower, upper)
+
+    span = int(limits.max) - int(limits.min)
+    expected = np.array([
+        (value - int(limits.min)) / span * (upper - lower) + lower
+        for value in values
+    ]).reshape(1, 1, 3)
+    np.testing.assert_allclose(result.array, expected, rtol=1e-14, atol=1e-14)
+    np.testing.assert_array_equal(volume.array, original)
+    np.testing.assert_array_equal(result.affine, volume.affine)
+
+
+@pytest.mark.parametrize('dtype', [np.int64, np.uint64])
+def test_normalize_min_max_adjacent_large_integers(dtype):
+    maximum = int(np.iinfo(dtype).max)
+    array = np.array([maximum - 2, maximum - 1, maximum], dtype=dtype)
+    volume = Volume(
+        array=array.reshape(1, 1, 3), affine=np.eye(4),
+        coordinate_system='PATIENT',
+    )
+    result = volume.normalize_min_max()
+    np.testing.assert_array_equal(result.array.ravel(), [0.0, 0.5, 1.0])
+
+
+@pytest.mark.parametrize('dtype', [np.int16, np.int64, np.uint64, np.float32])
+def test_normalize_min_max_constant_and_nonmutating(dtype):
+    value = np.iinfo(dtype).max if np.issubdtype(dtype, np.integer) else 3.5
+    array = np.full((2, 2, 2), value, dtype=dtype)
+    volume = Volume(array=array, affine=np.eye(4), coordinate_system='PATIENT')
+    result = volume.normalize_min_max(-2.0, 3.0)
+    np.testing.assert_array_equal(result.array, np.full(array.shape, -2.0))
+    np.testing.assert_array_equal(volume.array, array)
+
+
+@pytest.mark.parametrize('dtype', ['>i2', '<i2', '>u8'])
+def test_normalize_min_max_integer_strided_byte_order(dtype):
+    array = np.arange(24, dtype=np.dtype(dtype)).reshape(2, 3, 4)[:, :, ::-1]
+    original = array.copy()
+    volume = Volume(array=array, affine=np.eye(4), coordinate_system='PATIENT')
+    result = volume.normalize_min_max()
+    np.testing.assert_allclose(result.array, original.astype(float) / 23.0)
+    np.testing.assert_array_equal(volume.array, original)
+
+
 def test_normalize_min_max_per_channel_single_dimension():
     first_channel = np.arange(8, dtype=np.float32).reshape(2, 2, 2)
     second_channel = 100.0 + 10.0 * first_channel
@@ -1250,6 +1308,33 @@ def test_normalize_min_max_per_channel_signed_integer_range():
     assert np.isfinite(normalized.array).all()
     assert np.allclose(normalized.array.min(axis=(0, 1, 2)), 0.0)
     assert np.allclose(normalized.array.max(axis=(0, 1, 2)), 1.0)
+
+
+@pytest.mark.parametrize('dtype', [np.int64, np.uint64])
+def test_normalize_min_max_per_channel_adjacent_large_integers(dtype):
+    maximum = int(np.iinfo(dtype).max)
+    first_channel = np.array(
+        [maximum - 2, maximum - 1, maximum], dtype=dtype,
+    )
+    second_channel = np.array([10, 20, 30], dtype=dtype)
+    array = np.stack([first_channel, second_channel], axis=-1)
+    array = array.reshape(1, 1, 3, 2)
+    volume = Volume(
+        array=array,
+        affine=np.eye(4),
+        coordinate_system='PATIENT',
+        channels={RGB_COLOR_CHANNEL_DESCRIPTOR: [
+            RGBColorChannels.R,
+            RGBColorChannels.G,
+        ]},
+    )
+
+    normalized = volume.normalize_min_max(per_channel=True)
+
+    expected = np.array([0.0, 0.5, 1.0])
+    np.testing.assert_allclose(normalized.array[0, 0, :, 0], expected)
+    np.testing.assert_allclose(normalized.array[0, 0, :, 1], expected)
+    np.testing.assert_array_equal(volume.array, array)
 
 
 def test_normalize_uniform():

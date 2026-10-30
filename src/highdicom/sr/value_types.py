@@ -1901,6 +1901,21 @@ class TcoordContentItem(ContentItem):
         )
         temporal_range_type = TemporalRangeTypeValues(temporal_range_type)
         self.TemporalRangeType = temporal_range_type.value
+
+        n_provided_params = sum(
+            p is not None for p in [
+                referenced_sample_positions,
+                referenced_time_offsets,
+                referenced_date_time,
+            ]
+        )
+        if n_provided_params != 1:
+            raise TypeError(
+                "Exactly one of the following parameters should be provided "
+                f"(got {n_provided_params}): 'referenced_sample_positions' ",
+                "'referenced_time_offsets', 'referenced_date_time'."
+            )
+
         if referenced_sample_positions is not None:
             self.ReferencedSamplePositions = [
                 int(v) for v in referenced_sample_positions
@@ -1926,12 +1941,16 @@ class TcoordContentItem(ContentItem):
         """Union[List[int], List[float], List[datetime.datetime]]: time points
         """
         try:
-            return self.ReferencedSamplePositions
+            value = self.ReferencedSamplePositions
         except AttributeError:
             try:
-                return self.ReferencedTimeOffsets
+                value = self.ReferencedTimeOffsets
             except AttributeError:
-                return self.ReferencedDateTime
+                value = self.ReferencedDateTime
+
+        if value is None or isinstance(value, (MultiValue, list, np.ndarray)):
+            return value
+        return [value]
 
     @property
     def temporal_range_type(self) -> TemporalRangeTypeValues:
@@ -2011,8 +2030,8 @@ class WaveformContentItem(ContentItem):
         if referenced_waveform_channels is not None:
             item.ReferencedWaveformChannels = [
                 i
-                for item in referenced_waveform_channels
-                for i in item
+                for channel in referenced_waveform_channels
+                for i in channel
             ]
         self.ReferencedSOPSequence = [item]
 

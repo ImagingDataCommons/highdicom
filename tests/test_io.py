@@ -10,10 +10,12 @@ from pydicom import dcmread
 from pydicom.data import get_testdata_file
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.filebase import DicomBytesIO, DicomFileLike, DicomFile
+from pydicom.pixels.utils import pack_bits
 from pydicom.tag import ItemTag
 from pydicom.uid import (
     ExplicitVRLittleEndian,
     ParametricMapStorage,
+    SegmentationStorage,
     generate_uid,
 )
 import pytest
@@ -115,6 +117,63 @@ class TestImageFileReader(unittest.TestCase):
                             frame,
                             pixel_array[frame_index],
                         )
+
+    def test_read_bitpacked_frames_not_multiple_of_8(self):
+        # 7 x 9 = 63 pixels per frame, so frames after the first start
+        # part way through a byte and span ceil(63 / 8) + 1 bytes
+        rows, columns, number_of_frames = 7, 9, 4
+        rng = np.random.default_rng(0)
+        pixel_array = rng.integers(
+            0,
+            2,
+            size=(number_of_frames, rows, columns),
+            dtype=np.uint8,
+        )
+        with TemporaryDirectory() as temp_dir:
+            filename = Path(temp_dir) / "bitpacked.dcm"
+            file_meta = FileMetaDataset()
+            file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+            file_meta.MediaStorageSOPClassUID = SegmentationStorage
+            file_meta.MediaStorageSOPInstanceUID = generate_uid()
+            file_meta.ImplementationClassUID = generate_uid()
+            dataset = FileDataset(
+                filename,
+                {},
+                file_meta=file_meta,
+                preamble=b"\0" * 128,
+            )
+            dataset.SOPClassUID = file_meta.MediaStorageSOPClassUID
+            dataset.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+            dataset.Rows = rows
+            dataset.Columns = columns
+            dataset.SamplesPerPixel = 1
+            dataset.PhotometricInterpretation = 'MONOCHROME2'
+            dataset.NumberOfFrames = number_of_frames
+            dataset.BitsAllocated = 1
+            dataset.BitsStored = 1
+            dataset.HighBit = 0
+            dataset.PixelRepresentation = 0
+            dataset.PixelData = pack_bits(pixel_array.flatten())
+            dataset.save_as(
+                filename,
+                implicit_vr=False,
+                little_endian=True,
+            )
+
+            n_pixels = rows * columns
+            with ImageFileReader(filename) as reader:
+                for frame_index in range(number_of_frames):
+                    # The raw frame starts at the byte holding its first
+                    # bit and ends at the byte holding its last bit
+                    start = (frame_index * n_pixels) // 8
+                    stop = ((frame_index + 1) * n_pixels + 7) // 8
+                    raw = reader.read_frame_raw(frame_index)
+                    assert raw == dataset.PixelData[start:stop]
+                    frame = reader.read_frame(frame_index)
+                    np.testing.assert_array_equal(
+                        frame,
+                        pixel_array[frame_index],
+                    )
 
     def test_reject_out_of_range_frame_indices(self):
         filename = str(self._test_dir.joinpath('ct_image.dcm'))

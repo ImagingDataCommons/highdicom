@@ -1041,7 +1041,7 @@ class _CombinedPixelTransform:
         self.columns = image.Columns
         self.samples_per_pixel = image.SamplesPerPixel
         self.bits_allocated = image.BitsAllocated
-        self.bits_stored = image.get('BitsAllocated', image.BitsAllocated)
+        self.bits_stored = image.get('BitsStored', image.BitsAllocated)
         self.photometric_interpretation = image.PhotometricInterpretation
         self.pixel_representation = image.get('PixelRepresentation')
         self.planar_configuration = image.get('PlanarConfiguration')
@@ -4574,7 +4574,7 @@ class _Image(SOPClass):
                 columns=self.Columns,
                 samples_per_pixel=self.SamplesPerPixel,
                 bits_allocated=self.BitsAllocated,
-                bits_stored=self.get('BitsAllocated', self.BitsAllocated),
+                bits_stored=self.get('BitsStored', self.BitsAllocated),
                 photometric_interpretation=self.PhotometricInterpretation,
                 pixel_representation=self.PixelRepresentation,
                 planar_configuration=self.get('PlanarConfiguration'),

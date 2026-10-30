@@ -282,7 +282,9 @@ class ContentCreatorIdentificationCodeSequence(DataElementSequence):
                     'pydicom.sr.coding.Code or '
                     'highdicom.sr.CodedConcept.'
                 )
-            item.InstitutionCodeSequence = [institution_code]
+            item.InstitutionCodeSequence = [
+                CodedConcept.from_code(institution_code)
+            ]
 
         if person_address is not None:
             _check_short_text(person_address)
@@ -1974,7 +1976,7 @@ class LUT(Dataset):
             dtype = np.uint16
         else:
             raise RuntimeError("Invalid LUT descriptor.")
-        length = self.LUTDescriptor[0]
+        length = self.number_of_entries
         data = self.LUTData
 
         # Account for a zero-padding byte in the case of an 8 bit LUT
@@ -2061,7 +2063,6 @@ class LUT(Dataset):
         else:
             dataset_copy = dataset
 
-        dataset_copy = dataset
         dataset_copy.__class__ = cls
         return cast(Self, dataset_copy)
 
@@ -2619,8 +2620,10 @@ class ModalityLUTTransformation(Dataset):
                     'Argument "rescale_type" must be specified when '
                     '"modality_lut" is not specified.'
                 )
-            self.RescaleIntercept = format_number_as_ds(rescale_intercept)
-            self.RescaleSlope = format_number_as_ds(rescale_slope)
+            self.RescaleIntercept = format_number_as_ds(
+                float(rescale_intercept)
+            )
+            self.RescaleSlope = format_number_as_ds(float(rescale_slope))
             if isinstance(rescale_type, RescaleTypeValues):
                 self.RescaleType = rescale_type.value
             else:
