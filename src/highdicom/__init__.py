@@ -13,6 +13,7 @@ from highdicom.base_content import (
 )
 from highdicom.content import (
     AlgorithmIdentificationSequence,
+    AnatomicRegion,
     ContentCreatorIdentificationCodeSequence,
     IssuerOfIdentifier,
     LUT,
@@ -25,6 +26,7 @@ from highdicom.content import (
     PlanePositionSequence,
     PresentationLUT,
     PresentationLUTTransformation,
+    PrimaryAnatomicStructure,
     ReferencedImageSequence,
     SegmentedPaletteColorLUT,
     SpecimenCollection,
@@ -84,6 +86,7 @@ from highdicom.volume import (
 __all__ = [
     'AlgorithmIdentificationSequence',
     'AnatomicalOrientationTypeValues',
+    'AnatomicRegion',
     'AxisHandedness',
     'ChannelDescriptor',
     'ContentCreatorIdentificationCodeSequence',
@@ -115,6 +118,7 @@ __all__ = [
     'PresentationLUT',
     'PresentationLUTShapeValues',
     'PresentationLUTTransformation',
+    'PrimaryAnatomicStructure',
     'RGBColorChannels',
     'RGB_COLOR_CHANNEL_DESCRIPTOR',
     'ReferencedImageSequence',

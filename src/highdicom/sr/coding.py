@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from copy import deepcopy
 import logging
 from typing import Union
@@ -196,3 +197,221 @@ class CodedConcept(Dataset):
     def scheme_version(self) -> str | None:
         """Union[str, None]: version of the coding scheme (if specified)"""
         return getattr(self, 'CodingSchemeVersion', None)
+
+
+class _ModifiedCodedConcept(CodedConcept):
+
+    """Base class for Coded Concepts that have a modifier sequence.
+
+    The name of the modifier sequence varies depending on context and is
+    controlled by a class variable.
+
+    """
+    _MODIFIER_SEQUENCE_NAME: str  # overrider on subclasses
+
+    def __init__(
+        self,
+        coded_concept: Code | CodedConcept,
+        modifiers: Sequence[Code | CodedConcept] | None = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        coded_concept: pydicom.sr.coding.Code | highdicom.sr.CodedConcept
+            The root coded concept. The class docstring gives the appropriate
+            context group.
+        modifiers: Sequence[pydicom.sr.coding.Code | highdicom.sr.CodedConcept] | None
+            Modifier codes that optionally describe characterstics of the root
+            concept. The class docstring gives the appropriate context group.
+
+        """  # noqa: E501
+        if not isinstance(coded_concept, (Code, CodedConcept)):
+            raise TypeError(
+                "Argument 'coded_concept' must be either "
+                "pydicom.sr.coding.Code or highdicom.sr.CodedConcept."
+            )
+
+        super().__init__(
+            value=coded_concept.value,
+            scheme_designator=coded_concept.scheme_designator,
+            meaning=coded_concept.meaning,
+            scheme_version=coded_concept.scheme_version,
+        )
+
+        checked_modifiers = []
+        for modifier in (modifiers or []):
+            if isinstance(modifier, Code):
+                checked_modifiers.append(CodedConcept.from_code(modifier))
+            elif isinstance(modifier, CodedConcept):
+                checked_modifiers.append(modifier)
+            else:
+                raise TypeError(
+                    "Items of 'modifiers' must be either "
+                    "pydicom.sr.coding.Code or highdicom.sr.CodedConcept."
+                )
+
+        if len(checked_modifiers) > 0:
+            setattr(self, self._MODIFIER_SEQUENCE_NAME, checked_modifiers)
+
+    @classmethod
+    def from_code(cls, code: Union[Code, 'CodedConcept']) -> Self:
+        """Construct a _ModifiedCodedConcept for a pydicom Code.
+
+        Parameters
+        ----------
+        code: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+            Code.
+
+        Returns
+        -------
+        Self:
+            CodedConcept dataset for the code.
+
+        """
+        if isinstance(code, cls):
+            return code
+        return cls(code)
+
+    @classmethod
+    def from_dataset(
+        cls,
+        dataset: Dataset,
+        copy: bool = True
+    ) -> Self:
+        """Construct a modified Coded Concept from an existing dataset.
+
+        Parameters
+        ----------
+        dataset: pydicom.dataset.Dataset
+            Dataset representing a coded concept.
+        copy: bool
+            If True, the underlying dataset is deep-copied such that the
+            original dataset remains intact. If False, this operation will
+            alter the original dataset in place.
+
+        Returns
+        -------
+        Self:
+            Coded concept representation of the dataset.
+
+        Raises
+        ------
+        TypeError:
+            If the passed dataset is not a pydicom dataset.
+        AttributeError:
+            If the dataset does not contain the required elements for a
+            coded concept.
+
+        """
+        modifiers = None
+
+        concept = super().from_dataset(dataset, copy=copy)
+
+        if modifiers is not None:
+            modifiers = [
+                # no need for a further copy
+                CodedConcept.from_dataset(m, copy=False)
+                for m in getattr(dataset, cls._MODIFIER_SEQUENCE_NAME)
+            ]
+            setattr(concept, cls._MODIFIER_SEQUENCE_NAME, modifiers)
+
+        return concept
+
+    @property
+    def unmodified(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: The coded concept with any modifiers
+        removed.
+
+        """
+        return CodedConcept(
+            value=self.value,
+            scheme_designator=self.scheme_designator,
+            meaning=self.meaning,
+            scheme_version=self.scheme_version,
+        )
+
+    @property
+    def modifiers(self) -> tuple[CodedConcept, ...]:
+        """tuple[highdicom.sr.CodedConcept, ...]: tuple of concept modifiers
+        """
+        if not hasattr(self, self._MODIFIER_SEQUENCE_NAME):
+            return ()
+
+        return tuple(
+            CodedConcept.from_dataset(ds) for ds in
+            getattr(self, self._MODIFIER_SEQUENCE_NAME)
+        )
+
+    def __hash__(self) -> int:
+        parts = [
+            self.scheme_designator + self.value,
+            *[
+                mod.scheme_designator + mod.value
+                for mod in self.modifiers
+            ]
+        ]
+        # Sort so that order is not significant
+        parts = sorted(parts)
+
+        return hash(''.join(parts))
+
+    def __eq__(self, other: object) -> bool:
+        """Compares `self` and `other` for equality.
+
+        Two modified codes are considered equal if the name of the sequence
+        storing the modifiers is the same, and the unmodified code and all
+        modifiers are the same. The order of modifiers is not significant for
+        determining equality.
+
+        Parameters
+        ----------
+        other: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, Self]
+            code
+
+        Returns
+        -------
+        bool
+            whether `self` and `other` are considered equal
+
+        """
+        # Allow equality with the same modified subclass, CodedConcept or code,
+        # but not another subclass of _ModifiedCodedConcept
+        if (
+            isinstance(other, _ModifiedCodedConcept) and not
+            isinstance(other, self.__class__)
+        ):
+            return False
+
+        if isinstance(other, (Code, CodedConcept)):
+            this = Code(
+                self.value,
+                self.scheme_designator,
+                self.meaning,
+                self.scheme_version
+            )
+            self_modifiers = self.modifiers
+            other_modifiers = (
+                other.modifiers if
+                isinstance(other, _ModifiedCodedConcept) else ()
+            )
+
+            if len(self_modifiers) != len(other_modifiers):
+                return False
+
+            # Sort in order to give permutation invariance
+            self_modifiers = sorted(
+                self_modifiers,
+                key=lambda x: (x.scheme_designator, x.value)
+            )
+            other_modifiers = sorted(
+                other_modifiers,
+                key=lambda x: (x.scheme_designator, x.value)
+            )
+
+            return (
+                Code.__eq__(this, other) and
+                all(a == b for a, b in zip(self_modifiers, other_modifiers))
+            )
+
+        return super().__eq__(other)

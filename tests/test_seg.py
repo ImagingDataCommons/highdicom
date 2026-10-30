@@ -50,6 +50,7 @@ from highdicom.seg import (
     create_segmentation_pyramid,
     segread,
     SegmentationTypeValues,
+    SegmentedPropertyType,
     SegmentAlgorithmTypeValues,
     Segmentation,
     SegmentDescription,
@@ -165,6 +166,146 @@ class TestAlgorithmIdentificationSequence(unittest.TestCase):
         seq[0].AlgorithmParameters = 'some invalid parameters'
         with pytest.raises(ValueError):
             seq.parameters  # noqa: B018
+
+
+@pytest.mark.parametrize('from_code', [True, False])
+def test_segmented_property_type_no_modifiers(from_code: bool):
+    if from_code:
+        property_type = SegmentedPropertyType(codes.SCT.Tumor)
+    else:
+        property_type = SegmentedPropertyType(
+            CodedConcept.from_code(codes.SCT.Tumor)
+        )
+
+    assert isinstance(property_type, CodedConcept)
+    assert isinstance(property_type.unmodified, CodedConcept)
+    assert not hasattr(
+        property_type,
+        'SegmentedPropertyTypeModifierCodeSequence'
+    )
+    assert property_type.unmodified == codes.SCT.Tumor
+    assert property_type.modifiers == ()
+    assert property_type.value == codes.SCT.Tumor.value
+    assert property_type.meaning == codes.SCT.Tumor.meaning
+    assert property_type.scheme_designator == codes.SCT.Tumor.scheme_designator
+
+
+@pytest.mark.parametrize('from_code', [True, False])
+def test_segmented_property_type_with_modifiers(from_code: bool):
+    if from_code:
+        property_type = SegmentedPropertyType(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Left],
+        )
+    else:
+        property_type = SegmentedPropertyType(
+            CodedConcept.from_code(codes.SCT.Kidney),
+            modifiers=[CodedConcept.from_code(codes.SCT.Left)],
+        )
+
+    assert isinstance(property_type, CodedConcept)
+    assert isinstance(property_type.unmodified, CodedConcept)
+    assert hasattr(
+        property_type,
+        'SegmentedPropertyTypeModifierCodeSequence'
+    )
+    assert len(property_type.SegmentedPropertyTypeModifierCodeSequence) == 1
+    assert property_type.unmodified == codes.SCT.Kidney
+    assert property_type.modifiers == (codes.SCT.Left, )
+    assert isinstance(property_type.modifiers[0], CodedConcept)
+    assert property_type.value == codes.SCT.Kidney.value
+    assert property_type.meaning == codes.SCT.Kidney.meaning
+    assert property_type.scheme_designator == codes.SCT.Kidney.scheme_designator
+
+
+def test_segmented_property_type_equality_match():
+    property_type_1 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+        modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+    )
+    property_type_2 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+        modifiers=[codes.SCT.Posterior, codes.SCT.Left],  # reverse order
+    )
+    # Test equality operator considers everything equal
+    assert property_type_1 == property_type_1
+    assert property_type_2 == property_type_2
+    assert property_type_1 == property_type_2
+
+    # Test hash operation via comparing sets
+    assert len({property_type_1, property_type_1}) == 1
+    assert len({property_type_1, property_type_2}) == 1
+    assert len({property_type_1, property_type_2}) == 1
+
+
+def test_segmented_property_type_equality_nonmatching():
+    property_type_1 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+        modifiers=[codes.SCT.Left],
+    )
+    property_type_2 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+    )
+
+    # Test equality operator
+    assert property_type_1 != property_type_2
+    assert property_type_1.unmodified == property_type_2.unmodified
+
+    # Test hash operation via comparing sets
+    assert len({property_type_1, property_type_2}) == 2
+
+
+@pytest.mark.parametrize('copy', [True, False])
+def test_segmented_property_type_from_dataset_no_modifiers(copy: bool):
+    ds = Dataset()
+    ds.CodeValue = codes.SCT.Tumor.value
+    ds.CodeMeaning = 'Tumor'
+    ds.CodingSchemeDesignator = 'SCT'
+
+    property_type = SegmentedPropertyType.from_dataset(ds, copy=copy)
+    assert isinstance(property_type, SegmentedPropertyType)
+    assert property_type == codes.SCT.Tumor
+    assert property_type.modifiers == ()
+
+    if copy:
+        assert property_type is not ds
+    else:
+        assert property_type is ds
+
+
+@pytest.mark.parametrize('copy', [True, False])
+def test_segmented_property_type_from_dataset_with_modifiers(copy: bool):
+    ds = Dataset()
+    ds.CodeValue = codes.SCT.Kidney.value
+    ds.CodeMeaning = 'Kidney'
+    ds.CodingSchemeDesignator = 'SCT'
+
+    modifier = Dataset()
+    modifier.CodeValue = codes.SCT.Left.value
+    modifier.CodeMeaning = 'Left'
+    modifier.CodingSchemeDesignator = 'SCT'
+
+    ds.SegmentedPropertyTypeModifierCodeSequence = [modifier]
+
+    property_type = SegmentedPropertyType.from_dataset(ds, copy=copy)
+    assert isinstance(property_type, SegmentedPropertyType)
+    assert property_type.unmodified == codes.SCT.Kidney
+    assert property_type.modifiers == (codes.SCT.Left, )
+
+    if copy:
+        assert property_type is not ds
+        assert (
+            property_type.SegmentedPropertyTypeModifierCodeSequence[0]
+            is not
+            ds.SegmentedPropertyTypeModifierCodeSequence[0]
+        )
+    else:
+        assert property_type is ds
+        assert (
+            property_type.SegmentedPropertyTypeModifierCodeSequence[0]
+            is
+            ds.SegmentedPropertyTypeModifierCodeSequence[0]
+        )
 
 
 class TestSegmentDescription(unittest.TestCase):
