@@ -375,9 +375,7 @@ class _ModifiedCodedConcept(CodedConcept):
             ]
         ]
         # Sort so that order is not significant
-        parts = sorted(parts)
-
-        return hash(''.join(parts))
+        return hash(tuple(sorted(parts)))
 
     def __eq__(self, other: object) -> bool:
         """Compares `self` and `other` for equality.
