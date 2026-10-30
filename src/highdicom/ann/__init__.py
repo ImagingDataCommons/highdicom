@@ -1,5 +1,9 @@
 """Package for creation of Annotation (ANN) instances."""
-from highdicom.ann.content import Measurements, AnnotationGroup
+from highdicom.ann.content import (
+    AnnotatedPropertyType,
+    AnnotationGroup,
+    Measurements,
+)
 from highdicom.ann.enum import (
     AnnotationCoordinateTypeValues,
     AnnotationGroupGenerationTypeValues,
@@ -13,6 +17,7 @@ SOP_CLASS_UIDS = {
 }
 
 __all__ = [
+    'AnnotatedPropertyType',
     'AnnotationCoordinateTypeValues',
     'AnnotationGroup',
     'AnnotationGroupGenerationTypeValues',

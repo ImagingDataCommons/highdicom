@@ -41,7 +41,7 @@ from highdicom.pixels import (
     apply_voi_window,
 )
 from highdicom.sr.enum import ValueTypeValues
-from highdicom.sr.coding import CodedConcept
+from highdicom.sr.coding import CodedConcept, _ModifiedCodedConcept
 from highdicom.sr.value_types import (
     CodeContentItem,
     ContentSequence,
@@ -62,6 +62,39 @@ from highdicom._standard_utils import (
     does_iod_have_pixel_data,
     is_multiframe_image,
 )
+
+
+class AnatomicRegion(_ModifiedCodedConcept):
+    """Dataset describing the anatomic region into which an image or annotation
+    falls.
+
+    This class may be used instead of a plain
+    :class:`highdicom.sr.CodedConcept` in order to include modifier codes that
+    describe characteristics of the anatomic, such as laterality.
+
+    See :dcm:`CID 4 <part16/sect_CID_4.html>` "Anatomic Region", :dcm:`CID 4031
+    <part16/sect_CID_4031.html>` "Common Anatomic Regions", as as well as other
+    domain-specific CIDs where this class is used for appropriate context
+    groups for the root concept, and :dcm:`CID 2 <part16/sect_CID_2.html>`
+    "Anatomic Modifier" for the context group for modifier codes.
+
+    """
+    _MODIFIER_SEQUENCE_NAME = "AnatomicRegionModifierSequence"
+
+
+class PrimaryAnatomicStructure(_ModifiedCodedConcept):
+    """Dataset describing the property a segmentation represents.
+
+    This class may be used instead of a plain
+    :class:`highdicom.sr.CodedConcept` in order to include modifier codes that
+    describe characteristics of the segmented property, such as laterality.
+
+    See domain-specific context groups where this class is used for the
+    appropriate context group and :dcm:`CID 2 <part16/sect_CID_2.html>`
+    "Anatomic Modifier" for the context group for modifier codes.
+
+    """
+    _MODIFIER_SEQUENCE_NAME = "PrimaryAnatomicStructureModifierSequence"
 
 
 class AlgorithmIdentificationSequence(DataElementSequence):

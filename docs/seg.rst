@@ -61,11 +61,15 @@ description includes the following information:
   :class:`highdicom.sr.CodedConcept`, or a :class:`pydicom.sr.coding.Code`
   object. See
   :dcm:`CID 7150 <part16/sect_CID_7150.html>` for the associated context group.
+  Modifiers are not permitted for this value.
 - **Segmented Property Type**: Another coded value that more specifically
   describes the segmented region, as for example a kidney or tumor.  This is
-  passed as either a :class:`highdicom.sr.CodedConcept`, or a
-  :class:`pydicom.sr.coding.Code` object. See
+  passed as either a :class:`highdicom.sr.CodedConcept`, a
+  :class:`pydicom.sr.coding.Code`, or a
+  :class:`highdicom.seg.SegmentedPropertyType` object. See
   :dcm:`CID 7151 <part16/sect_CID_7151.html>` for the associated context group.
+  Use :class:`highdicom.seg.SegmentedPropertyType` if you want to include
+  modifier codes, such as laterality (see :ref:`seg-modifiers`).
 - **Algorithm Type**: Whether the segment was produced by an automatic,
   semi-automatic, or manual algorithm. The valid values are contained within the
   enum :class:`highdicom.seg.SegmentAlgorithmTypeValues`.
@@ -73,8 +77,18 @@ description includes the following information:
   in which the segment is found. For example, if the segmented property type is
   "tumor", this can be used to convey that the tumor is found in the kidney.
   This is passed as a sequence of coded values as either
-  :class:`highdicom.sr.CodedConcept`, or :class:`pydicom.sr.coding.Code`
-  objects.
+  :class:`highdicom.sr.CodedConcept`, :class:`pydicom.sr.coding.Code`, or
+  :class:`highdicom.AnatomicRegion` objects. Use
+  :class:`highdicom.AnatomicRegion` to include modifier codes (see
+  :ref:`seg-modifiers`).
+- **Primary Anatomic Structures**: (Optional) A coded value describing the
+  anatomic structure that the segment represents, where this is more specific
+  than the segmented property type. This is passed as a sequence of coded
+  values as either :class:`highdicom.sr.CodedConcept`,
+  :class:`pydicom.sr.coding.Code`, or
+  :class:`highdicom.PrimaryAnatomicStructure` objects. Use
+  :class:`highdicom.PrimaryAnatomicStructure` to include modifier codes (see
+  :ref:`seg-modifiers`).
 - **Tracking ID and UID**: (Optional) These allow you to provide identifiers
   for a specific segment. TrackingID is intended as a human readable ID unique
   within a particular setting (e.g. a particular healthcare institution or
@@ -150,6 +164,50 @@ elsewhere.
 
 For a description of how to access segment metadata in existing segmentations,
 see :ref:`segment_description_parsing`.
+
+.. _seg-modifiers:
+
+Segment Descriptions With Modifiers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The segmented property type, anatomic regions, and primary anatomic structures
+of a segment may each be accompanied by `modifier` codes that refine their
+meaning, most commonly to specify laterality (see :ref:`coding-modifiers` for
+background). To include modifiers, use the classes
+:class:`highdicom.seg.SegmentedPropertyType`,
+:class:`highdicom.AnatomicRegion`, and
+:class:`highdicom.PrimaryAnatomicStructure` respectively, passing the root code
+and then a list of modifier codes (see :dcm:`CID 2
+<part16/sect_CID_2.html>` "Anatomic Modifier" for the associated context
+group).
+
+.. code-block:: python
+
+    # An example description of a lung nodule that uses a modifer on the
+    # primary anatomic structure to specify that it is found in the left
+    # lung
+    lung_nodule_description = hd.seg.SegmentDescription(
+        segment_number=3,
+        segment_label='lung nodule',
+        segmented_property_category=codes.SCT.MorphologicallyAbnormalStructure,
+        segmented_property_type=codes.SCT.Nodule,
+        algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
+        anatomic_regions=[codes.SCT.Chest],
+        primary_anatomic_structures=[
+            hd.PrimaryAnatomicStructure(
+                codes.SCT.Lung,
+                modifiers=[codes.SCT.Left],
+            ),
+        ],
+    )
+
+Anywhere that one of these classes may be used, you may still pass a plain
+:class:`highdicom.sr.CodedConcept` or :class:`pydicom.sr.coding.Code`, which is
+treated as a code with no modifiers. Note that the wrong class may not be used
+in the wrong place: for example, passing a
+:class:`highdicom.AnatomicRegion` as the ``segmented_property_type`` raises a
+``TypeError``. The ``segmented_property_category`` does not support modifiers.
+
 
 Segmentation Type (Binary, Fractional and Labelmap)
 ---------------------------------------------------
@@ -1433,6 +1491,31 @@ understand the meaning of each segment (for an overview of the metadata see
     assert segment_description.segmented_property_category == codes.SCT.Tissue
     assert segment_description.segmented_property_type == codes.SCT.Bone
 
+    # The segmented property type is returned as a
+    # highdicom.seg.SegmentedPropertyType, which also provides access to any
+    # modifier codes (an empty tuple if there are none). The same applies to
+    # the anatomic_regions (highdicom.AnatomicRegion) and
+    # primary_anatomic_structures (highdicom.PrimaryAnatomicStructure)
+    # properties, which return lists
+    property_type = segment_description.segmented_property_type
+    assert isinstance(property_type, hd.seg.SegmentedPropertyType)
+    assert property_type.modifiers == ()
+    assert property_type.unmodified == codes.SCT.Bone
+
+For segments whose descriptions include modifiers (see :ref:`seg-modifiers`),
+the modifiers are available via the ``modifiers`` property of these objects:
+
+.. code-block:: python
+
+    for modifier in segment_description.segmented_property_type.modifiers:
+        print(modifier.meaning)
+
+You can also list all the unique segmented property types in a segmentation
+using the :attr:`highdicom.seg.Segmentation.segmented_property_types`
+property, which returns a list of :class:`highdicom.seg.SegmentedPropertyType`
+objects. Property types with the same root code but different modifiers are
+listed separately.
+
 
 Searching For Segments
 ----------------------
@@ -1455,28 +1538,69 @@ whose descriptions meet certain criteria. For example:
     assert seg.number_of_segments == 2
 
     # Check the range of segment numbers
-    assert seg.segment_numbers == range(1, 3)
+    assert seg.segment_numbers == [1, 2]
 
     # Search for segments by label (returns segment numbers of all matching
     # segments)
-    assert seg.get_segment_numbers(segment_label='first segment')) == [1]
-    assert seg.get_segment_numbers(segment_label='second segment')) == [2]
+    assert seg.get_segment_numbers(segment_label='first segment') == [1]
+    assert seg.get_segment_numbers(segment_label='second segment') == [2]
 
     # Search for segments by segmented property type (returns segment numbers
     # of all matching segments)
-    assert seg.get_segment_numbers(segmented_property_type=codes.SCT.Bone)) == [1]
-    assert seg.get_segment_numbers(segmented_property_type=codes.SCT.Spine)) == [2]
+    assert seg.get_segment_numbers(segmented_property_type=codes.SCT.Bone) == [1]
+    assert seg.get_segment_numbers(segmented_property_type=codes.SCT.Spine) == [2]
+
+    # Search for segments by segmented property type, including modifiers (see
+    # below)
+    left_bone = hd.seg.SegmentedPropertyType(
+        codes.SCT.Bone,
+        modifiers=[codes.SCT.Left],
+    )
+    assert seg.get_segment_numbers(segmented_property_type=left_bone) == []
 
     # Search for segments by tracking UID (returns segment numbers of all
     # matching segments)
-    assert seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067')) == [1]
-    assert seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.10042414969629429693880339016394772')) == [2]
+    assert seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067') == [1]
+    assert seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.10042414969629429693880339016394772') == [2]
 
     # You can also get the full description for a given segment, and access
     # the information in it via properties
     segment_1_description = seg.get_segment_description(1)
-    assert segment_1_description.segment_label) == 'first segment'
-    assert segment_1_description.tracking_uid) == '1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'
+    assert segment_1_description.segment_label == 'first segment'
+    assert segment_1_description.tracking_uid == '1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'
+
+When searching by segmented property type, whether modifiers are considered
+depends on the type of the value you pass:
+
+* If you pass a plain :class:`pydicom.sr.coding.Code` or
+  :class:`highdicom.sr.CodedConcept`, only the root code is compared, and any
+  modifiers on the segment's type are ignored. Segments are matched whether or
+  not they have modifiers.
+* If you pass a :class:`highdicom.seg.SegmentedPropertyType`, the root code and
+  the complete set of modifiers (in any order) must match. A
+  :class:`highdicom.seg.SegmentedPropertyType` with no modifiers therefore
+  matches only segments with a type that has no modifiers.
+
+.. code-block:: python
+
+    # Matches all segments of type "Kidney" with or without modifiers
+    seg.get_segment_numbers(segmented_property_type=codes.SCT.Kidney)
+
+    # Matches only segments of type "Kidney" with no modifiers
+    seg.get_segment_numbers(
+        segmented_property_type=hd.seg.SegmentedPropertyType(codes.SCT.Kidney)
+    )
+
+    # Matches only segments of type "Kidney" with exactly the modifier "Left"
+    seg.get_segment_numbers(
+        segmented_property_type=hd.seg.SegmentedPropertyType(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Left],
+        )
+    )
+
+The same rules apply to the ``segmented_property_type`` argument of
+:meth:`highdicom.seg.Segmentation.get_tracking_ids()`.
 
 
 .. _seg-get-pixels:

@@ -22,6 +22,7 @@ from highdicom.sr import (
     AlgorithmIdentification,
     CodeContentItem,
     CodedConcept,
+    codes_equal,
     CompositeContentItem,
     Comprehensive3DSR,
     ComprehensiveSR,
@@ -80,6 +81,9 @@ from highdicom.sr import (
     WaveformContentItem,
     srread,
 )
+from highdicom import AnatomicRegion
+from highdicom.ann import AnnotatedPropertyType
+from highdicom.seg import SegmentedPropertyType
 from highdicom.sr.content import CoordinatesForMeasurement
 from highdicom.sr.utils import find_content_items
 from highdicom import UID
@@ -637,6 +641,178 @@ class TestCodedConcept(unittest.TestCase):
         c1 = CodedConcept(self._value, self._scheme_designator, self._meaning)
         c2 = CodedConcept('R-00317', 'SRT', self._meaning)
         assert c1 == c2
+
+
+class TestCodesEqual:
+
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            SegmentedPropertyType,
+            AnatomicRegion,
+            AnnotatedPropertyType,
+        ]
+    )
+    def modified_class(request):
+        return request.param
+
+    def test_plain_codes(self):
+        concept = CodedConcept.from_code(codes.SCT.Kidney)
+        for a, b in [
+            (codes.SCT.Kidney, codes.SCT.Kidney),
+            (codes.SCT.Kidney, concept),
+            (concept, codes.SCT.Kidney),
+            (concept, concept),
+        ]:
+            assert codes_equal(a, b)
+
+        assert not codes_equal(codes.SCT.Kidney, codes.SCT.Liver)
+        assert not codes_equal(concept, codes.SCT.Liver)
+
+    def test_meaning_ignored(self):
+        a = Code('64033007', 'SCT', 'Kidney')
+        b = Code('64033007', 'SCT', 'Something else')
+        assert codes_equal(a, b)
+
+    def test_equivalent_coding(self):
+        a = CodedConcept('373098007', 'SCT', 'Mean Value of population')
+        b = CodedConcept('R-00317', 'SRT', 'Mean Value of population')
+        assert codes_equal(a, b)
+        assert codes_equal(b, a)
+
+    def test_invalid_types(self):
+        with pytest.raises(TypeError):
+            codes_equal(codes.SCT.Kidney, 'kidney')
+        with pytest.raises(TypeError):
+            codes_equal(None, codes.SCT.Kidney)
+
+    def test_modifiers_significant_by_default(self, modified_class):
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        unmodified = modified_class(codes.SCT.Kidney)
+        other_modified = modified_class(
+            codes.SCT.Kidney, modifiers=[codes.SCT.Right]
+        )
+
+        assert codes_equal(modified, modified)
+        assert codes_equal(unmodified, codes.SCT.Kidney)
+        assert not codes_equal(modified, unmodified)
+        assert not codes_equal(modified, other_modified)
+
+    def test_symmetric_with_pydicom_code(self, modified_class):
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        unmodified = modified_class(codes.SCT.Kidney)
+
+        assert not codes_equal(modified, codes.SCT.Kidney)
+        assert not codes_equal(codes.SCT.Kidney, modified)
+
+        assert codes_equal(unmodified, codes.SCT.Kidney)
+        assert codes_equal(codes.SCT.Kidney, unmodified)
+
+    def test_ignore_modifiers(self, modified_class):
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        other_modified = modified_class(
+            codes.SCT.Kidney, modifiers=[codes.SCT.Right]
+        )
+        for a, b in [
+            (modified, codes.SCT.Kidney),
+            (codes.SCT.Kidney, modified),
+            (modified, other_modified),
+            (modified, CodedConcept.from_code(codes.SCT.Kidney)),
+        ]:
+            assert codes_equal(a, b, ignore_modifiers=True)
+
+        assert not codes_equal(
+            modified,
+            codes.SCT.Liver,
+            ignore_modifiers=True,
+        )
+
+    def test_modifier_order_not_significant(self, modified_class):
+        a = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+        )
+        b = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Posterior, codes.SCT.Left],
+        )
+        assert codes_equal(a, b)
+        assert codes_equal(b, a)
+
+    def test_modifier_subset_not_equal(self, modified_class):
+        a = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+        )
+        b = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        assert not codes_equal(a, b)
+        assert not codes_equal(b, a)
+
+    def test_class_not_considered(self):
+        a = SegmentedPropertyType(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        b = AnatomicRegion(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        c = AnnotatedPropertyType(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        assert codes_equal(a, b)
+        assert codes_equal(b, c)
+        assert codes_equal(a, c)
+
+    def test_equivalent_modifiers_match(self, modified_class):
+        a = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[CodedConcept('373098007', 'SCT', 'Mean')],
+        )
+        b = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[CodedConcept('R-00317', 'SRT', 'Mean')],
+        )
+        assert codes_equal(a, b)
+
+    def test_operator_agrees_with_function(self, modified_class):
+        concepts = [
+            modified_class(codes.SCT.Kidney),
+            modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left]),
+            modified_class(
+                codes.SCT.Kidney,
+                modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+            ),
+            modified_class(codes.SCT.Liver),
+            CodedConcept.from_code(codes.SCT.Kidney),
+        ]
+        for a in concepts:
+            for b in concepts:
+                assert (a == b) == codes_equal(a, b)
+                assert (a != b) == (not codes_equal(a, b))
+
+    def test_hash_consistent_with_equality(self, modified_class):
+        concepts = [
+            modified_class(codes.SCT.Kidney),
+            modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left]),
+            modified_class(
+                codes.SCT.Kidney,
+                modifiers=[codes.SCT.Posterior, codes.SCT.Left],
+            ),
+            modified_class(
+                codes.SCT.Kidney,
+                modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+            ),
+            modified_class(codes.SCT.Liver),
+            CodedConcept.from_code(codes.SCT.Kidney),
+            codes.SCT.Kidney,
+        ]
+        for a in concepts:
+            for b in concepts:
+                if a == b and b == a:
+                    assert hash(a) == hash(b)
+
+    def test_operator_asymmetry_with_pydicom_code(self, modified_class):
+        # Documents known behavior: pydicom's Code.__eq__ is evaluated first
+        # when a Code is the left operand and knows nothing of modifiers.
+        # codes_equal should be used instead in such situations.
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        assert modified != codes.SCT.Kidney
+        assert codes.SCT.Kidney == modified
+        assert not codes_equal(modified, codes.SCT.Kidney)
+        assert not codes_equal(codes.SCT.Kidney, modified)
 
 
 class TestContentItem(unittest.TestCase):

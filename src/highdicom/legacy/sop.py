@@ -2728,10 +2728,10 @@ class _CommonLegacyConvertedEnhancedImage(Image):
     """SOP class for common Legacy Converted Enhanced instances."""
 
     # Override these on the sub-classes
-    _MODALITY_ATTRIBUTE = ""
-    _MODALITY_NAME = ""
-    _LEGACY_SOP_CLASS_UID = ""
-    _ENHANCED_SOP_CLASS_UID = ""
+    _MODALITY_ATTRIBUTE: str
+    _MODALITY_NAME: str
+    _LEGACY_SOP_CLASS_UID: str
+    _ENHANCED_SOP_CLASS_UID: str
 
     def __init__(
         self,

@@ -46,7 +46,7 @@ from highdicom.enum import (
     PhotometricInterpretationValues,
     PixelRepresentationValues,
 )
-from highdicom.seg.content import SegmentDescription
+from highdicom.seg.content import SegmentDescription, SegmentedPropertyType
 from highdicom.seg.enum import (
     SegmentationFractionalTypeValues,
     SegmentationTypeValues,
@@ -54,7 +54,7 @@ from highdicom.seg.enum import (
     SegmentAlgorithmTypeValues,
 )
 from highdicom.seg.utils import iter_segments
-from highdicom.sr.coding import CodedConcept
+from highdicom.sr.coding import CodedConcept, codes_equal
 from highdicom.volume import (
     ChannelDescriptor,
     Volume,
@@ -130,6 +130,24 @@ def _check_numpy_value_representation(
             f"{max_val}, which is too large be represented using dtype "
             f"{dtype}."
         )
+
+
+def _property_type_matches(
+    actual: SegmentedPropertyType,
+    query: Code | CodedConcept | SegmentedPropertyType,
+) -> bool:
+    """Check whether a segment's property type matches a filter value.
+
+    If the query is a :class:`highdicom.seg.SegmentedPropertyType`, the root
+    code and all modifiers must match. Otherwise, only the unmodified root code
+    is compared.
+
+    """
+    return codes_equal(
+        actual,
+        query,
+        ignore_modifiers=not isinstance(query, SegmentedPropertyType),
+    )
 
 
 class Segmentation(_Image):
@@ -1477,7 +1495,9 @@ class Segmentation(_Image):
         self,
         segment_label: str | None = None,
         segmented_property_category: Code | CodedConcept | None = None,
-        segmented_property_type: Code | CodedConcept | None = None,
+        segmented_property_type: (
+            Code | CodedConcept | SegmentedPropertyType | None
+        ) = None,
         algorithm_type: SegmentAlgorithmTypeValues | str | None = None,
         tracking_uid: str | None = None,
         tracking_id: str | None = None,
@@ -1493,8 +1513,17 @@ class Segmentation(_Image):
             Segment label filter to apply.
         segmented_property_category: Union[Code, CodedConcept, None], optional
             Segmented property category filter to apply.
-        segmented_property_type: Union[Code, CodedConcept, None], optional
-            Segmented property type filter to apply.
+        segmented_property_type: Union[Code, CodedConcept, highdicom.seg.SegmentedPropertyType, None], optional
+            Segmented property type filter to apply. If a
+            :class:`highdicom.seg.SegmentedPropertyType` is provided, a segment
+            matches only if its segmented property type has the same root code
+            *and* exactly the same set of modifier codes (in any order). A
+            ``SegmentedPropertyType`` without modifiers therefore matches only
+            segments whose type has no modifiers. If a plain
+            :class:`pydicom.sr.coding.Code` or
+            :class:`highdicom.sr.CodedConcept` is provided, only the root
+            (unmodified) code is compared, and any modifiers on the segment's
+            type are ignored.
         algorithm_type: Union[SegmentAlgorithmTypeValues, str, None], optional
             Segmented property type filter to apply.
         tracking_uid: Union[str, None], optional
@@ -1526,6 +1555,28 @@ class Segmentation(_Image):
         >>> segment_numbers
         [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 
+        Filter by segmented property type including modifiers. Passing a plain
+        code matches the root code only, ignoring any modifiers, whereas
+        passing a :class:`highdicom.seg.SegmentedPropertyType` requires the
+        modifiers to match exactly (though order does not matter). Here no
+        segments have a modifier, so only the unmodified type matches:
+
+        >>> from highdicom.seg import SegmentedPropertyType
+        >>> seg.get_segment_numbers(
+        ...     segmented_property_type=SegmentedPropertyType(
+        ...         codes.SCT.ConnectiveTissue,
+        ...         modifiers=[codes.SCT.Left],
+        ...     )
+        ... )
+        []
+        >>> segment_numbers = seg.get_segment_numbers(
+        ...     segmented_property_type=SegmentedPropertyType(
+        ...         codes.SCT.ConnectiveTissue
+        ...     )
+        ... )
+        >>> len(segment_numbers)
+        20
+
         Get segment numbers of all segments identified by a given
         institution-specific tracking ID:
 
@@ -1556,8 +1607,10 @@ class Segmentation(_Image):
             )
         if segmented_property_type is not None:
             filter_funcs.append(
-                lambda desc:
-                desc.segmented_property_type == segmented_property_type
+                lambda desc: _property_type_matches(
+                    desc.segmented_property_type,
+                    segmented_property_type,
+                )
             )
         if algorithm_type is not None:
             algo_type = SegmentAlgorithmTypeValues(algorithm_type)
@@ -1587,7 +1640,9 @@ class Segmentation(_Image):
     def get_tracking_ids(
         self,
         segmented_property_category: Code | CodedConcept | None = None,
-        segmented_property_type: Code | CodedConcept | None = None,
+        segmented_property_type: (
+            Code | CodedConcept | SegmentedPropertyType | None
+        ) = None,
         algorithm_type: SegmentAlgorithmTypeValues | str | None = None
     ) -> list[tuple[str, UID]]:
         """Get all unique tracking identifiers in this SEG image.
@@ -1605,8 +1660,12 @@ class Segmentation(_Image):
         ----------
         segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
             Segmented property category filter to apply.
-        segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
-            Segmented property type filter to apply.
+        segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, highdicom.seg.SegmentedPropertyType, None], optional
+            Segmented property type filter to apply. Matching follows the same
+            rules as in :meth:`get_segment_numbers`: a
+            :class:`highdicom.seg.SegmentedPropertyType` must match the root
+            code and all modifiers, whereas a plain code matches the root code
+            only.
         algorithm_type: Union[highdicom.seg.SegmentAlgorithmTypeValues, str, None], optional
             Segmented property type filter to apply.
 
@@ -1653,8 +1712,10 @@ class Segmentation(_Image):
             )
         if segmented_property_type is not None:
             filter_funcs.append(
-                lambda desc:
-                desc.segmented_property_type == segmented_property_type
+                lambda desc: _property_type_matches(
+                    desc.segmented_property_type,
+                    segmented_property_type,
+                )
             )
         if algorithm_type is not None:
             algo_type = SegmentAlgorithmTypeValues(algorithm_type)
@@ -1697,12 +1758,16 @@ class Segmentation(_Image):
         return categories
 
     @property
-    def segmented_property_types(self) -> list[CodedConcept]:
+    def segmented_property_types(self) -> list[SegmentedPropertyType]:
         """Get all unique non-background segmented property types.
+
+        Types are considered unique based on both their root code and their
+        modifiers (in any order), so the same root code with different
+        modifiers is listed separately.
 
         Returns
         -------
-        List[CodedConcept]
+        List[highdicom.seg.SegmentedPropertyType]
             All unique non-background segmented property types referenced in
             segment descriptions in this SEG image.
 

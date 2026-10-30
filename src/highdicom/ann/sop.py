@@ -27,7 +27,7 @@ from highdicom.ann.enum import (
     GraphicTypeValues,
     PixelOriginInterpretationValues,
 )
-from highdicom.ann.content import AnnotationGroup
+from highdicom.ann.content import AnnotatedPropertyType, AnnotationGroup
 from highdicom.content import (
     _add_content_information,
     ContentCreatorIdentificationCodeSequence,
@@ -35,7 +35,7 @@ from highdicom.content import (
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.base_content import ContributingEquipment
 from highdicom.io import _wrapped_dcmread
-from highdicom.sr.coding import CodedConcept
+from highdicom.sr.coding import CodedConcept, codes_equal
 
 
 class MicroscopyBulkSimpleAnnotations(SOPClass):
@@ -327,7 +327,9 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
     def get_annotation_groups(
         self,
         annotated_property_category: Code | CodedConcept | None = None,
-        annotated_property_type: Code | CodedConcept | None = None,
+        annotated_property_type: (
+            Code | CodedConcept | AnnotatedPropertyType | None
+        ) = None,
         label: str | None = None,
         graphic_type: str | GraphicTypeValues | None = None,
         algorithm_type: None | (
@@ -344,8 +346,17 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         annotated_property_category: Union[Code, CodedConcept, None], optional
             Category of annotated property
             (e.g., ``codes.SCT.MorphologicAbnormality``)
-        annotated_property_type: Union[Code, CodedConcept, None], optional
-            Type of annotated property (e.g., ``codes.SCT.Neoplasm``)
+        annotated_property_type: Union[Code, CodedConcept, highdicom.ann.AnnotatedPropertyType, None], optional
+            Type of annotated property (e.g., ``codes.SCT.Neoplasm``). If a
+            :class:`highdicom.ann.AnnotatedPropertyType` is provided, a group
+            matches only if its annotated property type has the same root code
+            *and* exactly the same set of modifier codes (in any order). An
+            ``AnnotatedPropertyType`` without modifiers therefore matches only
+            groups whose type has no modifiers. If a plain
+            :class:`pydicom.sr.coding.Code` or
+            :class:`highdicom.sr.CodedConcept` is provided, only the root
+            (unmodified) code is compared and any modifiers on the group's
+            type are ignored.
         label: Union[str, None], optional
             Annotation group label
         graphic_type: Union[str, GraphicTypeValues, None], optional
@@ -382,9 +393,13 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 matches.append(is_match)
 
             if annotated_property_type is not None:
-                is_match = eq(
+                is_match = codes_equal(
                     item.annotated_property_type,
-                    annotated_property_type
+                    annotated_property_type,
+                    ignore_modifiers=not isinstance(
+                        annotated_property_type,
+                        AnnotatedPropertyType,
+                    ),
                 )
                 matches.append(is_match)
 
