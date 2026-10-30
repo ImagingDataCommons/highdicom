@@ -35,7 +35,7 @@ from highdicom.content import (
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.base_content import ContributingEquipment
 from highdicom.io import _wrapped_dcmread
-from highdicom.sr.coding import CodedConcept
+from highdicom.sr.coding import CodedConcept, codes_equal
 
 
 class MicroscopyBulkSimpleAnnotations(SOPClass):
@@ -393,16 +393,14 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 matches.append(is_match)
 
             if annotated_property_type is not None:
-                if isinstance(annotated_property_type, AnnotatedPropertyType):
-                    is_match = eq(
-                        item.annotated_property_type,
-                        annotated_property_type
-                    )
-                else:
-                    is_match = eq(
-                        item.annotated_property_type.unmodified,
-                        annotated_property_type
-                    )
+                is_match = codes_equal(
+                    item.annotated_property_type,
+                    annotated_property_type,
+                    ignore_modifiers=not isinstance(
+                        annotated_property_type,
+                        AnnotatedPropertyType,
+                    ),
+                )
                 matches.append(is_match)
 
             if label is not None:

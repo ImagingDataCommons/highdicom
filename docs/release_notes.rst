@@ -243,3 +243,72 @@ can be replaced with this to give the same output object:
        ],
        ...,
    )
+
+.. _modified-codes:
+
+Codes With Modifiers in Segmentation and Annotation Objects
+-----------------------------------------------------------
+
+In highdicom 0.29.0, the segmented property type of a segment (in
+:class:`highdicom.seg.SegmentDescription`), the annotated property type of an
+annotation group (in :class:`highdicom.ann.AnnotationGroup`), and the anatomic
+regions and primary anatomic structures of both, may include modifier codes
+(for example to specify laterality) via the new classes
+:class:`highdicom.seg.SegmentedPropertyType`,
+:class:`highdicom.ann.AnnotatedPropertyType`,
+:class:`highdicom.AnatomicRegion` and
+:class:`highdicom.PrimaryAnatomicStructure`. See :ref:`coding-modifiers`,
+:ref:`seg-modifiers` and :ref:`ann-modifiers` for details.
+
+Existing code continues to work without modification, but some behavior has
+changed:
+
+* The properties
+  :attr:`highdicom.seg.SegmentDescription.segmented_property_type`,
+  :attr:`highdicom.seg.SegmentDescription.anatomic_regions`,
+  :attr:`highdicom.seg.SegmentDescription.primary_anatomic_structures`,
+  :attr:`highdicom.ann.AnnotationGroup.annotated_property_type`,
+  :attr:`highdicom.ann.AnnotationGroup.anatomic_regions`,
+  :attr:`highdicom.ann.AnnotationGroup.primary_anatomic_structures` and
+  :attr:`highdicom.seg.Segmentation.segmented_property_types` now return
+  instances of the new sub-classes of :class:`highdicom.sr.CodedConcept`,
+  rather than plain :class:`highdicom.sr.CodedConcept` objects. These can be
+  used in the same way, and additionally have ``modifiers`` and ``unmodified``
+  properties.
+* When searching with the ``segmented_property_type`` argument of
+  :meth:`highdicom.seg.Segmentation.get_segment_numbers` and
+  :meth:`highdicom.seg.Segmentation.get_tracking_ids`, or the
+  ``annotated_property_type`` argument of
+  :meth:`highdicom.ann.MicroscopyBulkSimpleAnnotations.get_annotation_groups`,
+  a plain :class:`pydicom.sr.coding.Code` or
+  :class:`highdicom.sr.CodedConcept` matches the root code only (ignoring any
+  modifiers, as before), whereas an instance of the new class with modifiers
+  must match the modifiers as well.
+* A code that has modifiers is not equal (using ``==``) to the same root code
+  without modifiers. Be aware that, because the ``==`` operator of
+  ``pydicom.sr.coding.Code`` cannot be changed by highdicom, the expression
+  ``Code == modified_code`` ignores the modifiers, whereas
+  ``modified_code == Code`` does not. To compare codes in a way that is safe
+  in all situations, use the new function :func:`highdicom.sr.codes_equal`.
+  See :ref:`coding-gotcha`.
+
+To compare only root codes in existing code, either use
+:func:`highdicom.sr.codes_equal` with ``ignore_modifiers=True`` or compare the
+``unmodified`` property:
+
+.. code-block:: python
+
+   import highdicom as hd
+   from pydicom.sr.codedict import codes
+
+   seg = hd.seg.segread('path/to/seg.dcm')
+   desc = seg.get_segment_description(1)
+
+   # Compares the root code only, whether or not the segment has modifiers
+   assert hd.sr.codes_equal(
+       desc.segmented_property_type,
+       codes.SCT.Kidney,
+       ignore_modifiers=True,
+   )
+   assert desc.segmented_property_type.unmodified == codes.SCT.Kidney
+

@@ -378,11 +378,14 @@ def test_modified_code_modifiers_not_copied_on_access():
 
 
 def test_modified_code_equality_different_classes():
+    # The class of a modified code does not affect equality
     a = SegmentedPropertyType(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
     b = AnatomicRegion(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
-    assert a != b
+    assert a == b
+    assert b == a
+    assert len({a, b}) == 1
+    assert a != AnatomicRegion(codes.SCT.Kidney)
     assert a != 'kidney'
-
     # Unmodified compares equal to plain codes
     assert SegmentedPropertyType(codes.SCT.Kidney) == codes.SCT.Kidney
     assert a != codes.SCT.Kidney

@@ -187,10 +187,11 @@ UCUM
 ----
 
 UCUM works a little differently to the other coding schemes discussed here.
-Rather than a finite set of codes, it defines codes for a set of units and a
-syntax for combining them to give derived units (e.g. `"mm/s"` for millimeters
-per second), meaning there are potentially infinite codes. Pydicom defines
-a list of the most common units, but this will not cover every use case.
+Rather than a finite set of codes, it defines codes for a set of fundamental
+units and a syntax for combining them to give derived units (e.g. `"mm/s"` for
+millimeters per second), meaning there are potentially infinite codes. Pydicom
+defines a list of the most common units, but this will not cover every use
+case.
 
 We recommend this `page
 <https://ucum.nlm.nih.gov/ucum-lhc/demo.html>`_, a useful validator for
@@ -276,10 +277,12 @@ parameter.
    # Access the root code on its own, without the modifiers
    assert left_kidney.unmodified == codes.SCT.Kidney
 
-Two modified codes are equal if they are instances of the same class, have the
-same root code, and have the same set of modifiers. The order of the modifiers
-is not significant, and the hash is consistent with this definition, so these
-objects may be used in sets and as dictionary keys.
+Two modified codes are equal if they have the same root code and the same set
+of modifiers. The order of the modifiers is not significant, and the class of
+the modified code (e.g. :class:`highdicom.seg.SegmentedPropertyType` or
+:class:`highdicom.AnatomicRegion`) is not considered. The hash is consistent
+with this definition, so these objects may be used in sets and as dictionary
+keys.
 
 .. code-block:: python
 
@@ -299,185 +302,77 @@ objects may be used in sets and as dictionary keys.
 
 A modified code that has no modifiers is considered equal to the plain code,
 but one that has modifiers does not. When you want to compare only the root
-code regardless of modifiers, use the ``unmodified`` property:
+code regardless of modifiers, use the ``unmodified`` property or the
+``ignore_modifiers`` option of :func:`highdicom.sr.codes_equal`:
 
 .. code-block:: python
 
    assert hd.seg.SegmentedPropertyType(codes.SCT.Kidney) == codes.SCT.Kidney
    assert a != codes.SCT.Kidney
    assert a.unmodified == codes.SCT.Kidney
+   assert hd.sr.codes_equal(a, codes.SCT.Kidney, ignore_modifiers=True)
 
-UCUM
-----
+.. _coding-gotcha:
 
-UCUM works a little differently to the other coding schemes discussed here.
-Rather than a finite set of codes, it defines codes for a set of units and a
-syntax for combining them to give derived units (e.g. `"mm/s"` for millimeters
-per second), meaning there are potentially infinite codes. Pydicom defines
-a list of the most common units, but this will not cover every use case.
+Gotcha: Comparing With ``pydicom.sr.coding.Code``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-We recommend this `page
-<https://ucum.nlm.nih.gov/ucum-lhc/demo.html>`_, a useful validator for
-checking UCUM syntax.
-
-Codes With Modifiers
---------------------
-
-Some attributes in DICOM allow a code to be accompanied by one or more
-`modifier` codes that refine the meaning of the root code. A typical example is
-laterality: rather than needing a separate code for "left kidney" and "right
-kidney", you can use the single code for "kidney" together with the modifier
-"left" or "right". The codes used as modifiers are generally drawn from
-:dcm:`CID 2 <part16/sect_CID_2.html>` "Anatomic Modifier".
-
-In the DICOM standard, each place where modifiers are allowed has its own
-sequence attribute for holding them (for example "Segmented Property Type
-Modifier Code Sequence" next to "Segmented Property Type Code Sequence").
-`Highdicom` provides a class for each such attribute. They are all
-sub-classes of :class:`highdicom.sr.CodedConcept`, and are constructed from a
-root code and an optional sequence of modifier codes (either
-``pydicom.sr.coding.Code`` or :class:`highdicom.sr.CodedConcept` objects):
-
-.. list-table::
-   :header-rows: 1
-
-   * - Class
-     - Describes
-     - Used in
-   * - :class:`highdicom.seg.SegmentedPropertyType`
-     - The property that a segment represents
-       (:dcm:`CID 7151 <part16/sect_CID_7151.html>`)
-     - ``segmented_property_type`` of :class:`highdicom.seg.SegmentDescription`
-   * - :class:`highdicom.ann.AnnotatedPropertyType`
-     - The property that an annotation group represents
-       (:dcm:`CID 8135 <part16/sect_CID_8135.html>`)
-     - ``annotated_property_type`` of :class:`highdicom.ann.AnnotationGroup`
-   * - :class:`highdicom.AnatomicRegion`
-     - The anatomic region into which a segment or annotation group falls
-       (e.g. :dcm:`CID 4 <part16/sect_CID_4.html>`)
-     - ``anatomic_regions`` of :class:`highdicom.seg.SegmentDescription` and
-       :class:`highdicom.ann.AnnotationGroup`
-   * - :class:`highdicom.PrimaryAnatomicStructure`
-     - The anatomic structure that a segment or annotation group represents
-     - ``primary_anatomic_structures`` of
-       :class:`highdicom.seg.SegmentDescription` and
-       :class:`highdicom.ann.AnnotationGroup`
-
-Each class stores its modifiers in the attribute with the corresponding
-standard name, so that the object can be placed directly into a DICOM dataset.
-The classes are not interchangeable: for example an
-:class:`highdicom.AnatomicRegion` cannot be passed where a
-:class:`highdicom.seg.SegmentedPropertyType` is expected, and doing so raises a
-``TypeError``.
-
-Creating Modified Codes
-^^^^^^^^^^^^^^^^^^^^^^^
-
-To create an instance of the relevant class, pass a ``pydicom.sr.coding.Code``
-or :class:`highdicom.sr.CodedConcept` to serve as the root concept, then
-optionally a list of further codes to the `modifiers` parameter.
+The ``==`` operator is **not symmetric** when a code with modifiers is compared
+with a ``pydicom.sr.coding.Code``. When the ``Code`` is on the left, the
+comparison is evaluated by `pydicom`, whose ``Code`` class knows nothing about
+modifiers (and is not under the control of `highdicom`), so the modifiers are
+silently ignored:
 
 .. code-block:: python
 
-   import highdicom as hd
-   from pydicom.sr.codedict import codes
-
-   # A segmented property type of "Kidney", modified by "Left"
    left_kidney = hd.seg.SegmentedPropertyType(
        codes.SCT.Kidney,
        modifiers=[codes.SCT.Left],
    )
 
-   # The value, meaning, and scheme_designator properties behave as they do for
-   a plain CodedConcept
-   print(left_kidney.scheme_designator, left_kidney.value, left_kidney.meaning)
-   # SCT 64033007 Kidney
+   # The modifiers are considered: not equal
+   assert left_kidney != codes.SCT.Kidney
 
-   # Access the modifiers using the modifiers property (regradless of the
-   specific class used)
-   print([m.meaning for m in left_kidney.modifiers])
-   # ['Left']
+   # The modifiers are not considered, since pydicom evaluates this: equal!
+   assert codes.SCT.Kidney == left_kidney
 
-   # Acces the root code on its own, without the modifiers
-   assert left_kidney.unmodified == codes.SCT.Kidney
+This also affects code that compares implicitly, such as ``code in
+list_of_codes``, ``list_of_codes.index(code)`` and the order of operands in an
+``assert expected == actual`` statement. Comparing two
+:class:`highdicom.sr.CodedConcept` objects (or objects of any of its
+sub-classes) does not have this problem, because the operator of the
+sub-class is always tried first.
 
-You can then pass these objects to the constructors that accept them. Anywhere
-that a modified class is accepted, you may still pass a plain
-``pydicom.sr.coding.Code`` or :class:`highdicom.sr.CodedConcept`, in which case
-it is treated as a code with no modifiers.
-
-.. code-block:: python
-
-   segment = hd.seg.SegmentDescription(
-       segment_number=1,
-       segment_label='Kidney',
-       segmented_property_category=codes.SCT.AnatomicalStructure,
-       segmented_property_type=left_kidney,
-       algorithm_type=hd.seg.SegmentAlgorithmTypeValues.MANUAL,
-       anatomic_regions=[
-           hd.AnatomicRegion(
-               codes.SCT.AbdomenAndPelvis,
-               modifiers=[codes.SCT.Left],
-           ),
-       ],
-       primary_anatomic_structures=[
-           hd.PrimaryAnatomicStructure(
-               codes.SCT.Kidney,
-               modifiers=[codes.SCT.Left],
-           ),
-       ],
-   )
-
-When reading existing objects, the corresponding properties
-(:attr:`highdicom.seg.SegmentDescription.segmented_property_type`,
-:attr:`highdicom.ann.AnnotationGroup.annotated_property_type`, and the
-``anatomic_regions`` and ``primary_anatomic_structures`` properties of both
-classes) always return the modified classes, whether or not any modifiers are
-present. Use the ``modifiers`` property to get the modifiers as a tuple of
-:class:`highdicom.sr.CodedConcept` (empty if there are none) and the
-``unmodified`` property to get the root code alone.
+To compare codes safely in every situation, use the function
+:func:`highdicom.sr.codes_equal`. It gives the same result regardless of the
+order of its arguments and of the types of its arguments, and treats a plain
+``Code`` as having no modifiers:
 
 .. code-block:: python
 
-   segment_type = segment.segmented_property_type
-   assert isinstance(segment_type, hd.seg.SegmentedPropertyType)
-   for modifier in segment_type.modifiers:
-       print(modifier.meaning)
-   # Left
+   assert not hd.sr.codes_equal(left_kidney, codes.SCT.Kidney)
+   assert not hd.sr.codes_equal(codes.SCT.Kidney, left_kidney)
 
-Equality and Hashing
-^^^^^^^^^^^^^^^^^^^^
-
-Two modified codes are equal if they are instances of the same class, have the
-same root code, and have the same set of modifiers. The order of the modifiers
-is not significant, and the hash is consistent with this definition, so these
-objects may be used in sets and as dictionary keys.
-
-.. code-block:: python
-
-   a = hd.seg.SegmentedPropertyType(
+   # Compare only the root codes, ignoring modifiers
+   assert hd.sr.codes_equal(
        codes.SCT.Kidney,
-       modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+       left_kidney,
+       ignore_modifiers=True,
    )
-   b = hd.seg.SegmentedPropertyType(
-       codes.SCT.Kidney,
-       modifiers=[codes.SCT.Posterior, codes.SCT.Left],
-   )
-   assert a == b
-   assert len({a, b}) == 1
 
-   # Different modifiers means a different code
-   assert a != hd.seg.SegmentedPropertyType(codes.SCT.Kidney)
+The behavior of the ``==`` operator for the possible combinations of types is
+summarized below.
 
-   # ...even though the root codes are the same
-   assert a.unmodified == hd.seg.SegmentedPropertyType(codes.SCT.Kidney)
+.. list-table::
+   :header-rows: 1
 
-A modified code that has no modifiers is considered equal to the plain code,
-but one that has modifiers does not. When you want to compare only the root
-code regardless of modifiers, use the ``unmodified`` property:
-
-.. code-block:: python
-
-   assert hd.seg.SegmentedPropertyType(codes.SCT.Kidney) == codes.SCT.Kidney
-   assert a != codes.SCT.Kidney
-   assert a.unmodified == codes.SCT.Kidney
+   * - Expression
+     - Considers modifiers?
+   * - ``CodedConcept == CodedConcept`` (or any sub-class)
+     - Yes
+   * - ``modified_code == Code``
+     - Yes
+   * - ``Code == modified_code``
+     - **No**
+   * - ``hd.sr.codes_equal(a, b)``, any types, either order
+     - Yes (unless ``ignore_modifiers=True``)

@@ -54,7 +54,7 @@ from highdicom.seg.enum import (
     SegmentAlgorithmTypeValues,
 )
 from highdicom.seg.utils import iter_segments
-from highdicom.sr.coding import CodedConcept
+from highdicom.sr.coding import CodedConcept, codes_equal
 from highdicom.volume import (
     ChannelDescriptor,
     Volume,
@@ -143,9 +143,11 @@ def _property_type_matches(
     is compared.
 
     """
-    if isinstance(query, SegmentedPropertyType):
-        return actual == query
-    return actual.unmodified == query
+    return codes_equal(
+        actual,
+        query,
+        ignore_modifiers=not isinstance(query, SegmentedPropertyType),
+    )
 
 
 class Segmentation(_Image):
