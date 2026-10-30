@@ -220,16 +220,36 @@ class _ModifiedCodedConcept(CodedConcept):
         ----------
         coded_concept: pydicom.sr.coding.Code | highdicom.sr.CodedConcept
             The root coded concept. The class docstring gives the appropriate
-            context group.
+            context group. If this is an instance of the same class, its
+            modifiers are carried over (and any further `modifiers` are
+            appended to them). Instances of other modified classes are not
+            accepted, since their modifiers belong to a different context.
         modifiers: Sequence[pydicom.sr.coding.Code | highdicom.sr.CodedConcept] | None
             Modifier codes that optionally describe characterstics of the root
             concept. The class docstring gives the appropriate context group.
+
+        Raises
+        ------
+        TypeError:
+            If `coded_concept` is an instance of a different modified coded
+            concept class, or if `coded_concept` or any item of `modifiers`
+            has an invalid type.
 
         """  # noqa: E501
         if not isinstance(coded_concept, (Code, CodedConcept)):
             raise TypeError(
                 "Argument 'coded_concept' must be either "
                 "pydicom.sr.coding.Code or highdicom.sr.CodedConcept."
+            )
+
+        if (
+            isinstance(coded_concept, _ModifiedCodedConcept) and not
+            isinstance(coded_concept, type(self))
+        ):
+            raise TypeError(
+                "Argument 'coded_concept' must not be an instance of "
+                f"{type(coded_concept).__name__} since this would discard "
+                "its modifiers."
             )
 
         super().__init__(
@@ -239,7 +259,10 @@ class _ModifiedCodedConcept(CodedConcept):
             scheme_version=coded_concept.scheme_version,
         )
 
-        checked_modifiers = []
+        checked_modifiers: list[CodedConcept] = []
+        if isinstance(coded_concept, _ModifiedCodedConcept):
+            checked_modifiers.extend(coded_concept.modifiers)
+
         for modifier in (modifiers or []):
             if isinstance(modifier, Code):
                 checked_modifiers.append(CodedConcept.from_code(modifier))
@@ -336,8 +359,10 @@ class _ModifiedCodedConcept(CodedConcept):
         if not hasattr(self, self._MODIFIER_SEQUENCE_NAME):
             return ()
 
+        # No copy is needed: this is an in-place (and idempotent) class change
+        # of items that already represent coded concepts
         return tuple(
-            CodedConcept.from_dataset(ds) for ds in
+            CodedConcept.from_dataset(ds, copy=False) for ds in
             getattr(self, self._MODIFIER_SEQUENCE_NAME)
         )
 
@@ -398,18 +423,21 @@ class _ModifiedCodedConcept(CodedConcept):
                 return False
 
             # Sort in order to give permutation invariance
-            self_modifiers = sorted(
+            sorted_self_modifiers = sorted(
                 self_modifiers,
                 key=lambda x: (x.scheme_designator, x.value)
             )
-            other_modifiers = sorted(
+            sorted_other_modifiers = sorted(
                 other_modifiers,
                 key=lambda x: (x.scheme_designator, x.value)
             )
 
             return (
                 Code.__eq__(this, other) and
-                all(a == b for a, b in zip(self_modifiers, other_modifiers))
+                all(
+                    a == b for a, b in
+                    zip(sorted_self_modifiers, sorted_other_modifiers)
+                )
             )
 
         return super().__eq__(other)

@@ -341,6 +341,42 @@ def test_modified_code_invalid_arguments():
         SegmentedPropertyType(codes.SCT.Kidney, modifiers=['not a code'])
 
 
+def test_modified_code_from_other_modified_class_rejected():
+    modified = SegmentedPropertyType(
+        codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+    )
+    with pytest.raises(TypeError):
+        AnatomicRegion(modified)
+    with pytest.raises(TypeError):
+        AnatomicRegion.from_code(modified)
+    # Even without modifiers, a different class is rejected for consistency
+    with pytest.raises(TypeError):
+        PrimaryAnatomicStructure(SegmentedPropertyType(codes.SCT.Kidney))
+
+
+def test_modified_code_from_same_class_keeps_modifiers():
+    modified = SegmentedPropertyType(
+        codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+    )
+    copied = SegmentedPropertyType(modified)
+    assert copied == modified
+    assert copied.modifiers == (codes.SCT.Left, )
+
+    extended = SegmentedPropertyType(
+        modified, modifiers=[codes.SCT.Posterior]
+    )
+    assert extended.modifiers == (codes.SCT.Left, codes.SCT.Posterior)
+    # The original is not altered
+    assert modified.modifiers == (codes.SCT.Left, )
+
+
+def test_modified_code_modifiers_not_copied_on_access():
+    modified = SegmentedPropertyType(
+        codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+    )
+    assert modified.modifiers[0] is modified.modifiers[0]
+
+
 def test_modified_code_equality_different_classes():
     a = SegmentedPropertyType(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
     b = AnatomicRegion(codes.SCT.Kidney, modifiers=[codes.SCT.Left])

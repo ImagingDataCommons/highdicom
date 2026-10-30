@@ -1538,17 +1538,17 @@ whose descriptions meet certain criteria. For example:
     assert seg.number_of_segments == 2
 
     # Check the range of segment numbers
-    assert seg.segment_numbers == range(1, 3)
+    assert seg.segment_numbers == [1, 2]
 
     # Search for segments by label (returns segment numbers of all matching
     # segments)
-    assert seg.get_segment_numbers(segment_label='first segment')) == [1]
-    assert seg.get_segment_numbers(segment_label='second segment')) == [2]
+    assert seg.get_segment_numbers(segment_label='first segment') == [1]
+    assert seg.get_segment_numbers(segment_label='second segment') == [2]
 
     # Search for segments by segmented property type (returns segment numbers
     # of all matching segments)
-    assert seg.get_segment_numbers(segmented_property_type=codes.SCT.Bone)) == [1]
-    assert seg.get_segment_numbers(segmented_property_type=codes.SCT.Spine)) == [2]
+    assert seg.get_segment_numbers(segmented_property_type=codes.SCT.Bone) == [1]
+    assert seg.get_segment_numbers(segmented_property_type=codes.SCT.Spine) == [2]
 
     # Search for segments by segmented property type, including modifiers (see
     # below)
@@ -1560,14 +1560,14 @@ whose descriptions meet certain criteria. For example:
 
     # Search for segments by tracking UID (returns segment numbers of all
     # matching segments)
-    assert seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067')) == [1]
-    assert seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.10042414969629429693880339016394772')) == [2]
+    assert seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067') == [1]
+    assert seg.get_segment_numbers(tracking_uid='1.2.826.0.1.3680043.10.511.3.10042414969629429693880339016394772') == [2]
 
     # You can also get the full description for a given segment, and access
     # the information in it via properties
     segment_1_description = seg.get_segment_description(1)
-    assert segment_1_description.segment_label) == 'first segment'
-    assert segment_1_description.tracking_uid) == '1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'
+    assert segment_1_description.segment_label == 'first segment'
+    assert segment_1_description.tracking_uid == '1.2.826.0.1.3680043.10.511.3.83271046815894549094043330632275067'
 
 When searching by segmented property type, whether modifiers are considered
 depends on the type of the value you pass:
