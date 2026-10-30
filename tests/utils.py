@@ -19,6 +19,7 @@ from highdicom._standard_utils import (
 DCM_QA_MPRAGE = 'https://github.com/neurolabusc/dcm_qa_mprage/raw/refs/heads/main'  # noqa: E501
 DCM_QA_ME = 'https://github.com/neurolabusc/dcm_qa_me/raw/refs/heads/master'
 DCM_QA_PDT2 = 'https://github.com/neurolabusc/dcm_qa_pdt2/raw/refs/heads/main'
+TEST_DATA = Path(__file__).parent.parent / "data" / "test_files"
 
 
 def write_and_read_dataset(dataset: Dataset):
