@@ -136,22 +136,19 @@ group).
 
 .. code-block:: python
 
-    # Annotations of nuclei in the left kidney
-    left_kidney_nuclei_group = hd.ann.AnnotationGroup(
+    # Annotations of malignant nuclei
+    malignant_nuclei_group = hd.ann.AnnotationGroup(
         number=2,
         uid=hd.UID(),
-        label='left kidney nuclei',
+        label='malignant nuclei',
         annotated_property_category=codes.SCT.AnatomicalStructure,
-        annotated_property_type=codes.SCT.Nucleus,
+        annotated_property_type=hd.ann.AnnotatedPropertyType(
+            codes.SCT.Nucleus,
+            modifiers=[codes.SCT.Malignant],
+        ),
         algorithm_type=hd.ann.AnnotationGroupGenerationTypeValues.MANUAL,
         graphic_type=hd.ann.GraphicTypeValues.POINT,
         graphic_data=graphic_data,
-        primary_anatomic_structures=[
-            hd.PrimaryAnatomicStructure(
-                codes.SCT.Kidney,
-                modifiers=[codes.SCT.Left],
-            ),
-        ],
     )
 
 Anywhere that one of these classes may be used, you may still pass a plain
