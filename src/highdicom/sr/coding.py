@@ -10,90 +10,6 @@ from pydicom.sr.coding import Code
 logger = logging.getLogger(__name__)
 
 
-def codes_equal(
-    code1: Code | CodedConcept,
-    code2: Code | CodedConcept,
-    *,
-    ignore_modifiers: bool = False,
-) -> bool:
-    """Determine whether two codes represent the same concept.
-
-    Unlike the ``==`` operator, this function is symmetric in its arguments
-    in all situations, including when one argument is a
-    :class:`pydicom.sr.coding.Code` and the other is a code with modifiers
-    (see :ref:`coding-gotcha`). It is therefore the safest way to compare codes
-    when modifiers may be present.
-
-    Two codes are considered equal if their root codes are equivalent (the
-    same coding scheme designator, code value and coding scheme version;
-    meanings are not compared, and equivalent SRT and SCT codes are treated as
-    equal) and, unless `ignore_modifiers` is ``True``, they have the same set
-    of modifiers (in any order). A code that does not support modifiers, such
-    as a plain :class:`pydicom.sr.coding.Code`, is treated as having no
-    modifiers. The class of the codes is not considered.
-
-    Parameters
-    ----------
-    code1: pydicom.sr.coding.Code | highdicom.sr.CodedConcept
-        First code to compare. May be an instance of a class that has
-        modifiers, such as :class:`highdicom.seg.SegmentedPropertyType`.
-    code2: pydicom.sr.coding.Code | highdicom.sr.CodedConcept
-        Second code to compare.
-    ignore_modifiers: bool, optional
-        If True, only the root codes are compared, and any modifiers are
-        disregarded.
-
-    Returns
-    -------
-    bool
-        True if the two codes are considered equal, False otherwise.
-
-    Raises
-    ------
-    TypeError
-        If either argument is not a ``pydicom.sr.coding.Code`` or
-        :class:`highdicom.sr.CodedConcept`.
-
-    """
-    for name, code in [('code1', code1), ('code2', code2)]:
-        if not isinstance(code, (Code, CodedConcept)):
-            raise TypeError(
-                f"Argument '{name}' must be either pydicom.sr.coding.Code or "
-                "highdicom.sr.CodedConcept."
-            )
-
-    root1 = Code(
-        code1.value,
-        code1.scheme_designator,
-        code1.meaning,
-        code1.scheme_version,
-    )
-    if not Code.__eq__(root1, code2):
-        return False
-
-    if ignore_modifiers:
-        return True
-
-    modifiers1 = list(getattr(code1, 'modifiers', ()))
-    modifiers2 = list(getattr(code2, 'modifiers', ()))
-
-    if len(modifiers1) != len(modifiers2):
-        return False
-
-    # Match modifiers irrespective of order. Pairwise matching rather than
-    # sorting is used since equivalent codes (e.g. SRT and SCT) may sort
-    # differently.
-    for mod1 in modifiers1:
-        for i, mod2 in enumerate(modifiers2):
-            if codes_equal(mod1, mod2):
-                del modifiers2[i]
-                break
-        else:
-            return False
-
-    return True
-
-
 class CodedConcept(Dataset):
 
     """Coded concept of a DICOM SR document content module attribute."""
@@ -469,3 +385,87 @@ class _ModifiedCodedConcept(CodedConcept):
         ]
         # Sort so that order is not significant
         return hash(tuple(parts))
+
+
+def codes_equal(
+    code1: Code | CodedConcept,
+    code2: Code | CodedConcept,
+    *,
+    ignore_modifiers: bool = False,
+) -> bool:
+    """Determine whether two codes represent the same concept.
+
+    Unlike the ``==`` operator, this function is symmetric in its arguments
+    in all situations, including when one argument is a
+    :class:`pydicom.sr.coding.Code` and the other is a code with modifiers
+    (see :ref:`coding-gotcha`). It is therefore the safest way to compare codes
+    when modifiers may be present.
+
+    Two codes are considered equal if their root codes are equivalent (the
+    same coding scheme designator, code value and coding scheme version;
+    meanings are not compared, and equivalent SRT and SCT codes are treated as
+    equal) and, unless `ignore_modifiers` is ``True``, they have the same set
+    of modifiers (in any order). A code that does not support modifiers, such
+    as a plain :class:`pydicom.sr.coding.Code`, is treated as having no
+    modifiers. The class of the codes is not considered.
+
+    Parameters
+    ----------
+    code1: pydicom.sr.coding.Code | highdicom.sr.CodedConcept
+        First code to compare. May be an instance of a class that has
+        modifiers, such as :class:`highdicom.seg.SegmentedPropertyType`.
+    code2: pydicom.sr.coding.Code | highdicom.sr.CodedConcept
+        Second code to compare.
+    ignore_modifiers: bool, optional
+        If True, only the root codes are compared, and any modifiers are
+        disregarded.
+
+    Returns
+    -------
+    bool
+        True if the two codes are considered equal, False otherwise.
+
+    Raises
+    ------
+    TypeError
+        If either argument is not a ``pydicom.sr.coding.Code`` or
+        :class:`highdicom.sr.CodedConcept`.
+
+    """
+    for name, code in [('code1', code1), ('code2', code2)]:
+        if not isinstance(code, (Code, CodedConcept)):
+            raise TypeError(
+                f"Argument '{name}' must be either pydicom.sr.coding.Code or "
+                "highdicom.sr.CodedConcept."
+            )
+
+    root1 = Code(
+        code1.value,
+        code1.scheme_designator,
+        code1.meaning,
+        code1.scheme_version,
+    )
+    if not Code.__eq__(root1, code2):
+        return False
+
+    if ignore_modifiers:
+        return True
+
+    modifiers1 = list(getattr(code1, 'modifiers', ()))
+    modifiers2 = list(getattr(code2, 'modifiers', ()))
+
+    if len(modifiers1) != len(modifiers2):
+        return False
+
+    # Match modifiers irrespective of order. Pairwise matching rather than
+    # sorting is used since equivalent codes (e.g. SRT and SCT) may sort
+    # differently.
+    for mod1 in modifiers1:
+        for i, mod2 in enumerate(modifiers2):
+            if codes_equal(mod1, mod2):
+                del modifiers2[i]
+                break
+        else:
+            return False
+
+    return True
