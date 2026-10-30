@@ -133,7 +133,7 @@ class SegmentDescription(Dataset):
         if isinstance(segmented_property_category, _ModifiedCodedConcept):
             raise TypeError(
                 "Argument 'segmented_property_category' should not have "
-                f"type {segmented_property_category.__class___.__name__}."
+                f"type {segmented_property_category.__class__.__name__}."
             )
 
         self.SegmentedPropertyCategoryCodeSequence = [
@@ -146,7 +146,7 @@ class SegmentDescription(Dataset):
         ):
             raise TypeError(
                 "Argument 'segmented_property_type' should not have "
-                f"type {segmented_property_type.__class___.__name__}."
+                f"type {segmented_property_type.__class__.__name__}."
             )
 
         if not isinstance(segmented_property_type, SegmentedPropertyType):
@@ -198,7 +198,7 @@ class SegmentDescription(Dataset):
                 ):
                     raise TypeError(
                         "Items of 'anatomic_regions' should not have "
-                        f"type {region.__class___.__name__}."
+                        f"type {region.__class__.__name__}."
                     )
 
                 if isinstance(region, AnatomicRegion):
@@ -223,7 +223,7 @@ class SegmentDescription(Dataset):
                 ):
                     raise TypeError(
                         "Items of 'primary_anatomic_structures' should not "
-                        f"have type {structure.__class___.__name__}."
+                        f"have type {structure.__class__.__name__}."
                     )
 
                 if isinstance(structure, PrimaryAnatomicStructure):
@@ -291,7 +291,7 @@ class SegmentDescription(Dataset):
             )
         ]
         desc.SegmentedPropertyTypeCodeSequence = [
-            CodedConcept.from_dataset(
+            SegmentedPropertyType.from_dataset(
                 desc.SegmentedPropertyTypeCodeSequence[0],
                 copy=False,
             )
@@ -304,12 +304,12 @@ class SegmentDescription(Dataset):
                 )
         if hasattr(desc, 'AnatomicRegionSequence'):
             desc.AnatomicRegionSequence = [
-                CodedConcept.from_dataset(ds, copy=False)
+                AnatomicRegion.from_dataset(ds, copy=False)
                 for ds in desc.AnatomicRegionSequence
             ]
         if hasattr(desc, 'PrimaryAnatomicStructureSequence'):
             desc.PrimaryAnatomicStructureSequence = [
-                CodedConcept.from_dataset(ds, copy=False)
+                PrimaryAnatomicStructure.from_dataset(ds, copy=False)
                 for ds in desc.PrimaryAnatomicStructureSequence
             ]
         return cast(Self, desc)

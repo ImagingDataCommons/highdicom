@@ -304,15 +304,13 @@ class _ModifiedCodedConcept(CodedConcept):
             coded concept.
 
         """
-        modifiers = None
-
         concept = super().from_dataset(dataset, copy=copy)
 
-        if modifiers is not None:
+        if hasattr(concept, cls._MODIFIER_SEQUENCE_NAME):
             modifiers = [
                 # no need for a further copy
                 CodedConcept.from_dataset(m, copy=False)
-                for m in getattr(dataset, cls._MODIFIER_SEQUENCE_NAME)
+                for m in getattr(concept, cls._MODIFIER_SEQUENCE_NAME)
             ]
             setattr(concept, cls._MODIFIER_SEQUENCE_NAME, modifiers)
 
