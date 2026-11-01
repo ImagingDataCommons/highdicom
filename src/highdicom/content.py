@@ -1974,7 +1974,7 @@ class LUT(Dataset):
             dtype = np.uint16
         else:
             raise RuntimeError("Invalid LUT descriptor.")
-        length = self.LUTDescriptor[0]
+        length = self.number_of_entries
         data = self.LUTData
 
         # Account for a zero-padding byte in the case of an 8 bit LUT
@@ -2061,7 +2061,6 @@ class LUT(Dataset):
         else:
             dataset_copy = dataset
 
-        dataset_copy = dataset
         dataset_copy.__class__ = cls
         return cast(Self, dataset_copy)
 
