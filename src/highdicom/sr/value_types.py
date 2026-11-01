@@ -431,7 +431,7 @@ class ContentSequence(DataElementSequence):
                 return index
         raise ValueError(f'Item "{val.name}" is not in Sequence.')
 
-    def find(self, name: Code | CodedConcept) -> Self:
+    def find(self, name: Code | CodedConcept) -> 'ContentSequence':
         """Find contained content items given their name.
 
         Parameters
@@ -447,11 +447,11 @@ class ContentSequence(DataElementSequence):
         """
         return ContentSequence(
             self._lut[name],
-            is_root=False,
+            is_root=self._is_root,
             is_sr=self._is_sr
         )
 
-    def get_nodes(self) -> Self:
+    def get_nodes(self) -> 'ContentSequence':
         """Get content items that represent nodes in the content tree.
 
         A node is hereby defined as a content item that has a `ContentSequence`
@@ -463,10 +463,11 @@ class ContentSequence(DataElementSequence):
             Matched content items
 
         """
-        return self.__class__([
-            item for item in self
-            if hasattr(item, 'ContentSequence')
-        ])
+        return ContentSequence(
+            [item for item in self if hasattr(item, 'ContentSequence')],
+            is_root=self._is_root,
+            is_sr=self._is_sr,
+        )
 
     def append(self, val: ContentItem) -> None:  # type: ignore[override]
         """Append a content item to the sequence.
@@ -554,18 +555,23 @@ class ContentSequence(DataElementSequence):
                 'must have type ContentItem.'
             )
         if self._is_root:
-            if val.relationship_type is not None:
+            if self._is_sr and val.relationship_type is not None:
                 raise AttributeError(
                     f'Items to be included in a {self.__class__.__name__} '
                     'that is the root of the SR content tree must not have '
                     'relationship type.'
                 )
         else:
-            if val.relationship_type is None:
+            if self._is_sr and val.relationship_type is None:
                 raise AttributeError(
                     f'Items to be inserted into to a {self.__class__.__name__} '
                     'must have an established relationship type.'
                 )
+        if not self._is_sr and val.relationship_type is not None:
+            raise AttributeError(
+                'Item of content of acquisition, protocol, or workflow '
+                'context must have no Relationship Type.'
+            )
         self._lut[val.name].append(val)
         super().insert(position, val)
 
