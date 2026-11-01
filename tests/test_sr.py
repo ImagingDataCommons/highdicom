@@ -166,7 +166,6 @@ def test_content_sequence_insert_rejects_non_sr_relationship():
     assert len(sequence.find(item.name)) == 0
 
 
-
 def _build_coded_concept_dataset(code: Code) -> Dataset:
     ds = Dataset()
     ds.CodeValue = code[0]
