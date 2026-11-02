@@ -376,3 +376,147 @@ summarized below.
      - **No**
    * - ``hd.sr.codes_equal(a, b)``, any types, either order
      - Yes (unless ``ignore_modifiers=True``)
+
+.. _coding-scheme-identification:
+
+Coding Scheme Identification
+----------------------------
+
+Every code in a DICOM object carries only the *designator* of its coding scheme
+(e.g. ``"SCT"``), not a full definition of the scheme. For the schemes that are
+listed within the DICOM standard itself (those on `this page
+<https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_8.html>`_,
+including ``"DCM"``, ``"SCT"``, ``"LN"``, ``"UCUM"`` and others), the
+designator is enough for a reader to know exactly which terminology is meant.
+It is valid to use other coding schemes, but then the designator may not be
+understood by the recipient of the file. In this case, it is a best practice to
+place information describing the scheme(s) used in the instance's "Coding
+Scheme Identification Sequence". This sequence maps each designator used within
+an instance to more information about the scheme, including the scheme's full
+name, its version, the organization responsible for it, a UID or external
+registry identifier, and links to resources describing it.
+
+In highdicom, each coding scheme may be described by an item of type
+:class:`highdicom.coding_schemes.CodingSchemeIdentificationItem`. Only the
+``designator`` is required, but you should provide as much additional
+information as you can. Pass a sequence of such items to the ``coding_schemes``
+parameter of the constructor of :class:`highdicom.SOPClass`, and they will be
+placed into the Coding Scheme Identification Sequence of the new object. The
+constructors of all IODs implemented in highdicom (such as the SR, Parametric
+Map and Segmentation classes) accept a ``coding_schemes`` argument (via the
+``**kwargs`` argument, which forwards arguments to :class:`highdicom.SOPClass`).
+Below, we show two examples of this, one for publicly available coding schemes
+listed in a public registry, the other for private codes that are only used
+within a particular organization.
+
+.. _public-coding-scheme:
+
+Publicly Registered Coding Scheme
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For a scheme that is registered in an external registry, use the ``registry``
+parameter, and additionally specify **either** the ``uid`` of the scheme (if
+it has an ISO 8824 object identifier compatible with the DICOM UI value
+representation) **or** its identifier within the registry as ``external_id``.
+It is an error to give both, or neither, when ``registry`` is used:
+
+.. code-block:: python
+
+   hl7_scheme = CodingSchemeIdentificationItem(
+       designator="ICD10",
+       name="International Classification of Diseases, 10th Revision",
+       registry="HL7",
+       uid="2.16.840.1.113883.6.3",
+   )
+
+Each designator used in the instance should be described by at most one item.
+
+.. _coding-private-codes:
+
+Private Codes
+^^^^^^^^^^^^^
+
+If no existing terminology contains the concept you need to describe, you may
+define your own "private" or "local" codes. Doing so should be a last resort,
+since other software will not be able to interpret them. Before creating
+private codes, look through the terminologies above (and the
+tools described in `Finding Suitable Codes`_) for a suitable existing code. When
+you do need to create them:
+
+- **Designator**: the DICOM standard reserves coding scheme designators
+  starting with ``"99"`` for private use (e.g. ``"99MYORG"``). Choose a
+  designator that is specific to your organization or project to avoid
+  collisions with those of other users. The designator is a DICOM Short String,
+  so it may be at most 16 characters long, and it must not contain backslashes
+  or control characters.
+- **Value**: any code value that is unique within your scheme, up to 16
+  characters. It need not be numeric.
+- **Meaning**: a human-readable description of the concept. Because receivers
+  cannot look the code up elsewhere, make this clear and complete.
+- **Version**: if your scheme is likely to change over time, set
+  ``scheme_version`` on the code so that its meaning is unambiguous.
+- **Identification**: describe the scheme with a
+  :class:`highdicom.coding_schemes.CodingSchemeIdentificationItem` as above,
+  so that readers can discover who defines the scheme and where to find its
+  documentation. The designator of every code used in the instance that is not
+  from a standard terminology (``"99MYORG"`` here) should have a matching
+  ``CodingSchemeIdentificationItem`` in the ``coding_schemes`` list.
+
+Putting this together, the following creates a private code and an instance
+that uses it and describes its scheme. This example skips over most of the
+detail on how to create the Structured Report instance to focus on the use of
+the coding scheme. See :ref:`sr` for a full explanation of SRs.
+
+.. code-block:: python
+
+   import highdicom as hd
+   from highdicom.coding_schemes import (
+       CodingSchemeIdentificationItem,
+       CodingSchemeResourceItem,
+   )
+   from highdicom.enum import CodingSchemeURLTypeValues
+
+
+   # An example coded concept using a private coding scheme. This can
+   # be used anywhere a CodedConcept may be passed
+   private_motion_artifact_code = hd.sr.CodedConcept(
+       value="FIND-0042",
+       scheme_designator="99MYORG",
+       meaning="Suspected motion artifact",
+       scheme_version="2.1",
+   )
+
+   # Define a CodingSchemeIdentificationItem that describes this private coding
+   # scheme, with the designator matching that used above
+   my_scheme = CodingSchemeIdentificationItem(
+       designator="99MYORG",
+       name="My Organization Findings Terminology",
+       version="2.1",
+       responsible_organization="My Organization, contact@example.com",
+       resources=[
+           CodingSchemeResourceItem(
+               url="https://example.com/terminology/v2.1/description.html",
+               url_type=CodingSchemeURLTypeValues.DOC,
+           ),
+           CodingSchemeResourceItem(
+               url="https://example.com/terminology/v2.1/terms.csv",
+               url_type=CodingSchemeURLTypeValues.CSV,
+           ),
+       ],
+   )
+
+   # Pass the coding scheme to the constructor of any highdicom IOD, here a
+   # structured report as an example
+   instance = hd.sr.Comprehensive3DSR(
+       content=MeasurementReport(
+           imaging_measurements=[
+               hd.sr.MeasurementsAndQualitativeEvaluations(
+                   ...,
+                   finding_type=private_motion_artifact_code,
+               )
+           ],
+           ...,
+       ),
+       ...,
+       coding_schemes=[my_scheme],
+   )
