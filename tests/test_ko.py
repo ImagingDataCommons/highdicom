@@ -1,3 +1,4 @@
+from copy import deepcopy
 from io import BytesIO
 import unittest
 from pathlib import Path
@@ -267,3 +268,27 @@ class TestKeyObjectSelectionDocument(unittest.TestCase):
         assert study_uid == self._sm_image.StudyInstanceUID
         assert series_uid == self._sm_image.SeriesInstanceUID
         assert instance_uid == self._sm_image.SOPInstanceUID
+
+    def test_construction_with_evidence_from_multiple_studies(self):
+        # An instance from a different study than the first evidence item
+        other_study_image = deepcopy(self._sm_image)
+        other_study_image.StudyInstanceUID = UID()
+        other_study_image.SeriesInstanceUID = UID()
+        other_study_image.SOPInstanceUID = UID()
+        content = KeyObjectSelection(
+            document_title=codes.DCM.Manifest,
+            referenced_objects=[
+                self._sm_image,
+                other_study_image,
+            ]
+        )
+        with pytest.raises(ValueError, match='multiple studies'):
+            KeyObjectSelectionDocument(
+                evidence=[self._sm_image, other_study_image],
+                content=content,
+                series_instance_uid=UID(),
+                series_number=10,
+                sop_instance_uid=UID(),
+                instance_number=1,
+                manufacturer='MGH Computational Pathology',
+            )
