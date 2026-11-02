@@ -4,6 +4,7 @@ import pytest
 import unittest
 
 from pydicom import dcmread
+from pydicom.dataset import Dataset
 from pydicom.uid import (
     ExplicitVRBigEndian,
     ExplicitVRLittleEndian,
@@ -11,6 +12,7 @@ from pydicom.uid import (
 )
 from pydicom.data import get_testdata_file
 from highdicom import SOPClass, UID
+from highdicom.coding_schemes import CodingSchemeIdentificationItem
 from highdicom.base import _check_little_endian
 from highdicom.enum import SpecificCharacterSetValues
 
@@ -65,6 +67,7 @@ class TestBase(unittest.TestCase):
         assert hasattr(instance, 'ContentTime')
         assert not hasattr(instance, 'SeriesDate')
         assert not hasattr(instance, 'SeriesTime')
+        assert 'CodingSchemeIdentificationSequence' not in instance
 
     def test_content_time_without_date(self):
         msg = (
@@ -396,6 +399,65 @@ class TestBase(unittest.TestCase):
                     SpecificCharacterSetValues.LATIN_ALPHABET_NO_2,
                     SpecificCharacterSetValues.CYRILLIC_CODE_EXTENSIONS,
                 ]
+            )
+
+    def test_coding_schemes(self):
+        items = [
+            CodingSchemeIdentificationItem(
+                designator='99TEST',
+                name='Test Scheme',
+                version='1.0',
+            ),
+            CodingSchemeIdentificationItem(
+                designator='SCT',
+                registry='HL7',
+                uid='2.16.840.1.113883.6.96',
+            ),
+        ]
+        instance = SOPClass(
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+            instance_number=1,
+            modality='SR',
+            manufacturer='highdicom',
+            coding_schemes=items,
+        )
+        seq = instance.CodingSchemeIdentificationSequence
+        assert len(seq) == 2
+        assert seq[0].CodingSchemeDesignator == '99TEST'
+        assert seq[0].CodingSchemeName == 'Test Scheme'
+        assert seq[1].CodingSchemeDesignator == 'SCT'
+        assert seq[1].CodingSchemeUID == '2.16.840.1.113883.6.96'
+
+    def test_coding_schemes_empty(self):
+        instance = SOPClass(
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+            instance_number=1,
+            modality='SR',
+            manufacturer='highdicom',
+            coding_schemes=[],
+        )
+        assert 'CodingSchemeIdentificationSequence' not in instance
+
+    def test_coding_schemes_wrong_type(self):
+        with pytest.raises(TypeError):
+            SOPClass(
+                study_instance_uid=UID(),
+                series_instance_uid=UID(),
+                series_number=1,
+                sop_instance_uid=UID(),
+                sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+                instance_number=1,
+                modality='SR',
+                manufacturer='highdicom',
+                coding_schemes=[Dataset()],
             )
 
 

@@ -123,7 +123,7 @@ class SOPClass(Dataset):
             Name of the referring physician
         content_qualification: Union[str, highdicom.ContentQualificationValues, None], optional
             Indicator of content qualification
-        coding_schemes: Union[Sequence[highdicom.sr.CodingSchemeIdentificationItem], None], optional
+        coding_schemes: Union[Sequence[highdicom.coding_schemes.CodingSchemeIdentificationItem], None], optional
             private or public coding schemes that are not part of the
             DICOM standard
         series_description: Union[str, None], optional
@@ -334,14 +334,15 @@ class SOPClass(Dataset):
             )
             self.ContentQualification = content_qualification.value
         if coding_schemes is not None:
-            self.CodingSchemeIdentificationSequence: list[Dataset] = []
             for item in coding_schemes:
                 if not isinstance(item, CodingSchemeIdentificationItem):
                     raise TypeError(
                         'Coding scheme identification item must have type '
                         '"CodingSchemeIdentificationItem".'
                     )
-                self.CodingSchemeIdentificationSequence.append(item)
+
+            if len(coding_schemes) > 0:
+                self.CodingSchemeIdentificationSequence = list(coding_schemes)
 
     @property
     def transfer_syntax_uid(self) -> UID:

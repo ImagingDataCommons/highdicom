@@ -183,7 +183,7 @@ group).
 
 .. code-block:: python
 
-    # An example description of a lung nodule that uses a modifer on the
+    # An example description of a lung nodule that uses a modifier on the
     # primary anatomic structure to specify that it is found in the left
     # lung
     lung_nodule_description = hd.seg.SegmentDescription(

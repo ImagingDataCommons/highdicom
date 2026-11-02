@@ -2,26 +2,32 @@ from collections.abc import Sequence
 
 from pydicom.dataset import Dataset
 
+from highdicom.enum import CodingSchemeURLTypeValues
+
 
 class CodingSchemeResourceItem(Dataset):
 
     """Class for items of the Coding Scheme Resource Sequence."""
 
-    def __init__(self, url: str, url_type: str) -> None:
+    def __init__(
+        self,
+        url: str,
+        url_type: CodingSchemeURLTypeValues | str,
+    ) -> None:
         """
         Parameters
         ----------
         url: str
-            unique resource locator
-        url_type: str
-            type of resource `url` points to (options: `{"DOC", "OWL", "CSV"}`)
+            Unique resource locator
+        url_type: highdicom.CodingSchemeURLTypeValues | str
+            Type of resource `url` points to.
 
         """
         super().__init__()
         self.CodingSchemeURL = str(url)
-        if url_type not in {"DOC", "OWL", "CSV"}:
-            raise ValueError('Unknonw URL type.')
-        self.CodingSchemeURLType = str(url_type)
+        self.CodingSchemeURLType = CodingSchemeURLTypeValues(
+            url_type
+        ).value
 
 
 class CodingSchemeIdentificationItem(Dataset):
