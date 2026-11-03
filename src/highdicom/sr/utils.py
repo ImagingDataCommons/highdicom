@@ -275,16 +275,19 @@ def collect_evidence(
     if study_instance_uid is None and len(evidence) > 1:
         study_instance_uid = evidence[0].StudyInstanceUID
 
-    references = find_content_items(
-        content,
-        value_type=ValueTypeValues.IMAGE,
-        recursive=True
-    )
-    references += find_content_items(
-        content,
-        value_type=ValueTypeValues.COMPOSITE,
-        recursive=True
-    )
+    # PS3.3 C.17.2.3: the set of referenced Composite SOP Instances includes
+    # images, waveforms and other composite objects in the Content Tree.
+    references: list[Dataset] = []
+    for value_type in (
+        ValueTypeValues.IMAGE,
+        ValueTypeValues.WAVEFORM,
+        ValueTypeValues.COMPOSITE,
+    ):
+        references += find_content_items(
+            content,
+            value_type=value_type,
+            recursive=True
+        )
     ref_uids = {
         ref.ReferencedSOPSequence[0].ReferencedSOPInstanceUID
         for ref in references

@@ -4717,6 +4717,63 @@ class TestComprehensiveSR(unittest.TestCase):
                 manufacturer=self._manufacturer
             )
 
+    def _add_waveform_reference(self):
+        # Reference a waveform object (e.g. an ECG) from the content tree
+        waveform = Dataset()
+        waveform.StudyInstanceUID = self._ref_dataset.StudyInstanceUID
+        waveform.SeriesInstanceUID = generate_uid()
+        waveform.SOPInstanceUID = generate_uid()
+        waveform.SOPClassUID = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        content = deepcopy(self._content)
+        content[0].ContentSequence.append(
+            WaveformContentItem(
+                name=codes.SCT.Source,
+                referenced_sop_class_uid=waveform.SOPClassUID,
+                referenced_sop_instance_uid=waveform.SOPInstanceUID,
+                relationship_type=RelationshipTypeValues.CONTAINS
+            )
+        )
+        return content, waveform
+
+    def test_evidence_missing_waveform(self):
+        content, _ = self._add_waveform_reference()
+        with pytest.raises(ValueError, match='No evidence was provided'):
+            Comprehensive3DSR(
+                evidence=[self._ref_dataset],
+                content=content,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                institution_name=self._institution_name,
+                institutional_department_name=self._department_name,
+                manufacturer=self._manufacturer
+            )
+
+    def test_evidence_waveform(self):
+        content, waveform = self._add_waveform_reference()
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset, waveform],
+            content=content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            institution_name=self._institution_name,
+            institutional_department_name=self._department_name,
+            manufacturer=self._manufacturer
+        )
+        evidence = report.get_evidence()
+        assert len(evidence) == 2
+        assert evidence[1] == (
+            waveform.StudyInstanceUID,
+            waveform.SeriesInstanceUID,
+            waveform.SOPInstanceUID,
+            waveform.SOPClassUID,
+        )
+        with pytest.raises(AttributeError):
+            assert report.PertinentOtherEvidenceSequence
+
     def test_evidence_multiple_studies(self):
         ref_dataset = deepcopy(self._ref_dataset)
         ref_dataset.StudyInstanceUID = '1.2.6'
