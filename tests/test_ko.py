@@ -269,6 +269,31 @@ class TestKeyObjectSelectionDocument(unittest.TestCase):
         assert series_uid == self._sm_image.SeriesInstanceUID
         assert instance_uid == self._sm_image.SOPInstanceUID
 
+    def test_construction_with_missing_waveform_evidence(self):
+        ecg_object = Dataset()
+        ecg_object.Modality = 'ECG'
+        ecg_object.StudyInstanceUID = self._sm_image.StudyInstanceUID
+        ecg_object.SeriesInstanceUID = UID()
+        ecg_object.SOPClassUID = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        ecg_object.SOPInstanceUID = UID()
+        content = KeyObjectSelection(
+            document_title=codes.DCM.Manifest,
+            referenced_objects=[self._sm_image, ecg_object],
+        )
+        # TID 2010 references waveforms with Value Type WAVEFORM
+        content[0].ContentSequence[1].ValueType = 'WAVEFORM'
+        content = KeyObjectSelection.from_sequence(content)
+        with pytest.raises(ValueError, match='No evidence was provided'):
+            KeyObjectSelectionDocument(
+                evidence=[self._sm_image],
+                content=content,
+                series_instance_uid=UID(),
+                series_number=10,
+                sop_instance_uid=UID(),
+                instance_number=1,
+                manufacturer='MGH Computational Pathology',
+            )
+
     def test_construction_with_evidence_from_multiple_studies(self):
         # An instance from a different study than the first evidence item
         other_study_image = deepcopy(self._sm_image)
