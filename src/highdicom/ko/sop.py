@@ -149,13 +149,12 @@ class KeyObjectSelectionDocument(SOPClass):
             content[0],
             study_instance_uid=self.StudyInstanceUID,
         )
-        if len(same_study_items) > 0:
-            self.CurrentRequestedProcedureEvidenceSequence = same_study_items
-            if len(other_study_items) > 1:
-                raise ValueError(
-                    'Key Object Selection Documents that reference instances '
-                    'from multiple studies are not supported.'
-                )
+        if len(other_study_items) > 0:
+            raise ValueError(
+                'Key Object Selection Documents that reference instances '
+                'from multiple studies are not supported.'
+            )
+        self.CurrentRequestedProcedureEvidenceSequence = same_study_items
 
         if requested_procedures is not None:
             self.ReferencedRequestSequence = requested_procedures
