@@ -486,6 +486,136 @@ class TestAnnotationGroup(unittest.TestCase):
             )
 
 
+class TestAnnotationGroupPointIndexList:
+
+    # First annotation has 4 points, second has 3 points
+    _graphic_data_2d = [
+        np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]),
+        np.array([[20.0, 20.0], [30.0, 20.0], [25.0, 30.0]]),
+    ]
+    _graphic_data_3d_common_z = [
+        np.array([
+            [0.0, 0.0, 5.0],
+            [10.0, 0.0, 5.0],
+            [10.0, 10.0, 5.0],
+            [0.0, 10.0, 5.0],
+        ]),
+        np.array([[20.0, 20.0, 5.0], [30.0, 20.0, 5.0], [25.0, 30.0, 5.0]]),
+    ]
+    _graphic_data_3d = [
+        np.array([
+            [0.0, 0.0, 1.0],
+            [10.0, 0.0, 2.0],
+            [10.0, 10.0, 3.0],
+            [0.0, 10.0, 4.0],
+        ]),
+        np.array([[20.0, 20.0, 1.0], [30.0, 20.0, 1.0], [25.0, 30.0, 1.0]]),
+    ]
+
+    @staticmethod
+    def _create_group(graphic_data, graphic_type=GraphicTypeValues.POLYGON):
+        return AnnotationGroup(
+            number=1,
+            uid=UID(),
+            label='foo',
+            annotated_property_category=codes.SCT.MorphologicallyAbnormalStructure,  # noqa: E501
+            annotated_property_type=codes.SCT.Neoplasm,
+            graphic_type=graphic_type,
+            graphic_data=graphic_data,
+            algorithm_type=AnnotationGroupGenerationTypeValues.MANUAL,
+        )
+
+    @staticmethod
+    def _reread(group):
+        return AnnotationGroup.from_dataset(Dataset(group))
+
+    @pytest.mark.parametrize(
+        'graphic_data,coordinate_type,stored_dimensionality',
+        [
+            (_graphic_data_2d, '2D', 2),
+            (_graphic_data_3d_common_z, '3D', 2),
+            (_graphic_data_3d, '3D', 3),
+        ]
+    )
+    @pytest.mark.parametrize(
+        'graphic_type',
+        [GraphicTypeValues.POLYGON, GraphicTypeValues.POLYLINE]
+    )
+    def test_encoding(
+        self,
+        graphic_data,
+        coordinate_type,
+        stored_dimensionality,
+        graphic_type,
+    ):
+        group = self._create_group(graphic_data, graphic_type)
+
+        # Values index points (coordinate tuples), not coordinate values,
+        # irrespective of the number of values stored per point
+        point_indices = np.frombuffer(
+            group.LongPrimitivePointIndexList,
+            dtype=np.int32
+        )
+        np.testing.assert_array_equal(point_indices, [1, 5])
+
+        coordinates = np.frombuffer(
+            group.DoublePointCoordinatesData,
+            dtype=np.float64
+        )
+        assert coordinates.size == 7 * stored_dimensionality
+
+        decoded = self._reread(group).get_graphic_data(coordinate_type)
+        assert len(decoded) == len(graphic_data)
+        for retrieved, expected in zip(decoded, graphic_data):
+            np.testing.assert_array_equal(retrieved, expected)
+
+    @pytest.mark.parametrize(
+        'graphic_data,coordinate_type,legacy_point_indices',
+        [
+            (_graphic_data_2d, '2D', [1, 9]),
+            (_graphic_data_3d_common_z, '3D', [1, 9]),
+            (_graphic_data_3d, '3D', [1, 13]),
+        ]
+    )
+    def test_decoding_legacy_encoding(
+        self,
+        graphic_data,
+        coordinate_type,
+        legacy_point_indices,
+    ):
+        group = self._create_group(graphic_data)
+        group.LongPrimitivePointIndexList = np.array(
+            legacy_point_indices,
+            dtype=np.int32
+        ).tobytes()
+
+        with pytest.warns(UserWarning, match='Long Primitive Point Index'):
+            decoded = self._reread(group).get_graphic_data(coordinate_type)
+
+        assert len(decoded) == len(graphic_data)
+        for retrieved, expected in zip(decoded, graphic_data):
+            np.testing.assert_array_equal(retrieved, expected)
+
+    @pytest.mark.parametrize(
+        'point_indices',
+        [
+            [2, 5],   # does not start at 1
+            [1, 1],   # not strictly increasing
+            [1, 8],   # neither a valid point index nor value index
+            [1, 15],  # exceeds number of values
+        ]
+    )
+    def test_decoding_invalid(self, point_indices):
+        group = self._create_group(self._graphic_data_2d)
+        group.LongPrimitivePointIndexList = np.array(
+            point_indices,
+            dtype=np.int32
+        ).tobytes()
+
+        with pytest.raises(ValueError, match='Long Primitive Point Index'):
+            self._reread(group).get_graphic_data('2D')
+
+
 class TestMicroscopyBulkSimpleAnnotations:
 
     @pytest.fixture(autouse=True)
