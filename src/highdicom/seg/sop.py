@@ -537,17 +537,6 @@ class Segmentation(_Image):
             manufacturer=manufacturer,
             modality='SEG',
             transfer_syntax_uid=transfer_syntax_uid,
-            patient_id=src_img.PatientID,
-            patient_name=src_img.PatientName,
-            patient_birth_date=src_img.PatientBirthDate,
-            patient_sex=src_img.PatientSex,
-            accession_number=src_img.AccessionNumber,
-            study_id=src_img.StudyID,
-            study_date=src_img.StudyDate,
-            study_time=src_img.StudyTime,
-            referring_physician_name=getattr(
-                src_img, 'ReferringPhysicianName', None
-            ),
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,
             software_versions=software_versions,

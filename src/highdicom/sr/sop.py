@@ -179,17 +179,6 @@ class _SR(SOPClass):
             manufacturer=manufacturer,
             modality='SR',
             transfer_syntax_uid=transfer_syntax_uid,
-            patient_id=evidence[0].PatientID,
-            patient_name=evidence[0].PatientName,
-            patient_birth_date=evidence[0].PatientBirthDate,
-            patient_sex=evidence[0].PatientSex,
-            accession_number=evidence[0].AccessionNumber,
-            study_id=evidence[0].StudyID,
-            study_date=evidence[0].StudyDate,
-            study_time=evidence[0].StudyTime,
-            referring_physician_name=getattr(
-                evidence[0], 'ReferringPhysicianName', None
-            ),
             specific_character_set=specific_character_set,
             **kwargs
         )

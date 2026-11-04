@@ -564,7 +564,7 @@ class SCImage(SOPClass):
         else:
             specific_character_set = ref_dataset.get('SpecificCharacterSet')
 
-        return cls(
+        sc = cls(
             pixel_array=pixel_array,
             photometric_interpretation=photometric_interpretation,
             bits_allocated=bits_allocated,
@@ -575,19 +575,6 @@ class SCImage(SOPClass):
             sop_instance_uid=sop_instance_uid,
             instance_number=instance_number,
             manufacturer=manufacturer,
-            patient_id=getattr(ref_dataset, 'PatientID', None),
-            patient_name=getattr(ref_dataset, 'PatientName', None),
-            patient_birth_date=getattr(ref_dataset, 'PatientBirthDate', None),
-            patient_sex=getattr(ref_dataset, 'PatientSex', None),
-            accession_number=getattr(ref_dataset, 'AccessionNumber', None),
-            study_id=getattr(ref_dataset, 'StudyID', None),
-            study_date=getattr(ref_dataset, 'StudyDate', None),
-            study_time=getattr(ref_dataset, 'StudyTime', None),
-            referring_physician_name=getattr(
-                ref_dataset,
-                'ReferringPhysicianName',
-                None
-            ),
             pixel_spacing=pixel_spacing,
             laterality=laterality,
             patient_orientation=patient_orientation,
@@ -600,3 +587,7 @@ class SCImage(SOPClass):
             specific_character_set=specific_character_set,
             **kwargs
         )
+        sc.copy_patient_and_study_information(ref_dataset)
+        sc.copy_specimen_information(ref_dataset)
+
+        return sc
