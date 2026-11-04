@@ -673,7 +673,8 @@ def test_inconsistent_type_2_attribute(
     assert getattr(converted, keyword) is None
 
 
-def test_optional_module(modality: Modality) -> None:
+@pytest.mark.parametrize('strict', [False, True])
+def test_optional_module(modality: Modality, strict: bool) -> None:
     """Check that presence of the required attributes triggers inclusion of
     optional module.
 
@@ -684,13 +685,14 @@ def test_optional_module(modality: Modality) -> None:
         modality, 1, True, True
     )
 
-    # Including just one of the two required attributes should cause the entire
-    # module to be omitted
+    # In strict mode, including just one of the two required attributes should
+    # cause the entire module to be omitted
     for ds in legacy_datasets:
         ds.ClinicalTrialSponsorName = 'Sponsor'  # type 1
         ds.ClinicalTrialProtocolName = 'Protocol Name'  # type 2
         ds.ClinicalTrialSiteName = 'Site Name'  # type 2
         ds.IssuerOfClinicalTrialSubjectID = "Issuer"  # type 3
+        # 'ClinicalTrialProtocolID' is omitted
 
     converted = LegacyConvertedClass(
         legacy_datasets,
@@ -698,12 +700,21 @@ def test_optional_module(modality: Modality) -> None:
         series_number=1,
         sop_instance_uid=UID(),
         instance_number=1,
+        strict=strict,
     )
 
-    assert 'ClinicalTrialSponsorName' not in converted
-    assert 'ClinicalTrialProtocolID' not in converted
-    assert 'ClinicalTrialProtocolName' not in converted
-    assert 'IssuerOfClinicalTrialSubjectID' not in converted
+    if strict:
+        assert 'ClinicalTrialSponsorName' not in converted
+        assert 'ClinicalTrialProtocolID' not in converted
+        assert 'ClinicalTrialProtocolName' not in converted
+        assert 'ClinicalTrialSiteName' not in converted
+        assert 'IssuerOfClinicalTrialSubjectID' not in converted
+    else:
+        assert 'ClinicalTrialProtocolID' not in converted  # missing
+        assert 'ClinicalTrialSponsorName' in converted
+        assert 'ClinicalTrialProtocolName' in converted
+        assert 'ClinicalTrialSiteName' in converted
+        assert 'IssuerOfClinicalTrialSubjectID' in converted
 
     # Now additionally including the missing required attribute should trigger
     # the whole module to be included
@@ -716,6 +727,7 @@ def test_optional_module(modality: Modality) -> None:
         series_number=1,
         sop_instance_uid=UID(),
         instance_number=1,
+        strict=strict,
     )
 
     assert converted.ClinicalTrialSponsorName == 'Sponsor'

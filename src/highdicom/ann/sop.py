@@ -170,17 +170,6 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             sop_class_uid='1.2.840.10008.5.1.4.1.1.91.1',
             modality='ANN',
             transfer_syntax_uid=transfer_syntax_uid,
-            patient_id=src_img.PatientID,
-            patient_name=src_img.PatientName,
-            patient_birth_date=src_img.PatientBirthDate,
-            patient_sex=src_img.PatientSex,
-            accession_number=src_img.AccessionNumber,
-            study_id=src_img.StudyID,
-            study_date=src_img.StudyDate,
-            study_time=src_img.StudyTime,
-            referring_physician_name=getattr(
-                src_img, 'ReferringPhysicianName', None
-            ),
             manufacturer=manufacturer,
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,

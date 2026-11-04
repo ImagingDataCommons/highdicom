@@ -14,7 +14,6 @@ from pydicom.uid import (
     JPEGLSLossless,
     JPEGLSNearLossless,
 )
-from pydicom.valuerep import DA, TM
 
 from highdicom import IssuerOfIdentifier, SpecimenDescription
 from highdicom.sc import SCImage
@@ -605,7 +604,7 @@ class TestSCImage(unittest.TestCase):
         assert instance.AccessionNumber == self._ref_dataset.AccessionNumber
         assert instance.PatientName == self._ref_dataset.PatientName
         assert instance.PatientSex == self._ref_dataset.PatientSex
-        assert instance.StudyTime == TM(self._ref_dataset.StudyTime)
-        assert instance.StudyDate == DA(self._ref_dataset.StudyDate)
+        assert instance.StudyTime == self._ref_dataset.StudyTime
+        assert instance.StudyDate == self._ref_dataset.StudyDate
         assert instance.StudyID == self._ref_dataset.StudyID
         assert instance.PixelData == self._rgb_pixel_array.tobytes()
