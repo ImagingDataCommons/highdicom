@@ -114,7 +114,7 @@ def _check_frame_numbers_valid_for_dataset(
             if f > dataset.NumberOfFrames:
                 raise ValueError(
                     f'{f} is an invalid frame number for the given dataset '
-                    'with {dataset.NumberOfFrames} frames.'
+                    f'with {dataset.NumberOfFrames} frames.'
                 )
 
 

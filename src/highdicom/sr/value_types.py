@@ -1918,7 +1918,7 @@ class TcoordContentItem(ContentItem):
         if n_provided_params != 1:
             raise TypeError(
                 "Exactly one of the following parameters should be provided "
-                f"(got {n_provided_params}): 'referenced_sample_positions' ",
+                f"(got {n_provided_params}): 'referenced_sample_positions', "
                 "'referenced_time_offsets', 'referenced_date_time'."
             )
 
@@ -1934,13 +1934,6 @@ class TcoordContentItem(ContentItem):
             self.ReferencedDateTime = [
                 DT(v) for v in referenced_date_time
             ]
-        else:
-            raise ValueError(
-                'One of the following arguments is required: '
-                '"referenced_sample_positions", '
-                '"referenced_time_offsets", '
-                '"referenced_date_time"'
-            )
 
     @property
     def value(self) -> list[int] | list[float] | list[datetime.datetime]:

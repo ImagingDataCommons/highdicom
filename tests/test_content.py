@@ -2630,3 +2630,21 @@ class TestIssuerOfIdentifier(TestCase):
         assert isinstance(instance, IssuerOfIdentifier)
         assert instance.issuer_of_identifier == issuer_of_identifier
         assert instance.issuer_of_identifier_type == issuer_of_identifier_type
+
+    def test_construction_from_dataset_missing_type(self):
+        dataset = Dataset()
+        dataset.UniversalEntityID = "issuer of identifier"
+        msg = (
+            'Dataset with "UniversalEntityID" must have '
+            '"UniversalEntityIDType" set.'
+        )
+        with pytest.raises(ValueError, match=msg):
+            IssuerOfIdentifier.from_dataset(dataset)
+
+    def test_construction_from_dataset_missing_identifier(self):
+        msg = (
+            'Dataset must have "LocalNamespaceEntityID" or '
+            '"UniversalEntityID" and "UniversalEntityIDType" set.'
+        )
+        with pytest.raises(ValueError, match=msg):
+            IssuerOfIdentifier.from_dataset(Dataset())
