@@ -1470,7 +1470,8 @@ class TestContentItem(unittest.TestCase):
 def test_tcoord_item_missing_parameters():
     msg = (
         'Exactly one of the following parameters should be '
-        'provided (got 0):'
+        "provided (got 0): 'referenced_sample_positions', "
+        "'referenced_time_offsets', 'referenced_date_time'."
     )
     with pytest.raises(TypeError, match=re.escape(msg)):
         TcoordContentItem(
@@ -1482,7 +1483,8 @@ def test_tcoord_item_missing_parameters():
 def test_tcoord_item_multiple_parameters():
     msg = (
         'Exactly one of the following parameters should be '
-        'provided (got 2):'
+        "provided (got 2): 'referenced_sample_positions', "
+        "'referenced_time_offsets', 'referenced_date_time'."
     )
     with pytest.raises(TypeError, match=re.escape(msg)):
         TcoordContentItem(
@@ -1932,6 +1934,22 @@ class TestSubjectContext(unittest.TestCase):
         )
 
         assert subject_context is None
+
+    def test_subject_class_specific_context_unexpected_class(self):
+        subject_context = SubjectContext(
+            subject_class=codes.DCM.Specimen,
+            subject_class_specific_context=SubjectContextSpecimen(
+                uid=generate_uid()
+            )
+        )
+        subject_context[0].ConceptCodeSequence = [
+            CodedConcept.from_code(codes.DCM.Patient)
+        ]
+        with pytest.raises(
+            ValueError,
+            match='Unexpected subject class "Patient".'
+        ):
+            subject_context.subject_class_specific_context
 
 
 class TestObservationContext(unittest.TestCase):
@@ -2550,7 +2568,12 @@ class TestSourceImageForMeasurement(unittest.TestCase):
         )
 
     def test_from_source_image_with_invalid_referenced_frames(self):
-        with pytest.raises(ValueError):
+        msg = (
+            f'{self._ref_frames_invalid[0]} is an invalid frame number for '
+            'the given dataset with '
+            f'{self._src_dataset_multiframe.NumberOfFrames} frames.'
+        )
+        with pytest.raises(ValueError, match=re.escape(msg)):
             SourceImageForMeasurement.from_source_image(
                 self._src_dataset_multiframe,
                 self._ref_frames_invalid
@@ -4368,6 +4391,96 @@ class TestMeasurementReport(unittest.TestCase):
         )
         assert len(qualitative_evaluations) == 1
         assert isinstance(qualitative_evaluations[0], QualitativeEvaluation)
+
+    def _build_root_item(self, content_items):
+        root_item = ContainerContentItem(
+            name=codes.DCM.ImagingMeasurementReport,
+            template_id='1500'
+        )
+        root_item.ContentSequence = ContentSequence(content_items)
+        return root_item
+
+    def test_get_observer_contexts_trailing_attribute(self):
+        # The identifying attributes of the last observer context are the
+        # final items of the root content sequence
+        root_item = self._build_root_item([
+            CodeContentItem(
+                name=codes.DCM.ObserverType,
+                value=codes.DCM.Person,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            ),
+            PnameContentItem(
+                name=codes.DCM.PersonObserverName,
+                value=self._person_observer_name,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            ),
+            CodeContentItem(
+                name=codes.DCM.ObserverType,
+                value=codes.DCM.Device,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            ),
+            UIDRefContentItem(
+                name=codes.DCM.DeviceObserverUID,
+                value=self._device_observer_uid,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            ),
+        ])
+        template = MeasurementReport.from_sequence([root_item])
+        observer_contexts = template.get_observer_contexts()
+        assert len(observer_contexts) == 2
+        person_attrs = observer_contexts[0].observer_identifying_attributes
+        assert person_attrs.name == self._person_observer_name
+        device_attrs = observer_contexts[1].observer_identifying_attributes
+        assert device_attrs.uid == self._device_observer_uid
+
+    def test_get_subject_contexts_trailing_attribute(self):
+        root_item = self._build_root_item([
+            CodeContentItem(
+                name=codes.DCM.SubjectClass,
+                value=codes.DCM.Specimen,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            ),
+            UIDRefContentItem(
+                name=codes.DCM.SpecimenUID,
+                value=self._specimen_uid,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            ),
+        ])
+        template = MeasurementReport.from_sequence([root_item])
+        subject_contexts = template.get_subject_contexts()
+        assert len(subject_contexts) == 1
+        specimen_attrs = subject_contexts[0].subject_class_specific_context
+        assert specimen_attrs.specimen_uid == self._specimen_uid
+
+    def test_get_observer_contexts_unexpected_observer_type(self):
+        root_item = self._build_root_item([
+            CodeContentItem(
+                name=codes.DCM.ObserverType,
+                value=codes.DCM.Specimen,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            ),
+        ])
+        template = MeasurementReport.from_sequence([root_item])
+        with pytest.raises(
+            ValueError,
+            match='Unexpected observer type "Specimen".'
+        ):
+            template.get_observer_contexts()
+
+    def test_get_subject_contexts_unexpected_subject_class(self):
+        root_item = self._build_root_item([
+            CodeContentItem(
+                name=codes.DCM.SubjectClass,
+                value=codes.DCM.Patient,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            ),
+        ])
+        template = MeasurementReport.from_sequence([root_item])
+        with pytest.raises(
+            ValueError,
+            match='Unexpected subject class "Patient".'
+        ):
+            template.get_subject_contexts()
 
     def test_construction_none(self):
         # Since only imaging meansurements are currently supported, at least

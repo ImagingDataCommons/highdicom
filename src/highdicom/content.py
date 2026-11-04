@@ -863,8 +863,8 @@ class IssuerOfIdentifier(Dataset):
         elif hasattr(issuer_of_identifier, 'UniversalEntityID'):
             if not hasattr(issuer_of_identifier, 'UniversalEntityIDType'):
                 raise ValueError(
-                    'Dataset with UniversalEntityID must have ',
-                    '"UniversalEntityIDType set".'
+                    'Dataset with "UniversalEntityID" must have '
+                    '"UniversalEntityIDType" set.'
                 )
             issuer_id = issuer_of_identifier.UniversalEntityID
             issuer_type = UniversalEntityIDTypeValues(
@@ -872,7 +872,7 @@ class IssuerOfIdentifier(Dataset):
             )
         else:
             raise ValueError(
-                'Dataset must have "LocalNamespaceEntityID" or ',
+                'Dataset must have "LocalNamespaceEntityID" or '
                 '"UniversalEntityID" and "UniversalEntityIDType" set.'
             )
         issuer_of_identifier._issuer_of_identifier = issuer_id

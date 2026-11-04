@@ -213,7 +213,7 @@ class KeyObjectSelection(ContentSequence):
             try:
                 next_index = matches[i + 1][0]
             except IndexError:
-                next_index = -1
+                next_index = None
             if item.value == codes.DCM.Device:
                 attributes = DeviceObserverIdentifyingAttributes.from_sequence(
                     sequence=root_item.ContentSequence[index:next_index]
@@ -223,7 +223,9 @@ class KeyObjectSelection(ContentSequence):
                     sequence=root_item.ContentSequence[index:next_index]
                 )
             else:
-                raise ValueError('Unexpected observer type "{item.meaning}".')
+                raise ValueError(
+                    f'Unexpected observer type "{item.value.meaning}".'
+                )
             context = ObserverContext(
                 observer_type=item.value,
                 observer_identifying_attributes=attributes

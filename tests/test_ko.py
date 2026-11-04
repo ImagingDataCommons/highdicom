@@ -10,17 +10,19 @@ import pytest
 
 from highdicom.ko.content import KeyObjectSelection
 from highdicom.ko.sop import KeyObjectSelectionDocument
-from highdicom.sr.enum import ValueTypeValues
+from highdicom.sr.enum import RelationshipTypeValues, ValueTypeValues
 from highdicom.sr.templates import (
     DeviceObserverIdentifyingAttributes,
     ObserverContext,
     PersonObserverIdentifyingAttributes,
 )
 from highdicom.sr.value_types import (
+    CodeContentItem,
     ContainerContentItem,
     ContentSequence,
     CompositeContentItem,
     ImageContentItem,
+    UIDRefContentItem,
     WaveformContentItem,
 )
 from highdicom.uid import UID
@@ -158,6 +160,51 @@ class TestKeyObjectSelection(unittest.TestCase):
         assert references[0].referenced_sop_instance_uid == (
             ecg_object.SOPInstanceUID
         )
+
+    def _build_root_item(self, content_items):
+        root_item = ContainerContentItem(
+            name=self._document_title,
+            template_id='2010'
+        )
+        root_item.ContentSequence = ContentSequence(content_items)
+        return root_item
+
+    def test_get_observer_contexts_trailing_attribute(self):
+        # The identifying attributes of the last observer context are the
+        # final items of the root content sequence
+        device_uid = UID()
+        root_item = self._build_root_item([
+            CodeContentItem(
+                name=codes.DCM.ObserverType,
+                value=codes.DCM.Device,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            ),
+            UIDRefContentItem(
+                name=codes.DCM.DeviceObserverUID,
+                value=device_uid,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            ),
+        ])
+        content = KeyObjectSelection.from_sequence([root_item])
+        observer_contexts = content.get_observer_contexts()
+        assert len(observer_contexts) == 1
+        attributes = observer_contexts[0].observer_identifying_attributes
+        assert attributes.uid == device_uid
+
+    def test_get_observer_contexts_unexpected_observer_type(self):
+        root_item = self._build_root_item([
+            CodeContentItem(
+                name=codes.DCM.ObserverType,
+                value=codes.DCM.Specimen,
+                relationship_type=RelationshipTypeValues.HAS_OBS_CONTEXT
+            ),
+        ])
+        content = KeyObjectSelection.from_sequence([root_item])
+        with pytest.raises(
+            ValueError,
+            match='Unexpected observer type "Specimen".'
+        ):
+            content.get_observer_contexts()
 
     def test_construction_with_missing_parameter(self):
         with pytest.raises(TypeError):
