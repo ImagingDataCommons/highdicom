@@ -14,7 +14,6 @@ from pydicom.uid import (
     JPEGLSLossless,
     JPEGLSNearLossless,
 )
-from pydicom.valuerep import DA, TM
 
 from highdicom import IssuerOfIdentifier, SpecimenDescription
 from highdicom.sc import SCImage

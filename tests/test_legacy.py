@@ -685,8 +685,8 @@ def test_optional_module(modality: Modality, strict: bool) -> None:
         modality, 1, True, True
     )
 
-    # In strict mode, including just one of the two required attributes should cause the entire
-    # module to be omitted
+    # In strict mode, including just one of the two required attributes should
+    # cause the entire module to be omitted
     for ds in legacy_datasets:
         ds.ClinicalTrialSponsorName = 'Sponsor'  # type 1
         ds.ClinicalTrialProtocolName = 'Protocol Name'  # type 2
@@ -710,7 +710,7 @@ def test_optional_module(modality: Modality, strict: bool) -> None:
         assert 'ClinicalTrialSiteName' not in converted
         assert 'IssuerOfClinicalTrialSubjectID' not in converted
     else:
-        assert 'ClinicalTrialProtocolID' not in converted # missing
+        assert 'ClinicalTrialProtocolID' not in converted  # missing
         assert 'ClinicalTrialSponsorName' in converted
         assert 'ClinicalTrialProtocolName' in converted
         assert 'ClinicalTrialSiteName' in converted
