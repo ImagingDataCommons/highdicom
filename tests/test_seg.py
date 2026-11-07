@@ -5159,6 +5159,52 @@ class TestSegmentationParsing:
         assert pixels.shape == out_shape
         assert np.all(np.unique(pixels) == np.arange(len(segments_valid) + 1))
 
+    def test_get_pixels_by_source_frames_combine_labelmap_exclude_one(self):
+        # Requesting all but one segment of a labelmap segmentation with
+        # combine_segments=True and relabel=False must remove the pixels of
+        # the excluded segment from the output
+        seg = self._sm_control_labelmap_seg
+        source_sop_uid = seg.get_source_image_uids()[0][-1]
+        source_image = dcmread('data/test_files/sm_image_control.dcm')
+        source_frames = list(range(1, source_image.NumberOfFrames + 1))
+
+        all_pixels = seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+            source_frame_numbers=source_frames,
+            combine_segments=True,
+        )
+
+        for excluded_segment in [1, 7, 20]:
+            assert excluded_segment in all_pixels
+            segments = [
+                s for s in seg.segment_numbers if s != excluded_segment
+            ]
+            pixels = seg.get_pixels_by_source_frame(
+                source_sop_instance_uid=source_sop_uid,
+                source_frame_numbers=source_frames,
+                segment_numbers=segments,
+                combine_segments=True,
+            )
+            assert pixels.shape == all_pixels.shape
+            assert excluded_segment not in pixels
+            expected = all_pixels.copy()
+            expected[expected == excluded_segment] = 0
+            assert np.array_equal(pixels, expected)
+
+        # The same subset via the total pixel matrix accessor
+        excluded_segment = 20
+        segments = [s for s in seg.segment_numbers if s != excluded_segment]
+        all_pixels = seg.get_total_pixel_matrix(combine_segments=True)
+        pixels = seg.get_total_pixel_matrix(
+            segment_numbers=segments,
+            combine_segments=True,
+        )
+        assert excluded_segment in all_pixels
+        assert excluded_segment not in pixels
+        expected = all_pixels.copy()
+        expected[expected == excluded_segment] = 0
+        assert np.array_equal(pixels, expected)
+
     def test_get_pixels_with_dtype(
         self,
         seg_attr_name,

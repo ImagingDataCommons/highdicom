@@ -1902,7 +1902,7 @@ class Segmentation(_Image):
                             segment_numbers,
                             self.segment_numbers
                         )
-                    ) > 1
+                    ) > 0
                 remove_palette_color_values = None
 
             intermediate_dtype = (
