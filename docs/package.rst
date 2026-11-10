@@ -93,6 +93,17 @@ highdicom.pixels module
    :undoc-members:
    :show-inheritance:
 
+highdicom.coding_schemes module
++++++++++++++++++++++++++++++++
+
+.. automodule:: highdicom.coding_schemes
+   :members:
+   :inherited-members: pydicom.dataset.Dataset,pydicom.sequence.Sequence,Dataset,Sequence,list,str,DataElementSequence,enum.Enum,Enum,
+   :exclude-members: copy_patient_and_study_information,copy_specimen_information
+   :special-members: __call__
+   :undoc-members:
+   :show-inheritance:
+
 .. _highdicom-legacy-subpackage:
 
 highdicom.legacy package

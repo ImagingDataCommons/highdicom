@@ -96,6 +96,12 @@ made the observations, and the subject about which the observations were made:
         observer_device_context=observer_device_context,
     )
 
+See :class:`highdicom.sr.ObserverContext`,
+:class:`highdicom.sr.ObservationContext`,
+:class:`highdicom.sr.PersonObserverIdentifyingAttributes`, and
+:class:`highdicom.sr.DeviceObserverIdentifyingAttributes` for more details on
+these classes and a full list of optional parameters.
+
 The second required ingredient is a procedure code describing the procedure
 that was performed to result in the observations. Finally, we have the image
 measurement groups that the report contains (described below). There are some
@@ -448,22 +454,23 @@ following parameters may be used for all Measurement Groups, regardless of
 type (some have been omitted for brevity):
 
 - ``tracking_identifier`` (:class:`highdicom.sr.TrackingIdentifier`):
-    Identifier for tracking measurement groups. This allows this region to
-    be referred to unambiguously in future objects.
+  Identifier for tracking measurement groups. This allows this region to
+  be referred to unambiguously in future objects.
 - ``finding_type`` (:class:`highdicom.sr.CodedConcept`, optional)
-    Type of observed finding
+  Type of observed finding.
 - ``algorithm_id``: (:class:`highdicom.sr.AlgorithmIdentification`, optional)
-    Identification of algorithm used for making measurements.
+  Identification of algorithm used for making measurements.
 - ``finding_sites``: (Sequence of :class:`highdicom.sr.FindingSite`, optional)
-    Coded description of one or more anatomic locations at which
-    finding was observed
+  Coded description of one or more anatomic locations at which
+  finding was observed.
 - ``measurements``: (Sequence of :class:`highdicom.sr.Measurement`, optional)
-    Numeric measurements
-- ``qualitative_evaluations``: (Sequence of :class:`highdicom.sr.CodedConcept`, optional)
-    Coded name-value pairs that describe qualitative evaluations
+  Numeric measurements, see below.
+- ``qualitative_evaluations``: (Sequence of
+  :class:`highdicom.sr.QualitativeEvaluation`, optional) Coded name-value pairs
+  that describe qualitative evaluations, see below.
 - ``finding_category``: (:class:`highdicom.sr.CodedConcept`, optional)
-    Category of observed finding, e.g., anatomic structure or
-    morphologically abnormal structure
+  Category of observed finding, e.g., anatomic structure or
+  morphologically abnormal structure.
 
 
 Measurements and Qualitative Evaluations

@@ -9,7 +9,12 @@ from pydicom.filereader import dcmread
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 
-from highdicom.ann.content import Measurements, AnnotationGroup
+from highdicom import AnatomicRegion, PrimaryAnatomicStructure
+from highdicom.ann.content import (
+    AnnotatedPropertyType,
+    AnnotationGroup,
+    Measurements,
+)
 from highdicom.ann.enum import (
     AnnotationCoordinateTypeValues,
     AnnotationGroupGenerationTypeValues,
@@ -379,6 +384,7 @@ class TestAnnotationGroup(unittest.TestCase):
         assert group.algorithm_identification is None
         assert isinstance(group.annotated_property_category, CodedConcept)
         assert isinstance(group.annotated_property_type, CodedConcept)
+        assert isinstance(group.annotated_property_type, AnnotatedPropertyType)
 
         graphic_data = group.get_graphic_data(
             coordinate_type=AnnotationCoordinateTypeValues.SCOORD
@@ -399,6 +405,115 @@ class TestAnnotationGroup(unittest.TestCase):
         assert values.size == 0
         assert values.dtype == np.float32
         assert values.shape == (3, 0)
+
+    def _make_group(self, **kwargs):
+        args = dict(
+            number=1,
+            uid=UID(),
+            label='group',
+            annotated_property_category=self._property_category,
+            annotated_property_type=self._property_type,
+            graphic_type=GraphicTypeValues.POINT,
+            graphic_data=[np.array([[1.0, 2.0, 0.0]])],
+            algorithm_type=self._algorithm_type,
+            algorithm_identification=self._algorithm_identification,
+        )
+        args.update(kwargs)
+        return AnnotationGroup(**args)
+
+    def test_modified_codes_plain_codes_converted(self):
+        group = self._make_group(
+            anatomic_regions=[self._anatomic_region],
+            primary_anatomic_structures=[self._anatomic_structure],
+        )
+        assert isinstance(group.annotated_property_type, AnnotatedPropertyType)
+        assert group.annotated_property_type.modifiers == ()
+        assert isinstance(group.anatomic_regions[0], AnatomicRegion)
+        assert isinstance(
+            group.primary_anatomic_structures[0], PrimaryAnatomicStructure
+        )
+        assert group.annotated_property_type == self._property_type
+
+    def test_modified_codes_with_modifiers(self):
+        group = self._make_group(
+            annotated_property_type=AnnotatedPropertyType(
+                self._property_type, modifiers=[codes.SCT.Left]
+            ),
+            anatomic_regions=[
+                AnatomicRegion(codes.SCT.Thorax, modifiers=[codes.SCT.Right]),
+                codes.SCT.Abdomen,
+            ],
+            primary_anatomic_structures=[
+                PrimaryAnatomicStructure(
+                    codes.SCT.Lung, modifiers=[codes.SCT.Left]
+                ),
+            ],
+        )
+        ptype = group.annotated_property_type
+        assert ptype.modifiers == (codes.SCT.Left, )
+        assert ptype.unmodified == self._property_type
+        assert len(
+            group.AnnotationPropertyTypeCodeSequence[0]
+            .AnnotationPropertyTypeModifierCodeSequence
+        ) == 1
+        assert group.anatomic_regions[0].modifiers == (codes.SCT.Right, )
+        assert group.anatomic_regions[1].modifiers == ()
+        assert len(
+            group.AnatomicRegionSequence[0].AnatomicRegionModifierSequence
+        ) == 1
+        assert group.primary_anatomic_structures[0].modifiers == (
+            codes.SCT.Left,
+        )
+
+    def test_modified_codes_wrong_types(self):
+        with pytest.raises(TypeError):
+            self._make_group(
+                annotated_property_category=AnnotatedPropertyType(
+                    self._property_category
+                )
+            )
+        with pytest.raises(TypeError):
+            self._make_group(
+                annotated_property_type=AnatomicRegion(self._property_type)
+            )
+        with pytest.raises(TypeError):
+            self._make_group(
+                anatomic_regions=[PrimaryAnatomicStructure(codes.SCT.Lung)]
+            )
+        with pytest.raises(TypeError):
+            self._make_group(
+                primary_anatomic_structures=[AnatomicRegion(codes.SCT.Lung)]
+            )
+
+    def test_modified_codes_from_dataset_round_trip(self):
+        group = self._make_group(
+            annotated_property_type=AnnotatedPropertyType(
+                self._property_type, modifiers=[codes.SCT.Left]
+            ),
+            anatomic_regions=[
+                AnatomicRegion(codes.SCT.Thorax, modifiers=[codes.SCT.Right]),
+            ],
+            primary_anatomic_structures=[
+                PrimaryAnatomicStructure(
+                    codes.SCT.Lung, modifiers=[codes.SCT.Left]
+                ),
+            ],
+        )
+        ds = Dataset()
+        ds.AnnotationGroupSequence = [group]
+        ds = write_and_read_dataset(ds)
+        read = AnnotationGroup.from_dataset(ds.AnnotationGroupSequence[0])
+
+        assert isinstance(read.annotated_property_type, AnnotatedPropertyType)
+        assert read.annotated_property_type.modifiers == (codes.SCT.Left, )
+        assert isinstance(read.anatomic_regions[0], AnatomicRegion)
+        assert read.anatomic_regions[0].modifiers == (codes.SCT.Right, )
+        assert isinstance(
+            read.primary_anatomic_structures[0], PrimaryAnatomicStructure
+        )
+        assert read.primary_anatomic_structures[0].modifiers == (
+            codes.SCT.Left,
+        )
 
     def test_alternative_construction_from_dataset_missing_attributes(self):
         dataset = Dataset()
@@ -687,3 +802,167 @@ class TestMicroscopyBulkSimpleAnnotations:
         assert isinstance(retrieved_group, AnnotationGroup)
         assert retrieved_group.number == 1
         assert retrieved_group.label == first_label
+
+    def _modified_type_annotations(self):
+        """Annotations with groups whose property types have modifiers.
+
+        Group 1: Cell (no modifiers)
+        Group 2: Cell + Left
+        Group 3: Cell + Left + Posterior
+        Group 4: Nucleus + Left
+        """
+        category = Code('91723000', 'SCT', 'Anatomical Structure')
+        cell = Code('4421005', 'SCT', 'Cell')
+        nucleus = Code('84640000', 'SCT', 'Nucleus')
+        types = [
+            cell,
+            AnnotatedPropertyType(cell, modifiers=[codes.SCT.Left]),
+            AnnotatedPropertyType(
+                cell, modifiers=[codes.SCT.Left, codes.SCT.Posterior]
+            ),
+            AnnotatedPropertyType(nucleus, modifiers=[codes.SCT.Left]),
+        ]
+        groups = [
+            AnnotationGroup(
+                number=i + 1,
+                uid=UID(),
+                label=f'group{i + 1}',
+                annotated_property_category=category,
+                annotated_property_type=ptype,
+                graphic_type=GraphicTypeValues.POINT,
+                graphic_data=[np.array([[1.0, 2.0]])],
+                algorithm_type=AnnotationGroupGenerationTypeValues.MANUAL,
+            )
+            for i, ptype in enumerate(types)
+        ]
+        annotations = MicroscopyBulkSimpleAnnotations(
+            source_images=[self._sm_image],
+            annotation_coordinate_type=AnnotationCoordinateTypeValues.SCOORD,
+            annotation_groups=groups,
+            series_instance_uid=UID(),
+            series_number=2,
+            sop_instance_uid=UID(),
+            instance_number=1,
+            manufacturer='highdicom',
+            manufacturer_model_name='test',
+            software_versions='0.1.0rc',
+            device_serial_number='XYZ'
+        )
+        # Round trip so that parsing is covered too
+        with BytesIO() as fp:
+            annotations.save_as(fp)
+            fp.seek(0)
+            return annread(fp)
+
+    @staticmethod
+    def _numbers(groups):
+        return [g.number for g in groups]
+
+    def test_get_annotation_groups_plain_code_ignores_modifiers(self):
+        annotations = self._modified_type_annotations()
+        for query in [
+            codes.SCT.Cell,
+            CodedConcept.from_code(codes.SCT.Cell),
+        ]:
+            groups = annotations.get_annotation_groups(
+                annotated_property_type=query
+            )
+            assert self._numbers(groups) == [1, 2, 3]
+
+        groups = annotations.get_annotation_groups(
+            annotated_property_type=codes.SCT.Nucleus,
+        )
+        assert self._numbers(groups) == [4]
+
+        groups = annotations.get_annotation_groups(
+            annotated_property_type=Code('53982002', 'SCT', 'Cell membrane')
+        )
+        assert groups == []
+
+    def test_get_annotation_groups_modified_type_no_modifiers(self):
+        annotations = self._modified_type_annotations()
+        groups = annotations.get_annotation_groups(
+            annotated_property_type=AnnotatedPropertyType(
+                codes.SCT.Cell,
+            )
+        )
+        assert self._numbers(groups) == [1]
+
+    def test_get_annotation_groups_modified_type_modifiers(self):
+        annotations = self._modified_type_annotations()
+        cell = codes.SCT.Cell
+
+        groups = annotations.get_annotation_groups(
+            annotated_property_type=AnnotatedPropertyType(
+                cell, modifiers=[codes.SCT.Left]
+            )
+        )
+        assert self._numbers(groups) == [2]
+
+        # Order of modifiers is not significant
+        for modifiers in (
+            [codes.SCT.Left, codes.SCT.Posterior],
+            [codes.SCT.Posterior, codes.SCT.Left],
+        ):
+            groups = annotations.get_annotation_groups(
+                annotated_property_type=AnnotatedPropertyType(
+                    cell, modifiers=modifiers
+                )
+            )
+            assert self._numbers(groups) == [3]
+
+    def test_get_annotation_groups_modified_type_no_match(self):
+        annotations = self._modified_type_annotations()
+        cell = codes.SCT.Cell
+
+        # Modifier not present on any group
+        assert annotations.get_annotation_groups(
+            annotated_property_type=AnnotatedPropertyType(
+                cell, modifiers=[codes.SCT.Right]
+            )
+        ) == []
+        # Superset of a group's modifiers
+        assert annotations.get_annotation_groups(
+            annotated_property_type=AnnotatedPropertyType(
+                cell,
+                modifiers=[
+                    codes.SCT.Left, codes.SCT.Posterior, codes.SCT.Right
+                ],
+            )
+        ) == []
+        # Wrong root code
+        assert annotations.get_annotation_groups(
+            annotated_property_type=AnnotatedPropertyType(
+                Code('53982002', 'SCT', 'Cell membrane'),
+                modifiers=[codes.SCT.Left],
+            )
+        ) == []
+
+    def test_get_annotation_groups_modified_type_combined_filters(self):
+        annotations = self._modified_type_annotations()
+        nucleus = Code('84640000', 'SCT', 'Nucleus')
+        groups = annotations.get_annotation_groups(
+            annotated_property_category=codes.SCT.AnatomicalStructure,
+            annotated_property_type=AnnotatedPropertyType(
+                nucleus, modifiers=[codes.SCT.Left]
+            ),
+            graphic_type=GraphicTypeValues.POINT,
+        )
+        assert self._numbers(groups) == [4]
+
+        groups = annotations.get_annotation_groups(
+            annotated_property_type=AnnotatedPropertyType(
+                nucleus, modifiers=[codes.SCT.Left]
+            ),
+            label='group1',
+        )
+        assert groups == []
+
+    def test_parsed_groups_have_modified_types(self):
+        annotations = self._modified_type_annotations()
+        for group in annotations.get_annotation_groups():
+            assert isinstance(
+                group.annotated_property_type, AnnotatedPropertyType
+            )
+        group = annotations.get_annotation_group(number=3)
+        assert len(group.annotated_property_type.modifiers) == 2

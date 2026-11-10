@@ -1281,22 +1281,30 @@ class _LegacyConversionRunner:
                         )
             else:
                 if have_instance_number:
-                    self._legacy_datasets = sorted(
-                        self._legacy_datasets,
-                        key=lambda ds: int(ds.InstanceNumber)
-                    )
-                    self._dimension_index_values = [
-                        [i] for i in range(1, len(self._legacy_datasets) + 1)
+
+                    # Only use an index if instance numbers are unique
+                    instance_numbers = [
+                        ds.InstanceNumber for ds in self._legacy_datasets
                     ]
 
-                    dimension_index_datasets.append(
-                        _get_dimension_index_sequence_item(
-                            0x0020_0013,  # InstanceNumber
-                            0x0020_9171,  # UnassignedPerFrame...
-                            "Instance Number of converted legacy instance",
-                            dim_org_uid
+                    if len(set(instance_numbers)) == len(self._legacy_datasets):
+                        self._legacy_datasets = sorted(
+                            self._legacy_datasets,
+                            key=lambda ds: int(ds.InstanceNumber)
                         )
-                    )
+                        self._dimension_index_values = [
+                            [i]
+                            for i in range(1, len(self._legacy_datasets) + 1)
+                        ]
+
+                        dimension_index_datasets.append(
+                            _get_dimension_index_sequence_item(
+                                0x0020_0013,  # InstanceNumber
+                                0x0020_9171,  # UnassignedPerFrame...
+                                "Instance Number of converted legacy instance",
+                                dim_org_uid
+                            )
+                        )
 
         if self._dimension_index_values is None:
             if (
@@ -1461,7 +1469,7 @@ class _LegacyConversionRunner:
                     )
 
         # First determine whether the module should be included
-        if module_usage != ModuleUsageValues.MANDATORY:
+        if module_usage != ModuleUsageValues.MANDATORY and self._strict:
             for dest_kw, _, _, _, val, _ in iter_attribute_configs(True):
                 if val is None:
                     # We have no value for one of the required attributes, so
@@ -2720,10 +2728,10 @@ class _CommonLegacyConvertedEnhancedImage(Image):
     """SOP class for common Legacy Converted Enhanced instances."""
 
     # Override these on the sub-classes
-    _MODALITY_ATTRIBUTE = ""
-    _MODALITY_NAME = ""
-    _LEGACY_SOP_CLASS_UID = ""
-    _ENHANCED_SOP_CLASS_UID = ""
+    _MODALITY_ATTRIBUTE: str
+    _MODALITY_NAME: str
+    _LEGACY_SOP_CLASS_UID: str
+    _ENHANCED_SOP_CLASS_UID: str
 
     def __init__(
         self,
@@ -2906,36 +2914,12 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             ],
             instance_number=instance_number,
             transfer_syntax_uid=transfer_syntax_uid,
-            #  Manufacturer is type 2
-            manufacturer=getattr(ref_ds, "Manufacturer", None),
-            #  Modality is type 1
             modality=ref_ds.Modality,
-            #  PatientID is type 2
-            patient_id=getattr(ref_ds, "PatientID", None),
-            #  PatientName is type 2
-            patient_name=getattr(ref_ds, "PatientName", None),
-            #  PatientBirthDate is type 2
-            patient_birth_date=getattr(ref_ds, "PatientBirthDate", None),
-            #  PatientSex is type 2
-            patient_sex=getattr(ref_ds, "PatientSex", None),
-            #  AccessionNumber is type 2
-            accession_number=getattr(ref_ds, "AccessionNumber", None),
-            #  StudyID is type 2
-            study_id=getattr(ref_ds, "StudyID", None),
-            #  StudyDate is type 2
-            study_date=getattr(ref_ds, "StudyDate", None),
-            #  StudyTime is type 2
-            study_time=getattr(ref_ds, "StudyTime", None),
-            #  ReferringPhysicianName is type 2
-            referring_physician_name=getattr(
-                ref_ds,
-                "ReferringPhysicianName",
-                None
-            ),
             content_date=content_date,
             content_time=content_time,
             **kwargs,
         )
+        # self.copy_patient_and_study_information(ref_ds)
         self._add_contributing_equipment(
             contributing_equipment,
             legacy_datasets[0],

@@ -9,6 +9,7 @@ from highdicom.seg.enum import (
 )
 from highdicom.seg.content import (
     SegmentDescription,
+    SegmentedPropertyType,
     DimensionIndexSequence,
 )
 from highdicom.seg import utils
@@ -26,6 +27,7 @@ __all__ = [
     'Segmentation',
     'SegmentationFractionalTypeValues',
     'SegmentationTypeValues',
+    'SegmentedPropertyType',
     'SegmentsOverlapValues',
     'SpatialLocationsPreservedValues',
     'create_segmentation_pyramid',

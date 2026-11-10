@@ -1,5 +1,5 @@
 """Package for creation of Structured Report (SR) instances."""
-from highdicom.sr.coding import CodedConcept
+from highdicom.sr.coding import CodedConcept, codes_equal
 from highdicom.sr.content import (
     CoordinatesForMeasurement,
     CoordinatesForMeasurement3D,
@@ -162,6 +162,7 @@ __all__ = [
     'VolumeSurface',
     'VolumetricROIMeasurementsAndQualitativeEvaluations',
     'WaveformContentItem',
+    'codes_equal',
     'srread',
     'utils',
 ]

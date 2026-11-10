@@ -247,12 +247,12 @@ def encode_frame(
                     'monochrome image frames with JPEG Baseline codec.'
                 )
             if photometric_interpretation not in (
-                    'MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR'
+                    'MONOCHROME1', 'MONOCHROME2'
                 ):
                 raise ValueError(
-                    'Photometric interpretation must be either "MONOCHROME1", '
-                    '"MONOCHROME2", or "PALETTE COLOR" for encoding of '
-                    'monochrome image frames with JPEG Baseline codec.'
+                    'Photometric interpretation must be either "MONOCHROME1" '
+                    'or "MONOCHROME2" for encoding of monochrome image '
+                    'frames with JPEG Baseline codec.'
                 )
         elif samples_per_pixel == 3:
             if photometric_interpretation != 'YBR_FULL_422':
@@ -309,11 +309,6 @@ def encode_frame(
             )
 
         if transfer_syntax_uid != RLELossless:
-            if pixel_representation != 0:
-                raise ValueError(
-                    'Pixel representation must be 0 for '
-                    f'encoding of image frames with {name} codec.'
-                )
             if samples_per_pixel == 1:
                 if planar_configuration is not None:
                     raise ValueError(
@@ -329,12 +324,29 @@ def encode_frame(
                         'for encoding of monochrome image frames with '
                         f'{name} codec.'
                     )
-                if transfer_syntax_uid == JPEG2000Lossless:
-                    if bits_allocated not in (1, 8, 16):
+                if photometric_interpretation == 'PALETTE COLOR':
+                    if transfer_syntax_uid in (JPEG2000, JPEGLSNearLossless):
                         raise ValueError(
-                            'Bits Allocated must be 1, 8, or 16 for encoding '
-                            f'of monochrome image frames with with {name} '
-                            'codec.'
+                            'Photometric interpretation "PALETTE COLOR" is '
+                            f'not permitted with the lossy {name} codec.'
+                        )
+                    if pixel_representation != 0:
+                        raise ValueError(
+                            'Pixel representation must be 0 for encoding of '
+                            f'PALETTE COLOR image frames with {name} codec.'
+                        )
+                    if bits_allocated not in (8, 16):
+                        raise ValueError(
+                            'Bits Allocated must be 8 or 16 for encoding of '
+                            f'PALETTE COLOR image frames with {name} codec.'
+                        )
+                if transfer_syntax_uid == JPEG2000Lossless:
+                    if bits_allocated not in (1, 8, 16, 24, 32, 40):
+                        # 32 and 40 are also allowed
+                        raise ValueError(
+                            'Bits Allocated must be 1, 8, 16, 24, 32 or 40 '
+                            'for encoding of monochrome image frames with '
+                            f'{name} codec.'
                         )
                 else:
                     if bits_allocated not in (8, 16):
@@ -343,6 +355,11 @@ def encode_frame(
                             f'monochrome image frames with with {name} codec.'
                         )
             elif samples_per_pixel == 3:
+                if pixel_representation != 0:
+                    raise ValueError(
+                        'Pixel representation must be 0 for encoding of '
+                        f'color image frames with {name} codec.'
+                    )
                 if planar_configuration != 0:
                     raise ValueError(
                         'Planar configuration must be 0 for encoding of '
@@ -367,6 +384,68 @@ def encode_frame(
                         f'"{required_pi.value}" for encoding of color image '
                         f'frames with {name} codec.'
                     )
+
+        else:
+            if samples_per_pixel == 1:
+                if planar_configuration is not None:
+                    raise ValueError(
+                        'Planar configuration must be absent for encoding of '
+                        f'monochrome image frames with {name} codec.'
+                    )
+                if photometric_interpretation not in (
+                        'MONOCHROME1', 'MONOCHROME2', 'PALETTE COLOR'
+                    ):
+                    raise ValueError(
+                        'Photometric interpretation must be either '
+                        '"MONOCHROME1", "MONOCHROME2", or "PALETTE COLOR" '
+                        'for encoding of monochrome image frames with '
+                        f'{name} codec.'
+                    )
+                if photometric_interpretation == 'PALETTE COLOR':
+                    if pixel_representation != 0:
+                        raise ValueError(
+                            'Pixel representation must be 0 for encoding of '
+                            f'PALETTE COLOR image frames with {name} codec.'
+                        )
+                    if bits_allocated not in (8, 16):
+                        raise ValueError(
+                            'Bits Allocated must be 8 or 16 for encoding of '
+                            f'PALETTE COLOR image frames with {name} codec.'
+                        )
+                elif bits_allocated not in (1, 8, 16):
+                    raise ValueError(
+                        'Bits Allocated must be 1, 8, or 16 for encoding of '
+                        f'monochrome image frames with {name} codec.'
+                    )
+            else:
+                if pixel_representation != 0:
+                    raise ValueError(
+                        'Pixel representation must be 0 for encoding of '
+                        f'color image frames with {name} codec.'
+                    )
+                if planar_configuration not in (0, 1):
+                    raise ValueError(
+                        'Planar configuration must be 0 or 1 for encoding of '
+                        f'color image frames with {name} codec.'
+                    )
+                if photometric_interpretation not in ('RGB', 'YBR_FULL'):
+                    raise ValueError(
+                        'Photometric interpretation must be either "RGB" or '
+                        '"YBR_FULL" for encoding of color image frames with '
+                        f'{name} codec.'
+                    )
+                if bits_allocated not in (8, 16):
+                    raise ValueError(
+                        'Bits Allocated must be 8 or 16 for encoding of '
+                        f'color image frames with {name} codec.'
+                    )
+
+        if transfer_syntax_uid in (JPEGLSLossless, JPEGLSNearLossless):
+            if bits_stored < 2:
+                raise ValueError(
+                    'Bits Stored must be at least 2 for encoding of image '
+                    f'frames with {name} codec.'
+                )
 
         if transfer_syntax_uid == JPEG2000:
             kwargs = {'j2k_psnr': [100]}
