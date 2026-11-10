@@ -2378,7 +2378,8 @@ class QualitativeEvaluation(Template):
     def __init__(
         self,
         name: Code | CodedConcept,
-        value: Code | CodedConcept
+        value: Code | CodedConcept,
+        modifiers: Sequence[CodeContentItem] | None = None,
     ) -> None:
         """
         Parameters
@@ -2387,6 +2388,16 @@ class QualitativeEvaluation(Template):
             concept name
         value: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             coded value or an enumerated item representing a coded value
+        modifiers: Sequence[highdicom.sr.CodeContentItem] | None, optional
+            Further codes that modify the main "value" code, provided as a
+            sequence of :class:`highdicom.sr.CodeContentItem`. The
+            ``relationship_type`` of each item must be "HAS CONCEPT MOD" or not
+            specified, in which case it will be set to "HAS CONCEPT MOD"
+            automatically. Any other ``relationship_type`` will lead to a
+            ``ValueError``. See :dcm:`CID 210 Qualitative Evaluation Modifier
+            Type <part16/sect_CID_210.html>` for the context group for the code
+            names, and :dcm:`CID 211 Qualitative Evaluation Modifier Value
+            <part16/sect_CID_211.html>` for the code values.
 
         """  # noqa: E501
         item = CodeContentItem(
@@ -2394,6 +2405,33 @@ class QualitativeEvaluation(Template):
             value=value,
             relationship_type=RelationshipTypeValues.CONTAINS
         )
+        if modifiers is not None and len(modifiers) > 0:
+            content = []
+            for modifier in modifiers:
+                if not isinstance(modifier, CodeContentItem):
+                    raise TypeError(
+                        "Items of 'modifiers' must have type "
+                        "highdicom.sr.CodeContentItem."
+                    )
+
+                if 'RelationshipType' not in modifier:
+                    modifier.RelationshipType = (
+                        RelationshipTypeValues.HAS_CONCEPT_MOD.value
+                    )
+
+                elif (
+                    modifier.relationship_type !=
+                    RelationshipTypeValues.HAS_CONCEPT_MOD
+                ):
+                    raise ValueError(
+                        "Items of 'modifiers' must have relationship type "
+                        "'HAS CONCEPT MOD'."
+                    )
+
+                content.append(modifier)
+
+            item.ContentSequence = content
+
         super().__init__([item])
 
     @classmethod
@@ -2424,7 +2462,18 @@ class QualitativeEvaluation(Template):
                 'Qualitative Evaluation shall contain only one content item.'
             )
         item = CodeContentItem.from_dataset(sequence[0])
-        return cls(name=item.name, value=item.value)
+
+        # Only CODE items with relationship type HAS CONCEPT MOD are
+        # recognized as modifiers. Any other child content items are not
+        # part of this template and are discarded
+        modifiers = [
+            modifier for modifier in getattr(item, 'ContentSequence', [])
+            if isinstance(modifier, CodeContentItem) and
+            modifier.relationship_type ==
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        ]
+
+        return cls(name=item.name, value=item.value, modifiers=modifiers)
 
     @property
     def name(self) -> CodedConcept:
@@ -2432,9 +2481,24 @@ class QualitativeEvaluation(Template):
         return self[0].name
 
     @property
-    def value(self) -> int | float:
-        """Union[int, float]: coded value of the qualitative evaluation"""
+    def value(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: coded value of the qualitative
+        evaluation"""
         return self[0].value
+
+    @property
+    def modifiers(self) -> list[CodeContentItem]:
+        """list[highdicom.sr.CodeContentItem]: content items that modify the
+        value of the qualitative evaluation (empty list if there are none)"""
+        if not hasattr(self[0], 'ContentSequence'):
+            return []
+
+        return [
+            item for item in self[0].ContentSequence
+            if isinstance(item, CodeContentItem) and
+            item.relationship_type ==
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        ]
 
 
 class Measurement(Template):

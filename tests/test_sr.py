@@ -12,6 +12,7 @@ from pydicom import config
 from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.dataset import Dataset
 from pydicom.filereader import dcmread
+from pydicom.sequence import Sequence as DicomSequence
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.uid import generate_uid
@@ -3521,6 +3522,210 @@ class TestQualitativeEvaluation(unittest.TestCase):
         assert len(evaluation) == 1
         assert evaluation.name == self._name
         assert evaluation.value == self._value
+        assert evaluation.modifiers == []
+        assert not hasattr(evaluation[0], 'ContentSequence')
+
+    def _make_modifier(self, relationship_type=None):
+        return CodeContentItem(
+            name=codes.SCT.Severity,
+            value=codes.SCT.Severe,
+            relationship_type=relationship_type,
+        )
+
+    def test_construction_with_modifiers(self):
+        modifier = self._make_modifier(
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        )
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[modifier],
+        )
+
+        assert len(evaluation) == 1
+        assert len(evaluation[0].ContentSequence) == 1
+        modifiers = evaluation.modifiers
+        assert len(modifiers) == 1
+        assert isinstance(modifiers[0], CodeContentItem)
+        assert modifiers[0].name == codes.SCT.Severity
+        assert modifiers[0].value == codes.SCT.Severe
+        assert modifiers[0].relationship_type == (
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        )
+
+    def test_construction_with_modifiers_string_relationship_type(self):
+        modifier = self._make_modifier('HAS CONCEPT MOD')
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[modifier],
+        )
+        assert len(evaluation.modifiers) == 1
+
+    def test_construction_with_modifiers_no_relationship_type(self):
+        modifier = self._make_modifier()
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[modifier],
+        )
+
+        modifiers = evaluation.modifiers
+        assert len(modifiers) == 1
+        assert isinstance(modifiers[0], CodeContentItem)
+        assert modifiers[0].relationship_type == (
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        )
+
+    def test_construction_with_empty_modifiers(self):
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[],
+        )
+        assert evaluation.modifiers == []
+        assert not hasattr(evaluation[0], 'ContentSequence')
+
+    def test_construction_with_modifiers_wrong_relationship_type(self):
+        modifier = self._make_modifier(RelationshipTypeValues.CONTAINS)
+        msg = (
+            "Items of 'modifiers' must have relationship type "
+            "'HAS CONCEPT MOD'."
+        )
+        with pytest.raises(ValueError, match=msg):
+            QualitativeEvaluation(
+                name=self._name,
+                value=self._value,
+                modifiers=[modifier],
+            )
+
+    def test_construction_with_modifiers_wrong_type(self):
+        modifier = TextContentItem(
+            name=codes.SCT.Severity,
+            value='severe',
+            relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD,
+        )
+        msg = (
+            "Items of 'modifiers' must have type "
+            "highdicom.sr.CodeContentItem."
+        )
+        with pytest.raises(TypeError, match=msg):
+            QualitativeEvaluation(
+                name=self._name,
+                value=self._value,
+                modifiers=[modifier],
+            )
+
+    def test_construction_with_code_modifier_wrong_type(self):
+        msg = (
+            "Items of 'modifiers' must have type "
+            "highdicom.sr.CodeContentItem."
+        )
+        with pytest.raises(TypeError, match=msg):
+            QualitativeEvaluation(
+                name=self._name,
+                value=self._value,
+                modifiers=[codes.SCT.Severe],
+            )
+
+    @staticmethod
+    def _make_code_dataset(code):
+        ds = Dataset()
+        ds.CodeValue = code.value
+        ds.CodingSchemeDesignator = code.scheme_designator
+        ds.CodeMeaning = code.meaning
+        return ds
+
+    def _make_code_item_dataset(self, name, value, relationship_type):
+        ds = Dataset()
+        ds.RelationshipType = relationship_type
+        ds.ValueType = 'CODE'
+        ds.ConceptNameCodeSequence = [self._make_code_dataset(name)]
+        ds.ConceptCodeSequence = [self._make_code_dataset(value)]
+        return ds
+
+    def _make_evaluation_sequence(self, modifiers=None):
+        item = self._make_code_item_dataset(
+            self._name,
+            self._value,
+            'CONTAINS',
+        )
+        if modifiers is not None:
+            item.ContentSequence = DicomSequence(modifiers)
+
+        return DicomSequence([item])
+
+    def test_from_sequence(self):
+        sequence = self._make_evaluation_sequence()
+        parsed = QualitativeEvaluation.from_sequence(sequence)
+
+        assert isinstance(parsed, QualitativeEvaluation)
+        assert parsed.name == self._name
+        assert parsed.value == self._value
+        assert parsed.modifiers == []
+        assert not hasattr(parsed[0], 'ContentSequence')
+
+    def test_from_sequence_with_modifiers(self):
+        sequence = self._make_evaluation_sequence(
+            modifiers=[
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Severe,
+                    'HAS CONCEPT MOD',
+                ),
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Mild,
+                    'HAS CONCEPT MOD',
+                ),
+            ]
+        )
+        parsed = QualitativeEvaluation.from_sequence(sequence)
+
+        assert parsed.name == self._name
+        assert parsed.value == self._value
+        # Modifiers must be encoded in the content item itself
+        assert len(parsed[0].ContentSequence) == 2
+        modifiers = parsed.modifiers
+        assert len(modifiers) == 2
+        assert all(isinstance(m, CodeContentItem) for m in modifiers)
+        assert modifiers[0].name == codes.SCT.Severity
+        assert modifiers[0].value == codes.SCT.Severe
+        assert modifiers[1].value == codes.SCT.Mild
+        assert all(
+            m.relationship_type == RelationshipTypeValues.HAS_CONCEPT_MOD
+            for m in modifiers
+        )
+
+    def test_from_sequence_ignores_non_modifier_children(self):
+        comment = Dataset()
+        comment.RelationshipType = 'HAS PROPERTIES'
+        comment.ValueType = 'TEXT'
+        comment.ConceptNameCodeSequence = [
+            self._make_code_dataset(codes.DCM.Comment)
+        ]
+        comment.TextValue = 'a comment'
+        sequence = self._make_evaluation_sequence(
+            modifiers=[
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Severe,
+                    'HAS CONCEPT MOD',
+                ),
+                # CODE item, but not a modifier relationship
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Mild,
+                    'HAS PROPERTIES',
+                ),
+                comment,
+            ]
+        )
+        parsed = QualitativeEvaluation.from_sequence(sequence)
+
+        assert len(parsed.modifiers) == 1
+        assert parsed.modifiers[0].value == codes.SCT.Severe
+        assert len(parsed[0].ContentSequence) == 1
 
 
 class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
@@ -3610,6 +3815,49 @@ class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 codes.SCT.MorphologicallyAbnormalStructure
             )
             assert group.finding_type == codes.SCT.Neoplasm
+
+    def test_get_evaluations_with_modifiers(self):
+        qualitative_evaluations = [
+            QualitativeEvaluation(
+                name=codes.SCT.AssociatedMorphology,
+                value=codes.SCT.Neoplasm,
+                modifiers=[
+                    CodeContentItem(
+                        name=codes.SCT.Severity,
+                        value=codes.SCT.Severe,
+                    ),
+                ],
+            ),
+        ]
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            measurements=self._measurements,
+            qualitative_evaluations=qualitative_evaluations,
+        )
+        parsed = MeasurementsAndQualitativeEvaluations.from_sequence(template)
+        for group in (template, parsed):
+            # The modifier is nested and must not show up as a separate
+            # qualitative evaluation
+            evaluations = group.get_qualitative_evaluations()
+            assert len(evaluations) == 1
+            evaluation = evaluations[0]
+            assert evaluation.name == codes.SCT.AssociatedMorphology
+            assert evaluation.value == codes.SCT.Neoplasm
+            modifiers = evaluation.modifiers
+            assert len(modifiers) == 1
+            assert modifiers[0].name == codes.SCT.Severity
+            assert modifiers[0].value == codes.SCT.Severe
+
+            # Modifiers must survive re-use of a retrieved evaluation in a
+            # new measurement group
+            regrouped = MeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                measurements=self._measurements,
+                qualitative_evaluations=evaluations,
+            )
+            reevaluations = regrouped.get_qualitative_evaluations()
+            assert len(reevaluations) == 1
+            assert len(reevaluations[0].modifiers) == 1
 
 
 class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
