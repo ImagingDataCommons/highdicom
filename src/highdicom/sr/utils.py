@@ -272,7 +272,7 @@ def collect_evidence(
         ``evidence``
 
     """  # noqa: E501
-    if study_instance_uid is None and len(evidence) > 1:
+    if study_instance_uid is None and len(evidence) > 0:
         study_instance_uid = evidence[0].StudyInstanceUID
 
     # PS3.3 C.17.2.3: the set of referenced Composite SOP Instances includes

@@ -81,7 +81,7 @@ from highdicom.sr import (
     srread,
 )
 from highdicom.sr.content import CoordinatesForMeasurement
-from highdicom.sr.utils import find_content_items
+from highdicom.sr.utils import collect_evidence, find_content_items
 from highdicom import UID
 
 
@@ -5435,6 +5435,71 @@ class TestSRUtilities(unittest.TestCase):
             recursive=True
         )
         assert len(items) == 6
+
+    def _get_evidence_content(self, image):
+        content = ContainerContentItem(
+            name=codes.DCM.ImagingMeasurementReport,
+        )
+        content.ContentSequence = [
+            ImageContentItem(
+                name=codes.DCM.SourceImageForSegmentation,
+                referenced_sop_class_uid=image.SOPClassUID,
+                referenced_sop_instance_uid=image.SOPInstanceUID,
+                relationship_type=RelationshipTypeValues.CONTAINS,
+            )
+        ]
+        return content
+
+    def test_collect_evidence_single_item(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        image = dcmread(str(data_dir.joinpath('test_files', 'ct_image.dcm')))
+        content = self._get_evidence_content(image)
+
+        # Without a study instance UID, the study of the first evidence item
+        # is taken to be the study of the document
+        same_study, other_study = collect_evidence([image], content)
+        assert len(same_study) == 1
+        assert other_study == []
+        assert same_study[0].StudyInstanceUID == image.StudyInstanceUID
+        series_item = same_study[0].ReferencedSeriesSequence[0]
+        assert series_item.SeriesInstanceUID == image.SeriesInstanceUID
+        instance_item = series_item.ReferencedSOPSequence[0]
+        assert instance_item.ReferencedSOPInstanceUID == image.SOPInstanceUID
+
+    def test_collect_evidence_first_item_study(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        image = dcmread(str(data_dir.joinpath('test_files', 'ct_image.dcm')))
+        other_image = deepcopy(image)
+        other_image.StudyInstanceUID = UID()
+        other_image.SeriesInstanceUID = UID()
+        other_image.SOPInstanceUID = UID()
+        content = self._get_evidence_content(image)
+
+        same_study, other_study = collect_evidence(
+            [image, other_image],
+            content,
+        )
+        assert len(same_study) == 1
+        assert same_study[0].StudyInstanceUID == image.StudyInstanceUID
+        assert len(other_study) == 1
+        assert other_study[0].StudyInstanceUID == other_image.StudyInstanceUID
+
+    def test_collect_evidence_explicit_study(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        image = dcmread(str(data_dir.joinpath('test_files', 'ct_image.dcm')))
+        content = self._get_evidence_content(image)
+
+        same_study, other_study = collect_evidence(
+            [image],
+            content,
+            study_instance_uid=UID(),
+        )
+        assert same_study == []
+        assert len(other_study) == 1
+        assert other_study[0].StudyInstanceUID == image.StudyInstanceUID
 
 
 class TestGetPlanarMeasurementGroups:
