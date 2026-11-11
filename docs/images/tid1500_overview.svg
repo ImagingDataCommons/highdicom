@@ -401,9 +401,9 @@
     <rect
        style="fill:#e6e6e6;stroke:#333333;stroke-width:0.564999"
        id="rect184-8-8-3"
-       width="73.551414"
+       width="73.015923"
        height="51.58297"
-       x="49.062038"
+       x="5.9738035"
        y="197.14311"
        ry="5.0022697" />
     <text
@@ -460,7 +460,7 @@
            id="tspan1447">- Finding Sites</tspan></tspan></text>
     <text
        xml:space="preserve"
-       transform="matrix(0.26458333,0,0,0.26458333,-26.773857,127.1295)"
+       transform="matrix(0.264583,0.0,0.0,0.264583,-69.862091,127.1295)"
        id="text831-5-9"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.2745px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;white-space:pre;shape-inside:url(#rect833-4-3);display:inline;fill:#000000;stroke:none;stroke-width:2.13543"
        x="-66.959175"
@@ -649,22 +649,8 @@
          x="427.71289"
          y="229.2405"
          id="tspan1539">Contains 1</tspan></text>
-    <text
-       xml:space="preserve"
-       transform="matrix(0.26458333,0,0,0.26458333,-79.890792,133.81866)"
-       id="text897-0"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.2745px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;white-space:pre;shape-inside:url(#rect899-8);display:inline;fill:#000000;stroke:none;stroke-width:2.13543"><tspan
-         x="427.71289"
-         y="230.08829"
-         id="tspan1541">Contains 0-n</tspan></text>
-    <text
-       xml:space="preserve"
-       transform="matrix(0.26458333,0,0,0.26458333,84.387276,132.90606)"
-       id="text897-0-3"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.2745px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;white-space:pre;shape-inside:url(#rect899-8-22);display:inline;fill:#000000;stroke:none;stroke-width:2.13543"><tspan
-         x="427.71289"
-         y="230.08829"
-         id="tspan1543">Contains 0-n</tspan></text>
+
+
     <text
        xml:space="preserve"
        transform="matrix(0.26458333,0,0,0.26458333,18.004398,46.510993)"
@@ -691,7 +677,7 @@
          id="tspan1549">Contains 0-n</tspan></text>
     <text
        xml:space="preserve"
-       transform="matrix(0.26458333,0,0,0.26458333,-29.030177,167.33016)"
+       transform="matrix(0.264583,0.0,0.0,0.264583,-72.386156,167.33016)"
        id="text238-7-7-2"
        style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:14.2745px;font-family:Arial;-inkscape-font-specification:'Arial, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;white-space:pre;shape-inside:url(#rect240-8-0-7);display:inline;fill:#000000;stroke:none;stroke-width:2.13543"
        x="0"
@@ -703,14 +689,14 @@
     <rect
        style="fill:#e6e6e6;stroke:#333333;stroke-width:0.564999"
        id="rect184-8-8-3-3"
-       width="73.551407"
+       width="73.015923"
        height="51.980923"
-       x="132.00168"
+       x="92.008308"
        y="197.0352"
        ry="3.5687099" />
     <text
        xml:space="preserve"
-       transform="matrix(0.26458333,0,0,0.26458333,55.831177,127.02159)"
+       transform="matrix(0.264583,0.0,0.0,0.264583,15.837805,127.02159)"
        id="text831-5-9-4"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.2745px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;white-space:pre;shape-inside:url(#rect833-4-3-1);display:inline;fill:#000000;stroke:none;stroke-width:2.13543"
        x="-66.959175"
@@ -724,7 +710,7 @@
            id="tspan1555">Evaluation</tspan></tspan></text>
     <text
        xml:space="preserve"
-       transform="matrix(0.26458333,0,0,0.26458333,54.136836,167.22225)"
+       transform="matrix(0.264583,0.0,0.0,0.264583,13.875722,167.22225)"
        id="text238-7-7-2-7"
        style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:14.2745px;font-family:Arial;-inkscape-font-specification:'Arial, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;white-space:pre;shape-inside:url(#rect240-8-0-7-9);display:inline;fill:#000000;stroke:none;stroke-width:2.13543"
        x="0"
@@ -741,26 +727,10 @@
        d="M 128.19989,97.336701 V 111.69282"
        id="path6826-8"
        sodipodi:nodetypes="cc" />
-    <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.3;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow2Lend-3-8)"
-       d="m 143.7102,166.77968 v 29.7341"
-       id="path6826-8-9"
-       sodipodi:nodetypes="cc" />
-    <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.3;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow2Lend-3-8-4)"
-       d="m 193.53802,167.45902 v 29.7341"
-       id="path6826-8-9-7"
-       sodipodi:nodetypes="cc" />
-    <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.3;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow2Lend-3-8-4-0)"
-       d="m 60.710811,167.12703 v 29.7341"
-       id="path6826-8-9-7-6"
-       sodipodi:nodetypes="cc" />
-    <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.3;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow2Lend-3-8-6)"
-       d="m 110.41417,166.45818 v 29.73411"
-       id="path6826-8-9-4"
-       sodipodi:nodetypes="cc" />
+
+
+
+
     <path
        style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker15311)"
        d="m 128.36451,102.3099 h 87.28886 v 10.12057"
@@ -771,20 +741,78 @@
        d="M 128.36451,102.3099 H 41.07565 v 10.12057"
        id="path15877-2"
        sodipodi:nodetypes="ccc" />
-    <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker15311-7-2)"
-       d="m 225.01294,167.40505 0.17796,9.32301 H 86.010889 v 19.52522"
-       id="path15877-2-7"
-       sodipodi:nodetypes="cccc" />
-    <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker15311-7-2-9)"
-       d="m 31.321777,167.49316 -0.17796,19.96264 H 170.32384 v 8.88559"
-       id="path15877-2-7-9"
-       sodipodi:nodetypes="cccc" />
+
+
     <text
        xml:space="preserve"
        transform="matrix(0.26458333,0,0,0.26458333,5.691304,21.856201)"
        id="text1662"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:17.3333px;font-family:'Courier New';-inkscape-font-specification:'Courier New';text-align:center;white-space:pre;shape-inside:url(#rect1664);display:inline;fill:#ffffff;stroke:#000000;stroke-width:2.13543" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 24.0,181.0 H 214.1937815"
+       id="path-bus" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 24.0,167.24 V 181.0"
+       id="path-bus-drop-0" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 110.0,166.8 V 181.0"
+       id="path-bus-drop-1" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 195.7,167.33 V 181.0"
+       id="path-bus-drop-2" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.3;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow2Lend)"
+       d="M 42.481765,181.0 V 196.5"
+       id="path-bus-arrow-0" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:3.77679px;font-family:Arial;-inkscape-font-specification:Arial;fill:#000000;stroke:none"
+       x="43.981765"
+       y="191.2"
+       id="text-bus-label-0">Contains 0-n</text>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.3;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow2Lend)"
+       d="M 128.516269,181.0 V 196.5"
+       id="path-bus-arrow-1" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:3.77679px;font-family:Arial;-inkscape-font-specification:Arial;fill:#000000;stroke:none"
+       x="130.016269"
+       y="191.2"
+       id="text-bus-label-1">Contains 0-n</text>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.3;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow2Lend)"
+       d="M 214.193782,181.0 V 196.5"
+       id="path-bus-arrow-2" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:3.77679px;font-family:Arial;-inkscape-font-specification:Arial;fill:#000000;stroke:none"
+       x="215.693782"
+       y="191.2"
+       id="text-bus-label-2">Contains 0-n</text>
+    <rect
+       style="fill:#e6e6e6;stroke:#333333;stroke-width:0.564999"
+       id="rect-text-evaluation"
+       width="73.015923"
+       height="51.58297"
+       x="177.68582"
+       y="197.14311"
+       ry="5.0022697" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:bold;font-size:3.77679px;font-family:Arial;-inkscape-font-specification:'Arial, Bold';text-anchor:middle;text-align:center;fill:#000000;stroke:none"
+       x="214.193782"
+       y="202.59"
+       id="text-text-evaluation-title">Text Evaluation</text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:3.77679px;font-family:Arial;-inkscape-font-specification:Arial;fill:#000000;stroke:none"
+       x="180.75"
+       y="211.39"
+       id="text-text-evaluation-body">- Free Text Evaluation</text>
   </g>
 </svg>
