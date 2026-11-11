@@ -875,6 +875,24 @@ class TestPlaneOrientationSequence(TestCase):
         assert item.ImageOrientationPatient[4] == image_orientation[4]
         assert item.ImageOrientationPatient[5] == image_orientation[5]
 
+    def test_invalid_non_unit(self):
+        image_orientation = [0.5, 0.5, 0.0, 0.0, 0.0, 1.0]
+        msg = "Image orientation must contain unit vectors."
+        with pytest.raises(ValueError, match=msg):
+            PlaneOrientationSequence(
+                "PATIENT",
+                image_orientation,
+            )
+
+    def test_invalid_non_orthogonal(self):
+        image_orientation = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        msg = "Image orientation must contain two orthogonal vectors."
+        with pytest.raises(ValueError, match=msg):
+            PlaneOrientationSequence(
+                "PATIENT",
+                image_orientation,
+            )
+
 
 class TestPixelMeasuresSequence(TestCase):
 
