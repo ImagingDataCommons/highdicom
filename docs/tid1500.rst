@@ -53,7 +53,10 @@ group).
 Each Measurement Group contains a number of Measurements
 (`TID300 <tid300def_>`_) - numerical values derived from an image, such as a
 length or volume - and/or Qualitative Evaluations - categorical values derived
-from an image, such as classification of a tumor morphology.
+from an image, such as classification of a tumor morphology. The standard also
+allows qualitative evaluations with free text values, which *highdicom* calls
+text evaluations, but coded qualitative qvaluations should be preferred
+where possible.
 
 When constructing the content, it is necessary to start at the bottom of the
 content tree with the Measurements and Evaluations and work up, by adding them
@@ -468,6 +471,10 @@ type (some have been omitted for brevity):
 - ``qualitative_evaluations``: (Sequence of
   :class:`highdicom.sr.QualitativeEvaluation`, optional) Coded name-value pairs
   that describe qualitative evaluations, see below.
+- ``text_evaluations``: (Sequence of :class:`highdicom.sr.TextEvaluation`,
+  optional) Name-value pairs with a coded name and a free text value that
+  describe qualitative evaluations. Use only when the evaluation cannot be
+  expressed with ``qualitative_evaluations``, see below.
 - ``finding_category``: (:class:`highdicom.sr.CodedConcept`, optional)
   Category of observed finding, e.g., anatomic structure or
   morphologically abnormal structure.
@@ -481,7 +488,9 @@ and qualitative evaluations themselves. Information derived from the images or
 image regions represented by the measurement group may be stored as either
 measurements, qualitative evaluations, or a mixture or the two. These two
 concepts play a similar role in the SR, but measurements have numerical values
-and qualitative evaluations have categorical values.
+and qualitative evaluations have categorical values. As a last resort, a
+qualitative evaluation may instead have a free text value, in which case it is
+known as a text evaluation in *highdicom*.
 
 Qualitative Evaluations
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -549,6 +558,94 @@ Evaluation Modifier Type <part16/sect_CID_210.html>` and for their values
         print(modifier.name.meaning, modifier.value.meaning)
     # Laterality Left
     # Topographical modifier Posterior
+
+.. _tid1500_text_evaluations:
+
+Text Evaluations
+~~~~~~~~~~~~~~~~
+
+The standard also allows a qualitative evaluation to have a free text value
+instead of a coded one. In *highdicom*, these are represented by the class
+:class:`highdicom.sr.TextEvaluation`, which is essentially a single
+:class:`highdicom.sr.TextContentItem` within a special template, and they are
+passed to measurement groups via the ``text_evaluations`` parameter.
+
+**You should avoid text evaluations whenever the same information can be
+expressed as a coded Qualitative Evaluation.** A large part of the value of a
+structured report is that its contents can be interpreted reliably by
+software. Free text undermines this:
+
+- Software receiving the SR cannot reliably interpret free text. Variations in
+  spelling, abbreviations, phrasing, and language mean that "L kidney",
+  "left kidney", and "Rein gauche" all describe the same thing, but a
+  receiving application cannot reliably recognize that.
+- Text values cannot be validated against the value sets defined by the
+  standard, so errors are not caught when the SR is created.
+- Text evaluations cannot carry modifiers, so any qualification of the value
+  has to be expressed in the text too, compounding the problems above.
+- Searching and aggregating across many SR documents (e.g. "find all
+  measurement groups with a moderate severity") is straightforward with codes
+  and error-prone with text.
+
+Before reaching for a text evaluation, search for a suitable code (see
+:ref:`coding`).
+
+For example, **do not** do this:
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # Bad: a categorical value stored as free text
+    severity_item = hd.sr.TextEvaluation(
+        name=codes.SCT.Severity,
+        value='mild',
+    )
+
+when you can do this instead:
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # Good: the same information as a coded value
+    severity_item = hd.sr.QualitativeEvaluation(
+        name=codes.SCT.Severity,
+        value=codes.SCT.Mild,
+    )
+
+Text evaluations are appropriate only when the information is genuinely
+unstructured and cannot be enumerated in advance, such as a narrative comment
+intended for a human reader. Even then, the *name* of a text evaluation is
+always a code, so choose one that describes what kind of text it is:
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # Acceptable: a free text comment for a human reader
+    comment_item = hd.sr.TextEvaluation(
+        name=codes.DCM.Comment,
+        value='Margin poorly visualized due to motion artifact',
+    )
+
+    tracking_id = hd.sr.TrackingIdentifier(
+        identifier='Image0001',
+        uid=hd.UID(),
+    )
+
+    group = hd.sr.MeasurementsAndQualitativeEvaluations(
+        tracking_identifier=tracking_id,
+        qualitative_evaluations=[...],
+        text_evaluations=[comment_item],
+    )
+
+If you find yourself using text evaluations with a small set of values that
+recur, that is a strong sign the information is categorical and should be
+coded instead.
 
 Measurements (`TID300 <tid300def_>`_)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
