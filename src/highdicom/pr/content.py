@@ -1559,7 +1559,7 @@ def _get_icc_profile(referenced_images: Sequence[Dataset]) -> bytes:
     """
     icc_profiles = []
     for im in referenced_images:
-        if hasattr(referenced_images, 'ICCProfile'):
+        if hasattr(im, 'ICCProfile'):
             icc_profiles.append(im.ICCProfile)
         elif hasattr(im, 'OpticalPathSequence'):
             if len(im.OpticalPathSequence) > 1:

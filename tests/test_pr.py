@@ -2197,6 +2197,65 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
             'sRGB v4 ICC preference perceptual intent beta'
         )
 
+    def test_construction_color_top_level_icc_profile(self):
+        # Color images other than slide microscopy images include the ICC
+        # Profile at the top level of the dataset rather than within the
+        # Optical Path Sequence
+        icc_profile = pkgutil.get_data(
+            'highdicom',
+            '_icc_profiles/sRGB_v4_ICC_preference.icc'
+        )
+        image = deepcopy(self._sm_image)
+        del image.OpticalPathSequence
+        image.ICCProfile = icc_profile
+
+        pr = ColorSoftcopyPresentationState(
+            referenced_images=[image],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer],
+            graphic_annotations=[self._ann_sm],
+        )
+        assert pr.ICCProfile == icc_profile
+
+    def test_construction_color_inconsistent_icc_profiles(self):
+        icc_profile = pkgutil.get_data(
+            'highdicom',
+            '_icc_profiles/sRGB_v4_ICC_preference.icc'
+        )
+        image = deepcopy(self._sm_image)
+        del image.OpticalPathSequence
+        image.ICCProfile = icc_profile
+        other_image = deepcopy(self._sm_image)
+        other_image.SOPInstanceUID = UID()
+        assert (
+            other_image.OpticalPathSequence[0].ICCProfile != icc_profile
+        )
+
+        with pytest.raises(
+            ValueError,
+            match='Found more than one ICC Profile',
+        ):
+            ColorSoftcopyPresentationState(
+                referenced_images=[image, other_image],
+                series_instance_uid=self._series_uid,
+                series_number=123,
+                sop_instance_uid=self._sop_uid,
+                instance_number=456,
+                manufacturer='Foo Corp.',
+                manufacturer_model_name='Bar, Mark 2',
+                software_versions='0.0.1',
+                device_serial_number='12345',
+                content_label='DOODLE',
+            )
+
     def test_construction_creator_id(self):
         gsps = GrayscaleSoftcopyPresentationState(
             referenced_images=self._ct_series,
