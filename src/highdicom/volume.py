@@ -22,6 +22,7 @@ from highdicom.spatial import (
     PATIENT_ORIENTATION_OPPOSITES,
     VOLUME_INDEX_CONVENTION,
     _DEFAULT_EQUALITY_TOLERANCE,
+    _DEFAULT_PERPENDICULAR_TOLERANCE,
     _is_matrix_orthogonal,
     _normalize_patient_orientation,
     _stack_affine_matrix,
@@ -1789,7 +1790,10 @@ class _VolumeBase(ABC):
         mode: PadModes = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
-        tol: float = _DEFAULT_EQUALITY_TOLERANCE,
+        spacing_tol: float = 1e-3,
+        position_tol: float = 1e-2,
+        parallel_tol: float = _DEFAULT_PERPENDICULAR_TOLERANCE,
+        tol: float | None = None,
     ) -> Self:
         """Match the geometry of this volume to another.
 
@@ -1817,6 +1821,24 @@ class _VolumeBase(ABC):
             the entire array). For other padding modes, this argument makes no
             difference. This should be True only if the volume has a channel
             dimension.
+        spacing_tol: float, optional
+            Relative tolerance on the ratio of the voxel spacing of ``other``
+            to that of this volume along each axis. The ratio must be within
+            ``spacing_tol * n`` of the nearest integer ``n``, i.e. the
+            tolerance scales with the integer step size.
+        position_tol: float, optional
+            Tolerance on the translation between the two volumes along each
+            axis, expressed as a fraction of a voxel (of this volume, after
+            permutation). The translation must be within this fraction of an
+            integer number of voxels. The same tolerance is applied to the
+            misalignment at the far end of the target grid, which accumulates
+            any small spacing discrepancy over the extent of the volume.
+        parallel_tol: float, optional
+            Tolerance used when deciding whether direction vectors of the two
+            volumes are parallel.
+        tol: float | None, optional
+            Deprecated. If provided, it overrides both ``spacing_tol`` and
+            ``position_tol``. Use those parameters instead.
 
         Returns
         -------
@@ -1830,14 +1852,25 @@ class _VolumeBase(ABC):
             If the geometries cannot be matched without resampling the array.
 
         """
+        if tol is not None:
+            warnings.warn(
+                "The 'tol' parameter of 'match_geometry' is deprecated and "
+                "will be removed in a future release. Use 'spacing_tol' and "
+                "'position_tol' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            spacing_tol = tol
+            position_tol = tol
+
         if (
             self.frame_of_reference_uid is not None and
-            other.frame_of_reference_uid is not None
+            other.frame_of_reference_uid is not None and
+            self.frame_of_reference_uid != other.frame_of_reference_uid
         ):
-            if self.frame_of_reference_uid != self.frame_of_reference_uid:
-                raise RuntimeError(
-                    "Volumes do not have matching frame of reference UIDs."
-                )
+            raise RuntimeError(
+                "Volumes do not have matching frame of reference UIDs."
+            )
 
         if self.coordinate_system != other.coordinate_system:
             raise RuntimeError(
@@ -1846,28 +1879,31 @@ class _VolumeBase(ABC):
 
         permute_indices = []
         step_sizes = []
+        signed_scale_factors = []
         for u, s in zip(other.unit_vectors(), other.spacing):
             for j, (v, t) in enumerate(
                 zip(self.unit_vectors(), self.spacing)
             ):
                 dot_product = u @ v
                 if (
-                    np.abs(dot_product - 1.0) < tol or
-                    np.abs(dot_product + 1.0) < tol
+                    np.abs(dot_product - 1.0) < parallel_tol or
+                    np.abs(dot_product + 1.0) < parallel_tol
                 ):
                     permute_indices.append(j)
 
                     scale_factor = s / t
                     step = int(np.round(scale_factor))
-                    if abs(scale_factor - step) > tol:
+                    if abs(scale_factor - step) > spacing_tol * abs(step):
                         raise RuntimeError(
                             "Non-integer scale factor required."
                         )
 
                     if dot_product < 0.0:
                         step = -step
+                        scale_factor = -scale_factor
 
                     step_sizes.append(step)
+                    signed_scale_factors.append(scale_factor)
 
                     break
             else:
@@ -1892,10 +1928,11 @@ class _VolumeBase(ABC):
         requires_crop = False
         requires_pad = False
 
-        for v, spacing, step, out_shape, in_shape in zip(
+        for v, spacing, step, scale_factor, out_shape, in_shape in zip(
             new_volume.unit_vectors(),
             new_volume.spacing,
             step_sizes,
+            signed_scale_factors,
             other.spatial_shape,
             new_volume.spatial_shape,
         ):
@@ -1904,10 +1941,23 @@ class _VolumeBase(ABC):
             start_pos = int(np.round(start_ind))
             end_pos = start_pos + out_shape * step
 
-            if abs(start_pos - start_ind) > tol:
+            if abs(start_pos - start_ind) > position_tol:
                 raise RuntimeError(
                     "Required translation is non-integer "
                     "multiple of voxel spacing."
+                )
+
+            # Small spacing discrepancies accumulate along the axis, so also
+            # check the misalignment at the far end of the target grid
+            far_misalignment = (
+                (start_ind - start_pos) +
+                (out_shape - 1) * (scale_factor - step)
+            )
+            if abs(far_misalignment) > position_tol:
+                raise RuntimeError(
+                    "Voxel grids drift out of alignment by more than "
+                    "'position_tol' along an axis due to a small difference "
+                    "in spacing."
                 )
 
             if step > 0:

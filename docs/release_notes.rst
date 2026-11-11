@@ -364,3 +364,46 @@ To compare only root codes in existing code, either use
        ignore_modifiers=True,
    )
    assert desc.segmented_property_type.unmodified == codes.SCT.Kidney
+
+.. _match-geometry-tolerances:
+
+Tolerances in ``match_geometry``
+--------------------------------
+
+In highdicom 0.29.0, the ``tol`` parameter of
+:meth:`highdicom.Volume.match_geometry` and
+:meth:`highdicom.VolumeGeometry.match_geometry` is deprecated. It previously
+governed both the voxel spacing and the position comparisons using a very
+tight default of ``1e-5`` that often caused spurious failures with real DICOM
+data. It is replaced by three more specific parameters:
+
+* ``spacing_tol`` (default ``1e-3``): the ratio of the two volumes' voxel
+  spacings must be within ``spacing_tol * n`` of the nearest integer ``n``, so
+  the tolerance is relative to the step size.
+* ``position_tol`` (default ``1e-2``): the translation between the volumes
+  must be within this fraction of a voxel of a whole number of voxels. This
+  is also applied to the misalignment at the far end of the grid, so that
+  small spacing differences that accumulate across a volume are detected.
+* ``parallel_tol``: the tolerance used when deciding whether direction
+  vectors are parallel.
+
+Passing ``tol`` still works but emits a ``DeprecationWarning`` and sets both
+``spacing_tol`` and ``position_tol`` to the given value. To update your code,
+replace ``tol`` with the new parameters:
+
+.. code-block:: python
+
+   # Before
+   matched = volume.match_geometry(other, tol=1e-4)
+
+   # After
+   matched = volume.match_geometry(
+       other,
+       spacing_tol=1e-4,
+       position_tol=1e-4,
+   )
+
+Note that the new defaults are more permissive for rounding error in
+individual positions and spacings, but the far-end alignment check may reject
+large volumes with slightly inexact spacings that were previously accepted. If
+this occurs, increase ``position_tol``.
