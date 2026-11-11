@@ -229,7 +229,7 @@ class _ModifiedCodedConcept(CodedConcept):
             appended to them). Instances of other modified classes are not
             accepted, since their modifiers belong to a different context.
         modifiers: Sequence[pydicom.sr.coding.Code | highdicom.sr.CodedConcept] | None
-            Modifier codes that optionally describe characterstics of the root
+            Modifier codes that optionally describe characteristics of the root
             concept. The class docstring gives the appropriate context group.
 
         Raises

@@ -541,7 +541,7 @@ class SCImage(Image):
                     raise ValueError(
                         "'position_reference_indicator' must be "
                         "'SLIDE_CORNER' when using the slide"
-                        "coordinate system. Leave this arguement "
+                        "coordinate system. Leave this argument "
                         "unspecified to use this default."
                     )
 
@@ -635,7 +635,7 @@ class SCImage(Image):
                 AnatomicalOrientationTypeValues.BIPED
             ):
                 # For the BIPED case, we can check the patient orientation
-                # given the image orientation. For quadrapeds, this is trickier
+                # given the image orientation. For quadrupeds, this is trickier
                 # because it depends where you are in the body
                 calculated_patient_orientation = (
                     get_closest_patient_orientation(
@@ -1012,8 +1012,8 @@ class SCImage(Image):
 
         """  # noqa: E501
         # Attempt to copy spatial information from the reference dataset
-        # Ths is only valid in the patient coordinate system and if the
-        # image size match
+        # This is only valid in the patient coordinate system and if the
+        # image sizes match
         coordinate_system = get_image_coordinate_system(ref_image)
         if coordinate_system != CoordinateSystemNames.PATIENT:
             raise ValueError(

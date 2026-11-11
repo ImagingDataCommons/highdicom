@@ -2507,8 +2507,8 @@ class TextEvaluation(Template):
 
     This may be used to make evaluations of measurement groups using free text,
     unlike :class:`highdicom.sr.QualitativeEvaluation`, which has a coded
-    value. It is recommended to use coded evalutions preferentially to free
-    text evalutions as they are standardized and leave less room for ambiguity.
+    value. It is recommended to use coded evaluations preferentially to free
+    text evaluations as they are standardized and leave less room for ambiguity.
 
     This corresponds to the TEXT content item of a qualitative evaluation
     within a measurement group, e.g. row 12 of :dcm:`TID 1501
@@ -3328,7 +3328,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         Parameters
         ----------
         name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
-            Name used to filter evaluations. If ``None``, all evalutions found
+            Name used to filter evaluations. If ``None``, all evaluations found
             are returned.
 
         Returns
