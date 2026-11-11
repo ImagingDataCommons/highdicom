@@ -13,9 +13,8 @@ from pydicom.uid import (
     JPEGLSLossless,
     JPEGLSNearLossless,
 )
-from pydicom.valuerep import DA, TM
 
-from highdicom import SpecimenDescription
+from highdicom import IssuerOfIdentifier, SpecimenDescription
 from highdicom.sc import SCImage
 from highdicom import UID
 from highdicom.frame import decode_frame
@@ -224,6 +223,53 @@ def test_construct_rgb_slide_single_specimen_missing_parameter():
             specimen_descriptions=[specimen_description]
         )
 
+    def test_construct_rgb_slide_with_issuer_of_container_identifier(self):
+        issuer = IssuerOfIdentifier('ISSUER')
+        specimen_description = SpecimenDescription(
+            specimen_id=self._specimen_identifier,
+            specimen_uid=self._specimen_uid
+        )
+        instance = SCImage(
+            pixel_array=self._rgb_pixel_array,
+            photometric_interpretation='RGB',
+            bits_allocated=8,
+            coordinate_system='SLIDE',
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            container_identifier=self._container_identifier,
+            issuer_of_container_identifier=issuer,
+            specimen_descriptions=[specimen_description]
+        )
+        assert len(instance.IssuerOfTheContainerIdentifierSequence) == 1
+        issuer_item = instance.IssuerOfTheContainerIdentifierSequence[0]
+        assert issuer_item.LocalNamespaceEntityID == 'ISSUER'
+
+    def test_construct_rgb_slide_single_specimen_missing_parameter(self):
+        bits_allocated = 8
+        photometric_interpretation = 'RGB'
+        coordinate_system = 'SLIDE'
+        specimen_description = SpecimenDescription(
+            specimen_id=self._specimen_identifier,
+            specimen_uid=self._specimen_uid
+        )
+        with pytest.raises(TypeError):
+            SCImage(
+                pixel_array=self._rgb_pixel_array,
+                photometric_interpretation=photometric_interpretation,
+                bits_allocated=bits_allocated,
+                coordinate_system=coordinate_system,
+                study_instance_uid=self._study_instance_uid,
+                series_instance_uid=self._series_instance_uid,
+                sop_instance_uid=self._sop_instance_uid,
+                series_number=self._series_number,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                specimen_descriptions=[specimen_description]
+            )
 
 def test_construct_rgb_slide_single_specimen_missing_parameter_1():
     photometric_interpretation = 'RGB'
@@ -623,8 +669,8 @@ def test_construct_rgb_from_ref_dataset():
     assert instance.AccessionNumber == ref_dataset.AccessionNumber
     assert instance.PatientName == ref_dataset.PatientName
     assert instance.PatientSex == ref_dataset.PatientSex
-    assert instance.StudyTime == TM(ref_dataset.StudyTime)
-    assert instance.StudyDate == DA(ref_dataset.StudyDate)
+    assert instance.StudyTime == ref_dataset.StudyTime
+    assert instance.StudyDate == ref_dataset.StudyDate
     assert instance.StudyID == ref_dataset.StudyID
     assert instance.PixelData == frame.tobytes()
 
@@ -902,3 +948,190 @@ def test_bits_stored_greater_than_allocated():
             patient_orientation=('A', 'R'),
             bits_stored=9,  # greater than bits_allocated (8)
         )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEG2000Lossless
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            frame
+        )
+
+    def test_monochrome_jpeg2000(self):
+        pytest.importorskip("openjpeg")
+        bits_allocated = 8
+        photometric_interpretation = 'MONOCHROME2'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 256, size=(256, 256), dtype=np.uint8)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEG2000
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEG2000
+
+        assert np.allclose(
+            self.get_array_after_writing(instance),
+            frame,
+            atol=2
+        )
+
+    def test_rgb_jpeg2000(self):
+        pytest.importorskip("openjpeg")
+        bits_allocated = 8
+        photometric_interpretation = 'YBR_RCT'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEG2000Lossless
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEG2000Lossless
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            frame
+        )
+
+    def test_monochrome_jpegls(self):
+        pytest.importorskip("libjpeg")
+        bits_allocated = 16
+        photometric_interpretation = 'MONOCHROME2'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 2**16, size=(256, 256), dtype=np.uint16)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEGLSLossless
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEGLSLossless
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            frame
+        )
+
+    def test_monochrome_jpegls_near_lossless(self):
+        pytest.importorskip("libjpeg")
+        bits_allocated = 16
+        photometric_interpretation = 'MONOCHROME2'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 2**16, size=(256, 256), dtype=np.uint16)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEGLSNearLossless
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEGLSNearLossless
+
+        assert np.allclose(
+            self.get_array_after_writing(instance),
+            frame,
+            atol=2
+        )
+
+    def test_rgb_jpegls(self):
+        pytest.importorskip("libjpeg")
+        bits_allocated = 8
+        photometric_interpretation = 'RGB'
+        coordinate_system = 'PATIENT'
+        frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            study_instance_uid=self._study_instance_uid,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            transfer_syntax_uid=JPEGLSLossless
+        )
+
+        assert instance.file_meta.TransferSyntaxUID == JPEGLSLossless
+
+        assert np.array_equal(
+            self.get_array_after_writing(instance),
+            frame
+        )
+
+    def test_construct_rgb_from_ref_dataset(self):
+        bits_allocated = 8
+        photometric_interpretation = 'RGB'
+        coordinate_system = 'PATIENT'
+        instance = SCImage.from_ref_dataset(
+            ref_dataset=self._ref_dataset,
+            pixel_array=self._rgb_pixel_array,
+            photometric_interpretation=photometric_interpretation,
+            bits_allocated=bits_allocated,
+            coordinate_system=coordinate_system,
+            series_instance_uid=self._series_instance_uid,
+            sop_instance_uid=self._sop_instance_uid,
+            series_number=self._series_number,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+            patient_orientation=self._patient_orientation,
+            laterality=self._laterality
+        )
+        assert instance.BitsAllocated == bits_allocated
+        assert instance.SamplesPerPixel == 3
+        assert instance.PlanarConfiguration == 0
+        assert instance.PhotometricInterpretation == photometric_interpretation
+        assert instance.StudyInstanceUID == self._ref_dataset.StudyInstanceUID
+        assert instance.SeriesInstanceUID == self._series_instance_uid
+        assert instance.SOPInstanceUID == self._sop_instance_uid
+        assert instance.SeriesNumber == self._series_number
+        assert instance.InstanceNumber == self._instance_number
+        assert instance.Manufacturer == self._manufacturer
+        assert instance.Laterality == self._laterality
+        assert instance.PatientOrientation == self._patient_orientation
+        assert instance.AccessionNumber == self._ref_dataset.AccessionNumber
+        assert instance.PatientName == self._ref_dataset.PatientName
+        assert instance.PatientSex == self._ref_dataset.PatientSex
+        assert instance.StudyTime == self._ref_dataset.StudyTime
+        assert instance.StudyDate == self._ref_dataset.StudyDate
+        assert instance.StudyID == self._ref_dataset.StudyID
+        assert instance.PixelData == self._rgb_pixel_array.tobytes()

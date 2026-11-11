@@ -28,7 +28,9 @@ from pydicom.uid import (
 )
 
 from highdicom import (
+    AnatomicRegion,
     PaletteColorLUT,
+    PrimaryAnatomicStructure,
     PaletteColorLUTTransformation,
 )
 from highdicom.image import _DimensionIndexSequence
@@ -50,6 +52,7 @@ from highdicom.seg import (
     create_segmentation_pyramid,
     segread,
     SegmentationTypeValues,
+    SegmentedPropertyType,
     SegmentAlgorithmTypeValues,
     Segmentation,
     SegmentDescription,
@@ -165,6 +168,227 @@ class TestAlgorithmIdentificationSequence(unittest.TestCase):
         seq[0].AlgorithmParameters = 'some invalid parameters'
         with pytest.raises(ValueError):
             seq.parameters  # noqa: B018
+
+
+@pytest.mark.parametrize('from_code', [True, False])
+def test_segmented_property_type_no_modifiers(from_code: bool):
+    if from_code:
+        property_type = SegmentedPropertyType(codes.SCT.Tumor)
+    else:
+        property_type = SegmentedPropertyType(
+            CodedConcept.from_code(codes.SCT.Tumor)
+        )
+
+    assert isinstance(property_type, CodedConcept)
+    assert isinstance(property_type.unmodified, CodedConcept)
+    assert not hasattr(
+        property_type,
+        'SegmentedPropertyTypeModifierCodeSequence'
+    )
+    assert property_type.unmodified == codes.SCT.Tumor
+    assert property_type.modifiers == ()
+    assert property_type.value == codes.SCT.Tumor.value
+    assert property_type.meaning == codes.SCT.Tumor.meaning
+    assert property_type.scheme_designator == codes.SCT.Tumor.scheme_designator
+
+
+@pytest.mark.parametrize('from_code', [True, False])
+def test_segmented_property_type_with_modifiers(from_code: bool):
+    if from_code:
+        property_type = SegmentedPropertyType(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Left],
+        )
+    else:
+        property_type = SegmentedPropertyType(
+            CodedConcept.from_code(codes.SCT.Kidney),
+            modifiers=[CodedConcept.from_code(codes.SCT.Left)],
+        )
+
+    assert isinstance(property_type, CodedConcept)
+    assert isinstance(property_type.unmodified, CodedConcept)
+    assert hasattr(
+        property_type,
+        'SegmentedPropertyTypeModifierCodeSequence'
+    )
+    assert len(property_type.SegmentedPropertyTypeModifierCodeSequence) == 1
+    assert property_type.unmodified == codes.SCT.Kidney
+    assert property_type.modifiers == (codes.SCT.Left, )
+    assert isinstance(property_type.modifiers[0], CodedConcept)
+    assert property_type.value == codes.SCT.Kidney.value
+    assert property_type.meaning == codes.SCT.Kidney.meaning
+    assert property_type.scheme_designator == codes.SCT.Kidney.scheme_designator
+
+
+def test_segmented_property_type_equality_match():
+    property_type_1 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+        modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+    )
+    property_type_2 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+        modifiers=[codes.SCT.Posterior, codes.SCT.Left],  # reverse order
+    )
+    # Test equality operator considers everything equal
+    assert property_type_1 == property_type_1
+    assert property_type_2 == property_type_2
+    assert property_type_1 == property_type_2
+
+    # Test hash operation via comparing sets
+    assert len({property_type_1, property_type_1}) == 1
+    assert len({property_type_1, property_type_2}) == 1
+    assert len({property_type_1, property_type_2}) == 1
+
+
+def test_segmented_property_type_equality_nonmatching():
+    property_type_1 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+        modifiers=[codes.SCT.Left],
+    )
+    property_type_2 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+    )
+
+    # Test equality operator
+    assert property_type_1 != property_type_2
+    assert property_type_1.unmodified == property_type_2.unmodified
+
+    # Test hash operation via comparing sets
+    assert len({property_type_1, property_type_2}) == 2
+
+
+@pytest.mark.parametrize('copy', [True, False])
+def test_segmented_property_type_from_dataset_no_modifiers(copy: bool):
+    ds = Dataset()
+    ds.CodeValue = codes.SCT.Tumor.value
+    ds.CodeMeaning = 'Tumor'
+    ds.CodingSchemeDesignator = 'SCT'
+
+    property_type = SegmentedPropertyType.from_dataset(ds, copy=copy)
+    assert isinstance(property_type, SegmentedPropertyType)
+    assert property_type == codes.SCT.Tumor
+    assert property_type.modifiers == ()
+
+    if copy:
+        assert property_type is not ds
+    else:
+        assert property_type is ds
+
+
+@pytest.mark.parametrize('copy', [True, False])
+def test_segmented_property_type_from_dataset_with_modifiers(copy: bool):
+    ds = Dataset()
+    ds.CodeValue = codes.SCT.Kidney.value
+    ds.CodeMeaning = 'Kidney'
+    ds.CodingSchemeDesignator = 'SCT'
+
+    modifier = Dataset()
+    modifier.CodeValue = codes.SCT.Left.value
+    modifier.CodeMeaning = 'Left'
+    modifier.CodingSchemeDesignator = 'SCT'
+
+    ds.SegmentedPropertyTypeModifierCodeSequence = [modifier]
+
+    property_type = SegmentedPropertyType.from_dataset(ds, copy=copy)
+    assert isinstance(property_type, SegmentedPropertyType)
+    assert property_type.unmodified == codes.SCT.Kidney
+    assert property_type.modifiers == (codes.SCT.Left, )
+
+    if copy:
+        assert property_type is not ds
+        assert (
+            property_type.SegmentedPropertyTypeModifierCodeSequence[0]
+            is not
+            ds.SegmentedPropertyTypeModifierCodeSequence[0]
+        )
+    else:
+        assert property_type is ds
+        assert (
+            property_type.SegmentedPropertyTypeModifierCodeSequence[0]
+            is
+            ds.SegmentedPropertyTypeModifierCodeSequence[0]
+        )
+
+
+@pytest.mark.parametrize(
+    'cls,seq_name',
+    [
+        (AnatomicRegion, 'AnatomicRegionModifierSequence'),
+        (
+            PrimaryAnatomicStructure,
+            'PrimaryAnatomicStructureModifierSequence',
+        ),
+    ]
+)
+def test_modified_code_subclasses(cls, seq_name):
+    plain = cls(codes.SCT.Kidney)
+    assert plain.modifiers == ()
+    assert not hasattr(plain, seq_name)
+
+    modified = cls(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+    assert len(getattr(modified, seq_name)) == 1
+    assert modified.modifiers == (codes.SCT.Left, )
+    assert modified.unmodified == codes.SCT.Kidney
+    assert modified != plain
+    assert cls.from_code(modified) is modified
+    assert isinstance(cls.from_code(codes.SCT.Kidney), cls)
+
+
+def test_modified_code_invalid_arguments():
+    with pytest.raises(TypeError):
+        SegmentedPropertyType('not a code')
+    with pytest.raises(TypeError):
+        SegmentedPropertyType(codes.SCT.Kidney, modifiers=['not a code'])
+
+
+def test_modified_code_from_other_modified_class_rejected():
+    modified = SegmentedPropertyType(
+        codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+    )
+    with pytest.raises(TypeError):
+        AnatomicRegion(modified)
+    with pytest.raises(TypeError):
+        AnatomicRegion.from_code(modified)
+    # Even without modifiers, a different class is rejected for consistency
+    with pytest.raises(TypeError):
+        PrimaryAnatomicStructure(SegmentedPropertyType(codes.SCT.Kidney))
+
+
+def test_modified_code_from_same_class_keeps_modifiers():
+    modified = SegmentedPropertyType(
+        codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+    )
+    copied = SegmentedPropertyType(modified)
+    assert copied == modified
+    assert copied.modifiers == (codes.SCT.Left, )
+
+    extended = SegmentedPropertyType(
+        modified, modifiers=[codes.SCT.Posterior]
+    )
+    assert extended.modifiers == (codes.SCT.Left, codes.SCT.Posterior)
+    # The original is not altered
+    assert modified.modifiers == (codes.SCT.Left, )
+
+
+def test_modified_code_modifiers_not_copied_on_access():
+    modified = SegmentedPropertyType(
+        codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+    )
+    assert modified.modifiers[0] is modified.modifiers[0]
+
+
+def test_modified_code_equality_different_classes():
+    # The class of a modified code does not affect equality
+    a = SegmentedPropertyType(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+    b = AnatomicRegion(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+    assert a == b
+    assert b == a
+    assert len({a, b}) == 1
+    assert a != AnatomicRegion(codes.SCT.Kidney)
+    assert a != 'kidney'
+    # Unmodified compares equal to plain codes
+    assert SegmentedPropertyType(codes.SCT.Kidney) == codes.SCT.Kidney
+    assert a != codes.SCT.Kidney
 
 
 class TestSegmentDescription(unittest.TestCase):
@@ -398,6 +622,122 @@ class TestSegmentDescription(unittest.TestCase):
                 self._algorithm_identification,
                 tracking_uid=self._tracking_uid,
             )
+
+    def _make_segment_description(self, **kwargs):
+        args = {
+            'segment_number': 1,
+            'segment_label': 'label',
+            'segmented_property_category': self._segmented_property_category,
+            'segmented_property_type': codes.SCT.Neoplasm,
+            'algorithm_type': 'MANUAL',
+        }
+        args.update(kwargs)
+        return SegmentDescription(**args)
+
+    def test_plain_codes_are_converted(self):
+        item = self._make_segment_description(
+            anatomic_regions=[codes.SCT.Thorax],
+            primary_anatomic_structures=[codes.SCT.Lung],
+        )
+        assert isinstance(item.segmented_property_type, SegmentedPropertyType)
+        assert isinstance(item.anatomic_regions[0], AnatomicRegion)
+        assert isinstance(
+            item.primary_anatomic_structures[0], PrimaryAnatomicStructure
+        )
+        assert item.segmented_property_type.modifiers == ()
+
+    def test_modifiers(self):
+        item = self._make_segment_description(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+            ),
+            anatomic_regions=[
+                AnatomicRegion(codes.SCT.Thorax, modifiers=[codes.SCT.Right]),
+                codes.SCT.Abdomen,
+            ],
+            primary_anatomic_structures=[
+                PrimaryAnatomicStructure(
+                    codes.SCT.Lung, modifiers=[codes.SCT.Left]
+                ),
+            ],
+        )
+        ptype = item.SegmentedPropertyTypeCodeSequence[0]
+        assert ptype.modifiers == (codes.SCT.Left, )
+        assert len(ptype.SegmentedPropertyTypeModifierCodeSequence) == 1
+        assert item.anatomic_regions[0].modifiers == (codes.SCT.Right, )
+        assert item.anatomic_regions[1].modifiers == ()
+        assert len(
+            item.AnatomicRegionSequence[0].AnatomicRegionModifierSequence
+        ) == 1
+        assert item.primary_anatomic_structures[0].modifiers == (
+            codes.SCT.Left,
+        )
+
+    def test_empty_sequences_omitted(self):
+        item = self._make_segment_description(
+            anatomic_regions=[],
+            primary_anatomic_structures=[],
+        )
+        assert not hasattr(item, 'AnatomicRegionSequence')
+        assert not hasattr(item, 'PrimaryAnatomicStructureSequence')
+        assert item.anatomic_regions == []
+        assert item.primary_anatomic_structures == []
+
+    def test_wrong_modified_type_category(self):
+        with pytest.raises(TypeError):
+            self._make_segment_description(
+                segmented_property_category=SegmentedPropertyType(
+                    self._segmented_property_category
+                )
+            )
+
+    def test_wrong_modified_type_property_type(self):
+        with pytest.raises(TypeError):
+            self._make_segment_description(
+                segmented_property_type=AnatomicRegion(codes.SCT.Kidney)
+            )
+
+    def test_wrong_modified_type_anatomic_region(self):
+        with pytest.raises(TypeError):
+            self._make_segment_description(
+                anatomic_regions=[PrimaryAnatomicStructure(codes.SCT.Lung)]
+            )
+
+    def test_wrong_modified_type_primary_anatomic_structure(self):
+        with pytest.raises(TypeError):
+            self._make_segment_description(
+                primary_anatomic_structures=[AnatomicRegion(codes.SCT.Lung)]
+            )
+
+    def test_from_dataset_round_trip(self):
+        item = self._make_segment_description(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+            ),
+            anatomic_regions=[
+                AnatomicRegion(codes.SCT.Thorax, modifiers=[codes.SCT.Right]),
+            ],
+            primary_anatomic_structures=[
+                PrimaryAnatomicStructure(
+                    codes.SCT.Lung, modifiers=[codes.SCT.Left]
+                ),
+            ],
+        )
+        ds = Dataset()
+        ds.SegmentSequence = [item]
+        ds = write_and_read_dataset(ds)
+        desc = SegmentDescription.from_dataset(ds.SegmentSequence[0])
+
+        assert isinstance(desc.segmented_property_type, SegmentedPropertyType)
+        assert desc.segmented_property_type.modifiers == (codes.SCT.Left, )
+        assert isinstance(desc.anatomic_regions[0], AnatomicRegion)
+        assert desc.anatomic_regions[0].modifiers == (codes.SCT.Right, )
+        assert isinstance(
+            desc.primary_anatomic_structures[0], PrimaryAnatomicStructure
+        )
+        assert desc.primary_anatomic_structures[0].modifiers == (
+            codes.SCT.Left,
+        )
 
 
 class TestPixelMeasuresSequence(unittest.TestCase):
@@ -4993,6 +5333,198 @@ class TestSegmentationParsing:
             algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC
         )
         assert seg_nums == list(self._sm_control_seg.segment_numbers)
+
+    def _modified_property_type_seg(self):
+        """Copy of the control seg with modifiers on segments 2, 3 and 4.
+
+        Segment 1 and 5-20: ConnectiveTissue (no modifiers)
+        Segment 2: ConnectiveTissue + Left
+        Segment 3: ConnectiveTissue + Left + Posterior
+        Segment 4: ConnectiveTissue + Posterior
+        """
+        seg = deepcopy(self._sm_control_seg)
+        modifiers = {
+            2: [codes.SCT.Left],
+            3: [codes.SCT.Left, codes.SCT.Posterior],
+            4: [codes.SCT.Posterior],
+        }
+        for desc in seg.SegmentSequence:
+            if desc.segment_number in modifiers:
+                desc.SegmentedPropertyTypeCodeSequence = [
+                    SegmentedPropertyType(
+                        codes.SCT.ConnectiveTissue,
+                        modifiers=modifiers[desc.segment_number],
+                    )
+                ]
+        return seg
+
+    def test_segmented_property_types_unmodified(self):
+        types = self._sm_control_seg.segmented_property_types
+        assert len(types) == 1
+        assert isinstance(types[0], SegmentedPropertyType)
+        assert types[0] == codes.SCT.ConnectiveTissue
+        assert types[0].modifiers == ()
+
+    def test_segmented_property_types_modified(self):
+        seg = self._modified_property_type_seg()
+        types = seg.segmented_property_types
+
+        assert all(isinstance(t, SegmentedPropertyType) for t in types)
+        # Unique by root code and modifiers: plain, Left, Left+Posterior,
+        # Posterior
+        assert len(types) == 4
+        assert SegmentedPropertyType(codes.SCT.ConnectiveTissue) in types
+        assert SegmentedPropertyType(
+            codes.SCT.ConnectiveTissue, modifiers=[codes.SCT.Left]
+        ) in types
+        assert SegmentedPropertyType(
+            codes.SCT.ConnectiveTissue, modifiers=[codes.SCT.Posterior]
+        ) in types
+        assert SegmentedPropertyType(
+            codes.SCT.ConnectiveTissue,
+            modifiers=[codes.SCT.Posterior, codes.SCT.Left],
+        ) in types
+        assert all(
+            t.unmodified == codes.SCT.ConnectiveTissue for t in types
+        )
+
+    def test_segmented_property_types_modified_parsed_from_file(self):
+        seg = self._modified_property_type_seg()
+        seg = Segmentation.from_dataset(write_and_read_dataset(seg))
+        types = seg.segmented_property_types
+        assert len(types) == 4
+        assert all(isinstance(t, SegmentedPropertyType) for t in types)
+        assert sum(len(t.modifiers) for t in types) == 4
+
+    def test_get_segment_numbers_plain_code_ignores_modifiers(self):
+        seg = self._modified_property_type_seg()
+        for query in [
+            codes.SCT.ConnectiveTissue,
+            CodedConcept.from_code(codes.SCT.ConnectiveTissue),
+        ]:
+            seg_nums = seg.get_segment_numbers(
+                segmented_property_type=query
+            )
+            assert seg_nums == list(range(1, 21))
+
+        assert seg.get_segment_numbers(
+            segmented_property_type=codes.SCT.Lung
+        ) == []
+
+    def test_get_segment_numbers_modified_type_no_modifiers(self):
+        seg = self._modified_property_type_seg()
+        seg_nums = seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue
+            )
+        )
+        assert seg_nums == [1] + list(range(5, 21))
+
+    def test_get_segment_numbers_modified_type_single_modifier(self):
+        seg = self._modified_property_type_seg()
+        seg_nums = seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Left],
+            )
+        )
+        assert seg_nums == [2]
+
+    def test_get_segment_numbers_modified_type_multiple_modifiers(self):
+        seg = self._modified_property_type_seg()
+        # Order of modifiers is not significant
+        for modifiers in (
+            [codes.SCT.Left, codes.SCT.Posterior],
+            [codes.SCT.Posterior, codes.SCT.Left],
+        ):
+            seg_nums = seg.get_segment_numbers(
+                segmented_property_type=SegmentedPropertyType(
+                    codes.SCT.ConnectiveTissue,
+                    modifiers=modifiers,
+                )
+            )
+            assert seg_nums == [3]
+
+    def test_get_segment_numbers_modified_type_no_match(self):
+        seg = self._modified_property_type_seg()
+        # Wrong root code
+        assert seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.Lung,
+                modifiers=[codes.SCT.Left],
+            )
+        ) == []
+        # Modifier not present on any segment
+        assert seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Right],
+            )
+        ) == []
+        # Superset of a segment's modifiers does not match
+        assert seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[
+                    codes.SCT.Left, codes.SCT.Posterior, codes.SCT.Right
+                ],
+            )
+        ) == []
+
+    def test_get_segment_numbers_modified_type_combined_filters(self):
+        seg = self._modified_property_type_seg()
+        seg_nums = seg.get_segment_numbers(
+            segmented_property_category=codes.SCT.Tissue,
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Posterior],
+            ),
+            algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
+        )
+        assert seg_nums == [4]
+
+        seg_nums = seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Posterior],
+            ),
+            tracking_id=seg.get_segment_description(1).tracking_id,
+        )
+        assert seg_nums == []
+
+    def test_get_segment_numbers_modified_type_parsed_from_file(self):
+        # Modifiers survive a write/read round trip through the dataset
+        seg = self._modified_property_type_seg()
+        seg = Segmentation.from_dataset(write_and_read_dataset(seg))
+        seg_nums = seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Left],
+            )
+        )
+        assert seg_nums == [2]
+        assert seg.get_segment_numbers(
+            segmented_property_type=codes.SCT.ConnectiveTissue
+        ) == list(range(1, 21))
+
+    def test_get_tracking_ids_modified_type(self):
+        seg = self._modified_property_type_seg()
+
+        # Plain code matches ignoring modifiers
+        assert len(seg.get_tracking_ids(
+            segmented_property_type=codes.SCT.ConnectiveTissue
+        )) == 20
+
+        tracking_id_tuples = seg.get_tracking_ids(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Left],
+            )
+        )
+        desc2 = seg.get_segment_description(2)
+        assert tracking_id_tuples == [
+            (desc2.tracking_id, desc2.tracking_uid)
+        ]
 
     def test_get_tracking_ids(self):
         desc1 = self._sm_control_seg.get_segment_description(1)

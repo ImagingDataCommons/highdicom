@@ -431,7 +431,7 @@ class ContentSequence(DataElementSequence):
                 return index
         raise ValueError(f'Item "{val.name}" is not in Sequence.')
 
-    def find(self, name: Code | CodedConcept) -> Self:
+    def find(self, name: Code | CodedConcept) -> 'ContentSequence':
         """Find contained content items given their name.
 
         Parameters
@@ -447,11 +447,11 @@ class ContentSequence(DataElementSequence):
         """
         return ContentSequence(
             self._lut[name],
-            is_root=False,
+            is_root=self._is_root,
             is_sr=self._is_sr
         )
 
-    def get_nodes(self) -> Self:
+    def get_nodes(self) -> 'ContentSequence':
         """Get content items that represent nodes in the content tree.
 
         A node is hereby defined as a content item that has a `ContentSequence`
@@ -463,10 +463,11 @@ class ContentSequence(DataElementSequence):
             Matched content items
 
         """
-        return self.__class__([
-            item for item in self
-            if hasattr(item, 'ContentSequence')
-        ])
+        return ContentSequence(
+            [item for item in self if hasattr(item, 'ContentSequence')],
+            is_root=self._is_root,
+            is_sr=self._is_sr,
+        )
 
     def append(self, val: ContentItem) -> None:  # type: ignore[override]
         """Append a content item to the sequence.
@@ -554,18 +555,23 @@ class ContentSequence(DataElementSequence):
                 'must have type ContentItem.'
             )
         if self._is_root:
-            if val.relationship_type is not None:
+            if self._is_sr and val.relationship_type is not None:
                 raise AttributeError(
                     f'Items to be included in a {self.__class__.__name__} '
                     'that is the root of the SR content tree must not have '
                     'relationship type.'
                 )
         else:
-            if val.relationship_type is None:
+            if self._is_sr and val.relationship_type is None:
                 raise AttributeError(
                     f'Items to be inserted into to a {self.__class__.__name__} '
                     'must have an established relationship type.'
                 )
+        if not self._is_sr and val.relationship_type is not None:
+            raise AttributeError(
+                'Item of content of acquisition, protocol, or workflow '
+                'context must have no Relationship Type.'
+            )
         self._lut[val.name].append(val)
         super().insert(position, val)
 
@@ -1901,6 +1907,21 @@ class TcoordContentItem(ContentItem):
         )
         temporal_range_type = TemporalRangeTypeValues(temporal_range_type)
         self.TemporalRangeType = temporal_range_type.value
+
+        n_provided_params = sum(
+            p is not None for p in [
+                referenced_sample_positions,
+                referenced_time_offsets,
+                referenced_date_time,
+            ]
+        )
+        if n_provided_params != 1:
+            raise TypeError(
+                "Exactly one of the following parameters should be provided "
+                f"(got {n_provided_params}): 'referenced_sample_positions' ",
+                "'referenced_time_offsets', 'referenced_date_time'."
+            )
+
         if referenced_sample_positions is not None:
             self.ReferencedSamplePositions = [
                 int(v) for v in referenced_sample_positions
@@ -1926,12 +1947,16 @@ class TcoordContentItem(ContentItem):
         """Union[List[int], List[float], List[datetime.datetime]]: time points
         """
         try:
-            return self.ReferencedSamplePositions
+            value = self.ReferencedSamplePositions
         except AttributeError:
             try:
-                return self.ReferencedTimeOffsets
+                value = self.ReferencedTimeOffsets
             except AttributeError:
-                return self.ReferencedDateTime
+                value = self.ReferencedDateTime
+
+        if value is None or isinstance(value, (MultiValue, list, np.ndarray)):
+            return value
+        return [value]
 
     @property
     def temporal_range_type(self) -> TemporalRangeTypeValues:
@@ -2011,8 +2036,8 @@ class WaveformContentItem(ContentItem):
         if referenced_waveform_channels is not None:
             item.ReferencedWaveformChannels = [
                 i
-                for item in referenced_waveform_channels
-                for i in item
+                for channel in referenced_waveform_channels
+                for i in channel
             ]
         self.ReferencedSOPSequence = [item]
 

@@ -41,7 +41,7 @@ from highdicom.pixels import (
     apply_voi_window,
 )
 from highdicom.sr.enum import ValueTypeValues
-from highdicom.sr.coding import CodedConcept
+from highdicom.sr.coding import CodedConcept, _ModifiedCodedConcept
 from highdicom.sr.value_types import (
     CodeContentItem,
     ContentSequence,
@@ -62,6 +62,39 @@ from highdicom._standard_utils import (
     does_iod_have_pixel_data,
     is_multiframe_image,
 )
+
+
+class AnatomicRegion(_ModifiedCodedConcept):
+    """Dataset describing the anatomic region into which an image or annotation
+    falls.
+
+    This class may be used instead of a plain
+    :class:`highdicom.sr.CodedConcept` in order to include modifier codes that
+    describe characteristics of the anatomic, such as laterality.
+
+    See :dcm:`CID 4 <part16/sect_CID_4.html>` "Anatomic Region", :dcm:`CID 4031
+    <part16/sect_CID_4031.html>` "Common Anatomic Regions", as as well as other
+    domain-specific CIDs where this class is used for appropriate context
+    groups for the root concept, and :dcm:`CID 2 <part16/sect_CID_2.html>`
+    "Anatomic Modifier" for the context group for modifier codes.
+
+    """
+    _MODIFIER_SEQUENCE_NAME = "AnatomicRegionModifierSequence"
+
+
+class PrimaryAnatomicStructure(_ModifiedCodedConcept):
+    """Dataset describing the property a segmentation represents.
+
+    This class may be used instead of a plain
+    :class:`highdicom.sr.CodedConcept` in order to include modifier codes that
+    describe characteristics of the segmented property, such as laterality.
+
+    See domain-specific context groups where this class is used for the
+    appropriate context group and :dcm:`CID 2 <part16/sect_CID_2.html>`
+    "Anatomic Modifier" for the context group for modifier codes.
+
+    """
+    _MODIFIER_SEQUENCE_NAME = "PrimaryAnatomicStructureModifierSequence"
 
 
 class AlgorithmIdentificationSequence(DataElementSequence):
@@ -282,7 +315,9 @@ class ContentCreatorIdentificationCodeSequence(DataElementSequence):
                     'pydicom.sr.coding.Code or '
                     'highdicom.sr.CodedConcept.'
                 )
-            item.InstitutionCodeSequence = [institution_code]
+            item.InstitutionCodeSequence = [
+                CodedConcept.from_code(institution_code)
+            ]
 
         if person_address is not None:
             _check_short_text(person_address)
@@ -1974,7 +2009,7 @@ class LUT(Dataset):
             dtype = np.uint16
         else:
             raise RuntimeError("Invalid LUT descriptor.")
-        length = self.LUTDescriptor[0]
+        length = self.number_of_entries
         data = self.LUTData
 
         # Account for a zero-padding byte in the case of an 8 bit LUT
@@ -2061,7 +2096,6 @@ class LUT(Dataset):
         else:
             dataset_copy = dataset
 
-        dataset_copy = dataset
         dataset_copy.__class__ = cls
         return cast(Self, dataset_copy)
 
@@ -2619,8 +2653,10 @@ class ModalityLUTTransformation(Dataset):
                     'Argument "rescale_type" must be specified when '
                     '"modality_lut" is not specified.'
                 )
-            self.RescaleIntercept = format_number_as_ds(rescale_intercept)
-            self.RescaleSlope = format_number_as_ds(rescale_slope)
+            self.RescaleIntercept = format_number_as_ds(
+                float(rescale_intercept)
+            )
+            self.RescaleSlope = format_number_as_ds(float(rescale_slope))
             if isinstance(rescale_type, RescaleTypeValues):
                 self.RescaleType = rescale_type.value
             else:

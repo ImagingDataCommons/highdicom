@@ -1102,6 +1102,33 @@ def test_empty_rescale_slope_intercept_behaves_as_missing():
             assert tf._effective_slope_intercept is None
 
 
+@pytest.mark.parametrize('lazy', [False, True])
+def test_get_frame_bits_stored_less_than_bits_allocated(lazy):
+    # 12 bits stored in 16 bits allocated, signed, without sign extension of
+    # the unused high bits: -1 is stored as 0x0FFF
+    dataset = pydicom.dcmread(get_testdata_file('MR_small.dcm'))
+    dataset.BitsStored = 12
+    dataset.HighBit = 11
+    dataset.PixelRepresentation = 1
+    stored = np.full((dataset.Rows, dataset.Columns), 0x0FFF, np.uint16)
+    stored[0, :] = 0x07FF
+    dataset.PixelData = stored.tobytes()
+    expected = dataset.pixel_array
+    assert expected[0, 0] == 2047
+    assert expected[1, 0] == -1
+
+    buf = BytesIO()
+    dataset.save_as(buf)
+    buf.seek(0)
+    im = imread(buf, lazy_frame_retrieval=lazy)
+
+    assert np.array_equal(im.get_stored_frame(1), expected)
+    assert np.array_equal(
+        im.get_frame(1, apply_modality_transform=False),
+        expected,
+    )
+
+
 def test_get_volume_multiframe_ct():
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
     volume = im.get_volume()
@@ -1376,6 +1403,65 @@ def test_instantiation():
     )
     with pytest.raises(RuntimeError, match=msg):
         Image()
+
+
+@pytest.mark.parametrize('dtype', [np.uint16, np.float32, np.float64])
+@pytest.mark.parametrize('lazy_frame_retrieval', [False, True])
+@pytest.mark.parametrize(
+    'method',
+    ['get_frame', 'get_frames', 'get_stored_frame', 'get_stored_frames'],
+)
+def test_get_frames_pmap_rwvm(dtype, lazy_frame_retrieval, method):
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    source_image = pydicom.dcmread(data_dir / 'test_files/ct_image.dcm')
+    pixel_array = np.resize(
+        np.arange(4, dtype=dtype),
+        (source_image.Rows, source_image.Columns),
+    )
+    mapping = RealWorldValueMapping(
+        lut_label='TEST',
+        lut_explanation='Linear map',
+        unit=codes.UCUM.NoUnits,
+        value_range=(0, 3) if dtype == np.uint16 else (0.0, 3.0),
+        slope=2,
+        intercept=1,
+    )
+    pmap = ParametricMap(
+        source_images=[source_image],
+        pixel_array=pixel_array,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        manufacturer='Test',
+        manufacturer_model_name='Test',
+        software_versions='1',
+        device_serial_number='1',
+        contains_recognizable_visual_features=False,
+        real_world_value_mappings=[mapping],
+        voi_lut_transformations=[
+            VOILUTTransformation(window_center=2, window_width=4),
+        ],
+    )
+    stream = BytesIO()
+    pmap.save_as(stream, enforce_file_format=True)
+    image = imread(
+        BytesIO(stream.getvalue()),
+        lazy_frame_retrieval=lazy_frame_retrieval,
+    )
+
+    args = () if method.endswith('frames') else (1,)
+    values = getattr(image, method)(*args)
+    if 'stored' in method:
+        expected = pixel_array
+        assert values.dtype == dtype
+    else:
+        expected = pixel_array.astype(np.float64) * 2 + 1
+        assert values.dtype == np.float64
+    if method.endswith('frames'):
+        expected = expected[None]
+    np.testing.assert_array_equal(values, expected)
 
 
 def test_get_frames():

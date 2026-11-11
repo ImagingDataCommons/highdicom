@@ -40,6 +40,7 @@ from highdicom import (
     VOILUTTransformation,
     VOILUTFunctionValues,
 )
+from highdicom.pixels import apply_voi_window
 from highdicom.sr.value_types import (
     CodeContentItem,
     TextContentItem,
@@ -122,6 +123,22 @@ class TestContentCreatorIdentification(TestCase):
         department_code = \
             creator_id_item.InstitutionalDepartmentTypeCodeSequence[0]
         assert (department_code.CodeValue == self._department_code.value)
+
+    def test_construction_institution_code_from_code(self):
+        institution_code = Code(
+            value='1',
+            meaning='MGH',
+            scheme_designator='HOSPITAL_NAMES',
+        )
+        creator_id = ContentCreatorIdentificationCodeSequence(
+            person_identification_codes=self._person_codes,
+            institution_name=self._institution_name,
+            institution_code=institution_code,
+        )
+        institution_item = creator_id[0].InstitutionCodeSequence[0]
+        assert isinstance(institution_item, CodedConcept)
+        assert institution_item.CodeValue == institution_code.value
+        assert institution_item.CodeMeaning == institution_code.meaning
 
 
 class TestContributingEquipment:
@@ -356,6 +373,76 @@ class TestLUT(TestCase):
         assert lut.LUTExplanation == self._explanation
 
 
+@pytest.mark.parametrize('dtype', [np.uint8, np.uint16])
+@pytest.mark.parametrize('length', [1, 3, 256, 65535, 65536])
+def test_lut_descriptor_length(dtype, length):
+    data = np.arange(length, dtype=np.uint16).astype(dtype)
+    lut = LUT(first_mapped_value=0, lut_data=data)
+
+    assert lut.LUTDescriptor[0] == (0 if length == 65536 else length)
+    assert lut.number_of_entries == length
+    assert lut.lut_data.dtype == dtype
+    np.testing.assert_array_equal(lut.lut_data, data)
+    np.testing.assert_array_equal(
+        lut.apply(np.array([0, length - 1])),
+        data[[0, -1]],
+    )
+
+
+@pytest.mark.parametrize('dtype', [np.uint8, np.uint16])
+def test_lut_from_dataset_maximum_length(dtype):
+    data = np.arange(65536, dtype=np.uint16).astype(dtype)
+    dataset = Dataset()
+    dataset.LUTDescriptor = [0, 0, np.dtype(dtype).itemsize * 8]
+    dataset.LUTData = data.tobytes()
+
+    lut = LUT.from_dataset(dataset)
+
+    assert lut.number_of_entries == 65536
+    assert lut.lut_data.dtype == dtype
+    np.testing.assert_array_equal(lut.lut_data, data)
+
+
+@pytest.mark.parametrize('dtype', [np.uint8, np.uint16])
+def test_lut_maximum_length_truncated_data(dtype):
+    data = np.arange(65536, dtype=np.uint16).astype(dtype)
+    lut = LUT(first_mapped_value=0, lut_data=data)
+    lut.LUTData = data[:-1].tobytes()
+
+    with pytest.raises(RuntimeError, match='Length of LUTData'):
+        _ = lut.lut_data
+
+
+@pytest.mark.parametrize('copy', [None, True, False])
+def test_lut_from_dataset_copy(copy):
+    data = np.array([10, 20], dtype=np.uint16)
+    dataset = Dataset()
+    dataset.LUTDescriptor = [2, 0, 16]
+    dataset.LUTData = data.tobytes()
+
+    if copy is None:
+        lut = LUT.from_dataset(dataset)
+    else:
+        lut = LUT.from_dataset(dataset, copy=copy)
+
+    assert isinstance(lut, LUT)
+    np.testing.assert_array_equal(lut.lut_data, data)
+    if copy is False:
+        assert lut is dataset
+    else:
+        assert lut is not dataset
+        assert type(dataset) is Dataset
+
+    lut.LUTDescriptor[1] = 4
+    lut.LUTData = np.array([30, 40], dtype=np.uint16).tobytes()
+    if copy is False:
+        assert dataset.LUTDescriptor == [2, 4, 16]
+        assert dataset.LUTData == lut.LUTData
+    else:
+        assert dataset.LUTDescriptor == [2, 0, 16]
+        assert dataset.LUTData == data.tobytes()
+
+
 class TestModalityLUT(TestCase):
 
     def setUp(self):
@@ -576,6 +663,18 @@ class TestModalityLUTTransformation(TestCase):
         )
         with pytest.raises(ValueError, match=msg):
             transf.apply(self._input_array.astype(np.float32), dtype=np.int64)
+
+    def test_with_scale_int(self):
+        transf = ModalityLUTTransformation(
+            rescale_type=RescaleTypeValues.HU,
+            rescale_slope=1,
+            rescale_intercept=-1024,
+        )
+        assert transf.RescaleSlope == 1.0
+        assert transf.RescaleIntercept == -1024.0
+
+        out = transf.apply(self._input_array)
+        assert np.array_equal(out, self._input_array.astype(float) - 1024)
 
     def test_with_scale_2(self):
         transf = ModalityLUTTransformation(
@@ -1736,6 +1835,74 @@ class TestVOILUTTransformation(TestCase):
         )
         assert np.array_equal(expected, out)
         assert out.dtype == np.float32
+
+    def test_construction_linear_width_one(self):
+        # A width of 1 is a threshold at c - 0.5 (PS3.3 C.11.2.1.2.1)
+        lut = VOILUTTransformation(
+            window_center=100.5,
+            window_width=1.0,
+        )
+        assert lut.WindowWidth == 1.0
+
+        input_array = np.array([99, 100, 101], np.uint16)
+
+        out = lut.apply(array=input_array)
+        assert np.array_equal(out, [0.0, 0.0, 1.0])
+        assert out.dtype == np.float64
+
+        out = lut.apply(
+            array=input_array,
+            output_range=(10.0, 20.0),
+            invert=True,
+            dtype=np.float32,
+        )
+        assert np.array_equal(out, [20.0, 20.0, 10.0])
+        assert out.dtype == np.float32
+
+        # Examples from the standard, for an output range of 0 to 255
+        out = apply_voi_window(
+            np.array([2047.0, 2047.5, 2048.0]),
+            window_center=2048,
+            window_width=1,
+            output_range=(0.0, 255.0),
+        )
+        assert np.array_equal(out, [0.0, 0.0, 255.0])
+        out = apply_voi_window(
+            np.array([-1.0, -0.5, 0.0]),
+            window_center=0,
+            window_width=1,
+            output_range=(0.0, 255.0),
+        )
+        assert np.array_equal(out, [0.0, 0.0, 255.0])
+
+    def test_apply_voi_window_invalid_width(self):
+        # PS3.3 C.11.2.1.2.1 and C.11.2.1.3
+        cases = [
+            ('LINEAR', 0.5),
+            ('LINEAR', 0.0),
+            ('LINEAR_EXACT', 0.0),
+            ('LINEAR_EXACT', -1.0),
+            ('SIGMOID', 0.0),
+            ('SIGMOID', -1.0),
+        ]
+        for voi_lut_function, window_width in cases:
+            with pytest.raises(ValueError, match='Window width'):
+                apply_voi_window(
+                    np.array([0.0, 1.0]),
+                    window_center=0.5,
+                    window_width=window_width,
+                    voi_lut_function=voi_lut_function,
+                )
+
+    def test_apply_voi_window_width_below_one(self):
+        for voi_lut_function in ['LINEAR_EXACT', 'SIGMOID']:
+            out = apply_voi_window(
+                np.array([0.0, 0.5, 1.0]),
+                window_center=0.5,
+                window_width=0.5,
+                voi_lut_function=voi_lut_function,
+            )
+            assert np.all(np.isfinite(out))
 
     def test_construction_luts(self):
         lut = VOILUTTransformation(voi_luts=[self._lut])
