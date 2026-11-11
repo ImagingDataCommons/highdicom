@@ -72,6 +72,7 @@ from highdicom.sr import (
     SubjectContextSpecimen,
     TcoordContentItem,
     TextContentItem,
+    TextEvaluation,
     TimeContentItem,
     TimePointContext,
     TrackingIdentifier,
@@ -3728,6 +3729,60 @@ class TestQualitativeEvaluation(unittest.TestCase):
         assert len(parsed[0].ContentSequence) == 1
 
 
+class TestTextEvaluation(unittest.TestCase):
+
+    def setUp(self):
+        self._name = codes.DCM.Impression
+        self._value = 'Likely benign, recommend follow-up in 12 months'
+
+    def test_construction(self):
+        evaluation = TextEvaluation(
+            name=self._name,
+            value=self._value,
+        )
+
+        assert len(evaluation) == 1
+        item = evaluation[0]
+        assert isinstance(item, TextContentItem)
+        assert item.relationship_type == RelationshipTypeValues.CONTAINS
+        assert evaluation.name == self._name
+        assert evaluation.value == self._value
+
+    def test_from_sequence(self):
+        item = Dataset()
+        item.RelationshipType = 'CONTAINS'
+        item.ValueType = 'TEXT'
+        concept_name = Dataset()
+        concept_name.CodeValue = self._name.value
+        concept_name.CodingSchemeDesignator = self._name.scheme_designator
+        concept_name.CodeMeaning = self._name.meaning
+        item.ConceptNameCodeSequence = [concept_name]
+        item.TextValue = self._value
+        sequence = DicomSequence([item])
+
+        parsed = TextEvaluation.from_sequence(sequence)
+
+        assert isinstance(parsed, TextEvaluation)
+        assert parsed.name == self._name
+        assert parsed.value == self._value
+
+    def test_from_sequence_wrong_value_type(self):
+        evaluation = QualitativeEvaluation(
+            name=codes.SCT.AssociatedMorphology,
+            value=codes.SCT.Neoplasm,
+        )
+        with pytest.raises(ValueError):
+            TextEvaluation.from_sequence(evaluation)
+
+    def test_from_sequence_multiple_items(self):
+        evaluation = TextEvaluation(name=self._name, value=self._value)
+        with pytest.raises(
+            ValueError,
+            match='Text Evaluation shall contain only one content item.'
+        ):
+            TextEvaluation.from_sequence([evaluation[0], evaluation[0]])
+
+
 class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
 
     def setUp(self):
@@ -3859,6 +3914,81 @@ class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
             assert len(reevaluations) == 1
             assert len(reevaluations[0].modifiers) == 1
 
+    def test_get_text_evaluations(self):
+        text_evaluations = [
+            TextEvaluation(
+                name=codes.DCM.Impression,
+                value='Likely benign',
+            ),
+            TextEvaluation(
+                name=codes.DCM.Comment,
+                value='Compare with prior study',
+            ),
+        ]
+        # Include other TEXT content items in the group (tracking identifier,
+        # session, time point and algorithm identification), which must not
+        # be returned as text evaluations
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            session='Session 1',
+            time_point_context=TimePointContext(time_point='first'),
+            algorithm_id=AlgorithmIdentification(
+                name='algo',
+                version='1.0',
+            ),
+            measurements=self._measurements,
+            qualitative_evaluations=[
+                QualitativeEvaluation(
+                    name=codes.SCT.AssociatedMorphology,
+                    value=codes.SCT.Neoplasm,
+                ),
+            ],
+            text_evaluations=text_evaluations,
+        )
+        parsed = MeasurementsAndQualitativeEvaluations.from_sequence(template)
+        for group in (template, parsed):
+            evaluations = group.get_text_evaluations()
+            assert len(evaluations) == 2
+            assert all(isinstance(e, TextEvaluation) for e in evaluations)
+            assert evaluations[0].name == codes.DCM.Impression
+            assert evaluations[0].value == 'Likely benign'
+            assert evaluations[1].name == codes.DCM.Comment
+            assert evaluations[1].value == 'Compare with prior study'
+
+            filtered = group.get_text_evaluations(name=codes.DCM.Comment)
+            assert len(filtered) == 1
+            assert filtered[0].value == 'Compare with prior study'
+
+            assert group.get_text_evaluations(name=codes.DCM.Finding) == []
+
+            # Text evaluations must not interfere with coded evaluations
+            assert len(group.get_qualitative_evaluations()) == 1
+
+    def test_get_text_evaluations_empty(self):
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            session='Session 1',
+            measurements=self._measurements,
+        )
+        assert template.get_text_evaluations() == []
+
+    def test_construction_with_text_evaluations_wrong_type(self):
+        msg = (
+            'Items of argument "text_evaluations" must have type '
+            'TextEvaluation.'
+        )
+        with pytest.raises(TypeError, match=msg):
+            MeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                text_evaluations=[
+                    TextContentItem(
+                        name=codes.DCM.Comment,
+                        value='a comment',
+                        relationship_type=RelationshipTypeValues.CONTAINS,
+                    )
+                ],
+            )
+
 
 class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
 
@@ -3957,6 +4087,26 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         root_item = template[0]
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1410'
         assert template.reference_type == codes.DCM.ImageRegion
+
+    def test_construction_with_text_evaluations(self):
+        template = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_region=self._region,
+            text_evaluations=[
+                TextEvaluation(
+                    name=codes.DCM.Comment,
+                    value='Poorly defined margin',
+                ),
+            ],
+        )
+        parsed = PlanarROIMeasurementsAndQualitativeEvaluations.from_sequence(
+            template
+        )
+        for group in (template, parsed):
+            evaluations = group.get_text_evaluations()
+            assert len(evaluations) == 1
+            assert evaluations[0].name == codes.DCM.Comment
+            assert evaluations[0].value == 'Poorly defined margin'
 
     def test_construction_with_region_3d(self):
         template = PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -4207,6 +4357,25 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert all(isinstance(region, ImageRegion) for region in template.roi)
         assert template.referenced_segment is None
         assert template.reference_type == codes.DCM.ImageRegion
+
+    def test_constructed_with_text_evaluations(self):
+        cls = VolumetricROIMeasurementsAndQualitativeEvaluations
+        template = cls(
+            tracking_identifier=self._tracking_identifier,
+            referenced_regions=self._regions,
+            text_evaluations=[
+                TextEvaluation(
+                    name=codes.DCM.Comment,
+                    value='Heterogeneous enhancement',
+                ),
+            ],
+        )
+        parsed = cls.from_sequence(template)
+        for group in (template, parsed):
+            evaluations = group.get_text_evaluations()
+            assert len(evaluations) == 1
+            assert evaluations[0].name == codes.DCM.Comment
+            assert evaluations[0].value == 'Heterogeneous enhancement'
 
     def test_constructed_with_regions_3d(self):
         with pytest.raises(TypeError):
