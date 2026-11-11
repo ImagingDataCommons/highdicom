@@ -42,6 +42,7 @@ from highdicom.pixels import (
 )
 from highdicom.sr.enum import ValueTypeValues
 from highdicom.sr.coding import CodedConcept, _ModifiedCodedConcept
+from highdicom.spatial import _check_image_orientation
 from highdicom.sr.value_types import (
     CodeContentItem,
     ContentSequence,
@@ -696,6 +697,7 @@ class PlaneOrientationSequence(DataElementSequence):
         super().__init__()
         item = Dataset()
         coordinate_system = CoordinateSystemNames(coordinate_system)
+        _check_image_orientation(image_orientation)
         image_orientation_ds = [
             DS(io, auto_format=True) for io in image_orientation
         ]

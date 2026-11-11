@@ -1,6 +1,5 @@
 from pathlib import Path
 from io import BytesIO
-import unittest
 
 import numpy as np
 import pytest
@@ -20,168 +19,209 @@ from highdicom.sc import SCImage
 from highdicom import UID
 from highdicom.frame import decode_frame
 
+from .utils import write_and_read_dataset
 
-class TestSCImage(unittest.TestCase):
 
-    def setUp(self):
-        super().setUp()
-        self._rgb_pixel_array = np.zeros((10, 10, 3), dtype=np.uint8)
-        self._monochrome_pixel_array = np.zeros((10, 10), dtype=np.uint16)
-        self._study_instance_uid = UID()
-        self._series_instance_uid = UID()
-        self._sop_instance_uid = UID()
-        self._series_number = int(np.random.choice(100)) + 1
-        self._instance_number = int(np.random.choice(100)) + 1
-        self._manufacturer = 'ABC'
-        self._laterality = 'L'
-        self._pixel_spacing = [0.5, 0.5]
-        self._patient_orientation = ['A', 'R']
-        self._container_identifier = str(np.random.choice(100))
-        self._specimen_identifier = str(np.random.choice(100))
-        self._specimen_uid = UID()
-        file_path = Path(__file__)
-        data_dir = file_path.parent.parent.joinpath('data')
-        self._ref_dataset = dcmread(
-            str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+def generate_frame(
+    shape: tuple[int, ...],
+    dtype: type,
+    pixel_representation: int,
+    bits_stored: int,
+):
+    rng = np.random.default_rng(0)
+    if pixel_representation == 1:
+        low = -(2 ** (bits_stored - 1))
+        high = 2 ** (bits_stored - 1)
+    else:
+        low = 0
+        high = 2 ** bits_stored - 1
+
+    frame = rng.integers(
+        low, high, shape, dtype=dtype,
+    )
+    # ensure the extremes are exercised
+    frame[0, 0] = low
+    frame[0, 1] = high - 1
+
+    return frame
+
+
+def get_array_after_writing(instance):
+    # Write DICOM object to buffer, read it again and reconstruct the mask
+    with BytesIO() as fp:
+        instance.save_as(fp)
+        fp.seek(0)
+        ds = dcmread(fp)
+
+    decoded_frame_arrays = [
+        decode_frame(
+            value,
+            transfer_syntax_uid=ds.file_meta.TransferSyntaxUID,
+            rows=ds.Rows,
+            columns=ds.Columns,
+            samples_per_pixel=ds.SamplesPerPixel,
+            bits_allocated=ds.BitsAllocated,
+            bits_stored=ds.BitsStored,
+            photometric_interpretation=ds.PhotometricInterpretation,
+            pixel_representation=ds.PixelRepresentation,
+            planar_configuration=getattr(ds, 'PlanarConfiguration', None)
         )
+        for (value, ) in generate_fragmented_frames(instance.PixelData)
+    ]
+    if len(decoded_frame_arrays) > 1:
+        return np.stack(decoded_frame_arrays)
+    return decoded_frame_arrays[0]
 
-    @staticmethod
-    def get_array_after_writing(instance):
-        # Write DICOM object to buffer, read it again and reconstruct the mask
-        with BytesIO() as fp:
-            instance.save_as(fp)
-            fp.seek(0)
-            ds = dcmread(fp)
 
-        decoded_frame_arrays = [
-            decode_frame(
-                value,
-                transfer_syntax_uid=ds.file_meta.TransferSyntaxUID,
-                rows=ds.Rows,
-                columns=ds.Columns,
-                samples_per_pixel=ds.SamplesPerPixel,
-                bits_allocated=ds.BitsAllocated,
-                bits_stored=ds.BitsStored,
-                photometric_interpretation=ds.PhotometricInterpretation,
-                pixel_representation=ds.PixelRepresentation,
-                planar_configuration=getattr(ds, 'PlanarConfiguration', None)
-            )
-            for (value, ) in generate_fragmented_frames(instance.PixelData)
-        ]
-        if len(decoded_frame_arrays) > 1:
-            return np.stack(decoded_frame_arrays)
-        return decoded_frame_arrays[0]
+def test_construct_rgb_patient():
+    study_uid = UID()
+    series_uid = UID()
+    sop_uid = UID()
+    photometric_interpretation = 'RGB'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (10, 10, 3), np.uint8, 0, 8
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=study_uid,
+        series_instance_uid=series_uid,
+        sop_instance_uid=sop_uid,
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        laterality='L',
+        pixel_spacing=(0.5, 0.5),
+    )
+    assert instance.BitsAllocated == 8
+    assert instance.BitsStored == 8
+    assert instance.SamplesPerPixel == 3
+    assert instance.PlanarConfiguration == 0
+    assert instance.PhotometricInterpretation == photometric_interpretation
+    assert instance.StudyInstanceUID == study_uid
+    assert instance.SeriesInstanceUID == series_uid
+    assert instance.SOPInstanceUID == sop_uid
+    assert instance.SeriesNumber == 34
+    assert instance.InstanceNumber == 7
+    assert instance.Manufacturer == 'ABC'
+    assert instance.Laterality == 'L'
+    assert instance.PatientOrientation == ['A', 'R']
+    assert instance.AccessionNumber is None
+    assert instance.PatientName is None
+    assert instance.PatientSex is None
+    assert instance.StudyTime is None
+    assert instance.StudyTime is None
+    assert instance.PixelSpacing == [0.5, 0.5]
+    assert instance.PixelData == frame.tobytes()
+    with pytest.raises(AttributeError):
+        instance.ContainerIdentifier  # noqa: B018
+        instance.SpecimenDescriptionSequence  # noqa: B018
+        instance.ContainerTypeCodeSequence  # noqa: B018
+        instance.IssuerOfTheContainerIdentifierSequence  # noqa: B018
 
-    def test_construct_rgb_patient(self):
-        bits_allocated = 8
+
+def test_construct_rgb_patient_missing_parameter():
+    frame = generate_frame(
+        (10, 10, 3), np.uint8, 0, 8
+    )
+    with pytest.raises(TypeError):
         photometric_interpretation = 'RGB'
         coordinate_system = 'PATIENT'
-        instance = SCImage(
-            pixel_array=self._rgb_pixel_array,
+        SCImage(
+            pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            laterality=self._laterality,
-            pixel_spacing=self._pixel_spacing,
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            sop_instance_uid=UID(),
+            series_number=34,
+            instance_number=7,
+            manufacturer='ABC',
         )
-        assert instance.BitsAllocated == bits_allocated
-        assert instance.SamplesPerPixel == 3
-        assert instance.PlanarConfiguration == 0
-        assert instance.PhotometricInterpretation == photometric_interpretation
-        assert instance.StudyInstanceUID == self._study_instance_uid
-        assert instance.SeriesInstanceUID == self._series_instance_uid
-        assert instance.SOPInstanceUID == self._sop_instance_uid
-        assert instance.SeriesNumber == self._series_number
-        assert instance.InstanceNumber == self._instance_number
-        assert instance.Manufacturer == self._manufacturer
-        assert instance.Laterality == self._laterality
-        assert instance.PatientOrientation == self._patient_orientation
-        assert instance.AccessionNumber is None
-        assert instance.PatientName is None
-        assert instance.PatientSex is None
-        assert instance.StudyTime is None
-        assert instance.StudyTime is None
-        assert instance.PixelSpacing == [0.5, 0.5]
-        assert instance.PixelData == self._rgb_pixel_array.tobytes()
-        with pytest.raises(AttributeError):
-            instance.ContainerIdentifier  # noqa: B018
-            instance.SpecimenDescriptionSequence  # noqa: B018
-            instance.ContainerTypeCodeSequence  # noqa: B018
-            instance.IssuerOfTheContainerIdentifierSequence  # noqa: B018
 
-    def test_construct_rgb_patient_missing_parameter(self):
-        with pytest.raises(TypeError):
-            bits_allocated = 8
-            photometric_interpretation = 'RGB'
-            coordinate_system = 'PATIENT'
-            SCImage(
-                pixel_array=self._rgb_pixel_array,
-                photometric_interpretation=photometric_interpretation,
-                bits_allocated=bits_allocated,
-                coordinate_system=coordinate_system,
-                study_instance_uid=self._study_instance_uid,
-                series_instance_uid=self._series_instance_uid,
-                sop_instance_uid=self._sop_instance_uid,
-                series_number=self._series_number,
-                instance_number=self._instance_number,
-                manufacturer=self._manufacturer,
-            )
 
-    def test_construct_rgb_slide_single_specimen(self):
-        bits_allocated = 8
-        photometric_interpretation = 'RGB'
-        coordinate_system = 'SLIDE'
-        specimen_description = SpecimenDescription(
-            specimen_id=self._specimen_identifier,
-            specimen_uid=self._specimen_uid
-        )
-        instance = SCImage(
-            pixel_array=self._rgb_pixel_array,
+def test_construct_rgb_slide_single_specimen():
+    photometric_interpretation = 'RGB'
+    coordinate_system = 'SLIDE'
+    study_uid = UID()
+    series_uid = UID()
+    sop_uid = UID()
+    specimen_uid = UID()
+    specimen_description = SpecimenDescription(
+        specimen_id='specimen id',
+        specimen_uid=specimen_uid,
+    )
+    frame = generate_frame(
+        (10, 10, 3), np.uint8, 0, 8
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=study_uid,
+        series_instance_uid=series_uid,
+        sop_instance_uid=sop_uid,
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        container_identifier='container id',
+        specimen_descriptions=[specimen_description]
+    )
+    assert instance.BitsAllocated == 8
+    assert instance.BitsStored == 8
+    assert instance.SamplesPerPixel == 3
+    assert instance.PlanarConfiguration == 0
+    assert instance.PhotometricInterpretation == photometric_interpretation
+    assert instance.StudyInstanceUID == study_uid
+    assert instance.SeriesInstanceUID == series_uid
+    assert instance.SOPInstanceUID == sop_uid
+    assert instance.SeriesNumber == 34
+    assert instance.InstanceNumber == 7
+    assert instance.Manufacturer == 'ABC'
+    assert instance.ContainerIdentifier == 'container id'
+    assert len(instance.ContainerTypeCodeSequence) == 1
+    assert len(instance.IssuerOfTheContainerIdentifierSequence) == 0
+    assert len(instance.SpecimenDescriptionSequence) == 1
+    specimen_item = instance.SpecimenDescriptionSequence[0]
+    assert specimen_item.SpecimenIdentifier == 'specimen id'
+    assert specimen_item.SpecimenUID == specimen_uid
+    assert instance.AccessionNumber is None
+    assert instance.PatientName is None
+    assert instance.PatientSex is None
+    assert instance.StudyTime is None
+    assert instance.StudyTime is None
+    assert instance.PixelData == frame.tobytes()
+    with pytest.raises(AttributeError):
+        instance.Laterality  # noqa: B018
+        instance.PatientOrientation  # noqa: B018
+
+
+def test_construct_rgb_slide_single_specimen_missing_parameter():
+    photometric_interpretation = 'RGB'
+    coordinate_system = 'SLIDE'
+    specimen_description = SpecimenDescription(
+        specimen_id='specimen id',
+        specimen_uid=UID()
+    )
+    frame = generate_frame(
+        (10, 10, 3), np.uint8, 0, 8
+    )
+    with pytest.raises(TypeError):
+        SCImage(
+            pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            container_identifier=self._container_identifier,
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            sop_instance_uid=UID(),
+            series_number=34,
+            instance_number=7,
+            manufacturer='ABC',
             specimen_descriptions=[specimen_description]
         )
-        assert instance.BitsAllocated == bits_allocated
-        assert instance.SamplesPerPixel == 3
-        assert instance.PlanarConfiguration == 0
-        assert instance.PhotometricInterpretation == photometric_interpretation
-        assert instance.StudyInstanceUID == self._study_instance_uid
-        assert instance.SeriesInstanceUID == self._series_instance_uid
-        assert instance.SOPInstanceUID == self._sop_instance_uid
-        assert instance.SeriesNumber == self._series_number
-        assert instance.InstanceNumber == self._instance_number
-        assert instance.Manufacturer == self._manufacturer
-        assert instance.ContainerIdentifier == self._container_identifier
-        assert len(instance.ContainerTypeCodeSequence) == 1
-        assert len(instance.IssuerOfTheContainerIdentifierSequence) == 0
-        assert len(instance.SpecimenDescriptionSequence) == 1
-        specimen_item = instance.SpecimenDescriptionSequence[0]
-        assert specimen_item.SpecimenIdentifier == self._specimen_identifier
-        assert specimen_item.SpecimenUID == self._specimen_uid
-        assert instance.AccessionNumber is None
-        assert instance.PatientName is None
-        assert instance.PatientSex is None
-        assert instance.StudyTime is None
-        assert instance.StudyTime is None
-        assert instance.PixelData == self._rgb_pixel_array.tobytes()
-        with pytest.raises(AttributeError):
-            instance.Laterality  # noqa: B018
-            instance.PatientOrientation  # noqa: B018
 
     def test_construct_rgb_slide_with_issuer_of_container_identifier(self):
         issuer = IssuerOfIdentifier('ISSUER')
@@ -231,380 +271,976 @@ class TestSCImage(unittest.TestCase):
                 specimen_descriptions=[specimen_description]
             )
 
-    def test_construct_rgb_slide_single_specimen_missing_parameter_1(self):
-        bits_allocated = 8
-        photometric_interpretation = 'RGB'
-        coordinate_system = 'SLIDE'
-        with pytest.raises(TypeError):
-            SCImage(
-                pixel_array=self._rgb_pixel_array,
-                photometric_interpretation=photometric_interpretation,
-                bits_allocated=bits_allocated,
-                coordinate_system=coordinate_system,
-                study_instance_uid=self._study_instance_uid,
-                series_instance_uid=self._series_instance_uid,
-                sop_instance_uid=self._sop_instance_uid,
-                series_number=self._series_number,
-                instance_number=self._instance_number,
-                manufacturer=self._manufacturer,
-                container_identifier=self._container_identifier,
-            )
 
-    def test_construct_monochrome_patient(self):
-        bits_allocated = 16
-        photometric_interpretation = 'MONOCHROME2'
-        coordinate_system = 'PATIENT'
-        instance = SCImage(
-            pixel_array=self._monochrome_pixel_array,
-            photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
-            coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation
-        )
-        assert instance.BitsAllocated == bits_allocated
-        assert instance.SamplesPerPixel == 1
-        assert instance.PhotometricInterpretation == photometric_interpretation
-        assert instance.StudyInstanceUID == self._study_instance_uid
-        assert instance.SeriesInstanceUID == self._series_instance_uid
-        assert instance.SOPInstanceUID == self._sop_instance_uid
-        assert instance.SeriesNumber == self._series_number
-        assert instance.InstanceNumber == self._instance_number
-        assert instance.Manufacturer == self._manufacturer
-        assert instance.PatientOrientation == self._patient_orientation
-        assert instance.AccessionNumber is None
-        assert instance.PatientName is None
-        assert instance.PatientSex is None
-        assert instance.StudyTime is None
-        assert instance.StudyDate is None
-        assert instance.PixelData == self._monochrome_pixel_array.tobytes()
-        with pytest.raises(AttributeError):
-            instance.ContainerIdentifier  # noqa: B018
-            instance.SpecimenDescriptionSequence  # noqa: B018
-            instance.ContainerTypeCodeSequence  # noqa: B018
-            instance.IssuerOfTheContainerIdentifierSequence  # noqa: B018
-
-    def test_monochrome_rle(self):
-        bits_allocated = 8  # RLE requires multiple of 8 bits
-        photometric_interpretation = 'MONOCHROME2'
-        coordinate_system = 'PATIENT'
-        frame = np.random.randint(0, 256, size=(256, 256), dtype=np.uint8)
-        instance = SCImage(
+def test_construct_rgb_slide_single_specimen_missing_parameter_1():
+    photometric_interpretation = 'RGB'
+    coordinate_system = 'SLIDE'
+    frame = generate_frame(
+        (10, 10, 3), np.uint8, 0, 8
+    )
+    with pytest.raises(TypeError):
+        SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=RLELossless
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            sop_instance_uid=UID(),
+            series_number=34,
+            instance_number=7,
+            manufacturer='ABC',
+            container_identifier='container id',
         )
 
-        assert instance.file_meta.TransferSyntaxUID == RLELossless
 
-        assert np.array_equal(
-            self.get_array_after_writing(instance),
-            frame
+def test_construct_monochrome_patient():
+    study_uid = UID()
+    series_uid = UID()
+    sop_uid = UID()
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (10, 10), np.uint16, 0, 16
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=study_uid,
+        series_instance_uid=series_uid,
+        sop_instance_uid=sop_uid,
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R')
+    )
+    assert instance.BitsAllocated == 16
+    assert instance.BitsStored == 16
+    assert instance.SamplesPerPixel == 1
+    assert instance.PhotometricInterpretation == photometric_interpretation
+    assert instance.StudyInstanceUID == study_uid
+    assert instance.SeriesInstanceUID == series_uid
+    assert instance.SOPInstanceUID == sop_uid
+    assert instance.SeriesNumber == 34
+    assert instance.InstanceNumber == 7
+    assert instance.Manufacturer == 'ABC'
+    assert instance.PatientOrientation == ['A', 'R']
+    assert instance.AccessionNumber is None
+    assert instance.PatientName is None
+    assert instance.PatientSex is None
+    assert instance.StudyTime is None
+    assert instance.StudyDate is None
+    assert instance.PixelData == frame.tobytes()
+    with pytest.raises(AttributeError):
+        instance.ContainerIdentifier  # noqa: B018
+    with pytest.raises(AttributeError):
+        instance.SpecimenDescriptionSequence  # noqa: B018
+    with pytest.raises(AttributeError):
+        instance.ContainerTypeCodeSequence  # noqa: B018
+    with pytest.raises(AttributeError):
+        instance.IssuerOfTheContainerIdentifierSequence  # noqa: B018
+
+
+def test_monochrome_rle():
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (12, 12), np.uint8, 0, 8
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        transfer_syntax_uid=RLELossless
+    )
+
+    assert instance.file_meta.TransferSyntaxUID == RLELossless
+
+    assert np.array_equal(
+        get_array_after_writing(instance),
+        frame
+    )
+
+
+def test_rgb_rle():
+    photometric_interpretation = 'RGB'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (12, 12, 3), np.uint8, 0, 8
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        transfer_syntax_uid=RLELossless
+    )
+
+    assert instance.file_meta.TransferSyntaxUID == RLELossless
+
+    assert np.array_equal(
+        get_array_after_writing(instance),
+        frame
+    )
+
+
+def test_monochrome_jpeg_baseline():
+    pytest.importorskip("libjpeg")
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (12, 12), np.uint8, 0, 8
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        transfer_syntax_uid=JPEGBaseline8Bit
+    )
+
+    assert instance.file_meta.TransferSyntaxUID == JPEGBaseline8Bit
+
+    assert np.allclose(
+        get_array_after_writing(instance),
+        frame,
+        atol=10  # tolerance for lossy compression
+    )
+
+
+def test_rgb_jpeg_baseline():
+    pytest.importorskip("libjpeg")
+    photometric_interpretation = 'YBR_FULL_422'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (12, 12, 3), np.uint8, 0, 8
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        transfer_syntax_uid=JPEGBaseline8Bit
+    )
+
+    assert instance.file_meta.TransferSyntaxUID == JPEGBaseline8Bit
+
+
+def test_monochrome_jpeg2000lossless():
+    pytest.importorskip("openjpeg")
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (32, 32), np.uint8, 0, 8
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        transfer_syntax_uid=JPEG2000Lossless
+    )
+
+    assert instance.file_meta.TransferSyntaxUID == JPEG2000Lossless
+
+    assert np.array_equal(
+        get_array_after_writing(instance),
+        frame
+    )
+
+
+def test_monochrome_jpeg2000():
+    pytest.importorskip("openjpeg")
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (32, 32), np.uint8, 0, 8
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        transfer_syntax_uid=JPEG2000
+    )
+
+    assert instance.file_meta.TransferSyntaxUID == JPEG2000
+
+    assert np.allclose(
+        get_array_after_writing(instance),
+        frame,
+        atol=2
+    )
+
+
+def test_rgb_jpeg2000():
+    pytest.importorskip("openjpeg")
+    photometric_interpretation = 'YBR_RCT'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (32, 32, 3), np.uint8, 0, 8
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        transfer_syntax_uid=JPEG2000Lossless
+    )
+
+    assert instance.file_meta.TransferSyntaxUID == JPEG2000Lossless
+
+    assert np.array_equal(
+        get_array_after_writing(instance),
+        frame
+    )
+
+
+def test_monochrome_jpegls():
+    pytest.importorskip("libjpeg")
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (12, 12), np.uint8, 0, 8
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        transfer_syntax_uid=JPEGLSLossless
+    )
+
+    assert instance.file_meta.TransferSyntaxUID == JPEGLSLossless
+
+    assert np.array_equal(
+        get_array_after_writing(instance),
+        frame
+    )
+
+
+def test_monochrome_jpegls_near_lossless():
+    pytest.importorskip("libjpeg")
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (12, 12), np.uint16, 0, 16
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        transfer_syntax_uid=JPEGLSNearLossless
+    )
+
+    assert instance.file_meta.TransferSyntaxUID == JPEGLSNearLossless
+
+    assert np.allclose(
+        get_array_after_writing(instance),
+        frame,
+        atol=2
+    )
+
+
+def test_rgb_jpegls():
+    pytest.importorskip("libjpeg")
+    photometric_interpretation = 'RGB'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (12, 12, 3), np.uint16, 0, 8
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        transfer_syntax_uid=JPEGLSLossless
+    )
+
+    assert instance.file_meta.TransferSyntaxUID == JPEGLSLossless
+
+    assert np.array_equal(
+        get_array_after_writing(instance),
+        frame
+    )
+
+
+def test_construct_rgb_from_ref_dataset():
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    series_uid = UID()
+    sop_uid = UID()
+
+    ref_dataset = dcmread(
+        str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+    )
+    photometric_interpretation = 'RGB'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (12, 12, 3), np.uint8, 0, 8
+    )
+    instance = SCImage.from_ref_dataset(
+        ref_dataset=ref_dataset,
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        series_instance_uid=series_uid,
+        sop_instance_uid=sop_uid,
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        patient_orientation=('A', 'R'),
+        laterality='L'
+    )
+    assert instance.BitsAllocated == 8
+    assert instance.BitsStored == 8
+    assert instance.SamplesPerPixel == 3
+    assert instance.PlanarConfiguration == 0
+    assert instance.PhotometricInterpretation == photometric_interpretation
+    assert instance.StudyInstanceUID == ref_dataset.StudyInstanceUID
+    assert instance.SeriesInstanceUID == series_uid
+    assert instance.SOPInstanceUID == sop_uid
+    assert instance.SeriesNumber == 34
+    assert instance.InstanceNumber == 7
+    assert instance.Manufacturer == 'ABC'
+    assert instance.Laterality == 'L'
+    assert instance.PatientOrientation == ['A', 'R']
+    assert instance.AccessionNumber == ref_dataset.AccessionNumber
+    assert instance.PatientName == ref_dataset.PatientName
+    assert instance.PatientSex == ref_dataset.PatientSex
+    assert instance.StudyTime == ref_dataset.StudyTime
+    assert instance.StudyDate == ref_dataset.StudyDate
+    assert instance.StudyID == ref_dataset.StudyID
+    assert instance.PixelData == frame.tobytes()
+
+
+@pytest.mark.parametrize(
+    'dtype,pixel_representation,bits_allocated',
+    [
+        (np.bool, 0, 1),
+        (np.uint8, 0, 8),
+        (np.uint16, 0, 16),
+        (np.uint32, 0, 32),
+        (np.int8, 1, 8),
+        (np.int16, 1, 16),
+        (np.int32, 1, 32),
+    ]
+)
+def test_valid_monochrome_datatypes(
+    dtype,
+    pixel_representation,
+    bits_allocated,
+):
+    frame = generate_frame(
+        shape=(64, 64),
+        dtype=dtype,
+        pixel_representation=pixel_representation,
+        bits_stored=bits_allocated,
+    )
+
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation='MONOCHROME2',
+        coordinate_system='PATIENT',
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=1,
+        instance_number=1,
+        manufacturer='Manufacturer',
+        patient_orientation=('A', 'R'),
+    )
+    assert instance.BitsAllocated == bits_allocated
+    assert instance.BitsStored == bits_allocated
+    assert instance.PixelRepresentation == pixel_representation
+
+    reread = write_and_read_dataset(instance)
+    read_frame = reread.pixel_array
+
+    assert np.array_equal(read_frame, frame)
+    assert np.array_equal(instance.get_frame(1), frame)
+
+
+@pytest.mark.parametrize(
+    'dtype,pixel_representation,bits_allocated',
+    [
+        (np.uint64, 0, 64),
+        (np.int64, 1, 64),
+    ]
+)
+def test_invalid_monochrome_datatypes(
+    dtype,
+    pixel_representation,
+    bits_allocated,
+):
+    frame = generate_frame(
+        shape=(64, 64),
+        dtype=dtype,
+        pixel_representation=pixel_representation,
+        bits_stored=bits_allocated,
+    )
+
+    match = 'Pixel array has an unexpected bit depth'
+    with pytest.raises(TypeError, match=match):
+        SCImage(
+            pixel_array=frame,
+            photometric_interpretation='MONOCHROME2',
+            coordinate_system='PATIENT',
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            sop_instance_uid=UID(),
+            series_number=1,
+            instance_number=1,
+            manufacturer='Manufacturer',
+            patient_orientation=('A', 'R'),
         )
 
-    def test_rgb_rle(self):
-        bits_allocated = 8  # RLE requires multiple of 8 bits
-        photometric_interpretation = 'RGB'
-        coordinate_system = 'PATIENT'
-        frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
-        instance = SCImage(
+
+@pytest.mark.parametrize(
+    'dtype,pixel_representation,bits_allocated',
+    [
+        (np.uint8, 0, 8),
+        (np.uint16, 0, 16),
+    ]
+)
+def test_valid_color_datatypes(
+    dtype,
+    pixel_representation,
+    bits_allocated,
+):
+    frame = generate_frame(
+        shape=(64, 64, 3),
+        dtype=dtype,
+        pixel_representation=pixel_representation,
+        bits_stored=bits_allocated,
+    )
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation='RGB',
+        coordinate_system='PATIENT',
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=1,
+        instance_number=1,
+        manufacturer='Manufacturer',
+        patient_orientation=('A', 'R'),
+    )
+    assert instance.BitsAllocated == bits_allocated
+    assert instance.BitsStored == bits_allocated
+    assert instance.PixelRepresentation == pixel_representation
+
+    reread = write_and_read_dataset(instance)
+    read_frame = reread.pixel_array
+
+    assert np.array_equal(read_frame, frame)
+
+
+@pytest.mark.parametrize(
+    'dtype,pixel_representation,bits_allocated',
+    [
+        (np.bool, 0, 1),
+        (np.uint64, 0, 64),
+        (np.int8, 1, 8),
+        (np.int16, 1, 16),
+        (np.int32, 1, 32),
+        (np.int64, 1, 64),
+    ]
+)
+def test_invalid_color_datatypes(
+    dtype,
+    pixel_representation,
+    bits_allocated,
+):
+    frame = generate_frame(
+        shape=(64, 64, 3),
+        dtype=dtype,
+        pixel_representation=pixel_representation,
+        bits_stored=bits_allocated,
+    )
+
+    if frame.dtype.kind == 'u':
+        match = 'Pixel array has an unexpected bit depth'
+    else:
+        match = (
+            'Pixel array must have an unsigned integer datatype for color '
+            'images'
+        )
+
+    with pytest.raises(TypeError, match=match):
+        SCImage(
+            pixel_array=frame,
+            photometric_interpretation='RGB',
+            coordinate_system='PATIENT',
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            sop_instance_uid=UID(),
+            series_number=1,
+            instance_number=1,
+            manufacturer='Manufacturer',
+            patient_orientation=('A', 'R'),
+        )
+
+
+@pytest.mark.parametrize(
+    'dtype,bits_allocated,bits_stored,pixel_representation',
+    [
+        (np.uint8, 8, 4, 0),
+        (np.uint16, 16, 12, 0),
+        (np.uint16, 16, 16, 0),
+        (np.int16, 16, 12, 1),
+    ],
+)
+def test_bits_stored(
+    bits_allocated: int,
+    bits_stored: int,
+    pixel_representation: int,
+    dtype: type,
+):
+    frame = generate_frame(
+        shape=(64, 64),
+        dtype=dtype,
+        pixel_representation=pixel_representation,
+        bits_stored=bits_stored,
+    )
+
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation='MONOCHROME2',
+        coordinate_system='PATIENT',
+        study_instance_uid=UID(),
+        series_instance_uid=UID(),
+        sop_instance_uid=UID(),
+        series_number=1,
+        instance_number=1,
+        manufacturer='Manufacturer',
+        patient_orientation=('A', 'R'),
+        bits_stored=bits_stored,
+    )
+
+    assert instance.BitsAllocated == bits_allocated
+    assert instance.BitsStored == bits_stored
+
+    reread = write_and_read_dataset(instance)
+    read_frame = reread.pixel_array
+
+    assert np.array_equal(read_frame, frame)
+
+
+@pytest.mark.parametrize(
+    'dtype,bits_allocated,bits_stored,pixel_representation',
+    [
+        (np.uint8, 8, 4, 0),
+        (np.uint16, 16, 12, 0),
+        (np.int16, 16, 12, 1),
+    ],
+)
+def test_invalid_bits_stored(
+    bits_allocated: int,
+    bits_stored: int,
+    pixel_representation: int,
+    dtype: type,
+):
+    frame = generate_frame(
+        shape=(64, 64),
+        dtype=dtype,
+        pixel_representation=pixel_representation,
+        bits_stored=bits_allocated,
+    )
+
+    match = (
+        "Provided 'pixel_array' cannot be represented with "
+        "the specified number of 'bits_stored'"
+    )
+    with pytest.raises(ValueError, match=match):
+        SCImage(
+            pixel_array=frame,
+            photometric_interpretation='MONOCHROME2',
+            coordinate_system='PATIENT',
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            sop_instance_uid=UID(),
+            series_number=1,
+            instance_number=1,
+            manufacturer='Manufacturer',
+            patient_orientation=('A', 'R'),
+            bits_stored=bits_stored,
+        )
+
+
+def test_bits_stored_greater_than_allocated():
+    match = (
+        "'bits_stored' must be an integer no greater than the number of "
+        "bits per pixel in the input array."
+    )
+    with pytest.raises(ValueError, match=match):
+        SCImage(
+            pixel_array=np.zeros((64, 64), dtype=np.uint8),
+            photometric_interpretation='MONOCHROME2',
+            coordinate_system='PATIENT',
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            sop_instance_uid=UID(),
+            series_number=1,
+            instance_number=1,
+            manufacturer='Manufacturer',
+            patient_orientation=('A', 'R'),
+            bits_stored=9,  # greater than bits_allocated (8)
+        )
+
+
+def test_construct_with_spatial_info():
+    study_uid = UID()
+    series_uid = UID()
+    sop_uid = UID()
+    frame_of_reference_uid = UID()
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (10, 10), np.uint16, 0, 16
+    )
+    image_position = [1, 2, 3]
+    image_orientation = [1, 0, 0, 0, 1, 0]
+    pixel_spacing = [0.3, 0.4]
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=study_uid,
+        series_instance_uid=series_uid,
+        sop_instance_uid=sop_uid,
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        image_orientation=image_orientation,
+        image_position=image_position,
+        pixel_spacing=pixel_spacing,
+        frame_of_reference_uid=frame_of_reference_uid,
+    )
+
+    assert instance.ImageOrientationPatient == image_orientation
+    assert instance.ImagePositionPatient == image_position
+    assert instance.PatientOrientation == ['L', 'P']  # inferred
+    assert instance.PixelSpacing == pixel_spacing
+    assert instance.SliceThickness is None
+    assert 'SpacingBetweenSlices' not in instance
+    assert instance.FrameOfReferenceUID == frame_of_reference_uid
+
+
+def test_construct_with_spatial_info_all():
+    study_uid = UID()
+    series_uid = UID()
+    sop_uid = UID()
+    frame_of_reference_uid = UID()
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (10, 10), np.uint16, 0, 16
+    )
+    image_position = [1, 2, 3]
+    image_orientation = [1, 0, 0, 0, 1, 0]
+    pixel_spacing = [0.3, 0.4]
+    instance = SCImage(
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        coordinate_system=coordinate_system,
+        study_instance_uid=study_uid,
+        series_instance_uid=series_uid,
+        sop_instance_uid=sop_uid,
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+        image_orientation=image_orientation,
+        image_position=image_position,
+        pixel_spacing=pixel_spacing,
+        slice_thickness=3.4,
+        spacing_between_slices=1.7,
+        frame_of_reference_uid=frame_of_reference_uid,
+    )
+
+    assert instance.ImageOrientationPatient == image_orientation
+    assert instance.ImagePositionPatient == image_position
+    assert instance.PatientOrientation == ['L', 'P']  # inferred
+    assert instance.PixelSpacing == pixel_spacing
+    assert instance.SliceThickness == 3.4
+    assert instance.SpacingBetweenSlices == 1.7
+    assert instance.FrameOfReferenceUID == frame_of_reference_uid
+
+
+def test_construct_with_spatial_info_missing_pos():
+    study_uid = UID()
+    series_uid = UID()
+    sop_uid = UID()
+    frame_of_reference_uid = UID()
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (10, 10), np.uint16, 0, 16
+    )
+    image_orientation = [1, 0, 0, 0, 1, 0]
+    pixel_spacing = [0.3, 0.4]
+    msg = (
+        "Both 'image_position' and 'image_orientation' must be "
+        "provided if either is provided."
+    )
+    with pytest.raises(TypeError, match=msg):
+        SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=RLELossless
+            study_instance_uid=study_uid,
+            series_instance_uid=series_uid,
+            sop_instance_uid=sop_uid,
+            series_number=34,
+            instance_number=7,
+            manufacturer='ABC',
+            image_orientation=image_orientation,
+            pixel_spacing=pixel_spacing,
+            frame_of_reference_uid=frame_of_reference_uid,
         )
 
-        assert instance.file_meta.TransferSyntaxUID == RLELossless
 
-        assert np.array_equal(
-            self.get_array_after_writing(instance),
-            frame
-        )
-
-    def test_monochrome_jpeg_baseline(self):
-        pytest.importorskip("libjpeg")
-        bits_allocated = 8
-        photometric_interpretation = 'MONOCHROME2'
-        coordinate_system = 'PATIENT'
-        frame = np.zeros((256, 256), dtype=np.uint8)
-        frame[25:55, 25:55] = 255
-        instance = SCImage(
+def test_construct_with_spatial_info_missing_spacing():
+    study_uid = UID()
+    series_uid = UID()
+    sop_uid = UID()
+    frame_of_reference_uid = UID()
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (10, 10), np.uint16, 0, 16
+    )
+    image_position = [1, 2, 3]
+    image_orientation = [1, 0, 0, 0, 1, 0]
+    msg = (
+        "Argument 'pixel_spacing' is required if 'image_position' "
+        "and 'image_orientation' are provided."
+    )
+    with pytest.raises(TypeError, match=msg):
+        SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=JPEGBaseline8Bit
+            study_instance_uid=study_uid,
+            series_instance_uid=series_uid,
+            sop_instance_uid=sop_uid,
+            series_number=34,
+            instance_number=7,
+            manufacturer='ABC',
+            image_orientation=image_orientation,
+            image_position=image_position,
+            frame_of_reference_uid=frame_of_reference_uid,
         )
 
-        assert instance.file_meta.TransferSyntaxUID == JPEGBaseline8Bit
 
-        assert np.allclose(
-            self.get_array_after_writing(instance),
-            frame,
-            atol=5  # tolerance for lossy compression
-        )
-
-    def test_rgb_jpeg_baseline(self):
-        pytest.importorskip("libjpeg")
-        bits_allocated = 8
-        photometric_interpretation = 'YBR_FULL_422'
-        coordinate_system = 'PATIENT'
-        frame = np.zeros((256, 256, 3), dtype=np.uint8)
-        frame[25:55, 25:55, 0] = 255
-        frame[35:65, 35:55, 1] = 255
-        instance = SCImage(
+def test_construct_with_spatial_info_missing_ref_uid():
+    study_uid = UID()
+    series_uid = UID()
+    sop_uid = UID()
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (10, 10), np.uint16, 0, 16
+    )
+    image_position = [1, 2, 3]
+    image_orientation = [1, 0, 0, 0, 1, 0]
+    pixel_spacing = [1.2, 1.2]
+    msg = (
+        "Argument 'frame_of_reference_uid' is required if "
+        "'image_position' and 'image_orientation' are provided."
+    )
+    with pytest.raises(TypeError, match=msg):
+        SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=JPEGBaseline8Bit
+            study_instance_uid=study_uid,
+            series_instance_uid=series_uid,
+            sop_instance_uid=sop_uid,
+            series_number=34,
+            instance_number=7,
+            manufacturer='ABC',
+            image_orientation=image_orientation,
+            image_position=image_position,
+            pixel_spacing=pixel_spacing,
         )
 
-        assert instance.file_meta.TransferSyntaxUID == JPEGBaseline8Bit
 
-        reread_frame = self.get_array_after_writing(instance)
-        np.testing.assert_allclose(frame, reread_frame, rtol=1.2)
-
-    def test_monochrome_jpeg2000lossless(self):
-        pytest.importorskip("openjpeg")
-        bits_allocated = 8
-        photometric_interpretation = 'MONOCHROME2'
-        coordinate_system = 'PATIENT'
-        frame = np.random.randint(0, 256, size=(256, 256), dtype=np.uint8)
-        instance = SCImage(
+def test_construct_with_incosistent_patient_orientation():
+    study_uid = UID()
+    series_uid = UID()
+    sop_uid = UID()
+    frame_of_reference_uid = UID()
+    photometric_interpretation = 'MONOCHROME2'
+    coordinate_system = 'PATIENT'
+    frame = generate_frame(
+        (10, 10), np.uint16, 0, 16
+    )
+    image_position = [1, 2, 3]
+    image_orientation = [-1, 0, 0, 0, -1, 0]  # R, A
+    pixel_spacing = [1.2, 1.2]
+    msg = (
+        "The provided 'patient_orientation' is not "
+        "consistent with the provided value for "
+        "'image_orientation'."
+    )
+    with pytest.raises(ValueError, match=msg):
+        SCImage(
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
             coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=JPEG2000Lossless
+            study_instance_uid=study_uid,
+            series_instance_uid=series_uid,
+            sop_instance_uid=sop_uid,
+            series_number=34,
+            instance_number=7,
+            manufacturer='ABC',
+            patient_orientation=('L', 'P'),
+            image_orientation=image_orientation,
+            image_position=image_position,
+            pixel_spacing=pixel_spacing,
+            frame_of_reference_uid=frame_of_reference_uid,
         )
 
-        assert instance.file_meta.TransferSyntaxUID == JPEG2000Lossless
 
-        assert np.array_equal(
-            self.get_array_after_writing(instance),
-            frame
-        )
+def test_from_aligned_ref_image():
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    series_uid = UID()
+    sop_uid = UID()
 
-    def test_monochrome_jpeg2000(self):
-        pytest.importorskip("openjpeg")
-        bits_allocated = 8
-        photometric_interpretation = 'MONOCHROME2'
-        coordinate_system = 'PATIENT'
-        frame = np.random.randint(0, 256, size=(256, 256), dtype=np.uint8)
-        instance = SCImage(
+    ref_dataset = dcmread(
+        str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+    )
+    photometric_interpretation = 'RGB'
+    frame = generate_frame(
+        (ref_dataset.Rows, ref_dataset.Columns, 3), np.uint8, 0, 8
+    )
+    instance = SCImage.from_aligned_ref_image(
+        ref_image=ref_dataset,
+        pixel_array=frame,
+        photometric_interpretation=photometric_interpretation,
+        series_instance_uid=series_uid,
+        sop_instance_uid=sop_uid,
+        series_number=34,
+        instance_number=7,
+        manufacturer='ABC',
+    )
+    assert (
+        instance.ImageOrientationPatient ==
+        ref_dataset.ImageOrientationPatient
+    )
+    assert (
+        instance.ImagePositionPatient ==
+        ref_dataset.ImagePositionPatient
+    )
+    assert (
+        instance.PixelSpacing ==
+        ref_dataset.PixelSpacing
+    )
+    assert (
+        instance.SliceThickness ==
+        ref_dataset.SliceThickness
+    )
+    assert (
+        instance.FrameOfReferenceUID ==
+        ref_dataset.FrameOfReferenceUID
+    )
+    assert (
+        instance.PositionReferenceIndicator ==
+        ref_dataset.PositionReferenceIndicator
+    )
+
+
+def test_from_aligned_ref_image_wrong_shape():
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    series_uid = UID()
+    sop_uid = UID()
+
+    ref_dataset = dcmread(
+        str(data_dir.joinpath('test_files', 'ct_image.dcm'))
+    )
+    photometric_interpretation = 'RGB'
+    frame = generate_frame(
+        # wrong shape
+        (ref_dataset.Rows - 1, ref_dataset.Columns - 1, 3),
+        np.uint8, 0, 8
+    )
+    msg = (
+        "Shape of 'pixel_array' must match rows and columns "
+        "of 'ref_image' when using 'from_aligned_ref_image'."
+    )
+    with pytest.raises(ValueError, match=msg):
+        SCImage.from_aligned_ref_image(
+            ref_image=ref_dataset,
             pixel_array=frame,
             photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
-            coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=JPEG2000
+            series_instance_uid=series_uid,
+            sop_instance_uid=sop_uid,
+            series_number=34,
+            instance_number=7,
+            manufacturer='ABC',
         )
-
-        assert instance.file_meta.TransferSyntaxUID == JPEG2000
-
-        assert np.allclose(
-            self.get_array_after_writing(instance),
-            frame,
-            atol=2
-        )
-
-    def test_rgb_jpeg2000(self):
-        pytest.importorskip("openjpeg")
-        bits_allocated = 8
-        photometric_interpretation = 'YBR_RCT'
-        coordinate_system = 'PATIENT'
-        frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
-        instance = SCImage(
-            pixel_array=frame,
-            photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
-            coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=JPEG2000Lossless
-        )
-
-        assert instance.file_meta.TransferSyntaxUID == JPEG2000Lossless
-
-        assert np.array_equal(
-            self.get_array_after_writing(instance),
-            frame
-        )
-
-    def test_monochrome_jpegls(self):
-        pytest.importorskip("libjpeg")
-        bits_allocated = 16
-        photometric_interpretation = 'MONOCHROME2'
-        coordinate_system = 'PATIENT'
-        frame = np.random.randint(0, 2**16, size=(256, 256), dtype=np.uint16)
-        instance = SCImage(
-            pixel_array=frame,
-            photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
-            coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=JPEGLSLossless
-        )
-
-        assert instance.file_meta.TransferSyntaxUID == JPEGLSLossless
-
-        assert np.array_equal(
-            self.get_array_after_writing(instance),
-            frame
-        )
-
-    def test_monochrome_jpegls_near_lossless(self):
-        pytest.importorskip("libjpeg")
-        bits_allocated = 16
-        photometric_interpretation = 'MONOCHROME2'
-        coordinate_system = 'PATIENT'
-        frame = np.random.randint(0, 2**16, size=(256, 256), dtype=np.uint16)
-        instance = SCImage(
-            pixel_array=frame,
-            photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
-            coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=JPEGLSNearLossless
-        )
-
-        assert instance.file_meta.TransferSyntaxUID == JPEGLSNearLossless
-
-        assert np.allclose(
-            self.get_array_after_writing(instance),
-            frame,
-            atol=2
-        )
-
-    def test_rgb_jpegls(self):
-        pytest.importorskip("libjpeg")
-        bits_allocated = 8
-        photometric_interpretation = 'RGB'
-        coordinate_system = 'PATIENT'
-        frame = np.random.randint(0, 256, size=(256, 256, 3), dtype=np.uint8)
-        instance = SCImage(
-            pixel_array=frame,
-            photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
-            coordinate_system=coordinate_system,
-            study_instance_uid=self._study_instance_uid,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            transfer_syntax_uid=JPEGLSLossless
-        )
-
-        assert instance.file_meta.TransferSyntaxUID == JPEGLSLossless
-
-        assert np.array_equal(
-            self.get_array_after_writing(instance),
-            frame
-        )
-
-    def test_construct_rgb_from_ref_dataset(self):
-        bits_allocated = 8
-        photometric_interpretation = 'RGB'
-        coordinate_system = 'PATIENT'
-        instance = SCImage.from_ref_dataset(
-            ref_dataset=self._ref_dataset,
-            pixel_array=self._rgb_pixel_array,
-            photometric_interpretation=photometric_interpretation,
-            bits_allocated=bits_allocated,
-            coordinate_system=coordinate_system,
-            series_instance_uid=self._series_instance_uid,
-            sop_instance_uid=self._sop_instance_uid,
-            series_number=self._series_number,
-            instance_number=self._instance_number,
-            manufacturer=self._manufacturer,
-            patient_orientation=self._patient_orientation,
-            laterality=self._laterality
-        )
-        assert instance.BitsAllocated == bits_allocated
-        assert instance.SamplesPerPixel == 3
-        assert instance.PlanarConfiguration == 0
-        assert instance.PhotometricInterpretation == photometric_interpretation
-        assert instance.StudyInstanceUID == self._ref_dataset.StudyInstanceUID
-        assert instance.SeriesInstanceUID == self._series_instance_uid
-        assert instance.SOPInstanceUID == self._sop_instance_uid
-        assert instance.SeriesNumber == self._series_number
-        assert instance.InstanceNumber == self._instance_number
-        assert instance.Manufacturer == self._manufacturer
-        assert instance.Laterality == self._laterality
-        assert instance.PatientOrientation == self._patient_orientation
-        assert instance.AccessionNumber == self._ref_dataset.AccessionNumber
-        assert instance.PatientName == self._ref_dataset.PatientName
-        assert instance.PatientSex == self._ref_dataset.PatientSex
-        assert instance.StudyTime == self._ref_dataset.StudyTime
-        assert instance.StudyDate == self._ref_dataset.StudyDate
-        assert instance.StudyID == self._ref_dataset.StudyID
-        assert instance.PixelData == self._rgb_pixel_array.tobytes()

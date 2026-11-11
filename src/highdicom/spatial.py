@@ -1143,8 +1143,7 @@ def create_rotation_matrix(
         x, y, z position in the frame-of-reference coordinate system.
 
     """  # noqa: E501
-    if len(image_orientation) != 6:
-        raise ValueError('Argument "image_orientation" must have length 6.')
+    _check_image_orientation(image_orientation)
     index_convention_ = _normalize_pixel_index_convention(index_convention)
     handedness_ = AxisHandedness(handedness)
 
@@ -1236,6 +1235,49 @@ def _stack_affine_matrix(
     )
 
 
+def _check_image_orientation(image_orientation: Sequence[float]):
+    """Check that a sequence of flaots is a valid image orientation.
+
+    To be valid, an image orientation must consist of six numbers between -1
+    and 1 (inclusive) that form two orthogonal unit vector concatenated
+    end-to-end.
+
+    Parameters
+    ----------
+    image_orientation: Sequence[float]
+        User-passed image orientation.
+
+    Raises
+    ------
+    ValueError:
+        If the image orientation is not a valid set of direction cosines.
+
+    """
+    if not isinstance(image_orientation, (Sequence, np.ndarray)):
+        raise TypeError('Argument "image_orientation" must be a sequence.')
+    if len(image_orientation) != 6:
+        raise ValueError('Argument "image_orientation" must have length 6.')
+
+    if max(image_orientation) > 1.0 or min(image_orientation) < -1.0:
+        raise ValueError(
+            "Values in image_orientation must be in the range -1 to 1."
+        )
+
+    row_cosines = np.array(image_orientation[:3], dtype=float)
+    column_cosines = np.array(image_orientation[3:], dtype=float)
+
+    for a in [row_cosines, column_cosines]:
+        if np.abs(np.linalg.norm(a) - 1.0) > _DEFAULT_ORTHOGONAL_TOLERANCE:
+            raise ValueError(
+                "Image orientation must contain unit vectors."
+            )
+
+    if np.abs(row_cosines.T @ column_cosines) > _DEFAULT_ORTHOGONAL_TOLERANCE:
+        raise ValueError(
+            "Image orientation must contain two orthogonal vectors."
+        )
+
+
 def create_affine_matrix_from_attributes(
     image_position: Sequence[float],
     image_orientation: Sequence[float],
@@ -1314,14 +1356,11 @@ def create_affine_matrix_from_attributes(
         raise TypeError('Argument "image_position" must be a sequence.')
     if len(image_position) != 3:
         raise ValueError('Argument "image_position" must have length 3.')
-    if not isinstance(image_orientation, (Sequence, np.ndarray)):
-        raise TypeError('Argument "image_orientation" must be a sequence.')
-    if len(image_orientation) != 6:
-        raise ValueError('Argument "image_orientation" must have length 6.')
     if not isinstance(pixel_spacing, (Sequence, np.ndarray)):
         raise TypeError('Argument "pixel_spacing" must be a sequence.')
     if len(pixel_spacing) != 2:
         raise ValueError('Argument "pixel_spacing" must have length 2.')
+    # image_orientation is checked within create_rotation_matrix
 
     index_convention_ = _normalize_pixel_index_convention(index_convention)
     if (
@@ -1406,14 +1445,11 @@ def _create_inv_affine_matrix_from_attributes(
         raise TypeError('Argument "image_position" must be a sequence.')
     if len(image_position) != 3:
         raise ValueError('Argument "image_position" must have length 3.')
-    if not isinstance(image_orientation, Sequence):
-        raise TypeError('Argument "image_orientation" must be a sequence.')
-    if len(image_orientation) != 6:
-        raise ValueError('Argument "image_orientation" must have length 6.')
     if not isinstance(pixel_spacing, Sequence):
         raise TypeError('Argument "pixel_spacing" must be a sequence.')
     if len(pixel_spacing) != 2:
         raise ValueError('Argument "pixel_spacing" must have length 2.')
+    # image_orientation is checked within create_rotation_matrix
 
     translation = np.array([float(x) for x in image_position], dtype=float)
 
