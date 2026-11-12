@@ -137,7 +137,7 @@ class SCImage(Image):
             Array of pixel values representing a single-frame image; either a
             2D grayscale image with shape (H, W) or a 3D color image with shape
             (H, W, 3) in the RGB color space. Acceptable datatypes are bool,
-            uint8, uint16, int8, or int32 for grayscale images, and uint8 or
+            uint8, uint16, int8, or int16 for grayscale images, and uint8 or
             uint16 for color images.
         photometric_interpretation: Union[str, highdicom.PhotometricInterpretationValues]
             Interpretation with which to store pixel data in the dataset;
