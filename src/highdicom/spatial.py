@@ -4320,7 +4320,7 @@ def _unsqueeze_affine(
             basis.T @ affine_2d[:2, 2] + np.dot(n, original_affine[:3, 3]) * n
         )
 
-        return affine_2d
+        return affine_3d
 
     warnings.warn(
         '_unsqueeze_affine was called without original_affine. There is no'
