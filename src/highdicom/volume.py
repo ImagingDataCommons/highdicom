@@ -3981,7 +3981,7 @@ class Volume(_VolumeBase):
 
         cast_dtype = dtype_map.get(np.dtype(dtype), dtype)
         if np.dtype(dtype) == np.dtype(cast_dtype):
-            array = self.array.transpose(2, 1, 0).copy()
+            array = np.ascontiguousarray(self.array.transpose(2, 1, 0))
 
         else:
             info = (
@@ -3994,7 +3994,9 @@ class Volume(_VolumeBase):
             )
 
             try:
-                array = self.astype(cast_dtype).array.transpose(2, 1, 0).copy()
+                array = np.ascontiguousarray(
+                    self.astype(cast_dtype).array.transpose(2, 1, 0)
+                )
 
             except Exception:
                 raise ValueError(
@@ -4080,7 +4082,7 @@ class Volume(_VolumeBase):
                 ' volumes with multiple channels.'
             )
 
-        array = array.transpose(2, 1, 0).copy()
+        array = np.ascontiguousarray(array.transpose(2, 1, 0))
 
         return cls.from_components(
             array=array,
