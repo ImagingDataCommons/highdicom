@@ -27,12 +27,15 @@ from highdicom.ann.enum import (
     GraphicTypeValues,
     PixelOriginInterpretationValues,
 )
-from highdicom.ann.content import AnnotationGroup
+from highdicom.ann.content import AnnotatedPropertyType, AnnotationGroup
+from highdicom.content import (
+    _add_content_information,
+    ContentCreatorIdentificationCodeSequence,
+)
 from highdicom.base import SOPClass, _check_little_endian
 from highdicom.base_content import ContributingEquipment
 from highdicom.io import _wrapped_dcmread
-from highdicom.sr.coding import CodedConcept
-from highdicom.valuerep import check_person_name, _check_code_string
+from highdicom.sr.coding import CodedConcept, codes_equal
 
 
 class MicroscopyBulkSimpleAnnotations(SOPClass):
@@ -67,6 +70,9 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         contributing_equipment: Sequence[
             ContributingEquipment
         ] | None = None,
+        content_creator_identification: None | (
+            ContentCreatorIdentificationCodeSequence
+        ) = None,
         **kwargs: Any
     ) -> None:
         """
@@ -116,6 +122,9 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
             Additional equipment that has contributed to the acquisition,
             creation or modification of this instance.
+        content_creator_identification: Union[highdicom.ContentCreatorIdentificationCodeSequence, None], optional
+            Identifying information for the person who created the content of
+            this microscopy bulk simple annotations instance.
         **kwargs: Any, optional
             Additional keyword arguments that will be passed to the constructor
             of `highdicom.base.SOPClass`
@@ -147,6 +156,11 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
 
+        if 'specific_character_set' in kwargs:
+            specific_character_set = kwargs.pop('specific_character_set')
+        else:
+            specific_character_set = src_img.get('SpecificCharacterSet')
+
         super().__init__(
             study_instance_uid=src_img.StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -156,21 +170,11 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
             sop_class_uid='1.2.840.10008.5.1.4.1.1.91.1',
             modality='ANN',
             transfer_syntax_uid=transfer_syntax_uid,
-            patient_id=src_img.PatientID,
-            patient_name=src_img.PatientName,
-            patient_birth_date=src_img.PatientBirthDate,
-            patient_sex=src_img.PatientSex,
-            accession_number=src_img.AccessionNumber,
-            study_id=src_img.StudyID,
-            study_date=src_img.StudyDate,
-            study_time=src_img.StudyTime,
-            referring_physician_name=getattr(
-                src_img, 'ReferringPhysicianName', None
-            ),
             manufacturer=manufacturer,
             manufacturer_model_name=manufacturer_model_name,
             device_serial_number=device_serial_number,
             software_versions=software_versions,
+            specific_character_set=specific_character_set,
             **kwargs
         )
         self.copy_specimen_information(src_img)
@@ -178,15 +182,16 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         self._add_contributing_equipment(contributing_equipment, src_img)
 
         # Microscopy Bulk Simple Annotations
-        if content_label is not None:
-            _check_code_string(content_label)
-            self.ContentLabel = content_label
-        else:
-            self.ContentLabel = f'{src_img.Modality}_ANN'
-        self.ContentDescription = content_description
-        if content_creator_name is not None:
-            check_person_name(content_creator_name)
-        self.ContentCreatorName = content_creator_name
+        _add_content_information(
+            dataset=self,
+            content_label=(
+                content_label if content_label is not None
+                else f'{src_img.Modality}_ANN'
+            ),
+            content_description=content_description,
+            content_creator_name=content_creator_name,
+            content_creator_identification=content_creator_identification,
+        )
 
         self.AnnotationCoordinateType = coordinate_type.value
         if coordinate_type == AnnotationCoordinateTypeValues.SCOORD:
@@ -311,7 +316,9 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
     def get_annotation_groups(
         self,
         annotated_property_category: Code | CodedConcept | None = None,
-        annotated_property_type: Code | CodedConcept | None = None,
+        annotated_property_type: (
+            Code | CodedConcept | AnnotatedPropertyType | None
+        ) = None,
         label: str | None = None,
         graphic_type: str | GraphicTypeValues | None = None,
         algorithm_type: None | (
@@ -328,8 +335,17 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
         annotated_property_category: Union[Code, CodedConcept, None], optional
             Category of annotated property
             (e.g., ``codes.SCT.MorphologicAbnormality``)
-        annotated_property_type: Union[Code, CodedConcept, None], optional
-            Type of annotated property (e.g., ``codes.SCT.Neoplasm``)
+        annotated_property_type: Union[Code, CodedConcept, highdicom.ann.AnnotatedPropertyType, None], optional
+            Type of annotated property (e.g., ``codes.SCT.Neoplasm``). If a
+            :class:`highdicom.ann.AnnotatedPropertyType` is provided, a group
+            matches only if its annotated property type has the same root code
+            *and* exactly the same set of modifier codes (in any order). An
+            ``AnnotatedPropertyType`` without modifiers therefore matches only
+            groups whose type has no modifiers. If a plain
+            :class:`pydicom.sr.coding.Code` or
+            :class:`highdicom.sr.CodedConcept` is provided, only the root
+            (unmodified) code is compared and any modifiers on the group's
+            type are ignored.
         label: Union[str, None], optional
             Annotation group label
         graphic_type: Union[str, GraphicTypeValues, None], optional
@@ -366,9 +382,13 @@ class MicroscopyBulkSimpleAnnotations(SOPClass):
                 matches.append(is_match)
 
             if annotated_property_type is not None:
-                is_match = eq(
+                is_match = codes_equal(
                     item.annotated_property_type,
-                    annotated_property_type
+                    annotated_property_type,
+                    ignore_modifiers=not isinstance(
+                        annotated_property_type,
+                        AnnotatedPropertyType,
+                    ),
                 )
                 matches.append(is_match)
 

@@ -79,7 +79,7 @@ value in `pydicom`:
 
    tumor_code = codes.SCT.Tumor
    print(tumor_code.value)
-   # '1083690006'
+   # '108369006'
    print(tumor_code.scheme_designator)
    # 'SCT'
    print(tumor_code.meaning)
@@ -127,12 +127,27 @@ hash to the same value if you use them within sets or as keys in dictionaries.
 For equality and hashing, two codes are considered equivalent if they have the
 same coding scheme, and value, regardless of how their meaning is represented.
 
+Context Groups
+--------------
+
+Many places where codes are used in the standard are associated with a
+`Context Group`. These are sets of codes determined to be suitable for a
+particular purpose. Most are `extensible`, meaning you can choose codes 
+outside the context group if you wish. However, it is best practice to use
+a code within the context group if a suitable code exists within it.
+
+Context groups are have an identifier called a `CID`. For example, :dcm:`CID
+7150 <part16/sect_CID_7150.html>` is the context group containing codes to use
+to describe segmented properties categories in a DICOM segmentation and
+:dcm:`CID 7151 <part16/sect_CID_7151.html>` contains values for the more
+specific segmented property types. Note that this second example includes other
+CIDs recursively.
+
 Finding Suitable Codes
 ----------------------
 
 The `pydicom` code dictionary allows searching for concepts via simple string
-matching. However, for more advanced searching it is generally advisable to
-search the documentation for the coding scheme itself.
+matching. You can also search with context groups.
 
 .. code-block:: python
 
@@ -146,3 +161,362 @@ search the documentation for the coding scheme itself.
 
    print(codes.SCT.Liver)
    # Code(value='10200004', scheme_designator='SCT', meaning='Liver', scheme_version=None)
+
+   # Search within a context group (e.g. CID7150)
+   print(codes.cid7150.dir())
+   # ['AnatomicalStructure',
+   #  'BodySubstance',
+   #  'Function',
+   #  'MorphologicallyAbnormalStructure',
+   #  'PhysicalObject',
+   #  'SpatialAndRelationalConcept',
+   #  'Substance',
+   #  'Tissue']
+
+   # Check whether a code lies within a context group
+   print(codes.SCT.BodySubstance in codes.cid7150)
+   # True
+
+However, for more advanced searching it is generally advisable to search the
+documentation for the coding scheme itself. This 
+`webpage <https://fedorov.github.io/dcmterms/terminology.html>`_ is a nice
+interactive tool for searching the terms and Context Groups defined within
+DICOM.
+
+UCUM
+----
+
+UCUM works a little differently to the other coding schemes discussed here.
+Rather than a finite set of codes, it defines codes for a set of fundamental
+units and a syntax for combining them to give derived units (e.g. `"mm/s"` for
+millimeters per second), meaning there are potentially infinite codes. Pydicom
+defines a list of the most common units, but this will not cover every use
+case.
+
+We recommend this `page
+<https://ucum.nlm.nih.gov/ucum-lhc/demo.html>`_, a useful validator for
+checking UCUM syntax.
+
+.. _coding-modifiers:
+
+Codes With Modifiers
+--------------------
+
+Some attributes in DICOM allow a code to be accompanied by one or more
+`modifier` codes that refine the meaning of the root code. A typical example is
+laterality: rather than needing a separate code for "left kidney" and "right
+kidney", you can use the single code for "kidney" together with the modifier
+"left" or "right". The codes used as modifiers are generally drawn from
+:dcm:`CID 2 <part16/sect_CID_2.html>` "Anatomic Modifier".
+
+In the DICOM standard, each place where modifiers are allowed has its own
+sequence attribute for holding them (for example "Segmented Property Type
+Modifier Code Sequence" next to "Segmented Property Type Code Sequence").
+`Highdicom` provides a class for each such attribute. They are all
+sub-classes of :class:`highdicom.sr.CodedConcept`, and are constructed from a
+root code and an optional sequence of modifier codes (either
+``pydicom.sr.coding.Code`` or :class:`highdicom.sr.CodedConcept` objects):
+
+.. list-table::
+   :header-rows: 1
+
+   * - Class
+     - Describes
+     - Used in
+   * - :class:`highdicom.seg.SegmentedPropertyType`
+     - The property that a segment represents
+       (:dcm:`CID 7151 <part16/sect_CID_7151.html>`)
+     - :class:`highdicom.seg.SegmentDescription` (see :ref:`seg-modifiers`)
+   * - :class:`highdicom.ann.AnnotatedPropertyType`
+     - The property that an annotation group represents
+       (:dcm:`CID 8135 <part16/sect_CID_8135.html>`)
+     - :class:`highdicom.ann.AnnotationGroup` (see :ref:`ann-modifiers`)
+   * - :class:`highdicom.AnatomicRegion`
+     - The anatomic region into which an object falls
+       (e.g. :dcm:`CID 4 <part16/sect_CID_4.html>`)
+     - :class:`highdicom.seg.SegmentDescription` and
+       :class:`highdicom.ann.AnnotationGroup`
+   * - :class:`highdicom.PrimaryAnatomicStructure`
+     - The anatomic structure that an object represents
+     - :class:`highdicom.seg.SegmentDescription` and
+       :class:`highdicom.ann.AnnotationGroup`
+
+Each class stores its modifiers in the attribute with the corresponding
+standard name, so that the object can be placed directly into a DICOM dataset.
+The classes are not interchangeable: for example an
+:class:`highdicom.AnatomicRegion` cannot be used where a
+:class:`highdicom.seg.SegmentedPropertyType` is expected, and doing so raises a
+``TypeError``.
+
+To create an instance of one of these classes, pass a
+``pydicom.sr.coding.Code`` or :class:`highdicom.sr.CodedConcept` to serve as
+the root concept, then optionally a list of further codes to the `modifiers`
+parameter.
+
+.. code-block:: python
+
+   import highdicom as hd
+   from pydicom.sr.codedict import codes
+
+   # A segmented property type of "Kidney", modified by "Left"
+   left_kidney = hd.seg.SegmentedPropertyType(
+       codes.SCT.Kidney,
+       modifiers=[codes.SCT.Left],
+   )
+
+   # The value, meaning, and scheme_designator properties behave as they do
+   # for a plain CodedConcept
+   print(left_kidney.scheme_designator, left_kidney.value, left_kidney.meaning)
+   # SCT 64033007 Kidney
+
+   # Access the modifiers using the modifiers property (this is the same for
+   # every one of the classes above)
+   print([m.meaning for m in left_kidney.modifiers])
+   # ['Left']
+
+   # Access the root code on its own, without the modifiers
+   assert left_kidney.unmodified == codes.SCT.Kidney
+
+Two modified codes are equal if they have the same root code and the same set
+of modifiers. The order of the modifiers is not significant, and the class of
+the modified code (e.g. :class:`highdicom.seg.SegmentedPropertyType` or
+:class:`highdicom.AnatomicRegion`) is not considered. The hash is consistent
+with this definition, so these objects may be used in sets and as dictionary
+keys.
+
+.. code-block:: python
+
+   a = hd.seg.SegmentedPropertyType(
+       codes.SCT.Kidney,
+       modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+   )
+   b = hd.seg.SegmentedPropertyType(
+       codes.SCT.Kidney,
+       modifiers=[codes.SCT.Posterior, codes.SCT.Left],
+   )
+   assert a == b
+   assert len({a, b}) == 1
+
+   # Different modifiers means a different code
+   assert a != hd.seg.SegmentedPropertyType(codes.SCT.Kidney)
+
+A modified code that has no modifiers is considered equal to the plain code,
+but one that has modifiers does not. When you want to compare only the root
+code regardless of modifiers, use the ``unmodified`` property or the
+``ignore_modifiers`` option of :func:`highdicom.sr.codes_equal`:
+
+.. code-block:: python
+
+   assert hd.seg.SegmentedPropertyType(codes.SCT.Kidney) == codes.SCT.Kidney
+   assert a != codes.SCT.Kidney
+   assert a.unmodified == codes.SCT.Kidney
+   assert hd.sr.codes_equal(a, codes.SCT.Kidney, ignore_modifiers=True)
+
+.. _coding-gotcha:
+
+Gotcha: Comparing With ``pydicom.sr.coding.Code``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``==`` operator is **not symmetric** when a code with modifiers is compared
+with a ``pydicom.sr.coding.Code``. When the ``Code`` is on the left, the
+comparison is evaluated by `pydicom`, whose ``Code`` class knows nothing about
+modifiers (and is not under the control of `highdicom`), so the modifiers are
+silently ignored:
+
+.. code-block:: python
+
+   left_kidney = hd.seg.SegmentedPropertyType(
+       codes.SCT.Kidney,
+       modifiers=[codes.SCT.Left],
+   )
+
+   # The modifiers are considered: not equal
+   assert left_kidney != codes.SCT.Kidney
+
+   # The modifiers are not considered, since pydicom evaluates this: equal!
+   assert codes.SCT.Kidney == left_kidney
+
+This also affects code that compares implicitly, such as ``code in
+list_of_codes``, ``list_of_codes.index(code)`` and the order of operands in an
+``assert expected == actual`` statement. Comparing two
+:class:`highdicom.sr.CodedConcept` objects (or objects of any of its
+sub-classes) does not have this problem, because the operator of the
+sub-class is always tried first.
+
+To compare codes safely in every situation, use the function
+:func:`highdicom.sr.codes_equal`. It gives the same result regardless of the
+order of its arguments and of the types of its arguments, and treats a plain
+``Code`` as having no modifiers:
+
+.. code-block:: python
+
+   assert not hd.sr.codes_equal(left_kidney, codes.SCT.Kidney)
+   assert not hd.sr.codes_equal(codes.SCT.Kidney, left_kidney)
+
+   # Compare only the root codes, ignoring modifiers
+   assert hd.sr.codes_equal(
+       codes.SCT.Kidney,
+       left_kidney,
+       ignore_modifiers=True,
+   )
+
+The behavior of the ``==`` operator for the possible combinations of types is
+summarized below.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Expression
+     - Considers modifiers?
+   * - ``CodedConcept == CodedConcept`` (or any sub-class)
+     - Yes
+   * - ``modified_code == Code``
+     - Yes
+   * - ``Code == modified_code``
+     - **No**
+   * - ``hd.sr.codes_equal(a, b)``, any types, either order
+     - Yes (unless ``ignore_modifiers=True``)
+
+.. _coding-scheme-identification:
+
+Coding Scheme Identification
+----------------------------
+
+Every code in a DICOM object carries only the *designator* of its coding scheme
+(e.g. ``"SCT"``), not a full definition of the scheme. For the schemes that are
+listed within the DICOM standard itself (those on `this page
+<https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_8.html>`_,
+including ``"DCM"``, ``"SCT"``, ``"LN"``, ``"UCUM"`` and others), the
+designator is enough for a reader to know exactly which terminology is meant.
+It is valid to use other coding schemes, but then the designator may not be
+understood by the recipient of the file. In this case, it is a best practice to
+place information describing the scheme(s) used in the instance's "Coding
+Scheme Identification Sequence". This sequence maps each designator used within
+an instance to more information about the scheme, including the scheme's full
+name, its version, the organization responsible for it, a UID or external
+registry identifier, and links to resources describing it.
+
+In highdicom, each coding scheme may be described by an item of type
+:class:`highdicom.coding_schemes.CodingSchemeIdentificationItem`. Only the
+``designator`` is required, but you should provide as much additional
+information as you can. Pass a sequence of such items to the ``coding_schemes``
+parameter of the constructor of :class:`highdicom.SOPClass`, and they will be
+placed into the Coding Scheme Identification Sequence of the new object. The
+constructors of all IODs implemented in highdicom (such as the SR, Parametric
+Map and Segmentation classes) accept a ``coding_schemes`` argument (via the
+``**kwargs`` argument, which forwards arguments to :class:`highdicom.SOPClass`).
+Below, we show two examples of this, one for publicly available coding schemes
+listed in a public registry, the other for private codes that are only used
+within a particular organization.
+
+.. _public-coding-scheme:
+
+Publicly Registered Coding Scheme
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For a scheme that is registered in an external registry, use the ``registry``
+parameter, and additionally specify **either** the ``uid`` of the scheme (if
+it has an ISO 8824 object identifier compatible with the DICOM UI value
+representation) **or** its identifier within the registry as ``external_id``.
+It is an error to give both, or neither, when ``registry`` is used:
+
+.. code-block:: python
+
+   hl7_scheme = CodingSchemeIdentificationItem(
+       designator="ICD10",
+       name="International Classification of Diseases, 10th Revision",
+       registry="HL7",
+       uid="2.16.840.1.113883.6.3",
+   )
+
+Each designator used in the instance should be described by at most one item.
+
+.. _coding-private-codes:
+
+Private Codes
+^^^^^^^^^^^^^
+
+If no existing terminology contains the concept you need to describe, you may
+define your own "private" or "local" codes. Doing so should be a last resort,
+since other software will not be able to interpret them. Before creating
+private codes, look through the terminologies above (and the
+tools described in `Finding Suitable Codes`_) for a suitable existing code. When
+you do need to create them:
+
+- **Designator**: the DICOM standard reserves coding scheme designators
+  starting with ``"99"`` for private use (e.g. ``"99MYORG"``). Choose a
+  designator that is specific to your organization or project to avoid
+  collisions with those of other users. The designator is a DICOM Short String,
+  so it may be at most 16 characters long, and it must not contain backslashes
+  or control characters.
+- **Value**: any code value that is unique within your scheme, up to 16
+  characters. It need not be numeric.
+- **Meaning**: a human-readable description of the concept. Because receivers
+  cannot look the code up elsewhere, make this clear and complete.
+- **Version**: if your scheme is likely to change over time, set
+  ``scheme_version`` on the code so that its meaning is unambiguous.
+- **Identification**: describe the scheme with a
+  :class:`highdicom.coding_schemes.CodingSchemeIdentificationItem` as above,
+  so that readers can discover who defines the scheme and where to find its
+  documentation. The designator of every code used in the instance that is not
+  from a standard terminology (``"99MYORG"`` here) should have a matching
+  ``CodingSchemeIdentificationItem`` in the ``coding_schemes`` list.
+
+Putting this together, the following creates a private code and an instance
+that uses it and describes its scheme. This example skips over most of the
+detail on how to create the Structured Report instance to focus on the use of
+the coding scheme. See :ref:`sr` for a full explanation of SRs.
+
+.. code-block:: python
+
+   import highdicom as hd
+   from highdicom.coding_schemes import (
+       CodingSchemeIdentificationItem,
+       CodingSchemeResourceItem,
+   )
+   from highdicom.enum import CodingSchemeURLTypeValues
+
+
+   # An example coded concept using a private coding scheme. This can
+   # be used anywhere a CodedConcept may be passed
+   private_motion_artifact_code = hd.sr.CodedConcept(
+       value="FIND-0042",
+       scheme_designator="99MYORG",
+       meaning="Suspected motion artifact",
+       scheme_version="2.1",
+   )
+
+   # Define a CodingSchemeIdentificationItem that describes this private coding
+   # scheme, with the designator matching that used above
+   my_scheme = CodingSchemeIdentificationItem(
+       designator="99MYORG",
+       name="My Organization Findings Terminology",
+       version="2.1",
+       responsible_organization="My Organization, contact@example.com",
+       resources=[
+           CodingSchemeResourceItem(
+               url="https://example.com/terminology/v2.1/description.html",
+               url_type=CodingSchemeURLTypeValues.DOC,
+           ),
+           CodingSchemeResourceItem(
+               url="https://example.com/terminology/v2.1/terms.csv",
+               url_type=CodingSchemeURLTypeValues.CSV,
+           ),
+       ],
+   )
+
+   # Pass the coding scheme to the constructor of any highdicom IOD, here a
+   # structured report as an example
+   instance = hd.sr.Comprehensive3DSR(
+       content=MeasurementReport(
+           imaging_measurements=[
+               hd.sr.MeasurementsAndQualitativeEvaluations(
+                   ...,
+                   finding_type=private_motion_artifact_code,
+               )
+           ],
+           ...,
+       ),
+       ...,
+       coding_schemes=[my_scheme],
+   )

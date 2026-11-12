@@ -1,8 +1,10 @@
 """Functions for working with DICOM value representations."""
+from collections.abc import Sequence
 import re
 import warnings
 
 from pydicom.valuerep import PersonName
+from highdicom.enum import SpecificCharacterSetValues
 
 
 def check_person_name(person_name: str | PersonName) -> None:
@@ -215,3 +217,85 @@ def _check_long_text(s: str) -> None:
             'Values of DICOM value representation Long Text (LT) must not '
             'contain the backslash character.'
         )
+
+
+def _check_specific_character_set(
+    specific_character_set: (
+        SpecificCharacterSetValues |
+        str |
+        Sequence[SpecificCharacterSetValues | str]
+    ),
+) -> str | Sequence[str]:
+    """Check a list of user-supplied encodings.
+
+    Returns
+    -------
+    str | Sequence[str]:
+        Value as it should be placed into the Specific Character Set attribute.
+
+    """
+    single_byte_code_extensions = {
+        SpecificCharacterSetValues.DEFAULT_REPERTOIRE_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.LATIN_ALPHABET_NO_1_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.LATIN_ALPHABET_NO_2_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.LATIN_ALPHABET_NO_3_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.LATIN_ALPHABET_NO_4_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.CYRILLIC_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.ARABIC_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.GREEK_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.HEBREW_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.LATIN_ALPHABET_NO_5_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.LATIN_ALPHABET_NO_9_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.JAPANESE_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.THAI_CODE_EXTENSIONS,
+    }
+    multi_byte_code_extensions = {
+        SpecificCharacterSetValues.JAPANESE_KANJI_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.JAPANESE_KANJI_SUPPLEMENTARY_CODE_EXTENSIONS,
+        SpecificCharacterSetValues.KOREAN_CODE_EXTENSIONS,
+    }
+    all_code_extensions = (
+        single_byte_code_extensions | multi_byte_code_extensions
+    )
+
+    if isinstance(specific_character_set, str):
+        specific_character_set = SpecificCharacterSetValues(
+            specific_character_set
+        )
+    elif isinstance(specific_character_set, SpecificCharacterSetValues):
+        pass
+    else:
+        specific_character_set = [
+            SpecificCharacterSetValues(enc) for enc in specific_character_set
+        ]
+        if len(specific_character_set) == 0:
+            raise ValueError(
+                "Parameter 'specific_character_set' must not be empty."
+            )
+        elif len(specific_character_set) == 1:
+            specific_character_set = specific_character_set[0]
+        else:
+            # Have multiple values
+            if specific_character_set[0] in multi_byte_code_extensions:
+                raise ValueError(
+                    "When SpecificCharacterSet is multi-valued, a multi-byte "
+                    "encoding may not be used as the first value."
+                )
+
+            for enc in specific_character_set:
+                if enc not in all_code_extensions:
+                    raise ValueError(
+                        "When SpecificCharacterSet is multi-valued, all "
+                        "encodings must use code extensions."
+                    )
+
+            return [enc.value for enc in specific_character_set]
+
+    # Single value
+    if specific_character_set in all_code_extensions:
+        raise ValueError(
+            "Encodings with code extensions should not be used when only a "
+            "single encoding is included."
+        )
+
+    return specific_character_set.value

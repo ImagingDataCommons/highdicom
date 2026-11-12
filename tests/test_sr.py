@@ -1,3 +1,4 @@
+import re
 import unittest
 from copy import deepcopy
 from datetime import datetime
@@ -7,9 +8,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from pydicom import config
 from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.dataset import Dataset
 from pydicom.filereader import dcmread
+from pydicom.sequence import Sequence as DicomSequence
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.uid import generate_uid
@@ -20,6 +23,7 @@ from highdicom.sr import (
     AlgorithmIdentification,
     CodeContentItem,
     CodedConcept,
+    codes_equal,
     CompositeContentItem,
     Comprehensive3DSR,
     ComprehensiveSR,
@@ -66,7 +70,9 @@ from highdicom.sr import (
     SubjectContext,
     SubjectContextDevice,
     SubjectContextSpecimen,
+    TcoordContentItem,
     TextContentItem,
+    TextEvaluation,
     TimeContentItem,
     TimePointContext,
     TrackingIdentifier,
@@ -74,11 +80,96 @@ from highdicom.sr import (
     ValueTypeValues,
     VolumeSurface,
     VolumetricROIMeasurementsAndQualitativeEvaluations,
+    WaveformContentItem,
     srread,
 )
+from highdicom import AnatomicRegion
+from highdicom.ann import AnnotatedPropertyType
+from highdicom.seg import SegmentedPropertyType
 from highdicom.sr.content import CoordinatesForMeasurement
 from highdicom.sr.utils import find_content_items
 from highdicom import UID
+
+
+def test_content_sequence_queries_preserve_root_context():
+    name = Code('1', '99TEST', 'Root')
+    root = ContainerContentItem(name=name)
+    root.ContentSequence = ContentSequence([
+        TextContentItem(name=Code('2', '99TEST', 'Child'), value='value',
+                        relationship_type='CONTAINS'),
+    ])
+    sequence = ContentSequence([root], is_root=True)
+    for result in (sequence.find(name), sequence.get_nodes()):
+        assert type(result) is ContentSequence
+        assert len(result) == 1
+        assert result[0] is root
+        assert result._is_root
+        assert result._is_sr
+    missing = sequence.find(Code('3', '99TEST', 'Missing'))
+    assert len(missing) == 0
+    assert missing._is_root
+
+
+def test_content_sequence_nodes_preserve_non_sr_context():
+    item = ContainerContentItem(name=Code('1', '99TEST', 'Context'))
+    item.ContentSequence = ContentSequence([])
+    sequence = ContentSequence([item], is_sr=False)
+    result = sequence.get_nodes()
+    assert len(result) == 1
+    assert result[0] is item
+    assert not result._is_root
+    assert not result._is_sr
+
+
+def test_content_sequence_nodes_do_not_reconstruct_template():
+    template = AlgorithmIdentification(name='algorithm', version='1')
+    nodes = template.get_nodes()
+    assert type(nodes) is ContentSequence
+    assert len(nodes) == 0
+    assert nodes._is_root == template._is_root
+    assert nodes._is_sr == template._is_sr
+
+
+def test_content_sequence_insert_non_sr_and_rejection_bookkeeping():
+    item = TextContentItem(name=Code('1', '99TEST', 'Context'), value='value')
+    sequence = ContentSequence([], is_sr=False)
+    sequence.insert(0, item)
+    assert sequence[0] is item
+    assert len(sequence.find(item.name)) == 1
+
+    sr_sequence = ContentSequence([])
+    with pytest.raises(
+        AttributeError,
+        match='must have an established relationship type',
+    ):
+        sr_sequence.insert(0, item)
+    assert len(sr_sequence) == 0
+    assert len(sr_sequence.find(item.name)) == 0
+
+    root_sequence = ContentSequence([], is_root=True)
+    child = ContainerContentItem(name=item.name, relationship_type='CONTAINS')
+    with pytest.raises(
+        AttributeError,
+        match='root of the SR content tree must not have relationship type',
+    ):
+        root_sequence.insert(0, child)
+    assert len(root_sequence) == 0
+    assert len(root_sequence.find(child.name)) == 0
+
+
+def test_content_sequence_insert_rejects_non_sr_relationship():
+    sequence = ContentSequence([], is_sr=False)
+    item = TextContentItem(
+        name=Code('1', '99TEST', 'Context'), value='value',
+        relationship_type='CONTAINS',
+    )
+    with pytest.raises(
+        AttributeError,
+        match='context must have no Relationship Type',
+    ):
+        sequence.insert(0, item)
+    assert len(sequence) == 0
+    assert len(sequence.find(item.name)) == 0
 
 
 def _build_coded_concept_dataset(code: Code) -> Dataset:
@@ -379,6 +470,8 @@ class TestAlgorithmIdentification(unittest.TestCase):
         self._name = "Foo's Method"
         self._version = '1.0'
         self._parameters = ['spam=True', 'eggs=False']
+        self._manufacturer = 'Foo Corp.'
+        self._family = codes.DCM.ArtificialIntelligence
 
     def test_construction_basic(self):
         algo_id = AlgorithmIdentification(
@@ -393,23 +486,33 @@ class TestAlgorithmIdentification(unittest.TestCase):
             codes.DCM.AlgorithmVersion.value
         assert algo_id[1].TextValue == self._version
 
-    def test_construction_parameters(self):
+    def test_construction_full(self):
+        # With all optional parameters
         algo_id = AlgorithmIdentification(
             name=self._name,
             version=self._version,
             parameters=self._parameters,
+            manufacturer=self._manufacturer,
+            family=self._family,
         )
-        assert len(algo_id) == 2 + len(self._parameters)
+        assert len(algo_id) == 4 + len(self._parameters)
         assert algo_id[0].ConceptNameCodeSequence[0].CodeValue == \
             codes.DCM.AlgorithmName.value
         assert algo_id[0].TextValue == self._name
         assert algo_id[1].ConceptNameCodeSequence[0].CodeValue == \
             codes.DCM.AlgorithmVersion.value
         assert algo_id[1].TextValue == self._version
-        for i, param in enumerate(self._parameters, start=2):
+        assert algo_id[2].ConceptNameCodeSequence[0].CodeValue == \
+            codes.DCM.AlgorithmManufacturer.value
+        assert algo_id[2].TextValue == self._manufacturer
+        for i, param in enumerate(self._parameters, start=3):
             assert algo_id[i].ConceptNameCodeSequence[0].CodeValue == \
                 codes.DCM.AlgorithmParameters.value
             assert algo_id[i].TextValue == param
+        assert algo_id[-1].ConceptNameCodeSequence[0].CodeValue == \
+            codes.DCM.AlgorithmFamily.value
+        assert algo_id[-1].ConceptCodeSequence[0].CodeValue == \
+            self._family.value
 
 
 class TestMeasurementStatisticalProperties(unittest.TestCase):
@@ -621,6 +724,178 @@ class TestCodedConcept(unittest.TestCase):
         c1 = CodedConcept(self._value, self._scheme_designator, self._meaning)
         c2 = CodedConcept('R-00317', 'SRT', self._meaning)
         assert c1 == c2
+
+
+class TestCodesEqual:
+
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            SegmentedPropertyType,
+            AnatomicRegion,
+            AnnotatedPropertyType,
+        ]
+    )
+    def modified_class(request):
+        return request.param
+
+    def test_plain_codes(self):
+        concept = CodedConcept.from_code(codes.SCT.Kidney)
+        for a, b in [
+            (codes.SCT.Kidney, codes.SCT.Kidney),
+            (codes.SCT.Kidney, concept),
+            (concept, codes.SCT.Kidney),
+            (concept, concept),
+        ]:
+            assert codes_equal(a, b)
+
+        assert not codes_equal(codes.SCT.Kidney, codes.SCT.Liver)
+        assert not codes_equal(concept, codes.SCT.Liver)
+
+    def test_meaning_ignored(self):
+        a = Code('64033007', 'SCT', 'Kidney')
+        b = Code('64033007', 'SCT', 'Something else')
+        assert codes_equal(a, b)
+
+    def test_equivalent_coding(self):
+        a = CodedConcept('373098007', 'SCT', 'Mean Value of population')
+        b = CodedConcept('R-00317', 'SRT', 'Mean Value of population')
+        assert codes_equal(a, b)
+        assert codes_equal(b, a)
+
+    def test_invalid_types(self):
+        with pytest.raises(TypeError):
+            codes_equal(codes.SCT.Kidney, 'kidney')
+        with pytest.raises(TypeError):
+            codes_equal(None, codes.SCT.Kidney)
+
+    def test_modifiers_significant_by_default(self, modified_class):
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        unmodified = modified_class(codes.SCT.Kidney)
+        other_modified = modified_class(
+            codes.SCT.Kidney, modifiers=[codes.SCT.Right]
+        )
+
+        assert codes_equal(modified, modified)
+        assert codes_equal(unmodified, codes.SCT.Kidney)
+        assert not codes_equal(modified, unmodified)
+        assert not codes_equal(modified, other_modified)
+
+    def test_symmetric_with_pydicom_code(self, modified_class):
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        unmodified = modified_class(codes.SCT.Kidney)
+
+        assert not codes_equal(modified, codes.SCT.Kidney)
+        assert not codes_equal(codes.SCT.Kidney, modified)
+
+        assert codes_equal(unmodified, codes.SCT.Kidney)
+        assert codes_equal(codes.SCT.Kidney, unmodified)
+
+    def test_ignore_modifiers(self, modified_class):
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        other_modified = modified_class(
+            codes.SCT.Kidney, modifiers=[codes.SCT.Right]
+        )
+        for a, b in [
+            (modified, codes.SCT.Kidney),
+            (codes.SCT.Kidney, modified),
+            (modified, other_modified),
+            (modified, CodedConcept.from_code(codes.SCT.Kidney)),
+        ]:
+            assert codes_equal(a, b, ignore_modifiers=True)
+
+        assert not codes_equal(
+            modified,
+            codes.SCT.Liver,
+            ignore_modifiers=True,
+        )
+
+    def test_modifier_order_not_significant(self, modified_class):
+        a = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+        )
+        b = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Posterior, codes.SCT.Left],
+        )
+        assert codes_equal(a, b)
+        assert codes_equal(b, a)
+
+    def test_modifier_subset_not_equal(self, modified_class):
+        a = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+        )
+        b = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        assert not codes_equal(a, b)
+        assert not codes_equal(b, a)
+
+    def test_class_not_considered(self):
+        a = SegmentedPropertyType(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        b = AnatomicRegion(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        c = AnnotatedPropertyType(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        assert codes_equal(a, b)
+        assert codes_equal(b, c)
+        assert codes_equal(a, c)
+
+    def test_equivalent_modifiers_match(self, modified_class):
+        a = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[CodedConcept('373098007', 'SCT', 'Mean')],
+        )
+        b = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[CodedConcept('R-00317', 'SRT', 'Mean')],
+        )
+        assert codes_equal(a, b)
+
+    def test_operator_agrees_with_function(self, modified_class):
+        concepts = [
+            modified_class(codes.SCT.Kidney),
+            modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left]),
+            modified_class(
+                codes.SCT.Kidney,
+                modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+            ),
+            modified_class(codes.SCT.Liver),
+            CodedConcept.from_code(codes.SCT.Kidney),
+        ]
+        for a in concepts:
+            for b in concepts:
+                assert (a == b) == codes_equal(a, b)
+                assert (a != b) == (not codes_equal(a, b))
+
+    def test_hash_consistent_with_equality(self, modified_class):
+        concepts = [
+            modified_class(codes.SCT.Kidney),
+            modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left]),
+            modified_class(
+                codes.SCT.Kidney,
+                modifiers=[codes.SCT.Posterior, codes.SCT.Left],
+            ),
+            modified_class(
+                codes.SCT.Kidney,
+                modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+            ),
+            modified_class(codes.SCT.Liver),
+            CodedConcept.from_code(codes.SCT.Kidney),
+            codes.SCT.Kidney,
+        ]
+        for a in concepts:
+            for b in concepts:
+                if a == b and b == a:
+                    assert hash(a) == hash(b)
+
+    def test_operator_asymmetry_with_pydicom_code(self, modified_class):
+        # Documents known behavior: pydicom's Code.__eq__ is evaluated first
+        # when a Code is the left operand and knows nothing of modifiers.
+        # codes_equal should be used instead in such situations.
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        assert modified != codes.SCT.Kidney
+        assert codes.SCT.Kidney == modified
+        assert not codes_equal(modified, codes.SCT.Kidney)
+        assert not codes_equal(codes.SCT.Kidney, modified)
 
 
 class TestContentItem(unittest.TestCase):
@@ -944,6 +1219,24 @@ class TestContentItem(unittest.TestCase):
         qualifier_code_item = i.NumericValueQualifierCodeSequence[0]
         assert qualifier_code_item.CodeValue == qualifier.value
 
+    def test_num_item_from_dataset_without_measured_value(self):
+        # Measured Value Sequence is type 2 and may be empty, in which case
+        # the qualifier gives the reason for the absence of the value
+        qualifier = CodedConcept(*codes.DCM.MeasurementFailure)
+        dataset = Dataset()
+        dataset.RelationshipType = 'CONTAINS'
+        dataset.ValueType = 'NUM'
+        dataset.ConceptNameCodeSequence = [CodedConcept(*codes.SCT.Area)]
+        dataset.MeasuredValueSequence = []
+        dataset.NumericValueQualifierCodeSequence = [qualifier]
+        i = NumContentItem.from_dataset(dataset)
+        assert i.name == codes.SCT.Area
+        assert i.value is None
+        assert i.unit is None
+        assert i.qualifier == qualifier
+        assert isinstance(i.qualifier, CodedConcept)
+        assert len(i.MeasuredValueSequence) == 0
+
     def test_pname_content_item(self):
         name = codes.DCM.PersonObserverName
         value = 'Doe^John'
@@ -1097,6 +1390,41 @@ class TestContentItem(unittest.TestCase):
         assert i.referenced_segment_numbers == [segment_number]
         with pytest.raises(AttributeError):
             ref_sop_item.ReferencedFrameNumber  # noqa: B018
+
+    def test_waveform_item_construction(self):
+        name = codes.SCT.Source
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        sop_instance_uid = '1.2.3.4'
+        channels = [(1, 1), (1, 2)]
+        i = WaveformContentItem(
+            name=name,
+            referenced_sop_class_uid=sop_class_uid,
+            referenced_sop_instance_uid=sop_instance_uid,
+            referenced_waveform_channels=channels,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        assert i.ValueType == 'WAVEFORM'
+        assert i.ConceptNameCodeSequence[0] == name
+        ref_sop_item = i.ReferencedSOPSequence[0]
+        assert ref_sop_item.ReferencedSOPClassUID == sop_class_uid
+        assert ref_sop_item.ReferencedSOPInstanceUID == sop_instance_uid
+        assert ref_sop_item.ReferencedWaveformChannels == [1, 1, 1, 2]
+        assert i.value == (sop_class_uid, sop_instance_uid)
+        assert i.referenced_sop_class_uid == sop_class_uid
+        assert i.referenced_sop_instance_uid == sop_instance_uid
+        assert i.referenced_waveform_channels == channels
+
+    def test_waveform_item_construction_without_channels(self):
+        i = WaveformContentItem(
+            name=codes.SCT.Source,
+            referenced_sop_class_uid='1.2.840.10008.5.1.4.1.1.9.1.1',
+            referenced_sop_instance_uid='1.2.3.4',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        ref_sop_item = i.ReferencedSOPSequence[0]
+        with pytest.raises(AttributeError):
+            ref_sop_item.ReferencedWaveformChannels  # noqa: B018
+        assert i.referenced_waveform_channels is None
 
     def test_scoord_item_construction_point(self):
         name = codes.DCM.ImageRegion
@@ -1254,6 +1582,175 @@ class TestContentItem(unittest.TestCase):
         assert isinstance(code_item.name, CodedConcept)
         assert isinstance(code_item.value, CodedConcept)
 
+    def test_waveform_item_from_dataset(self):
+        sop_class_uid = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        sop_instance_uid = '1.2.3.4'
+        ref_ds = Dataset()
+        ref_ds.ReferencedSOPClassUID = sop_class_uid
+        ref_ds.ReferencedSOPInstanceUID = sop_instance_uid
+        ref_ds.ReferencedWaveformChannels = [1, 2, 1, 3]
+        waveform_ds = Dataset()
+        waveform_ds.ValueType = 'WAVEFORM'
+        waveform_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.SCT.Source)
+        ]
+        waveform_ds.ReferencedSOPSequence = [ref_ds]
+        waveform_ds.RelationshipType = 'CONTAINS'
+
+        item = WaveformContentItem.from_dataset(waveform_ds)
+        assert isinstance(item, WaveformContentItem)
+        assert isinstance(item.name, CodedConcept)
+        assert item.value_type == ValueTypeValues.WAVEFORM
+        assert item.value == (sop_class_uid, sop_instance_uid)
+        assert item.referenced_waveform_channels == [(1, 2), (1, 3)]
+
+    def test_waveform_item_from_dataset_with_wrong_value_type(self):
+        ref_ds = Dataset()
+        ref_ds.ReferencedSOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
+        ref_ds.ReferencedSOPInstanceUID = '1.2.3.4'
+        image_ds = Dataset()
+        image_ds.ValueType = 'IMAGE'
+        image_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.SCT.Source)
+        ]
+        image_ds.ReferencedSOPSequence = [ref_ds]
+        image_ds.RelationshipType = 'CONTAINS'
+
+        with pytest.raises(ValueError):
+            WaveformContentItem.from_dataset(image_ds)
+
+    def test_container_item_from_dataset_with_waveform_item(self):
+        ref_ds = Dataset()
+        ref_ds.ReferencedSOPClassUID = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        ref_ds.ReferencedSOPInstanceUID = '1.2.3.4'
+        waveform_ds = Dataset()
+        waveform_ds.ValueType = 'WAVEFORM'
+        waveform_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.SCT.Source)
+        ]
+        waveform_ds.ReferencedSOPSequence = [ref_ds]
+        waveform_ds.RelationshipType = 'CONTAINS'
+
+        container_ds = Dataset()
+        container_ds.ContinuityOfContent = 'SEPARATE'
+        container_ds.ValueType = 'CONTAINER'
+        container_ds.ConceptNameCodeSequence = [
+            _build_coded_concept_dataset(codes.DCM.Manifest)
+        ]
+        container_ds.ContentSequence = [waveform_ds]
+
+        container_item = ContainerContentItem.from_dataset(container_ds)
+        waveform_item = container_item.ContentSequence[0]
+        assert isinstance(waveform_item, WaveformContentItem)
+        assert waveform_item.referenced_waveform_channels is None
+
+
+def test_tcoord_item_missing_parameters():
+    msg = (
+        'Exactly one of the following parameters should be '
+        'provided (got 0):'
+    )
+    with pytest.raises(TypeError, match=re.escape(msg)):
+        TcoordContentItem(
+            name=codes.DCM.AcquisitionTime,
+            temporal_range_type='SEGMENT',
+        )
+
+
+def test_tcoord_item_multiple_parameters():
+    msg = (
+        'Exactly one of the following parameters should be '
+        'provided (got 2):'
+    )
+    with pytest.raises(TypeError, match=re.escape(msg)):
+        TcoordContentItem(
+            name=codes.DCM.AcquisitionTime,
+            temporal_range_type='SEGMENT',
+            referenced_sample_positions=[1, 3],
+            referenced_time_offsets=[1.2, 3.45],
+        )
+
+
+@pytest.mark.parametrize('keyword,attribute,values', [
+    ('referenced_sample_positions', 'ReferencedSamplePositions', [1, 3]),
+    ('referenced_time_offsets', 'ReferencedTimeOffsets', [0.25, 1.25]),
+    ('referenced_date_time', 'ReferencedDateTime', [
+        datetime(2024, 1, 2, 3, 4, 5), datetime(2024, 1, 2, 3, 4, 6),
+    ]),
+])
+@pytest.mark.parametrize('count', [1, 2])
+@pytest.mark.parametrize('decode', [False, True])
+def test_tcoord_value_sequence(keyword, attribute, values, count, decode):
+    item = TcoordContentItem(
+        name=codes.DCM.AcquisitionTime,
+        temporal_range_type='POINT' if count == 1 else 'SEGMENT',
+        **{keyword: values[:count]},
+    )
+    original = deepcopy(item)
+    if decode:
+        buffer = BytesIO()
+        item.save_as(buffer, implicit_vr=True, little_endian=True)
+        buffer.seek(0)
+        item = TcoordContentItem.from_dataset(dcmread(buffer, force=True))
+
+    stored = getattr(item, attribute)
+    expected = [stored] if count == 1 else list(stored)
+    assert len(item.value) == count
+    assert list(item.value) == expected
+    assert [type(v) for v in item.value] == [type(v) for v in expected]
+    assert item[attribute].VM == count
+    if not decode:
+        assert item == original
+    if count == 2:
+        # Existing multivalue containers remain live, rather than copied.
+        assert item.value is stored
+
+
+@pytest.mark.parametrize('count', [1, 2])
+def test_tcoord_value_sequence_with_numpy_offsets(count):
+    previous_numpy = config.use_DS_numpy
+    previous_decimal = config.use_DS_decimal
+    try:
+        config.DS_decimal(False)
+        config.DS_numpy(True)
+        item = TcoordContentItem(
+            name=codes.DCM.AcquisitionTime,
+            temporal_range_type='POINT' if count == 1 else 'SEGMENT',
+            referenced_time_offsets=[0.25, 1.25][:count],
+        )
+        buffer = BytesIO()
+        item.save_as(buffer, implicit_vr=True, little_endian=True)
+        buffer.seek(0)
+        item = TcoordContentItem.from_dataset(dcmread(buffer, force=True))
+        stored = item.ReferencedTimeOffsets
+        expected = [stored] if count == 1 else list(stored)
+        assert len(item.value) == count
+        assert list(item.value) == expected
+        assert [type(v) for v in item.value] == [type(v) for v in expected]
+        assert item['ReferencedTimeOffsets'].VM == count
+        if count == 2:
+            assert isinstance(stored, np.ndarray)
+            assert item.value is stored
+        else:
+            assert item.value[0] is stored
+    finally:
+        config.DS_numpy(False)
+        config.DS_decimal(previous_decimal)
+        config.DS_numpy(previous_numpy)
+
+
+def test_tcoord_from_dataset_singleton_preserves_input():
+    item = TcoordContentItem(
+        name=codes.DCM.AcquisitionTime,
+        temporal_range_type='POINT',
+        referenced_sample_positions=[7],
+    )
+    original = deepcopy(item)
+    decoded = TcoordContentItem.from_dataset(item)
+    assert decoded.value == [7]
+    assert decoded is not item
+    assert item == original
+
 
 class TestContentSequence(unittest.TestCase):
 
@@ -1349,6 +1846,103 @@ class TestContentSequence(unittest.TestCase):
     def test_construct_root_with_relationship(self):
         with pytest.raises(AttributeError):
             ContentSequence([self._root_item_with_rel], is_root=True)
+
+    def test_index(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        another_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='another comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item, other_item, another_item])
+        assert seq.index(self._item) == 0
+        assert seq.index(other_item) == 1
+        assert seq.index(another_item) == 2
+
+    def test_index_missing_item(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item])
+        assert other_item not in seq
+        with pytest.raises(ValueError):
+            seq.index(other_item)
+
+    def test_remove(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item, other_item])
+        seq.remove(other_item)
+        assert len(seq) == 1
+        assert seq[0] is self._item
+        assert other_item not in seq
+        assert len(seq.find(codes.DCM.Comment)) == 0
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
+
+    def test_extend_find(self):
+        seq = ContentSequence()
+        seq.extend([self._item])
+        assert len(seq) == 1
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
+
+    def test_extend_with_no_relationship_find(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq.extend([self._item_no_rel])
+        assert len(seq.find(codes.SCT.FindingSite)) == 0
+
+    def test_iadd_find(self):
+        seq = ContentSequence()
+        seq += [self._item]
+        assert isinstance(seq, ContentSequence)
+        assert len(seq) == 1
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
+
+    def test_iadd_with_no_relationship(self):
+        seq = ContentSequence()
+        with pytest.raises(AttributeError):
+            seq += [self._item_no_rel]
+
+    def test_setitem(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item])
+        seq[0] = other_item
+        assert len(seq) == 1
+        assert seq[0] is other_item
+        assert len(seq.find(codes.SCT.FindingSite)) == 0
+        assert len(seq.find(codes.DCM.Comment)) == 1
+
+    def test_setitem_slice(self):
+        other_item = TextContentItem(
+            name=codes.DCM.Comment,
+            value='comment',
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        seq = ContentSequence([self._item])
+        seq[0:1] = [other_item, other_item]
+        assert len(seq) == 2
+        assert len(seq.find(codes.SCT.FindingSite)) == 0
+        assert len(seq.find(codes.DCM.Comment)) == 2
+
+    def test_setitem_wrong_type(self):
+        seq = ContentSequence([self._item])
+        with pytest.raises(TypeError):
+            seq[0] = Dataset()
+        assert seq[0] is self._item
+        assert len(seq.find(codes.SCT.FindingSite)) == 1
 
     def test_content_item_setattr(self):
         # Integration test that setting a ContentItem's content sequence
@@ -2877,6 +3471,42 @@ class TestMeasurement(unittest.TestCase):
             CoordinatesForMeasurement3D
         )
 
+    def test_from_sequence(self):
+        measurement = Measurement(
+            name=self._name,
+            value=self._value,
+            unit=self._unit,
+            tracking_identifier=self._tracking_identifier,
+            method=self._method,
+            finding_sites=[self._finding_site],
+        )
+        retrieved = Measurement.from_sequence(measurement)
+        assert isinstance(retrieved, Measurement)
+        assert retrieved.name == self._name
+        assert retrieved.value == self._value
+        assert retrieved.unit == self._unit
+        assert retrieved.qualifier is None
+        assert retrieved.method == self._method
+        assert retrieved.finding_sites == [self._finding_site]
+
+    def test_from_sequence_without_measured_value(self):
+        qualifier = CodedConcept(*codes.DCM.MeasurementFailure)
+        measurement = Measurement(
+            name=self._name,
+            value=self._value,
+            unit=self._unit,
+            qualifier=qualifier,
+            method=self._method,
+        )
+        measurement[0].MeasuredValueSequence = []
+        retrieved = Measurement.from_sequence(measurement)
+        assert isinstance(retrieved, Measurement)
+        assert retrieved.name == self._name
+        assert retrieved.value is None
+        assert retrieved.unit is None
+        assert retrieved.qualifier == qualifier
+        assert retrieved.method == self._method
+
 
 class TestQualitativeEvaluation(unittest.TestCase):
 
@@ -2893,6 +3523,264 @@ class TestQualitativeEvaluation(unittest.TestCase):
         assert len(evaluation) == 1
         assert evaluation.name == self._name
         assert evaluation.value == self._value
+        assert evaluation.modifiers == []
+        assert not hasattr(evaluation[0], 'ContentSequence')
+
+    def _make_modifier(self, relationship_type=None):
+        return CodeContentItem(
+            name=codes.SCT.Severity,
+            value=codes.SCT.Severe,
+            relationship_type=relationship_type,
+        )
+
+    def test_construction_with_modifiers(self):
+        modifier = self._make_modifier(
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        )
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[modifier],
+        )
+
+        assert len(evaluation) == 1
+        assert len(evaluation[0].ContentSequence) == 1
+        modifiers = evaluation.modifiers
+        assert len(modifiers) == 1
+        assert isinstance(modifiers[0], CodeContentItem)
+        assert modifiers[0].name == codes.SCT.Severity
+        assert modifiers[0].value == codes.SCT.Severe
+        assert modifiers[0].relationship_type == (
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        )
+
+    def test_construction_with_modifiers_string_relationship_type(self):
+        modifier = self._make_modifier('HAS CONCEPT MOD')
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[modifier],
+        )
+        assert len(evaluation.modifiers) == 1
+
+    def test_construction_with_modifiers_no_relationship_type(self):
+        modifier = self._make_modifier()
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[modifier],
+        )
+
+        modifiers = evaluation.modifiers
+        assert len(modifiers) == 1
+        assert isinstance(modifiers[0], CodeContentItem)
+        assert modifiers[0].relationship_type == (
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        )
+
+    def test_construction_with_empty_modifiers(self):
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[],
+        )
+        assert evaluation.modifiers == []
+        assert not hasattr(evaluation[0], 'ContentSequence')
+
+    def test_construction_with_modifiers_wrong_relationship_type(self):
+        modifier = self._make_modifier(RelationshipTypeValues.CONTAINS)
+        msg = (
+            "Items of 'modifiers' must have relationship type "
+            "'HAS CONCEPT MOD'."
+        )
+        with pytest.raises(ValueError, match=msg):
+            QualitativeEvaluation(
+                name=self._name,
+                value=self._value,
+                modifiers=[modifier],
+            )
+
+    def test_construction_with_modifiers_wrong_type(self):
+        modifier = TextContentItem(
+            name=codes.SCT.Severity,
+            value='severe',
+            relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD,
+        )
+        msg = (
+            "Items of 'modifiers' must have type "
+            "highdicom.sr.CodeContentItem."
+        )
+        with pytest.raises(TypeError, match=msg):
+            QualitativeEvaluation(
+                name=self._name,
+                value=self._value,
+                modifiers=[modifier],
+            )
+
+    def test_construction_with_code_modifier_wrong_type(self):
+        msg = (
+            "Items of 'modifiers' must have type "
+            "highdicom.sr.CodeContentItem."
+        )
+        with pytest.raises(TypeError, match=msg):
+            QualitativeEvaluation(
+                name=self._name,
+                value=self._value,
+                modifiers=[codes.SCT.Severe],
+            )
+
+    @staticmethod
+    def _make_code_dataset(code):
+        ds = Dataset()
+        ds.CodeValue = code.value
+        ds.CodingSchemeDesignator = code.scheme_designator
+        ds.CodeMeaning = code.meaning
+        return ds
+
+    def _make_code_item_dataset(self, name, value, relationship_type):
+        ds = Dataset()
+        ds.RelationshipType = relationship_type
+        ds.ValueType = 'CODE'
+        ds.ConceptNameCodeSequence = [self._make_code_dataset(name)]
+        ds.ConceptCodeSequence = [self._make_code_dataset(value)]
+        return ds
+
+    def _make_evaluation_sequence(self, modifiers=None):
+        item = self._make_code_item_dataset(
+            self._name,
+            self._value,
+            'CONTAINS',
+        )
+        if modifiers is not None:
+            item.ContentSequence = DicomSequence(modifiers)
+
+        return DicomSequence([item])
+
+    def test_from_sequence(self):
+        sequence = self._make_evaluation_sequence()
+        parsed = QualitativeEvaluation.from_sequence(sequence)
+
+        assert isinstance(parsed, QualitativeEvaluation)
+        assert parsed.name == self._name
+        assert parsed.value == self._value
+        assert parsed.modifiers == []
+        assert not hasattr(parsed[0], 'ContentSequence')
+
+    def test_from_sequence_with_modifiers(self):
+        sequence = self._make_evaluation_sequence(
+            modifiers=[
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Severe,
+                    'HAS CONCEPT MOD',
+                ),
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Mild,
+                    'HAS CONCEPT MOD',
+                ),
+            ]
+        )
+        parsed = QualitativeEvaluation.from_sequence(sequence)
+
+        assert parsed.name == self._name
+        assert parsed.value == self._value
+        # Modifiers must be encoded in the content item itself
+        assert len(parsed[0].ContentSequence) == 2
+        modifiers = parsed.modifiers
+        assert len(modifiers) == 2
+        assert all(isinstance(m, CodeContentItem) for m in modifiers)
+        assert modifiers[0].name == codes.SCT.Severity
+        assert modifiers[0].value == codes.SCT.Severe
+        assert modifiers[1].value == codes.SCT.Mild
+        assert all(
+            m.relationship_type == RelationshipTypeValues.HAS_CONCEPT_MOD
+            for m in modifiers
+        )
+
+    def test_from_sequence_ignores_non_modifier_children(self):
+        comment = Dataset()
+        comment.RelationshipType = 'HAS PROPERTIES'
+        comment.ValueType = 'TEXT'
+        comment.ConceptNameCodeSequence = [
+            self._make_code_dataset(codes.DCM.Comment)
+        ]
+        comment.TextValue = 'a comment'
+        sequence = self._make_evaluation_sequence(
+            modifiers=[
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Severe,
+                    'HAS CONCEPT MOD',
+                ),
+                # CODE item, but not a modifier relationship
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Mild,
+                    'HAS PROPERTIES',
+                ),
+                comment,
+            ]
+        )
+        parsed = QualitativeEvaluation.from_sequence(sequence)
+
+        assert len(parsed.modifiers) == 1
+        assert parsed.modifiers[0].value == codes.SCT.Severe
+        assert len(parsed[0].ContentSequence) == 1
+
+
+class TestTextEvaluation(unittest.TestCase):
+
+    def setUp(self):
+        self._name = codes.DCM.Impression
+        self._value = 'Likely benign, recommend follow-up in 12 months'
+
+    def test_construction(self):
+        evaluation = TextEvaluation(
+            name=self._name,
+            value=self._value,
+        )
+
+        assert len(evaluation) == 1
+        item = evaluation[0]
+        assert isinstance(item, TextContentItem)
+        assert item.relationship_type == RelationshipTypeValues.CONTAINS
+        assert evaluation.name == self._name
+        assert evaluation.value == self._value
+
+    def test_from_sequence(self):
+        item = Dataset()
+        item.RelationshipType = 'CONTAINS'
+        item.ValueType = 'TEXT'
+        concept_name = Dataset()
+        concept_name.CodeValue = self._name.value
+        concept_name.CodingSchemeDesignator = self._name.scheme_designator
+        concept_name.CodeMeaning = self._name.meaning
+        item.ConceptNameCodeSequence = [concept_name]
+        item.TextValue = self._value
+        sequence = DicomSequence([item])
+
+        parsed = TextEvaluation.from_sequence(sequence)
+
+        assert isinstance(parsed, TextEvaluation)
+        assert parsed.name == self._name
+        assert parsed.value == self._value
+
+    def test_from_sequence_wrong_value_type(self):
+        evaluation = QualitativeEvaluation(
+            name=codes.SCT.AssociatedMorphology,
+            value=codes.SCT.Neoplasm,
+        )
+        with pytest.raises(ValueError):
+            TextEvaluation.from_sequence(evaluation)
+
+    def test_from_sequence_multiple_items(self):
+        evaluation = TextEvaluation(name=self._name, value=self._value)
+        with pytest.raises(
+            ValueError,
+            match='Text Evaluation shall contain only one content item.'
+        ):
+            TextEvaluation.from_sequence([evaluation[0], evaluation[0]])
 
 
 class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
@@ -2944,6 +3832,162 @@ class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         sop_class_uid = src_image.referenced_sop_class_uid
         assert sop_class_uid == '1.2.840.10008.5.1.4.1.1.2.2'
         assert src_image.referenced_sop_instance_uid == self._src_instance_uid
+
+    def test_get_measurements_and_evaluations_with_context(self):
+        time_point_context = TimePointContext(
+            time_point='first',
+            time_point_type=codes.DCM.Posttreatment,
+            time_point_order=1,
+            temporal_offset_from_event=LongitudinalTemporalOffsetFromEvent(
+                value=5,
+                unit=Code('d', 'UCUM', 'days'),
+                event_type=codes.DCM.Baseline
+            )
+        )
+        qualitative_evaluations = [
+            QualitativeEvaluation(
+                name=codes.SCT.AssociatedMorphology,
+                value=codes.SCT.Neoplasm
+            ),
+        ]
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            time_point_context=time_point_context,
+            finding_category=codes.SCT.MorphologicallyAbnormalStructure,
+            finding_type=codes.SCT.Neoplasm,
+            measurements=self._measurements,
+            qualitative_evaluations=qualitative_evaluations,
+        )
+        parsed = MeasurementsAndQualitativeEvaluations.from_sequence(template)
+        for group in (template, parsed):
+            measurements = group.get_measurements()
+            assert len(measurements) == 1
+            assert measurements[0].name == codes.SCT.Area
+            evaluations = group.get_qualitative_evaluations()
+            assert len(evaluations) == 1
+            assert evaluations[0].name == codes.SCT.AssociatedMorphology
+            assert group.finding_category == (
+                codes.SCT.MorphologicallyAbnormalStructure
+            )
+            assert group.finding_type == codes.SCT.Neoplasm
+
+    def test_get_evaluations_with_modifiers(self):
+        qualitative_evaluations = [
+            QualitativeEvaluation(
+                name=codes.SCT.AssociatedMorphology,
+                value=codes.SCT.Neoplasm,
+                modifiers=[
+                    CodeContentItem(
+                        name=codes.SCT.Severity,
+                        value=codes.SCT.Severe,
+                    ),
+                ],
+            ),
+        ]
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            measurements=self._measurements,
+            qualitative_evaluations=qualitative_evaluations,
+        )
+        parsed = MeasurementsAndQualitativeEvaluations.from_sequence(template)
+        for group in (template, parsed):
+            # The modifier is nested and must not show up as a separate
+            # qualitative evaluation
+            evaluations = group.get_qualitative_evaluations()
+            assert len(evaluations) == 1
+            evaluation = evaluations[0]
+            assert evaluation.name == codes.SCT.AssociatedMorphology
+            assert evaluation.value == codes.SCT.Neoplasm
+            modifiers = evaluation.modifiers
+            assert len(modifiers) == 1
+            assert modifiers[0].name == codes.SCT.Severity
+            assert modifiers[0].value == codes.SCT.Severe
+
+            # Modifiers must survive re-use of a retrieved evaluation in a
+            # new measurement group
+            regrouped = MeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                measurements=self._measurements,
+                qualitative_evaluations=evaluations,
+            )
+            reevaluations = regrouped.get_qualitative_evaluations()
+            assert len(reevaluations) == 1
+            assert len(reevaluations[0].modifiers) == 1
+
+    def test_get_text_evaluations(self):
+        text_evaluations = [
+            TextEvaluation(
+                name=codes.DCM.Impression,
+                value='Likely benign',
+            ),
+            TextEvaluation(
+                name=codes.DCM.Comment,
+                value='Compare with prior study',
+            ),
+        ]
+        # Include other TEXT content items in the group (tracking identifier,
+        # session, time point and algorithm identification), which must not
+        # be returned as text evaluations
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            session='Session 1',
+            time_point_context=TimePointContext(time_point='first'),
+            algorithm_id=AlgorithmIdentification(
+                name='algo',
+                version='1.0',
+            ),
+            measurements=self._measurements,
+            qualitative_evaluations=[
+                QualitativeEvaluation(
+                    name=codes.SCT.AssociatedMorphology,
+                    value=codes.SCT.Neoplasm,
+                ),
+            ],
+            text_evaluations=text_evaluations,
+        )
+        parsed = MeasurementsAndQualitativeEvaluations.from_sequence(template)
+        for group in (template, parsed):
+            evaluations = group.get_text_evaluations()
+            assert len(evaluations) == 2
+            assert all(isinstance(e, TextEvaluation) for e in evaluations)
+            assert evaluations[0].name == codes.DCM.Impression
+            assert evaluations[0].value == 'Likely benign'
+            assert evaluations[1].name == codes.DCM.Comment
+            assert evaluations[1].value == 'Compare with prior study'
+
+            filtered = group.get_text_evaluations(name=codes.DCM.Comment)
+            assert len(filtered) == 1
+            assert filtered[0].value == 'Compare with prior study'
+
+            assert group.get_text_evaluations(name=codes.DCM.Finding) == []
+
+            # Text evaluations must not interfere with coded evaluations
+            assert len(group.get_qualitative_evaluations()) == 1
+
+    def test_get_text_evaluations_empty(self):
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            session='Session 1',
+            measurements=self._measurements,
+        )
+        assert template.get_text_evaluations() == []
+
+    def test_construction_with_text_evaluations_wrong_type(self):
+        msg = (
+            'Items of argument "text_evaluations" must have type '
+            'TextEvaluation.'
+        )
+        with pytest.raises(TypeError, match=msg):
+            MeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                text_evaluations=[
+                    TextContentItem(
+                        name=codes.DCM.Comment,
+                        value='a comment',
+                        relationship_type=RelationshipTypeValues.CONTAINS,
+                    )
+                ],
+            )
 
 
 class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
@@ -3044,6 +4088,26 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1410'
         assert template.reference_type == codes.DCM.ImageRegion
 
+    def test_construction_with_text_evaluations(self):
+        template = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_region=self._region,
+            text_evaluations=[
+                TextEvaluation(
+                    name=codes.DCM.Comment,
+                    value='Poorly defined margin',
+                ),
+            ],
+        )
+        parsed = PlanarROIMeasurementsAndQualitativeEvaluations.from_sequence(
+            template
+        )
+        for group in (template, parsed):
+            evaluations = group.get_text_evaluations()
+            assert len(evaluations) == 1
+            assert evaluations[0].name == codes.DCM.Comment
+            assert evaluations[0].value == 'Poorly defined margin'
+
     def test_construction_with_region_3d(self):
         template = PlanarROIMeasurementsAndQualitativeEvaluations(
             tracking_identifier=self._tracking_identifier,
@@ -3113,6 +4177,24 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert group.finding_type == self._finding_type
         assert group.finding_category == self._finding_category
         assert group.finding_sites == self._finding_sites
+
+    def test_get_qualitative_evaluations_with_geometric_purpose(self):
+        group = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_region=self._region,
+            qualitative_evaluations=self._qualitative_evaluations,
+            geometric_purpose=self._geometric_purpose
+        )
+        parsed = PlanarROIMeasurementsAndQualitativeEvaluations.from_sequence(
+            group
+        )
+        for item in (group, parsed):
+            evaluations = item.get_qualitative_evaluations()
+            assert len(evaluations) == 1
+            assert evaluations[0].name == self._qualitative_evaluations[0].name
+            assert item.get_qualitative_evaluations(
+                name=codes.DCM.GeometricPurposeOfRegion
+            ) == []
 
     def test_constructed_without_human_readable_tracking_identifier(self):
         tracking_identifier = TrackingIdentifier(
@@ -3275,6 +4357,25 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert all(isinstance(region, ImageRegion) for region in template.roi)
         assert template.referenced_segment is None
         assert template.reference_type == codes.DCM.ImageRegion
+
+    def test_constructed_with_text_evaluations(self):
+        cls = VolumetricROIMeasurementsAndQualitativeEvaluations
+        template = cls(
+            tracking_identifier=self._tracking_identifier,
+            referenced_regions=self._regions,
+            text_evaluations=[
+                TextEvaluation(
+                    name=codes.DCM.Comment,
+                    value='Heterogeneous enhancement',
+                ),
+            ],
+        )
+        parsed = cls.from_sequence(template)
+        for group in (template, parsed):
+            evaluations = group.get_text_evaluations()
+            assert len(evaluations) == 1
+            assert evaluations[0].name == codes.DCM.Comment
+            assert evaluations[0].value == 'Heterogeneous enhancement'
 
     def test_constructed_with_regions_3d(self):
         with pytest.raises(TypeError):
@@ -4381,6 +5482,9 @@ class TestComprehensiveSR(unittest.TestCase):
             buf.seek(0)
             sr_instance = srread(buf)
 
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
+
         assert isinstance(sr_instance, ComprehensiveSR)
 
     def test_srread_from_bytes(self):
@@ -4402,6 +5506,9 @@ class TestComprehensiveSR(unittest.TestCase):
             report.save_as(buf)
             # Read from bytes
             sr_instance = srread(buf.getvalue())
+
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
 
         assert isinstance(sr_instance, ComprehensiveSR)
 
@@ -4573,6 +5680,41 @@ class TestComprehensive3DSR(unittest.TestCase):
         assert isinstance(report.content, ContentSequence)
         assert isinstance(report.content, MeasurementReport)
         assert report is tmp
+
+    def test_from_dataset_measurement_without_value(self):
+        report = Comprehensive3DSR(
+            evidence=[self._ref_dataset],
+            content=self._content,
+            series_instance_uid=self._series_instance_uid,
+            series_number=self._series_number,
+            sop_instance_uid=self._sop_instance_uid,
+            instance_number=self._instance_number,
+            manufacturer=self._manufacturer,
+        )
+        # Remove the measured value and give the reason for its absence, as
+        # permitted by the Numeric Measurement Macro
+        qualifier = CodedConcept(*codes.DCM.MeasurementFailure)
+        num_item = find_content_items(
+            report,
+            value_type=ValueTypeValues.NUM,
+            recursive=True
+        )[0]
+        num_item.MeasuredValueSequence = []
+        num_item.NumericValueQualifierCodeSequence = [qualifier]
+        with BytesIO() as fp:
+            report.save_as(fp)
+            fp.seek(0)
+            report = Comprehensive3DSR.from_dataset(dcmread(fp))
+
+        groups = report.content.get_planar_roi_measurement_groups()
+        assert len(groups) == 1
+        measurements = groups[0].get_measurements()
+        assert len(measurements) == 1
+        measurement = measurements[0]
+        assert measurement.name == codes.SCT.AreaOfDefinedRegion
+        assert measurement.value is None
+        assert measurement.unit is None
+        assert measurement.qualifier == qualifier
 
     def test_evidence_duplication(self):
         report = Comprehensive3DSR(
@@ -4911,6 +6053,10 @@ class TestGetPlanarMeasurementGroups:
             sr_from_file = dcmread(buf)
             buf.seek(0)
             sr_from_file_copy = dcmread(buf)
+
+        # Remove the buffer to prevent warning about closed file
+        sr_from_file.buffer = None
+        sr_from_file_copy.buffer = None
 
         self._sr = Comprehensive3DSR.from_dataset(sr_from_file)
         self._content = self._sr.content
@@ -5309,6 +6455,10 @@ class TestGetVolumetricMeasurementGroups:
             buf.seek(0)
             sr_from_file_copy = dcmread(buf)
 
+        # Remove the buffer to prevent warning about closed file
+        sr_from_file.buffer = None
+        sr_from_file_copy.buffer = None
+
         # Two versions of the file, one with template IDs, one without
         self._sr = Comprehensive3DSR.from_dataset(sr_from_file)
         self._content = self._sr.content
@@ -5546,6 +6696,9 @@ class TestGetVolumetricMeasurementGroups:
             buf.seek(0)
             sr_instance = srread(buf)
 
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
+
         assert isinstance(sr_instance, Comprehensive3DSR)
 
     def test_missing_template_id_single_image_region(self):
@@ -5590,6 +6743,10 @@ class TestGetVolumetricMeasurementGroups:
             sr_instance = srread(buf)
             buf.seek(0)
             sr_instance_copy = srread(buf)
+
+        # Remove the buffer to prevent warning about closed file
+        sr_instance.buffer = None
+        sr_instance_copy.buffer = None
 
         _delete_template_ids(sr_instance_copy)
 

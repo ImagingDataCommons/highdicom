@@ -1,3 +1,4 @@
+from copy import deepcopy
 from io import BytesIO
 import unittest
 from pathlib import Path
@@ -20,6 +21,7 @@ from highdicom.sr.value_types import (
     ContentSequence,
     CompositeContentItem,
     ImageContentItem,
+    WaveformContentItem,
 )
 from highdicom.uid import UID
 
@@ -135,6 +137,28 @@ class TestKeyObjectSelection(unittest.TestCase):
         )
         assert len(references) == 0
 
+    def test_from_sequence_with_waveform_reference(self):
+        ecg_object = Dataset()
+        ecg_object.Modality = 'ECG'
+        ecg_object.SOPClassUID = '1.2.840.10008.5.1.4.1.1.9.1.1'
+        ecg_object.SOPInstanceUID = UID()
+        content = KeyObjectSelection(
+            document_title=self._document_title,
+            referenced_objects=[self._sm_object, ecg_object],
+        )
+        # TID 2010 references waveforms with Value Type WAVEFORM
+        content[0].ContentSequence[1].ValueType = 'WAVEFORM'
+
+        parsed_content = KeyObjectSelection.from_sequence(content)
+        references = parsed_content.get_references(
+            value_type=ValueTypeValues.WAVEFORM
+        )
+        assert len(references) == 1
+        assert isinstance(references[0], WaveformContentItem)
+        assert references[0].referenced_sop_instance_uid == (
+            ecg_object.SOPInstanceUID
+        )
+
     def test_construction_with_missing_parameter(self):
         with pytest.raises(TypeError):
             KeyObjectSelection(
@@ -223,6 +247,9 @@ class TestKeyObjectSelectionDocument(unittest.TestCase):
             fp.seek(0)
             document_reread = dcmread(fp)
 
+        # Remove reference to buffer to prevent warnings about closed file
+        document_reread.buffer = None
+
         test_document = KeyObjectSelectionDocument.from_dataset(document_reread)
         assert isinstance(test_document, KeyObjectSelectionDocument)
         assert isinstance(test_document.content, KeyObjectSelection)
@@ -241,3 +268,27 @@ class TestKeyObjectSelectionDocument(unittest.TestCase):
         assert study_uid == self._sm_image.StudyInstanceUID
         assert series_uid == self._sm_image.SeriesInstanceUID
         assert instance_uid == self._sm_image.SOPInstanceUID
+
+    def test_construction_with_evidence_from_multiple_studies(self):
+        # An instance from a different study than the first evidence item
+        other_study_image = deepcopy(self._sm_image)
+        other_study_image.StudyInstanceUID = UID()
+        other_study_image.SeriesInstanceUID = UID()
+        other_study_image.SOPInstanceUID = UID()
+        content = KeyObjectSelection(
+            document_title=codes.DCM.Manifest,
+            referenced_objects=[
+                self._sm_image,
+                other_study_image,
+            ]
+        )
+        with pytest.raises(ValueError, match='multiple studies'):
+            KeyObjectSelectionDocument(
+                evidence=[self._sm_image, other_study_image],
+                content=content,
+                series_instance_uid=UID(),
+                series_number=10,
+                sop_instance_uid=UID(),
+                instance_number=1,
+                manufacturer='MGH Computational Pathology',
+            )

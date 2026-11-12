@@ -19,3 +19,4 @@ parts of the library.
    compression
    coding
    remote
+   other_libraries

@@ -15,10 +15,20 @@ from highdicom.base_content import ContributingEquipment
 from highdicom.enum import (
     ContentQualificationValues,
     PatientSexValues,
+    SpecificCharacterSetValues,
 )
-from highdicom.valuerep import check_person_name, _check_long_string
+from highdicom.valuerep import (
+    check_person_name,
+    _check_long_string,
+    _check_specific_character_set,
+)
 from highdicom.version import __version__
-from highdicom._module_utils import is_attribute_in_iod
+from highdicom._standard_utils import (
+    get_iod_module_map,
+    get_module_attribute_map,
+    get_sop_class_iod_map,
+    is_attribute_in_iod,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -60,6 +70,16 @@ class SOPClass(Dataset):
         device_serial_number: str | None = None,
         institution_name: str | None = None,
         institutional_department_name: str | None = None,
+        content_date: str | datetime.date | None = None,
+        content_time: str | datetime.time | None = None,
+        series_date: str | datetime.date | None = None,
+        series_time: str | datetime.time | None = None,
+        specific_character_set: (
+            SpecificCharacterSetValues |
+            str |
+            Sequence[str | SpecificCharacterSetValues] |
+            None
+        ) = None,
     ):
         """
         Parameters
@@ -103,7 +123,7 @@ class SOPClass(Dataset):
             Name of the referring physician
         content_qualification: Union[str, highdicom.ContentQualificationValues, None], optional
             Indicator of content qualification
-        coding_schemes: Union[Sequence[highdicom.sr.CodingSchemeIdentificationItem], None], optional
+        coding_schemes: Union[Sequence[highdicom.coding_schemes.CodingSchemeIdentificationItem], None], optional
             private or public coding schemes that are not part of the
             DICOM standard
         series_description: Union[str, None], optional
@@ -121,6 +141,20 @@ class SOPClass(Dataset):
         institutional_department_name: Union[str, None], optional
             Name of the department of the person or device that creates the
             SR document instance.
+        content_date: str | datetime.date | None, optional
+            Date the content of this instance was created. If not specified,
+            the current date will be used.
+        content_time: str | datetime.time | None, optional
+            Time the content of this instance was created. If not specified,
+            the current time will be used.
+        series_date: str | datetime.date | None, optional
+            Date the series was started. This should be the same for all
+            instances in a series.
+        series_time: str | datetime.time | None, optional
+            Time the series was started. This should be the same for all
+            instances in a series.
+        specific_character_set: highdicom.enum.SpecificCharacterSetValues | str | Sequence[highdicom.enum.SpecificCharacterSetValues | str] | None, optional
+            Specific Character Set used to encode text values within this object.
 
         Note
         ----
@@ -207,7 +241,11 @@ class SOPClass(Dataset):
             _check_long_string(device_serial_number)
             self.DeviceSerialNumber = device_serial_number
         if software_versions is not None:
-            _check_long_string(software_versions)
+            if not isinstance(software_versions, str):
+                for v in software_versions:
+                    _check_long_string(v)
+            else:
+                _check_long_string(software_versions)
             self.SoftwareVersions = software_versions
         if institution_name is not None:
             _check_long_string(institution_name)
@@ -216,7 +254,7 @@ class SOPClass(Dataset):
                 _check_long_string(institutional_department_name)
                 self.InstitutionalDepartmentName = institutional_department_name
 
-        # Instance
+        # SOP Common
         self.SOPInstanceUID = str(sop_instance_uid)
         self.SOPClassUID = str(sop_class_uid)
         if instance_number is None:
@@ -227,25 +265,84 @@ class SOPClass(Dataset):
             )
         self.InstanceNumber = instance_number
 
+        now = datetime.datetime.now()
+        self.InstanceCreationDate = DA(now.date())
+        self.InstanceCreationTime = TM(now.time())
+
+        if specific_character_set is not None:
+            specific_character_set = _check_specific_character_set(
+                specific_character_set
+            )
+            self.SpecificCharacterSet = specific_character_set
+
         # Content Date and Content Time are not present in all IODs
         if is_attribute_in_iod('ContentDate', sop_class_uid):
-            self.ContentDate = DA(datetime.datetime.now().date())
+            if content_date is None:
+                if content_time is not None:
+                    raise TypeError(
+                        "'content_time' may not be specified without "
+                        "'content_date'."
+                    )
+                content_date = now.date()
+            content_date = DA(content_date)
+            self.ContentDate = content_date
+        elif content_date is not None:
+            raise TypeError(
+                f"'content_date' should not be specified for SOP Class UID: "
+                f"{sop_class_uid}"
+            )
         if is_attribute_in_iod('ContentTime', sop_class_uid):
-            self.ContentTime = TM(datetime.datetime.now().time())
+            if content_time is None:
+                content_time = now.time()
+            content_time = TM(content_time)
+            self.ContentTime = content_time
+        elif content_time is not None:
+            raise TypeError(
+                f"'content_time' should not be specified for SOP Class UID: "
+                f"{sop_class_uid}"
+            )
+
+        if series_date is not None:
+            series_date = DA(series_date)
+            if content_date is not None:
+                if series_date > content_date:
+                    raise ValueError(
+                        "'series_date' must not be later than 'content_date'."
+                    )
+            self.SeriesDate = series_date
+        if series_time is not None:
+            series_time = TM(series_time)
+            if series_date is None:
+                raise TypeError(
+                    "'series_time' may not be specified without "
+                    "'series_date'."
+                )
+            if (
+                content_time is not None and
+                content_date is not None and
+                series_date == content_date and
+                series_time > content_time
+            ):
+                raise ValueError(
+                    "'series_time' must not be later than content time."
+                )
+            self.SeriesTime = series_time
+
         if content_qualification is not None:
             content_qualification = ContentQualificationValues(
                 content_qualification
             )
             self.ContentQualification = content_qualification.value
         if coding_schemes is not None:
-            self.CodingSchemeIdentificationSequence: list[Dataset] = []
             for item in coding_schemes:
                 if not isinstance(item, CodingSchemeIdentificationItem):
                     raise TypeError(
                         'Coding scheme identification item must have type '
                         '"CodingSchemeIdentificationItem".'
                     )
-                self.CodingSchemeIdentificationSequence.append(item)
+
+            if len(coding_schemes) > 0:
+                self.CodingSchemeIdentificationSequence = list(coding_schemes)
 
     @property
     def transfer_syntax_uid(self) -> UID:
@@ -297,14 +394,16 @@ class SOPClass(Dataset):
             DICOM Module (e.g., ``"General Series"`` or ``"Specimen"``)
 
         """
-        from highdicom._iods import IOD_MODULE_MAP, SOP_CLASS_UID_IOD_KEY_MAP
-        from highdicom._modules import MODULE_ATTRIBUTE_MAP
+        sop_class_iod_map = get_sop_class_iod_map()
+        iod_module_map = get_iod_module_map()
+        module_attribute_map = get_module_attribute_map()
+
         logger.info(
             f'copy {ie}-related attributes from '
             f'dataset "{dataset.SOPInstanceUID}"'
         )
-        iod_key = SOP_CLASS_UID_IOD_KEY_MAP[dataset.SOPClassUID]
-        for module_item in IOD_MODULE_MAP[iod_key]:
+        iod_key = sop_class_iod_map[dataset.SOPClassUID]
+        for module_item in iod_module_map[iod_key]:
             module_key = module_item['key']
             if module_item['ie'] != ie:
                 continue
@@ -320,14 +419,24 @@ class SOPClass(Dataset):
                     ])
                 )
             )
-            for item in MODULE_ATTRIBUTE_MAP[module_key]:
+            for item in module_attribute_map[module_key]:
                 if len(item['path']) == 0:
                     self._copy_attribute(dataset, str(item['keyword']))
 
     def copy_patient_and_study_information(self, dataset: Dataset) -> None:
-        """Copies patient- and study-related metadata from `dataset` that
-        are defined in the following modules: Patient, General Study,
-        Patient Study, Clinical Trial Subject and Clinical Trial Study.
+        """Copies patient- and study-related metadata from `dataset`.
+
+        Information defined in the following modules is included: Patient,
+        General Study, Patient Study, Clinical Trial Subject and Clinical Trial
+        Study.
+
+        Note
+        ----
+        This method is intended to be used by those writing sub-classes of
+        :class:`highdicom.SOPClass`. It is *not* necessary for users of
+        sub-classes of :class:`highdicom.SOPClass` (including all DICOM IODs
+        implemented in highdicom), or indeed most users of the library, to call
+        this function directly.
 
         Parameters
         ----------
@@ -339,8 +448,17 @@ class SOPClass(Dataset):
         self._copy_root_attributes_of_module(dataset, 'Study')
 
     def copy_specimen_information(self, dataset: Dataset) -> None:
-        """Copies specimen-related metadata from `dataset` that
-        are defined in the Specimen module.
+        """Copies specimen-related metadata from `dataset`.
+
+        Information defined in the Specimen module is included.
+
+        Note
+        ----
+        This method is intended to be used by those writing sub-classes of
+        :class:`highdicom.SOPClass`. It is *not* necessary for users of
+        sub-classes of :class:`highdicom.SOPClass` (including all DICOM IODs
+        implemented in highdicom), or indeed most users of the library, to call
+        this function directly.
 
         Parameters
         ----------

@@ -233,7 +233,7 @@ A volumetric group returns a :class:`highdicom.sr.VolumeSurface` or list of
 :class:`highdicom.sr.ImageRegion` objects, depending on the reference type. If
 instead, a planar/volumetric measurement group uses the ``ReferencedSegment``
 reference type, the referenced segment can be accessed by the
-``group.referenced_segmention_frame`` property (for planar groups) or
+``group.referenced_segmentation_frame`` property (for planar groups) or
 ``group.referenced_segment`` property (for volumetric groups), which return
 objects of type :class:`highdicom.sr.ReferencedSegmentationFrame` and
 :class:`highdicom.sr.ReferencedSegment` respectively.
@@ -315,7 +315,9 @@ Searching for Evaluations
 
 In addition to numerical measurements, measurement groups may also contain
 "Qualitative Evaluations". These contain an evaluation of the image represented
-using a coded concept.
+using a coded concept. Measurement groups may also contain evaluations with
+free text values, which *highdicom* calls "Text Evaluations" (see
+`Searching for Text Evaluations`_ below).
 
 Similar to measurements, you can search for evaluations with the
 ``get_qualitative_evaluations()`` method. You can optionally filter by name
@@ -343,3 +345,48 @@ evaluations with the ``name`` and ``value`` properties.
 
     # Access the evaluation's value
     assert evaluation.value == codes.SCT.NotSignificant
+
+If a qualitative evaluation has modifiers that further refine its value, these
+are available as a list of :class:`highdicom.sr.CodeContentItem` objects via
+the ``modifiers`` property (which returns an empty list if there are none).
+
+Searching for Text Evaluations
+------------------------------
+
+Evaluations with a free text value (TEXT content items with relationship type
+CONTAINS within the measurement group) are not returned by
+``get_qualitative_evaluations()``. Instead, use the ``get_text_evaluations()``
+method, which returns a list of :class:`highdicom.sr.TextEvaluation` objects
+and may likewise be filtered by name with the ``name`` parameter. Other text
+content items in the measurement group, such as the tracking identifier, are
+not considered to be text evaluations and are not returned by this method.
+
+The ``name`` property of a text evaluation returns a
+:class:`highdicom.sr.CodedConcept` and the ``value`` property returns a
+``str``.
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # Use the same example file in the highdicom test data
+    sr = hd.sr.srread("data/test_files/sr_document_with_multiple_groups.dcm")
+
+    # Use the first planar measurement group as an example
+    group = sr.content.get_planar_roi_measurement_groups()[0]
+
+    # Get a list of all text evaluations in the group
+    text_evaluations = group.get_text_evaluations()
+
+    # Get a list of text evaluations with the name "Comment"
+    comments = group.get_text_evaluations(name=codes.DCM.Comment)
+
+    for evaluation in comments:
+        print(evaluation.name.meaning, evaluation.value)
+
+    # This example file contains no text evaluations
+    assert len(text_evaluations) == 0
+
+Since the values are free text, they are generally intended for human readers,
+and you should be cautious about attempting to interpret them automatically.

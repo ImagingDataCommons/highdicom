@@ -2,18 +2,24 @@
 from collections import Counter
 import datetime
 from copy import deepcopy
+from io import BytesIO
 from typing import cast
 from collections.abc import Sequence
 from typing_extensions import Self
 
 import numpy as np
 from PIL import ImageColor
+from PIL.ImageCms import ImageCmsProfile
 from pydicom.dataset import Dataset
 from pydicom import DataElement
 from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.sr.codedict import codes
-from pydicom.valuerep import DS, format_number_as_ds
+from pydicom.valuerep import (
+    DS,
+    format_number_as_ds,
+    PersonName,
+)
 from pydicom.uid import SegmentationStorage
 
 from highdicom.enum import (
@@ -25,7 +31,9 @@ from highdicom.enum import (
 )
 from highdicom.pixels import (
     _check_rescale_dtype,
+    _expand_segmented_lut,
     _get_combined_palette_color_lut,
+    _get_expanded_lut_length,
     _parse_palette_color_lut_attributes,
     _select_voi_lut,
     _select_voi_window_center_width,
@@ -33,7 +41,8 @@ from highdicom.pixels import (
     apply_voi_window,
 )
 from highdicom.sr.enum import ValueTypeValues
-from highdicom.sr.coding import CodedConcept
+from highdicom.sr.coding import CodedConcept, _ModifiedCodedConcept
+from highdicom.spatial import _check_image_orientation
 from highdicom.sr.value_types import (
     CodeContentItem,
     ContentSequence,
@@ -43,15 +52,50 @@ from highdicom.sr.value_types import (
 )
 from highdicom.uid import UID
 from highdicom.valuerep import (
+    _check_code_string,
     _check_long_string,
     _check_long_text,
     _check_short_text,
+    check_person_name,
 )
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     check_required_attributes,
     does_iod_have_pixel_data,
     is_multiframe_image,
 )
+
+
+class AnatomicRegion(_ModifiedCodedConcept):
+    """Dataset describing the anatomic region into which an image or annotation
+    falls.
+
+    This class may be used instead of a plain
+    :class:`highdicom.sr.CodedConcept` in order to include modifier codes that
+    describe characteristics of the anatomic, such as laterality.
+
+    See :dcm:`CID 4 <part16/sect_CID_4.html>` "Anatomic Region", :dcm:`CID 4031
+    <part16/sect_CID_4031.html>` "Common Anatomic Regions", as as well as other
+    domain-specific CIDs where this class is used for appropriate context
+    groups for the root concept, and :dcm:`CID 2 <part16/sect_CID_2.html>`
+    "Anatomic Modifier" for the context group for modifier codes.
+
+    """
+    _MODIFIER_SEQUENCE_NAME = "AnatomicRegionModifierSequence"
+
+
+class PrimaryAnatomicStructure(_ModifiedCodedConcept):
+    """Dataset describing the property a segmentation represents.
+
+    This class may be used instead of a plain
+    :class:`highdicom.sr.CodedConcept` in order to include modifier codes that
+    describe characteristics of the segmented property, such as laterality.
+
+    See domain-specific context groups where this class is used for the
+    appropriate context group and :dcm:`CID 2 <part16/sect_CID_2.html>`
+    "Anatomic Modifier" for the context group for modifier codes.
+
+    """
+    _MODIFIER_SEQUENCE_NAME = "PrimaryAnatomicStructureModifierSequence"
 
 
 class AlgorithmIdentificationSequence(DataElementSequence):
@@ -74,7 +118,8 @@ class AlgorithmIdentificationSequence(DataElementSequence):
         name: str
             Name of the algorithm
         family: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
-            Kind of algorithm family
+            Kind of algorithm family. See :dcm:`CID 7162
+            <part16/sect_CID_7162.html>` for recommended values.
         version: str
             Version of the algorithm
         source: str, optional
@@ -271,7 +316,9 @@ class ContentCreatorIdentificationCodeSequence(DataElementSequence):
                     'pydicom.sr.coding.Code or '
                     'highdicom.sr.CodedConcept.'
                 )
-            item.InstitutionCodeSequence = [institution_code]
+            item.InstitutionCodeSequence = [
+                CodedConcept.from_code(institution_code)
+            ]
 
         if person_address is not None:
             _check_short_text(person_address)
@@ -393,8 +440,8 @@ class PixelMeasuresSequence(DataElementSequence):
             )
         if len(sequence) != 1:
             raise ValueError('Sequence must contain a single item.')
-        req_kws = ['SliceThickness', 'PixelSpacing']
-        if not all(hasattr(sequence[0], kw) for kw in req_kws):
+        # Slice Thickness is only required if there is a frame of reference
+        if not hasattr(sequence[0], 'PixelSpacing'):
             raise AttributeError(
                 'Sequence does not have the required attributes for '
                 'a Pixel Measures Sequence.'
@@ -431,8 +478,9 @@ class PixelMeasuresSequence(DataElementSequence):
             hasattr(self[0], 'SliceThickness')
         ):
             return False
-        if other[0].SliceThickness != self[0].SliceThickness:
-            return False
+        if hasattr(self[0], 'SliceThickness'):
+            if other[0].SliceThickness != self[0].SliceThickness:
+                return False
         if other[0].PixelSpacing != self[0].PixelSpacing:
             return False
         if (
@@ -649,6 +697,7 @@ class PlaneOrientationSequence(DataElementSequence):
         super().__init__()
         item = Dataset()
         coordinate_system = CoordinateSystemNames(coordinate_system)
+        _check_image_orientation(image_orientation)
         image_orientation_ds = [
             DS(io, auto_format=True) for io in image_orientation
         ]
@@ -1962,7 +2011,7 @@ class LUT(Dataset):
             dtype = np.uint16
         else:
             raise RuntimeError("Invalid LUT descriptor.")
-        length = self.LUTDescriptor[0]
+        length = self.number_of_entries
         data = self.LUTData
 
         # Account for a zero-padding byte in the case of an 8 bit LUT
@@ -2049,7 +2098,6 @@ class LUT(Dataset):
         else:
             dataset_copy = dataset
 
-        dataset_copy = dataset
         dataset_copy.__class__ = cls
         return cast(Self, dataset_copy)
 
@@ -2320,6 +2368,11 @@ class VOILUTTransformation(Dataset):
                     raise TypeError(
                         'Argument "window_width" must not be an empty sequence.'
                     )
+                for x in window_width:
+                    if x <= 0:
+                        raise ValueError(
+                            'Window width must be greater than zero.'
+                        )
                 self.WindowWidth = [
                     format_number_as_ds(float(x)) for x in window_width
                 ]
@@ -2329,6 +2382,8 @@ class VOILUTTransformation(Dataset):
                         'Length of "window_width" must match length of '
                         '"window_center".'
                     )
+                if window_width <= 0:
+                    raise ValueError('Window width must be greater than zero.')
                 self.WindowWidth = format_number_as_ds(float(window_width))
         if window_explanation is not None:
             if window_center is None:
@@ -2359,7 +2414,10 @@ class VOILUTTransformation(Dataset):
                     )
                 for exp in window_explanation:
                     _check_long_string(exp)
-            self.WindowCenterWidthExplanation = list(window_explanation)
+            if isinstance(window_explanation, str):
+                self.WindowCenterWidthExplanation = window_explanation
+            else:
+                self.WindowCenterWidthExplanation = list(window_explanation)
         if voi_lut_function is not None:
             if window_center is None:
                 raise TypeError(
@@ -2597,8 +2655,10 @@ class ModalityLUTTransformation(Dataset):
                     'Argument "rescale_type" must be specified when '
                     '"modality_lut" is not specified.'
                 )
-            self.RescaleIntercept = format_number_as_ds(rescale_intercept)
-            self.RescaleSlope = format_number_as_ds(rescale_slope)
+            self.RescaleIntercept = format_number_as_ds(
+                float(rescale_intercept)
+            )
+            self.RescaleSlope = format_number_as_ds(float(rescale_slope))
             if isinstance(rescale_type, RescaleTypeValues):
                 self.RescaleType = rescale_type.value
             else:
@@ -2974,6 +3034,7 @@ class PaletteColorLUT(Dataset):
             setattr(new_ds, kw, getattr(dataset, kw))
 
         new_ds.__class__ = cls
+        new_ds._lut_data = None
         return cast(Self, new_ds)
 
 
@@ -3068,54 +3129,7 @@ class SegmentedPaletteColorLUT(Dataset):
             segmented_lut_data.tobytes()
         )
 
-        expanded_lut_values = []
-        i = 0
-        offset = 0
-        while i < len(segmented_lut_data):
-            opcode = segmented_lut_data[i]
-            i += 1
-            if opcode == 0:
-                # Discrete segment type (constant)
-                length = segmented_lut_data[i]
-                i += 1
-                value = segmented_lut_data[i]
-                i += 1
-                expanded_lut_values.extend([
-                    value for _ in range(length)
-                ])
-                offset += length
-            elif opcode == 1:
-                # Linear segment type (interpolation)
-                length = segmented_lut_data[i]
-                i += 1
-                start_value = expanded_lut_values[offset - 1]
-                end_value = segmented_lut_data[i]
-                i += 1
-                step = (end_value - start_value) / (length - 1)
-                expanded_lut_values.extend([
-                    start_value + int(np.round(j * step))
-                    for j in range(length)
-
-                ])
-                offset += length
-            elif opcode == 2:
-                # TODO
-                raise ValueError(
-                  'Indirect segment type is not yet supported for '
-                  'Segmented Palette Color Lookup Table.'
-                )
-            else:
-                raise ValueError(
-                  f'Encountered unexpected segment type {opcode} for '
-                  'Segmented Palette Color Lookup Table.'
-                )
-
-        self._lut_data = np.array(
-            expanded_lut_values,
-            dtype=segmented_lut_data.dtype,
-        )
-
-        len_data = len(expanded_lut_values)
+        len_data = _get_expanded_lut_length(segmented_lut_data)
         if len_data == 2 ** 16:
             number_of_entries = 0
         else:
@@ -3129,7 +3143,6 @@ class SegmentedPaletteColorLUT(Dataset):
     @property
     def segmented_lut_data(self) -> np.ndarray:
         """numpy.ndarray: segmented lookup table data"""
-        length = self.number_of_entries
         data = getattr(self, f'Segmented{self._attr_name_prefix}Data')
         if self.bits_per_entry == 8:
             dtype = np.uint8
@@ -3137,19 +3150,13 @@ class SegmentedPaletteColorLUT(Dataset):
             dtype = np.uint16
         else:
             raise RuntimeError("Invalid LUT descriptor.")
-        # The LUT data attributes have VR OW (16-bit other words)
-        array = np.frombuffer(data, dtype=dtype)
-        if len(array) != length:
-            raise RuntimeError(
-                'Length of LUTData does not match the value expected from the '
-                f'LUTDescriptor. Expected {length}, found {len(array)}.'
-            )
-        return array
+
+        return np.frombuffer(data, dtype=dtype)
 
     @property
     def lut_data(self) -> np.ndarray:
         """numpy.ndarray: expanded lookup table data"""
-        return self._lut_data
+        return _expand_segmented_lut(self.segmented_lut_data)
 
     @property
     def number_of_entries(self) -> int:
@@ -3179,6 +3186,37 @@ class SegmentedPaletteColorLUT(Dataset):
         """int: Bits allocated for the lookup table data. 8 or 16."""
         descriptor = getattr(self, f'{self._attr_name_prefix}Descriptor')
         return int(descriptor[2])
+
+    def apply(
+        self,
+        array: np.ndarray,
+        dtype: type | str | np.dtype | None = None,
+    ) -> np.ndarray:
+        """Apply the LUT to a pixel array.
+
+        Parameters
+        ----------
+        apply: numpy.ndarray
+            Pixel array to which the LUT should be applied. Can be of any shape
+            but must have an integer datatype.
+        dtype: Union[type, str, numpy.dtype, None], optional
+            Datatype of the output array. If ``None``, an unsigned integer
+            datatype corresponding to the number of bits in the LUT will be
+            used (either ``numpy.uint8`` or ``numpy.uint16``). Only safe casts
+            are permitted.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array with LUT applied.
+
+        """
+        return apply_lut(
+            array=array,
+            lut_data=self.lut_data,
+            first_mapped_value=self.first_mapped_value,
+            dtype=dtype,
+        )
 
     @classmethod
     def extract_from_dataset(cls, dataset: Dataset, color: str) -> Self:
@@ -3624,7 +3662,12 @@ class PaletteColorLUTTransformation(Dataset):
                 data_kw = f'{color}PaletteColorLookupTableData'
             setattr(new_dataset, data_kw, data)
 
+        uid = dataset.get('PaletteColorLookupTableUID')
+        if uid is not None:
+            new_dataset.PaletteColorLookupTableUID = uid
+
         new_dataset.__class__ = cls
+        new_dataset._lut_data = None
         return cast(Self, new_dataset)
 
     def apply(
@@ -3663,3 +3706,103 @@ class PaletteColorLUTTransformation(Dataset):
             first_mapped_value=self.first_mapped_value,
             dtype=dtype,
         )
+
+
+def _add_content_information(
+    dataset,
+    content_label: str,
+    content_description: str | None,
+    content_creator_name: str | PersonName | None = None,
+    content_creator_identification: None | (
+        ContentCreatorIdentificationCodeSequence
+    ) = None,
+):
+    _check_code_string(content_label)
+    dataset.ContentLabel = content_label
+    if content_description is not None:
+        _check_long_string(content_description)
+    dataset.ContentDescription = content_description
+    if content_creator_name is not None:
+        check_person_name(content_creator_name)
+        dataset.ContentCreatorName = content_creator_name
+    if content_creator_identification is not None:
+        if not isinstance(
+            content_creator_identification,
+            ContentCreatorIdentificationCodeSequence
+        ):
+            raise TypeError(
+                'Argument "content_creator_identification" must be of type '
+                'ContentCreatorIdentificationCodeSequence.'
+            )
+        dataset.ContentCreatorIdentificationCodeSequence = \
+            content_creator_identification
+
+
+def _add_icc_profile_attributes(
+    dataset: Dataset,
+    icc_profile: bytes
+) -> None:
+    """Add attributes of module ICC Profile.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        Dataset to which attributes should be added
+    icc_profile: bytes
+        ICC color profile to include in the presentation state.
+        The profile must follow the constraints listed in :dcm:`C.11.15
+        <part03/sect_C.11.15.html>`.
+
+    """
+    if icc_profile is None:
+        raise TypeError('Argument "icc_profile" is required.')
+
+    cms_profile = ImageCmsProfile(BytesIO(icc_profile))
+    device_class = cms_profile.profile.device_class.strip()
+    if device_class not in ('scnr', 'spac'):
+        raise ValueError(
+            'The device class of the ICC Profile must be "scnr" or "spac", '
+            f'got "{device_class}".'
+        )
+    color_space = cms_profile.profile.xcolor_space.strip()
+    if color_space != 'RGB':
+        raise ValueError(
+            'The color space of the ICC Profile must be "RGB", '
+            f'got "{color_space}".'
+        )
+    pcs = cms_profile.profile.connection_space.strip()
+    if pcs not in ('Lab', 'XYZ'):
+        raise ValueError(
+            'The profile connection space of the ICC Profile must '
+            f'be "Lab" or "XYZ", got "{pcs}".'
+        )
+
+    dataset.ICCProfile = icc_profile
+
+
+def _add_palette_color_lookup_table_attributes(
+    dataset: Dataset,
+    palette_color_lut_transformation: PaletteColorLUTTransformation
+) -> None:
+    """Add attributes from the Palette Color Lookup Table module.
+
+    Parameters
+    ----------
+    dataset: pydicom.Dataset
+        Dataset to which attributes should be added
+    palette_color_lut_transformation: highdicom.PaletteColorLUTTransformation
+        Description of the Palette Color LUT Transformation for transforming
+        grayscale into RGB color pixel values
+
+    """  # noqa: E501
+    if not isinstance(
+        palette_color_lut_transformation,
+        PaletteColorLUTTransformation
+    ):
+        raise TypeError(
+            'Argument "palette_color_lut_transformation" must be of type '
+            'PaletteColorLUTTransformation.'
+        )
+
+    for element in palette_color_lut_transformation:
+        dataset[element.tag] = element

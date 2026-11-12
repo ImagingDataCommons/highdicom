@@ -104,6 +104,11 @@ class KeyObjectSelectionDocument(SOPClass):
                 f'Transfer syntax "{transfer_syntax_uid}" is not supported.'
             )
 
+        if 'specific_character_set' in kwargs:
+            specific_character_set = kwargs.pop('specific_character_set')
+        else:
+            specific_character_set = evidence[0].get('SpecificCharacterSet')
+
         super().__init__(
             study_instance_uid=evidence[0].StudyInstanceUID,
             series_instance_uid=series_instance_uid,
@@ -114,19 +119,10 @@ class KeyObjectSelectionDocument(SOPClass):
             manufacturer=manufacturer,
             modality='KO',
             transfer_syntax_uid=transfer_syntax_uid,
-            patient_id=evidence[0].PatientID,
-            patient_name=evidence[0].PatientName,
-            patient_birth_date=evidence[0].PatientBirthDate,
-            patient_sex=evidence[0].PatientSex,
-            accession_number=evidence[0].AccessionNumber,
-            study_id=evidence[0].StudyID,
-            study_date=evidence[0].StudyDate,
-            study_time=evidence[0].StudyTime,
-            referring_physician_name=getattr(
-                evidence[0], 'ReferringPhysicianName', None
-            ),
+            specific_character_set=specific_character_set,
             **kwargs
         )
+        self.copy_patient_and_study_information(evidence[0])
         self._add_contributing_equipment(contributing_equipment)
 
         if institution_name is not None:
@@ -143,13 +139,12 @@ class KeyObjectSelectionDocument(SOPClass):
             content[0],
             study_instance_uid=self.StudyInstanceUID,
         )
-        if len(same_study_items) > 0:
-            self.CurrentRequestedProcedureEvidenceSequence = same_study_items
-            if len(other_study_items) > 1:
-                raise ValueError(
-                    'Key Object Selection Documents that reference instances '
-                    'from multiple studies are not supported.'
-                )
+        if len(other_study_items) > 0:
+            raise ValueError(
+                'Key Object Selection Documents that reference instances '
+                'from multiple studies are not supported.'
+            )
+        self.CurrentRequestedProcedureEvidenceSequence = same_study_items
 
         if requested_procedures is not None:
             self.ReferencedRequestSequence = requested_procedures

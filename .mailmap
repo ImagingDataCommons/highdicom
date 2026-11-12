@@ -1,0 +1,34 @@
+# .mailmap - Consolidate git author identities
+# See: https://git-scm.com/docs/gitmailmap
+#
+# Format: Canonical Name <canonical@email.com> Old Name <old@email.com>
+
+# Afshin Zade
+Afshin Zade <afshin.akbarzadeh@childrens.harvard.edu> afshinmessiah <afshin.akbarzadeh@childrens.harvard.edu>
+Afshin Zade <afshin.akbarzadeh@childrens.harvard.edu> Afshin Zade <42010605+afshinmessiah@users.noreply.github.com>
+
+# Andrey Fedorov
+Andrey Fedorov <andrey.fedorov@gmail.com> <fedorov@bwh.harvard.edu>
+
+# Christopher P. Bridge
+Christopher P. Bridge <chrisbridge44@googlemail.com> Chris Bridge <cbridge@partners.org>
+Christopher P. Bridge <chrisbridge44@googlemail.com> Christopher Bridge <cbridge@partners.org>
+Christopher P. Bridge <chrisbridge44@googlemail.com> Christopher Bridge <chrisbridge44@gmail.com>
+Christopher P. Bridge <chrisbridge44@googlemail.com> CPBridge <chrisbridge44@googlemail.com>
+Christopher P. Bridge <chrisbridge44@googlemail.com> Christopher P Bridge <cpb28@glacier.nmr.mgh.harvard.edu>
+Christopher P. Bridge <chrisbridge44@googlemail.com> Chris Bridge <chrisbridge44@googlemail.com>
+
+# Dimitri Papadopoulos Orfanos
+Dimitri Papadopoulos Orfanos <3234522+DimitriPapadopoulos@users.noreply.github.com> Dimitri Papadopoulos <3234522+DimitriPapadopoulos@users.noreply.github.com>
+
+# Erik O Gabrielsson
+Erik O Gabrielsson <erik.o.gabrielsson@sectra.com> erikogabrielsson <83275777+erikogabrielsson@users.noreply.github.com>
+Erik O Gabrielsson <erik.o.gabrielsson@sectra.com> Erik O Gabrielsson <83275777+erikogabrielsson@users.noreply.github.com>
+
+# Markus D. Herrmann
+Markus D. Herrmann <hackermd@protonmail.com> hackermd <hackermd@protonmail.com>
+Markus D. Herrmann <hackermd@protonmail.com> Markus D. Herrmann <hackermd@users.noreply.github.com>
+Markus D. Herrmann <hackermd@protonmail.com> hackermd <markusdherrmann@gmail.com>
+
+# Robin Fourcade
+Robin Fourcade <29704178+RobinFrcd@users.noreply.github.com> RobinFrcd <29704178+RobinFrcd@users.noreply.github.com>

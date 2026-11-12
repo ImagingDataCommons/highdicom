@@ -113,13 +113,13 @@ systems, which are shifted by 0.5 pixels.
 1. **Pixel indices**: (column, row) indices into the pixel matrix. The values
    are zero-based integers in the range [0, Columns - 1] and [0, Rows - 1].
    Pixel indices are defined relative to the centers of pixels and the (0, 0)
-   index is located at the center of the top left corner hand pixel of the
+   index is located at the center of the top left corner pixel of the
    total pixel matrix.
 2. **Image coordinates**: (column, row) coordinates in the pixel matrix at
    sub-pixel resolution. The values are floating-point numbers in the range
    [0, Columns] and [0, Rows]. Image coordinates are defined relative to the
    top left corner of the pixels and the (0.0, 0.0) point is located at the top
-   left corner of the top left corner hand pixel of the total pixel matrix.
+   left corner of the top left corner pixel of the total pixel matrix.
 
 To account for these differences, introduced two additional transformer classes
 in highdicom 0.14.1. and made changes to the existing ones.
@@ -202,3 +202,208 @@ Now a ``pydicom.sequence.Sequence`` of ``pydicom.dataset.Dataset``
 objects is passed in the ``referenced_images`` argument and the
 ImageLibrary components are created internally by highdicom.
 This standardizes the content of the Image Library subcomponents.
+
+.. _pm-voi-transform:
+
+Deprecation of Window Center/Width Parameters in Parametric Map
+---------------------------------------------------------------
+
+In order to unify the API with other places in the library and give further
+flexibility, the ``window_center`` and ``windhow_width`` parameters of the
+:class:`highdicom.pm.ParametricMap` class were deprecated in highdicom
+0.28.0 in favor of the new ``voi_lut_transformations`` parameter and will be
+removed in a future release. To update existing code, create a simple
+VOI LUT transformation instead and pass to the ``voi_lut_transformations``
+parameter. So this:
+
+.. code-block:: python
+
+   import highdicom as hd
+
+   pm = hd.pm.ParametricMap(
+       ...,
+       window_center=window_center,
+       window_width=window_width,
+       ...,
+   )
+
+can be replaced with this to give the same output object:
+
+.. code-block:: python
+
+   import highdicom as hd
+
+   pm = hd.pm.ParametricMap(
+       ...,
+       voi_lut_transformations=[
+           hd.VOILUTTransformation(
+               window_center=window_center,
+               window_width=window_width,
+           )
+       ],
+       ...,
+   )
+
+Deprecation of ``bits_allocated`` parameter in ``SCImage``
+----------------------------------------------------------
+
+Until highdicom 0.29.0, the constructor of :class:`highdicom.sc.SCImage` (and
+its classmethod :meth:`highdicom.sc.SCImage.from_ref_dataset()`) had a required
+parameter named ``bits_allocated``. However, there were several issues with
+this. Firstly, it would accept a value of 12, which is not valid for use with
+Bits Allocated. For other values, it had to match exactly the number of bits in
+the datatype of the ``pixel_array`` parameter, making it serve no useful
+purpose other than make the API more complex for users.
+
+In version 0.29.0, the parameter was deprecated. The number of bits allocated
+is now inferred from the datatype of ``pixel_array``. By default, the number of
+bits stored will match the number of bits allocated. A new keyword-only
+``bits_stored`` parameter allows you to specify a number of bits stored that
+differs from the number of bits allocated. To minimize disruption for existing
+code, the constructor will continue to accept ``bits_allocated`` as a keyword
+parameter, and treat it as if the same value were passed to ``bits_stored``,
+but issue a warning instructing the user to update the code.
+
+Unfortunately, code that passes ``bits_allocated`` as a positional argument
+will break with this change. In this case, users should either remove this
+argument entirely to have bits allocated and bits stored inferred from the
+pixel array, or specify ``bits_stored`` instead.
+
+.. _cielab-d50:
+
+CIELab Conversions Now Use The D50 White Point
+----------------------------------------------
+
+DICOM encodes CIELab values (such as Recommended Display CIELab Value) in the
+same way as the ICC Profile Connection Space (see :dcm:`PS3.3 C.10.7.1.1
+<part03/sect_C.10.7.html#sect_C.10.7.1.1>`), i.e. relative to the D50
+illuminant, whereas the native white point of sRGB is D65.
+
+Prior to highdicom 0.29.0, the conversions implemented by
+:class:`highdicom.color.CIELabColor` (``from_rgb``, ``from_string`` and
+``to_rgb``) omitted the chromatic adaptation between the two white points and
+therefore produced CIELab values relative to D65. From highdicom 0.29.0, sRGB
+values are linearized, converted to CIE XYZ (D65), chromatically adapted to
+D50 using the linear Bradford transform, and only then converted to CIELab
+(and vice versa). The matrices and constants used are those of the `CSS Color
+Module Level 4 sample code
+<https://www.w3.org/TR/css-color-4/#color-conversion-code>`_, matching the
+behavior of DCMTK (changed after version 3.7.0) and PixelMed.
+
+No code changes are required, but note that the CIELab values stored in files
+created with highdicom 0.29.0 and later differ slightly from those created
+with earlier versions for the same RGB input. Neutral (gray) colors are
+unaffected; for chromatic colors the a* and b* components change. For example,
+pure red (255, 0, 0) was previously encoded as L*a*b* (53.23, 80.11, 67.22)
+and is now encoded as (54.29, 80.81, 69.89).
+
+.. _modified-codes:
+
+Codes With Modifiers in Segmentation and Annotation Objects
+-----------------------------------------------------------
+
+In highdicom 0.29.0, the segmented property type of a segment (in
+:class:`highdicom.seg.SegmentDescription`), the annotated property type of an
+annotation group (in :class:`highdicom.ann.AnnotationGroup`), and the anatomic
+regions and primary anatomic structures of both, may include modifier codes
+(for example to specify laterality) via the new classes
+:class:`highdicom.seg.SegmentedPropertyType`,
+:class:`highdicom.ann.AnnotatedPropertyType`,
+:class:`highdicom.AnatomicRegion` and
+:class:`highdicom.PrimaryAnatomicStructure`. See :ref:`coding-modifiers`,
+:ref:`seg-modifiers` and :ref:`ann-modifiers` for details.
+
+Existing code continues to work without modification, but some behavior has
+changed:
+
+* The properties
+  :attr:`highdicom.seg.SegmentDescription.segmented_property_type`,
+  :attr:`highdicom.seg.SegmentDescription.anatomic_regions`,
+  :attr:`highdicom.seg.SegmentDescription.primary_anatomic_structures`,
+  :attr:`highdicom.ann.AnnotationGroup.annotated_property_type`,
+  :attr:`highdicom.ann.AnnotationGroup.anatomic_regions`,
+  :attr:`highdicom.ann.AnnotationGroup.primary_anatomic_structures` and
+  :attr:`highdicom.seg.Segmentation.segmented_property_types` now return
+  instances of the new sub-classes of :class:`highdicom.sr.CodedConcept`,
+  rather than plain :class:`highdicom.sr.CodedConcept` objects. These can be
+  used in the same way, and additionally have ``modifiers`` and ``unmodified``
+  properties.
+* When searching with the ``segmented_property_type`` argument of
+  :meth:`highdicom.seg.Segmentation.get_segment_numbers` and
+  :meth:`highdicom.seg.Segmentation.get_tracking_ids`, or the
+  ``annotated_property_type`` argument of
+  :meth:`highdicom.ann.MicroscopyBulkSimpleAnnotations.get_annotation_groups`,
+  a plain :class:`pydicom.sr.coding.Code` or
+  :class:`highdicom.sr.CodedConcept` matches the root code only (ignoring any
+  modifiers, as before), whereas an instance of the new class with modifiers
+  must match the modifiers as well.
+* A code that has modifiers is not equal (using ``==``) to the same root code
+  without modifiers. Be aware that, because the ``==`` operator of
+  ``pydicom.sr.coding.Code`` cannot be changed by highdicom, the expression
+  ``Code == modified_code`` ignores the modifiers, whereas
+  ``modified_code == Code`` does not. To compare codes in a way that is safe
+  in all situations, use the new function :func:`highdicom.sr.codes_equal`.
+  See :ref:`coding-gotcha`.
+
+To compare only root codes in existing code, either use
+:func:`highdicom.sr.codes_equal` with ``ignore_modifiers=True`` or compare the
+``unmodified`` property:
+
+.. code-block:: python
+
+   import highdicom as hd
+   from pydicom.sr.codedict import codes
+
+   seg = hd.seg.segread('path/to/seg.dcm')
+   desc = seg.get_segment_description(1)
+
+   # Compares the root code only, whether or not the segment has modifiers
+   assert hd.sr.codes_equal(
+       desc.segmented_property_type,
+       codes.SCT.Kidney,
+       ignore_modifiers=True,
+   )
+   assert desc.segmented_property_type.unmodified == codes.SCT.Kidney
+
+.. _match-geometry-tolerances:
+
+Tolerances in ``match_geometry``
+--------------------------------
+
+In highdicom 0.29.0, the ``tol`` parameter of
+:meth:`highdicom.Volume.match_geometry` and
+:meth:`highdicom.VolumeGeometry.match_geometry` is deprecated. It previously
+governed both the voxel spacing and the position comparisons using a very
+tight default of ``1e-5`` that often caused spurious failures with real DICOM
+data. It is replaced by three more specific parameters:
+
+* ``spacing_tol`` (default ``1e-3``): the ratio of the two volumes' voxel
+  spacings must be within ``spacing_tol * n`` of the nearest integer ``n``, so
+  the tolerance is relative to the step size.
+* ``position_tol`` (default ``1e-2``): the translation between the volumes
+  must be within this fraction of a voxel of a whole number of voxels. This
+  is also applied to the misalignment at the far end of the grid, so that
+  small spacing differences that accumulate across a volume are detected.
+* ``parallel_tol``: the tolerance used when deciding whether direction
+  vectors are parallel.
+
+Passing ``tol`` still works but emits a ``DeprecationWarning`` and sets both
+``spacing_tol`` and ``position_tol`` to the given value. To update your code,
+replace ``tol`` with the new parameters:
+
+.. code-block:: python
+
+   # Before
+   matched = volume.match_geometry(other, tol=1e-4)
+
+   # After
+   matched = volume.match_geometry(
+       other,
+       spacing_tol=1e-4,
+       position_tol=1e-4,
+   )
+
+Note that the new defaults are more permissive for rounding error in
+individual positions and spacings, but the far-end alignment check may reject
+large volumes with slightly inexact spacings that were previously accepted. If
+this occurs, increase ``position_tol``.

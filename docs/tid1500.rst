@@ -4,7 +4,7 @@ The TID1500 Measurement Report Template
 =======================================
 
 The `TID1500 "Measurement Report" <tid1500def_>`_ template is a general-purpose
-template for communicating measurements and qualitative qualitative evaluations
+template for communicating measurements and qualitative evaluations
 derived from one or more images or regions of images. It is recommended to read
 the previous page on :ref:`generalsr` before this page.
 
@@ -53,7 +53,10 @@ group).
 Each Measurement Group contains a number of Measurements
 (`TID300 <tid300def_>`_) - numerical values derived from an image, such as a
 length or volume - and/or Qualitative Evaluations - categorical values derived
-from an image, such as classification of a tumor morphology.
+from an image, such as classification of a tumor morphology. The standard also
+allows qualitative evaluations with free text values, which *highdicom* calls
+text evaluations, but coded qualitative qvaluations should be preferred
+where possible.
 
 When constructing the content, it is necessary to start at the bottom of the
 content tree with the Measurements and Evaluations and work up, by adding them
@@ -95,6 +98,12 @@ made the observations, and the subject about which the observations were made:
         observer_person_context=observer_person_context,
         observer_device_context=observer_device_context,
     )
+
+See :class:`highdicom.sr.ObserverContext`,
+:class:`highdicom.sr.ObservationContext`,
+:class:`highdicom.sr.PersonObserverIdentifyingAttributes`, and
+:class:`highdicom.sr.DeviceObserverIdentifyingAttributes` for more details on
+these classes and a full list of optional parameters.
 
 The second required ingredient is a procedure code describing the procedure
 that was performed to result in the observations. Finally, we have the image
@@ -160,8 +169,8 @@ The following is a simple example:
 
     # A tracking identifier for this measurement group
     tracking_id = hd.sr.TrackingIdentifier(
-       identifier='Image0001',
-       uid=hd.UID(),
+        identifier='Image0001',
+        uid=hd.UID(),
     )
 
     # An object describing the source image for the measurements
@@ -169,10 +178,10 @@ The following is a simple example:
 
     # Construct the measurement group
     group = hd.sr.MeasurementsAndQualitativeEvaluations(
-       source_images=[source_image],
-       tracking_identifier=tracking_id,
-       measurements=[...],
-       qualitative_evaluations=[...],
+        source_images=[source_image],
+        tracking_identifier=tracking_id,
+        measurements=[...],
+        qualitative_evaluations=[...],
     )
 
 Planar ROI Image Measurements Group (`TID1410 <tid1410def_>`_)
@@ -217,23 +226,23 @@ The following example uses an :class:`highdicom.sr.ImageRegion` as the
 
     # A tracking identifier for this measurement group
     tracking_id = hd.sr.TrackingIdentifier(
-       identifier='Region0001',
-       uid=hd.UID(),
+        identifier='Region0001',
+        uid=hd.UID(),
     )
 
     # Define the image region (a circle) using image coordinates
     region = hd.sr.ImageRegion(
-       graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
-       graphic_data=np.array([[45.0, 55.0], [45.0, 65.0]]),
-       source_image=hd.sr.SourceImageForRegion.from_source_image(im),
+        graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
+        graphic_data=np.array([[45.0, 55.0], [45.0, 65.0]]),
+        source_image=hd.sr.SourceImageForRegion.from_source_image(im),
     )
 
     # Construct the measurement group
     group = hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations(
-       referenced_region=region,
-       tracking_identifier=tracking_id,
-       measurements=[...],
-       qualitative_evaluations=[...],
+        referenced_region=region,
+        tracking_identifier=tracking_id,
+        measurements=[...],
+        qualitative_evaluations=[...],
     )
 
 This example uses an :class:`highdicom.sr.ImageRegion3D` as the
@@ -249,23 +258,23 @@ This example uses an :class:`highdicom.sr.ImageRegion3D` as the
 
     # A tracking identifier for this measurement group
     tracking_id = hd.sr.TrackingIdentifier(
-       identifier='Region3D0001',
-       uid=hd.UID(),
+        identifier='Region3D0001',
+        uid=hd.UID(),
     )
 
     # Define the image region (a point) using frame-of-reference coordinates
     region = hd.sr.ImageRegion3D(
-       graphic_type=hd.sr.GraphicTypeValues3D.POINT,
-       graphic_data=np.array([[123.5, 234.1, -23.7]]),
-       frame_of_reference_uid=im.FrameOfReferenceUID,
+        graphic_type=hd.sr.GraphicTypeValues3D.POINT,
+        graphic_data=np.array([[123.5, 234.1, -23.7]]),
+        frame_of_reference_uid=im.FrameOfReferenceUID,
     )
 
     # Construct the measurement group
     group = hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations(
-       referenced_region=region,
-       tracking_identifier=tracking_id,
-       measurements=[...],
-       qualitative_evaluations=[...],
+        referenced_region=region,
+        tracking_identifier=tracking_id,
+        measurements=[...],
+        qualitative_evaluations=[...],
     )
 
 The final example uses an :class:`highdicom.sr.ReferencedSegmentationFrame` as
@@ -286,22 +295,22 @@ the ``referenced_segment``:
 
     # A tracking identifier for this measurement group
     tracking_id = hd.sr.TrackingIdentifier(
-       identifier='Region3D0001',
-       uid=hd.UID(),
+        identifier='Region3D0001',
+        uid=hd.UID(),
     )
 
     # Define the image region using a specific segment from the segmentation
     ref_segment = hd.sr.ReferencedSegmentationFrame.from_segmentation(
-       segmentation=seg,
-       segment_number=1,
+        segmentation=seg,
+        segment_number=1,
     )
 
     # Construct the measurement group
     group = hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations(
-       referenced_segment=ref_segment,
-       tracking_identifier=tracking_id,
-       measurements=[...],
-       qualitative_evaluations=[...],
+        referenced_segment=ref_segment,
+        tracking_identifier=tracking_id,
+        measurements=[...],
+        qualitative_evaluations=[...],
     )
 
 Volumetric ROI Image Measurements Group (`TID1411 <tid1411def_>`_)
@@ -347,28 +356,28 @@ as the ``referenced_regions``:
 
     # A tracking identifier for this measurement group
     tracking_id = hd.sr.TrackingIdentifier(
-       identifier='Region0001',
-       uid=hd.UID(),
+        identifier='Region0001',
+        uid=hd.UID(),
     )
 
     # Define the image regions (a circle in two images) using image coordinates
     region1 = hd.sr.ImageRegion(
-       graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
-       graphic_data=np.array([[45.0, 55.0], [45.0, 65.0]]),
-       source_image=hd.sr.SourceImageForRegion.from_source_image(im1),
+        graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
+        graphic_data=np.array([[45.0, 55.0], [45.0, 65.0]]),
+        source_image=hd.sr.SourceImageForRegion.from_source_image(im1),
     )
     region2 = hd.sr.ImageRegion(
-       graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
-       graphic_data=np.array([[40.0, 50.0], [40.0, 60.0]]),
-       source_image=hd.sr.SourceImageForRegion.from_source_image(im2),
+        graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
+        graphic_data=np.array([[40.0, 50.0], [40.0, 60.0]]),
+        source_image=hd.sr.SourceImageForRegion.from_source_image(im2),
     )
 
     # Construct the measurement group
     group = hd.sr.VolumetricROIMeasurementsAndQualitativeEvaluations(
-       referenced_regions=[region1, region2],
-       tracking_identifier=tracking_id,
-       measurements=[...],
-       qualitative_evaluations=[...],
+        referenced_regions=[region1, region2],
+        tracking_identifier=tracking_id,
+        measurements=[...],
+        qualitative_evaluations=[...],
     )
 
 This example uses a :class:`highdicom.sr.VolumeSurface` object as the
@@ -384,8 +393,8 @@ This example uses a :class:`highdicom.sr.VolumeSurface` object as the
 
     # A tracking identifier for this measurement group
     tracking_id = hd.sr.TrackingIdentifier(
-       identifier='Region0001',
-       uid=hd.UID(),
+        identifier='Region0001',
+        uid=hd.UID(),
     )
 
     # Define the image region (a point) using frame-of-reference coordinates
@@ -398,10 +407,10 @@ This example uses a :class:`highdicom.sr.VolumeSurface` object as the
 
     # Construct the measurement group
     group = hd.sr.VolumetricROIMeasurementsAndQualitativeEvaluations(
-       referenced_volume_surface=volume_surface,
-       tracking_identifier=tracking_id,
-       measurements=[...],
-       qualitative_evaluations=[...],
+        referenced_volume_surface=volume_surface,
+        tracking_identifier=tracking_id,
+        measurements=[...],
+        qualitative_evaluations=[...],
     )
 
 The final example uses an :class:`highdicom.sr.ReferencedSegment` as the
@@ -422,22 +431,22 @@ The final example uses an :class:`highdicom.sr.ReferencedSegment` as the
 
     # A tracking identifier for this measurement group
     tracking_id = hd.sr.TrackingIdentifier(
-       identifier='Region3D0001',
-       uid=hd.UID(),
+        identifier='Region3D0001',
+        uid=hd.UID(),
     )
 
     # Define the image region using a specific segment from the segmentation
     ref_segment = hd.sr.ReferencedSegment.from_segmentation(
-       segmentation=seg,
-       segment_number=1,
+        segmentation=seg,
+        segment_number=1,
     )
 
     # Construct the measurement group
     group = hd.sr.VolumetricROIMeasurementsAndQualitativeEvaluations(
-       referenced_segment=ref_segment,
-       tracking_identifier=tracking_id,
-       measurements=[...],
-       qualitative_evaluations=[...],
+        referenced_segment=ref_segment,
+        tracking_identifier=tracking_id,
+        measurements=[...],
+        qualitative_evaluations=[...],
     )
 
 Further Parameters for Measurement Groups
@@ -448,22 +457,27 @@ following parameters may be used for all Measurement Groups, regardless of
 type (some have been omitted for brevity):
 
 - ``tracking_identifier`` (:class:`highdicom.sr.TrackingIdentifier`):
-    Identifier for tracking measurement groups. This allows this region to
-    be referred to unambiguously in future objects.
+  Identifier for tracking measurement groups. This allows this region to
+  be referred to unambiguously in future objects.
 - ``finding_type`` (:class:`highdicom.sr.CodedConcept`, optional)
-    Type of observed finding
+  Type of observed finding.
 - ``algorithm_id``: (:class:`highdicom.sr.AlgorithmIdentification`, optional)
-    Identification of algorithm used for making measurements.
+  Identification of algorithm used for making measurements.
 - ``finding_sites``: (Sequence of :class:`highdicom.sr.FindingSite`, optional)
-    Coded description of one or more anatomic locations at which
-    finding was observed
+  Coded description of one or more anatomic locations at which
+  finding was observed.
 - ``measurements``: (Sequence of :class:`highdicom.sr.Measurement`, optional)
-    Numeric measurements
-- ``qualitative_evaluations``: (Sequence of :class:`highdicom.sr.CodedConcept`, optional)
-    Coded name-value pairs that describe qualitative qualitative_evaluations
+  Numeric measurements, see below.
+- ``qualitative_evaluations``: (Sequence of
+  :class:`highdicom.sr.QualitativeEvaluation`, optional) Coded name-value pairs
+  that describe qualitative evaluations, see below.
+- ``text_evaluations``: (Sequence of :class:`highdicom.sr.TextEvaluation`,
+  optional) Name-value pairs with a coded name and a free text value that
+  describe qualitative evaluations. Use only when the evaluation cannot be
+  expressed with ``qualitative_evaluations``, see below.
 - ``finding_category``: (:class:`highdicom.sr.CodedConcept`, optional)
-    Category of observed finding, e.g., anatomic structure or
-    morphologically abnormal structure
+  Category of observed finding, e.g., anatomic structure or
+  morphologically abnormal structure.
 
 
 Measurements and Qualitative Evaluations
@@ -474,7 +488,9 @@ and qualitative evaluations themselves. Information derived from the images or
 image regions represented by the measurement group may be stored as either
 measurements, qualitative evaluations, or a mixture or the two. These two
 concepts play a similar role in the SR, but measurements have numerical values
-and qualitative evaluations have categorical values.
+and qualitative evaluations have categorical values. As a last resort, a
+qualitative evaluation may instead have a free text value, in which case it is
+known as a text evaluation in *highdicom*.
 
 Qualitative Evaluations
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -482,7 +498,7 @@ Qualitative Evaluations
 A Qualitative Evaluation is essentially a categorical value inferred from an
 image. For example, this could represent a diagnosis derived from the
 referenced region or a severity grading. These are represented in *highdicom*
-using the class :class:`highdicom.sr.QualitativeEvalution`, which is
+using the class :class:`highdicom.sr.QualitativeEvaluation`, which is
 essentially a single :class:`highdicom.sr.CodeContentItem` within a special
 template.
 
@@ -495,16 +511,141 @@ parameters as coded values:
     from pydicom.sr.codedict import codes
 
     # An evaluation of disease severity as "mild"
-    severity_item = hd.sr.QualitativeEvalution(
-       name=codes.SCT.Severity,
-       value=codes.SCT.Mild,
+    severity_item = hd.sr.QualitativeEvaluation(
+        name=codes.SCT.Severity,
+        value=codes.SCT.Mild,
     )
 
     # An evaluation of tumor morphology as adenocarcinoma
-    morphology_item = hd.sr.QualitativeEvalution(
-       name=codes.SCT.AssociatedMorphology,
-       value=codes.SCT.Anenocarcinoma,
+    morphology_item = hd.sr.QualitativeEvaluation(
+        name=codes.SCT.AssociatedMorphology,
+        value=codes.SCT.Adenocarcinoma,
     )
+
+Optionally, the ``value`` of a Qualitative Evaluation may be further refined
+by one or more modifiers, passed as a sequence of
+:class:`highdicom.sr.CodeContentItem` objects via the ``modifiers`` parameter.
+Modifiers are placed into evaluation item's Content Sequence.
+The relevant context groups for modifier names are :dcm:`CID 210 Qualitative
+Evaluation Modifier Type <part16/sect_CID_210.html>` and for their values
+:dcm:`CID 211 Qualitative Evaluation Modifier Value
+<part16/sect_CID_211.html>`.
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # An evaluation of the anatomical structure as the kidney, further
+    # specified as the posterior part of the left kidney
+    structure_item = hd.sr.QualitativeEvaluation(
+        name=codes.SCT.AnatomicalStructure,
+        value=codes.SCT.Kidney,
+        modifiers=[
+            hd.sr.CodeContentItem(
+                name=codes.SCT.Laterality,
+                value=codes.SCT.Left,
+            ),
+            hd.sr.CodeContentItem(
+                name=codes.SCT.TopographicalModifier,
+                value=codes.SCT.Posterior,
+            ),
+        ],
+    )
+
+    # Modifiers can be accessed via the "modifiers" property
+    for modifier in structure_item.modifiers:
+        print(modifier.name.meaning, modifier.value.meaning)
+    # Laterality Left
+    # Topographical modifier Posterior
+
+.. _tid1500_text_evaluations:
+
+Text Evaluations
+~~~~~~~~~~~~~~~~
+
+The standard also allows a qualitative evaluation to have a free text value
+instead of a coded one. In *highdicom*, these are represented by the class
+:class:`highdicom.sr.TextEvaluation`, which is essentially a single
+:class:`highdicom.sr.TextContentItem` within a special template, and they are
+passed to measurement groups via the ``text_evaluations`` parameter.
+
+**You should avoid text evaluations whenever the same information can be
+expressed as a coded Qualitative Evaluation.** A large part of the value of a
+structured report is that its contents can be interpreted reliably by
+software. Free text undermines this:
+
+- Software receiving the SR cannot reliably interpret free text. Variations in
+  spelling, abbreviations, phrasing, and language mean that "L kidney",
+  "left kidney", and "Rein gauche" all describe the same thing, but a
+  receiving application cannot reliably recognize that.
+- Text values cannot be validated against the value sets defined by the
+  standard, so errors are not caught when the SR is created.
+- Text evaluations cannot carry modifiers, so any qualification of the value
+  has to be expressed in the text too, compounding the problems above.
+- Searching and aggregating across many SR documents (e.g. "find all
+  measurement groups with a moderate severity") is straightforward with codes
+  and error-prone with text.
+
+Before reaching for a text evaluation, search for a suitable code (see
+:ref:`coding`).
+
+For example, **do not** do this:
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # Bad: a categorical value stored as free text
+    severity_item = hd.sr.TextEvaluation(
+        name=codes.SCT.Severity,
+        value='mild',
+    )
+
+when you can do this instead:
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # Good: the same information as a coded value
+    severity_item = hd.sr.QualitativeEvaluation(
+        name=codes.SCT.Severity,
+        value=codes.SCT.Mild,
+    )
+
+Text evaluations are appropriate only when the information is genuinely
+unstructured and cannot be enumerated in advance, such as a narrative comment
+intended for a human reader. Even then, the *name* of a text evaluation is
+always a code, so choose one that describes what kind of text it is:
+
+.. code-block:: python
+
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    # Acceptable: a free text comment for a human reader
+    comment_item = hd.sr.TextEvaluation(
+        name=codes.DCM.Comment,
+        value='Margin poorly visualized due to motion artifact',
+    )
+
+    tracking_id = hd.sr.TrackingIdentifier(
+        identifier='Image0001',
+        uid=hd.UID(),
+    )
+
+    group = hd.sr.MeasurementsAndQualitativeEvaluations(
+        tracking_identifier=tracking_id,
+        qualitative_evaluations=[...],
+        text_evaluations=[comment_item],
+    )
+
+If you find yourself using text evaluations with a small set of values that
+recur, that is a strong sign the information is categorical and should be
+coded instead.
 
 Measurements (`TID300 <tid300def_>`_)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -526,9 +667,9 @@ Here is a basic example:
 
     # A volume measurement
     measurement = hd.sr.Measurement(
-       name=codes.SCT.Volume,
-       value=1983.123,
-       unit=codes.UCUM.CubicMillimeter,
+        name=codes.SCT.Volume,
+        value=1983.123,
+        unit=codes.UCUM.CubicMillimeter,
     )
 
 In addition, the following optional parameters are available (see the API
@@ -596,8 +737,8 @@ highdicom test data within the highdicom repository at
 
     # A tracking identifier for this measurement group
     im_tracking_id = hd.sr.TrackingIdentifier(
-       identifier='Image0001',
-       uid=hd.UID(),
+        identifier='Image0001',
+        uid=hd.UID(),
     )
 
     # A measurement using an IBSI code (not in pydicom)
@@ -618,25 +759,25 @@ highdicom test data within the highdicom repository at
 
     # Construct the measurement group
     im_group = hd.sr.MeasurementsAndQualitativeEvaluations(
-       source_images=[source_image],
-       tracking_identifier=im_tracking_id,
-       measurements=[hist_measurement],
-       qualitative_evaluations=[im_evaluation],
+        source_images=[source_image],
+        tracking_identifier=im_tracking_id,
+        measurements=[hist_measurement],
+        qualitative_evaluations=[im_evaluation],
     )
 
     # Next, we define a planar ROI measurement group describing a lung nodule
 
     # A tracking identifier for this measurement group
     lung_nodule_roi_tracking_id = hd.sr.TrackingIdentifier(
-       identifier='LungNodule0001',
-       uid=hd.UID(),
+        identifier='LungNodule0001',
+        uid=hd.UID(),
     )
 
     # Define the image region (a circle) using image coordinates
     region = hd.sr.ImageRegion(
-       graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
-       graphic_data=np.array([[45.0, 55.0], [45.0, 65.0]]),
-       source_image=hd.sr.SourceImageForRegion.from_source_image(im),
+        graphic_type=hd.sr.GraphicTypeValues.CIRCLE,
+        graphic_data=np.array([[45.0, 55.0], [45.0, 65.0]]),
+        source_image=hd.sr.SourceImageForRegion.from_source_image(im),
     )
     nodule_measurement = hd.sr.Measurement(
         name=codes.SCT.Diameter,
@@ -650,13 +791,13 @@ highdicom test data within the highdicom repository at
 
     # Construct the measurement group
     planar_group_1 = hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations(
-       referenced_region=region,
-       tracking_identifier=lung_nodule_roi_tracking_id,
-       finding_type=codes.SCT.Nodule,
-       finding_category=codes.SCT.MorphologicallyAbnormalStructure,
-       finding_sites=[hd.sr.FindingSite(codes.SCT.Lung)],
-       measurements=[nodule_measurement],
-       qualitative_evaluations=[nodule_evaluation],
+        referenced_region=region,
+        tracking_identifier=lung_nodule_roi_tracking_id,
+        finding_type=codes.SCT.Nodule,
+        finding_category=codes.SCT.MorphologicallyAbnormalStructure,
+        finding_sites=[hd.sr.FindingSite(codes.SCT.Lung)],
+        measurements=[nodule_measurement],
+        qualitative_evaluations=[nodule_evaluation],
     )
 
     # Next, we define a second planar ROI measurement group describing the
@@ -664,15 +805,15 @@ highdicom test data within the highdicom repository at
 
     # A tracking identifier for this measurement group
     aorta_roi_tracking_id = hd.sr.TrackingIdentifier(
-       identifier='Aorta0001',
-       uid=hd.UID(),
+        identifier='Aorta0001',
+        uid=hd.UID(),
     )
 
     # Define the image region (a circle) using image coordinates
     region = hd.sr.ImageRegion(
-       graphic_type=hd.sr.GraphicTypeValues.POLYLINE,
-       graphic_data=np.array([[25.0, 45.0], [45.0, 45.0], [45.0, 65.0], [25.0, 65.0]]),
-       source_image=hd.sr.SourceImageForRegion.from_source_image(im),
+        graphic_type=hd.sr.GraphicTypeValues.POLYLINE,
+        graphic_data=np.array([[25.0, 45.0], [45.0, 45.0], [45.0, 65.0], [25.0, 65.0]]),
+        source_image=hd.sr.SourceImageForRegion.from_source_image(im),
     )
     aorta_measurement = hd.sr.Measurement(
         name=codes.SCT.Diameter,
@@ -682,11 +823,11 @@ highdicom test data within the highdicom repository at
 
     # Construct the measurement group
     planar_group_2 = hd.sr.PlanarROIMeasurementsAndQualitativeEvaluations(
-       referenced_region=region,
-       tracking_identifier=aorta_roi_tracking_id,
-       finding_type=codes.SCT.Aorta,
-       finding_category=codes.SCT.AnatomicalStructure,
-       measurements=[aorta_measurement],
+        referenced_region=region,
+        tracking_identifier=aorta_roi_tracking_id,
+        finding_type=codes.SCT.Aorta,
+        finding_category=codes.SCT.AnatomicalStructure,
+        measurements=[aorta_measurement],
     )
 
     # Finally, we define a volumetric ROI measurement group describing a
@@ -694,8 +835,8 @@ highdicom test data within the highdicom repository at
 
     # A tracking identifier for this measurement group
     volumetric_roi_tracking_id = hd.sr.TrackingIdentifier(
-       identifier='Vertebra0001',
-       uid=hd.UID(),
+        identifier='Vertebra0001',
+        uid=hd.UID(),
     )
 
     # Define the region (a point) using frame of reference coordinates
@@ -713,11 +854,11 @@ highdicom test data within the highdicom repository at
 
     # Construct the measurement group
     vol_group = hd.sr.VolumetricROIMeasurementsAndQualitativeEvaluations(
-       referenced_volume_surface=volume_surface,
-       tracking_identifier=volumetric_roi_tracking_id,
-       finding_category=codes.SCT.AnatomicalStructure,
-       finding_type=codes.SCT.Vertebra,
-       measurements=[vol_measurement],
+        referenced_volume_surface=volume_surface,
+        tracking_identifier=volumetric_roi_tracking_id,
+        finding_category=codes.SCT.AnatomicalStructure,
+        finding_type=codes.SCT.Vertebra,
+        measurements=[vol_measurement],
     )
 
     measurement_report = hd.sr.MeasurementReport(

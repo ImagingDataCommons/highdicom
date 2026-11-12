@@ -1,4 +1,5 @@
 import itertools
+from collections import Counter
 from collections.abc import Generator, Iterator, Sequence
 import logging
 from typing_extensions import Self
@@ -7,7 +8,7 @@ from pydicom import Dataset
 import numpy as np
 import pydicom
 
-from highdicom._module_utils import is_multiframe_image
+from highdicom._standard_utils import is_multiframe_image
 from highdicom.enum import (
     AxisHandedness,
     CoordinateSystemNames,
@@ -26,6 +27,10 @@ _DEFAULT_EQUALITY_TOLERANCE = 1e-5
 
 _DEFAULT_PERPENDICULAR_TOLERANCE = 1e-3
 """Default tolerance on the dot product to determine perpendicularity."""
+
+
+_DEFAULT_ORTHOGONAL_TOLERANCE = 1e-4
+"""Default tolerance on the matrix elements to determine orthogonality."""
 
 
 PATIENT_ORIENTATION_OPPOSITES = {
@@ -304,8 +309,8 @@ def iter_tiled_full_frame_data(
     Parameters
     ----------
     dataset: pydicom.dataset.Dataset
-        VL Whole Slide Microscopy Image or Segmentation Image using the
-        "TILED_FULL" DimensionOrganizationType.
+        VL Whole Slide Microscopy Image, Segmentation Image, or Parametric Map
+        using the "TILED_FULL" DimensionOrganizationType.
 
     Returns
     -------
@@ -334,15 +339,33 @@ def iter_tiled_full_frame_data(
         units.
 
     """
-    allowed_sop_class_uids = {
-        '1.2.840.10008.5.1.4.1.1.77.1.6',  # VL Whole Slide Microscopy Image
-        '1.2.840.10008.5.1.4.1.1.66.4',  # Segmentation Image
-        '1.2.840.10008.5.1.4.1.1.66.7',  # Label Map Segmentation Image
-    }
-    if dataset.SOPClassUID not in allowed_sop_class_uids:
-        raise ValueError(
-            'Expected a VL Whole Slide Microscopy Image or Segmentation Image.'
-        )
+    # The "channels" output is either segment for segmentations, or optical
+    # path for other images
+    match dataset.SOPClassUID:
+        case (
+            '1.2.840.10008.5.1.4.1.1.66.7' |  # Label Map Segmentation
+            '1.2.840.10008.5.1.4.1.1.30'  # Parametric Map
+        ):
+            # No "channel" in this case -> return None
+            channels = [None]
+
+        case '1.2.840.10008.5.1.4.1.1.66.4':  # Segmentation Image
+            channels = range(1, len(dataset.SegmentSequence) + 1)
+
+        case '1.2.840.10008.5.1.4.1.1.77.1.6':  # VL Whole Slide Microscopy
+            num_optical_paths = getattr(
+                dataset,
+                'NumberOfOpticalPaths',
+                len(dataset.OpticalPathSequence)
+            )
+            channels = range(1, num_optical_paths + 1)
+
+        case _:
+            raise ValueError(
+                'Expected a VL Whole Slide Microscopy Image, Segmentation '
+                'Image, or Parametric Map.'
+            )
+
     if (
         not hasattr(dataset, "DimensionOrganizationType") or
         dataset.DimensionOrganizationType != "TILED_FULL"
@@ -365,27 +388,6 @@ def iter_tiled_full_frame_data(
         'TotalPixelMatrixFocalPlanes',
         1
     )
-
-    is_segmentation = dataset.SOPClassUID in (
-        '1.2.840.10008.5.1.4.1.1.66.4',
-        '1.2.840.10008.5.1.4.1.1.66.7',
-    )
-
-    # The "channels" output is either segment for segmentations, or optical
-    # path for other images
-    if is_segmentation:
-        if dataset.SegmentationType == "LABELMAP":
-            # No "channel" in this case -> return None
-            channels = [None]
-        else:
-            channels = range(1, len(dataset.SegmentSequence) + 1)
-    else:
-        num_optical_paths = getattr(
-            dataset,
-            'NumberOfOpticalPaths',
-            len(dataset.OpticalPathSequence)
-        )
-        channels = range(1, num_optical_paths + 1)
 
     shared_fg = dataset.SharedFunctionalGroupsSequence[0]
     pixel_measures = shared_fg.PixelMeasuresSequence[0]
@@ -957,7 +959,7 @@ def get_closest_patient_orientation(affine: np.ndarray) -> tuple[
 def _is_matrix_orthogonal(
     m: np.ndarray,
     require_unit: bool = True,
-    tol: float = _DEFAULT_EQUALITY_TOLERANCE,
+    tol: float = _DEFAULT_ORTHOGONAL_TOLERANCE,
 ) -> bool:
     """Check whether a matrix is orthogonal.
 
@@ -966,17 +968,15 @@ def _is_matrix_orthogonal(
     m: numpy.ndarray
         A matrix.
     require_unit: bool, optional
-        Whether to require that the row vectors are unit vectors.
+        Whether to require that the column vectors are unit vectors.
     tol: float, optional
-        Tolerance. ``m`` will be deemed orthogonal if the product ``m.T @ m``
-        is equal to diagonal matrix of squared column norms within this
-        tolerance.
+        Tolerance used to compare column norms and normalized dot products.
 
     Returns
     -------
     bool:
-        True if the matrix ``m`` is a square orthogonal matrix. False
-        otherwise.
+        True if ``m`` is square and has mutually orthogonal, nonzero columns.
+        False otherwise.
 
     """
     if m.ndim != 2:
@@ -985,16 +985,25 @@ def _is_matrix_orthogonal(
          )
     if m.shape[0] != m.shape[1]:
         return False
-    norm_squared = (m ** 2).sum(axis=0)
+
+    scales = np.linalg.norm(m, axis=0)
+    if not np.all(np.isfinite(scales)) or np.any(scales == 0.0):
+        return False
+
     if require_unit:
         if not np.allclose(
-            norm_squared,
-            np.array([1.0, 1.0, 1.0]),
+            scales ** 2,
+            np.ones(m.shape[1]),
             atol=tol,
         ):
             return False
 
-    return np.allclose(m.T @ m, np.diag(norm_squared), atol=tol)
+    directions = m / scales
+    return np.allclose(
+        directions.T @ directions,
+        np.eye(m.shape[1]),
+        atol=tol,
+    )
 
 
 def get_normal_vector(
@@ -1134,8 +1143,7 @@ def create_rotation_matrix(
         x, y, z position in the frame-of-reference coordinate system.
 
     """  # noqa: E501
-    if len(image_orientation) != 6:
-        raise ValueError('Argument "image_orientation" must have length 6.')
+    _check_image_orientation(image_orientation)
     index_convention_ = _normalize_pixel_index_convention(index_convention)
     handedness_ = AxisHandedness(handedness)
 
@@ -1227,6 +1235,49 @@ def _stack_affine_matrix(
     )
 
 
+def _check_image_orientation(image_orientation: Sequence[float]):
+    """Check that a sequence of flaots is a valid image orientation.
+
+    To be valid, an image orientation must consist of six numbers between -1
+    and 1 (inclusive) that form two orthogonal unit vector concatenated
+    end-to-end.
+
+    Parameters
+    ----------
+    image_orientation: Sequence[float]
+        User-passed image orientation.
+
+    Raises
+    ------
+    ValueError:
+        If the image orientation is not a valid set of direction cosines.
+
+    """
+    if not isinstance(image_orientation, (Sequence, np.ndarray)):
+        raise TypeError('Argument "image_orientation" must be a sequence.')
+    if len(image_orientation) != 6:
+        raise ValueError('Argument "image_orientation" must have length 6.')
+
+    if max(image_orientation) > 1.0 or min(image_orientation) < -1.0:
+        raise ValueError(
+            "Values in image_orientation must be in the range -1 to 1."
+        )
+
+    row_cosines = np.array(image_orientation[:3], dtype=float)
+    column_cosines = np.array(image_orientation[3:], dtype=float)
+
+    for a in [row_cosines, column_cosines]:
+        if np.abs(np.linalg.norm(a) - 1.0) > _DEFAULT_ORTHOGONAL_TOLERANCE:
+            raise ValueError(
+                "Image orientation must contain unit vectors."
+            )
+
+    if np.abs(row_cosines.T @ column_cosines) > _DEFAULT_ORTHOGONAL_TOLERANCE:
+        raise ValueError(
+            "Image orientation must contain two orthogonal vectors."
+        )
+
+
 def create_affine_matrix_from_attributes(
     image_position: Sequence[float],
     image_orientation: Sequence[float],
@@ -1305,14 +1356,11 @@ def create_affine_matrix_from_attributes(
         raise TypeError('Argument "image_position" must be a sequence.')
     if len(image_position) != 3:
         raise ValueError('Argument "image_position" must have length 3.')
-    if not isinstance(image_orientation, (Sequence, np.ndarray)):
-        raise TypeError('Argument "image_orientation" must be a sequence.')
-    if len(image_orientation) != 6:
-        raise ValueError('Argument "image_orientation" must have length 6.')
     if not isinstance(pixel_spacing, (Sequence, np.ndarray)):
         raise TypeError('Argument "pixel_spacing" must be a sequence.')
     if len(pixel_spacing) != 2:
         raise ValueError('Argument "pixel_spacing" must have length 2.')
+    # image_orientation is checked within create_rotation_matrix
 
     index_convention_ = _normalize_pixel_index_convention(index_convention)
     if (
@@ -1397,14 +1445,11 @@ def _create_inv_affine_matrix_from_attributes(
         raise TypeError('Argument "image_position" must be a sequence.')
     if len(image_position) != 3:
         raise ValueError('Argument "image_position" must have length 3.')
-    if not isinstance(image_orientation, Sequence):
-        raise TypeError('Argument "image_orientation" must be a sequence.')
-    if len(image_orientation) != 6:
-        raise ValueError('Argument "image_orientation" must have length 6.')
     if not isinstance(pixel_spacing, Sequence):
         raise TypeError('Argument "pixel_spacing" must be a sequence.')
     if len(pixel_spacing) != 2:
         raise ValueError('Argument "pixel_spacing" must have length 2.')
+    # image_orientation is checked within create_rotation_matrix
 
     translation = np.array([float(x) for x in image_position], dtype=float)
 
@@ -3096,7 +3141,7 @@ class ImageToImageTransformer:
 
         Parameters
         ----------
-        indices: numpy.ndarray
+        coordinates: numpy.ndarray
             Array of (column, row) coordinates at sub-pixel resolution in the
             range [0, Columns] and [0, Rows], respectively.
             Array of floating-point values with shape ``(n, 2)``, where *n* is
@@ -3399,12 +3444,65 @@ def are_points_coplanar(
     return max_dev <= tol
 
 
+def _check_orientation_consistency(
+    series_datasets: Sequence[Dataset],
+    orientation_tol: float,
+) -> Sequence[float] | None:
+    """Check orientations are consistent within a tolerance.
+
+    First establishes the most commonly occurring orientation value within the
+    series, then checks that all other orientation values found are within the
+    given tolerance.
+
+    Parameters
+    ----------
+    series_datasets: Sequence[pydicom.Dataset]
+        Series of legacy datasets whose orientations should be checked.
+    orientation_tol: float
+        Tolerance value used to determine whether two orientation values are
+        different. The checks fails if the cosine similarity of either of the
+        two direction unit vectors within an orientation has a cosine
+        similarity of less than 1 minus this value from the corresponding unit
+        vector in the most common orientation.
+
+    Returns
+    -------
+    list[float] | None:
+        If orientations are the similar within the given tolerance, returns the
+        most commonly occurring orientation in the ImageOrientationPatient
+        direction cosine format of a list of six floats. Otherwise returns None.
+
+    """
+    orientations = [
+        tuple(ds.ImageOrientationPatient)
+        for ds in series_datasets
+    ]
+    counter = Counter(orientations)
+
+    orientation, _ = counter.most_common(1)[0]
+    v1 = np.array(orientation[:3])
+    v2 = np.array(orientation[3:])
+
+    for ori, _ in counter.items():
+        if ori == orientation:
+            continue
+
+        if (
+            np.array(ori[:3]) @ v1 < (1.0 - orientation_tol) or
+            np.array(ori[3:]) @ v2 < (1.0 - orientation_tol)
+        ):
+            return None
+
+    return list(orientation)
+
+
 def get_series_volume_positions(
     datasets: Sequence[pydicom.Dataset],
     *,
     rtol: float | None = None,
     atol: float | None = None,
     perpendicular_tol: float | None = None,
+    orientation_tol: float | None = None,
     sort: bool = True,
     allow_missing_positions: bool = False,
     allow_duplicate_positions: bool = False,
@@ -3501,10 +3599,9 @@ def get_series_volume_positions(
         the slice spacing. If the image positions do not represent a
         regularly-spaced volume, returns None.
     Union[List[int], None]:
-        List with the same length as the number of image positions. Each
-        element gives the zero-based index of the corresponding input position
-        in the volume. If the image positions do not represent a volume,
-        returns None.
+        List with the same length as the ``datasets`` input. Each element gives
+        the zero-based index of the corresponding dataset's position in the
+        volume. If the image positions do not represent a volume, returns None.
 
     """  # noqa: E501
     if len(datasets) == 0:
@@ -3519,14 +3616,29 @@ def get_series_volume_positions(
             )
 
     # Check image orientations are consistent
-    image_orientation = datasets[0].ImageOrientationPatient
-    for ds in datasets[1:]:
-        if ds.ImageOrientationPatient != image_orientation:
+    if orientation_tol is None:
+        image_orientation = datasets[0].ImageOrientationPatient
+        for ds in datasets[1:]:
+            if ds.ImageOrientationPatient != image_orientation:
+                return None, None
+    else:
+        image_orientation = _check_orientation_consistency(
+            datasets,
+            orientation_tol
+        )
+        if image_orientation is None:
             return None, None
 
     positions = [ds.ImagePositionPatient for ds in datasets]
 
-    spacing_hint = datasets[0].get('SpacingBetweenSlices')
+    spacing_hint: float | None = None
+    if allow_missing_positions:
+        spacing_hint = datasets[0].get('SpacingBetweenSlices')
+
+        if spacing_hint == 0.0:
+            # Zero is sometimes used as an unknown value. Ignore it in this
+            # case rather than raising an unhelpful error later
+            spacing_hint = None
 
     return get_volume_positions(
         image_positions=positions,
@@ -3661,8 +3773,8 @@ def get_volume_positions(
         the slice spacing. If the image positions do not represent a
         regularly-spaced volume, returns None.
     Union[List[int], None]:
-        List with the same length as the number of image positions. Each
-        element gives the zero-based index of the corresponding input position
+        List with the same length as the ``image_positions`` input. Each
+        element gives the zero-based index of the corresponding image position
         in the volume. If the image positions do not represent a volume,
         returns None.
 
@@ -3783,19 +3895,24 @@ def get_volume_positions(
             (origin_distances - origin_distances.min()) / spacing
         )
 
-        is_regular = np.allclose(
-            origin_distance_multiples,
-            origin_distance_multiples.round(),
-            rtol=rtol,
-            atol=atol,
+        # Deviations are measured in mm, against the position each slice would
+        # occupy if it sat exactly on its integer multiple of the spacing.
+        # Comparing the multiples themselves would make the tolerances mean
+        # "fractions of a slice" here but "mm" in the branch below, so the same
+        # 'atol' would accept a larger physical error the wider the spacing.
+        expected_distances = (
+            origin_distance_multiples.round() * spacing +
+            origin_distances.min()
         )
+        deviations = np.abs(origin_distances - expected_distances)
+
+        # 'rtol' is relative to the slice spacing, matching its meaning in the
+        # regularly-spaced branch below, where each spacing is compared with
+        # the nominal spacing.
+        tolerance = atol + rtol * abs(spacing)
+        is_regular = bool((deviations <= tolerance).all())
         if not is_regular:
-            max_deviation = float(
-                np.abs(
-                    origin_distance_multiples -
-                    origin_distance_multiples.round()
-                ).max()
-            )
+            max_deviation = float(deviations.max())
             logger.info("Frame positions are not regularly spaced.")
             logger.debug(
                 f"Maximum spacing deviation from regular: {max_deviation:.2e} "
@@ -3819,10 +3936,11 @@ def get_volume_positions(
                 rtol=rtol,
                 atol=atol,
             ):
-                raise RuntimeError(
+                logger.info(
                     f"Inferred spacing ({abs(spacing):.3f}) does not match the "
                     f"given 'spacing_hint' ({spacing_hint})."
                 )
+                return None, None
 
         is_regular = np.isclose(
             spacings,
@@ -3845,17 +3963,17 @@ def get_volume_positions(
             )
             return None, None
 
-    # Additionally check that the vector from the first to the last plane lies
-    # approximately along the normal vector
-    pos1 = unique_positions[sort_index[0], :]
-    pos2 = unique_positions[sort_index[-1], :]
-    span = (pos2 - pos1)
-    span /= np.linalg.norm(span)
+    # Additionally check that the vectors are all approximately along the
+    # normal vector
+    spans = unique_positions[sort_index[1:]] - unique_positions[sort_index[0]]
+    spans /= np.linalg.norm(spans, axis=1)[:, None]
 
-    dot_product = normal_vector.T @ span
-    is_perpendicular = (
-        abs(dot_product - 1.0) < perpendicular_tol or
-        abs(dot_product + 1.0) < perpendicular_tol
+    dot_products = spans @ normal_vector
+    is_perpendicular = np.all(
+        np.logical_or(
+            np.abs(dot_products - 1.0) < perpendicular_tol,
+            np.abs(dot_products + 1.0) < perpendicular_tol
+        )
     )
 
     if not is_perpendicular:
@@ -3863,7 +3981,6 @@ def get_volume_positions(
             "Frame positions are not located along a vector "
             "normal to the image plane."
         )
-        logger.debug(f"Dot product: {dot_product:.4f}")
 
     if is_regular and is_perpendicular:
         vol_positions = [

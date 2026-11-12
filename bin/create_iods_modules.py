@@ -12,21 +12,18 @@ from pydicom.tag import Tag
 logger = logging.getLogger(__name__)
 
 
-PGK_PATH = os.path.join(
+PKG_JSON_PATH = os.path.join(
     os.path.dirname(__file__),
     '..',
     'src',
-    'highdicom'
+    'highdicom',
+    '_standard',
 )
 
 
 def _load_json_from_file(filename):
     with open(filename) as f:
         return json.load(f)
-
-
-def _dump_json(data):
-    return json.dumps(data, indent=4, sort_keys=True)
 
 
 def _create_sop_to_iods(directory):
@@ -97,14 +94,16 @@ def _create_modules(directory):
     return modules
 
 
-if __name__ == '__main__':
-
+if __name__ == "__main__":
     logging.basicConfig()
     logger.setLevel(logging.DEBUG)
 
     # Positional argument is path to directory containing JSON files generated
     # using the dicom-standard Python package, see
     # https://github.com/innolitics/dicom-standard/tree/master/standard
+    # If generating yourself using the instructions in that repo, be sure to
+    # use "make all" instead of just "make", otherwise some of the required
+    # files are skipped
     try:
         directory = sys.argv[1]
     except IndexError as e:
@@ -119,37 +118,16 @@ if __name__ == '__main__':
     current_time = datetime.datetime.time(now).strftime('%H:%M:%S')
 
     iods = _create_iods(directory)
-    iods_docstr = '\n'.join([
-        '"""DICOM Information Object Definitions (IODs)',
-        f'auto-generated on {current_date} at {current_time}.',
-        '"""',
-        'from typing import Dict, List'
-    ])
+    iods_filename = os.path.join(PKG_JSON_PATH, 'iods.json')
+    with open(iods_filename, 'w') as jf:
+        json.dump(iods, jf, indent=2)
+
     sop_to_iods = _create_sop_to_iods(directory)
-    iods_filename = os.path.join(PGK_PATH, '_iods.py')
-    with open(iods_filename, 'w') as fp:
-        fp.write(iods_docstr)
-        fp.write('\n\n')
-        iods_formatted = _dump_json(iods).replace('null', 'None')
-        fp.write(
-            f'IOD_MODULE_MAP: Dict[str, List[Dict[str, str]]] = {iods_formatted}'
-        )
-        fp.write('\n\n')
-        sop_to_iods_formatted = _dump_json(sop_to_iods).replace('null', 'None')
-        fp.write(f'SOP_CLASS_UID_IOD_KEY_MAP = {sop_to_iods_formatted}')
+    sop_to_iods_filename = os.path.join(PKG_JSON_PATH, 'sop_class_to_iod.json')
+    with open(sop_to_iods_filename, 'w') as jf:
+        json.dump(sop_to_iods, jf, indent=2)
 
     modules = _create_modules(directory)
-    modules_docstr = '\n'.join([
-        '"""DICOM modules'
-        f'auto-generated on {current_date} at {current_time}.'
-        '"""',
-        'from typing import Dict, List, Sequence, Union'
-    ])
-    modules_filename = os.path.join(PGK_PATH, '_modules.py')
-    with open(modules_filename, 'w') as fp:
-        fp.write(modules_docstr)
-        fp.write('\n\n')
-        modules_formatted = _dump_json(modules).replace('null', 'None')
-        fp.write(
-            f'MODULE_ATTRIBUTE_MAP: Dict[str, List[Dict[str, Union[str, Sequence[str]]]]] = {modules_formatted}'  # noqa: E501
-        )
+    modules_filename = os.path.join(PKG_JSON_PATH, 'modules.json')
+    with open(modules_filename, 'w') as jf:
+        json.dump(modules, jf, indent=2)

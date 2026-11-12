@@ -72,7 +72,7 @@ frames of the image:
   (see :doc:`pixel_transforms` for more details on pixel transforms), but by
   default any pixel transform found in the dataset except the value-of-interest
   (VOI) transform is applied. This should be your default way of accessing
-  image frames in most cases, since it will typtically return the pixels as the
+  image frames in most cases, since it will typically return the pixels as the
   creator of the object intended them to be understood. By default, the
   returned frames have datatype ``numpy.float64``, but this can be controlled
   using the ``dtype`` parameter.
@@ -242,6 +242,26 @@ coordinate system can accessed as a volume, as can any image with a total pixel
 matrix. In these cases, the first spatial dimension will always have shape 1.
 
 See :doc:`volume` for an overview of the :class:`highdicom.Volume` class.
+
+Accessing Frames By Derivation Source
+-------------------------------------
+
+Some DICOM images are derived from other DICOM images. This pattern is common
+in IODs designed specifically for derived images, such as Parametric Maps, but
+can also occur in many other types of image. In this case, the image *may*
+contain frame-level references that communicate which frames/instance each
+frame was derived from. If such information is present in a file, highdicom
+provides methods to access derived frames by specifying information about
+the source frame.
+
+The two methods implementing this behavior are:
+
+* :meth:`highdicom.Image.get_pixels_by_source_instance` is used when each
+  frame of the image is derived from a different instance of a series of
+  single-frame images, identified by its SOP Instance UID.
+* :meth:`highdicom.Image.get_pixels_by_source_frame` is used when each frame of
+  the image is derived from a different frame of a multi-frame source image,
+  identified by the source frame number.
 
 .. _lazy:
 

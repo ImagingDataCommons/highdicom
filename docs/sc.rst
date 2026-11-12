@@ -258,7 +258,6 @@ to overlay a segmentation that is stored in a NumPy array called "seg_out".
         sc_image = hd.sc.SCImage(
             pixel_array=pixel_array.astype(np.uint8),
             photometric_interpretation=hd.PhotometricInterpretationValues.RGB,
-            bits_allocated=8,
             coordinate_system=hd.CoordinateSystemNames.PATIENT,
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,

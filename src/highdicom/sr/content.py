@@ -34,7 +34,7 @@ from highdicom.sr.value_types import (
     Scoord3DContentItem,
     UIDRefContentItem,
 )
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     is_multiframe_image,
     is_attribute_in_iod,
 )
@@ -230,9 +230,9 @@ class SourceImageForMeasurementGroup(ImageContentItem):
                 )
         super().__init__(
             name=CodedConcept(
-                value='260753009',
-                scheme_designator='SCT',
-                meaning='Source',
+                value='121112',
+                scheme_designator='DCM',
+                meaning='Source of Measurement',
             ),
             referenced_sop_class_uid=referenced_sop_class_uid,
             referenced_sop_instance_uid=referenced_sop_instance_uid,
@@ -1716,8 +1716,8 @@ class ReferencedSegmentationFrame(ContentSequence):
         highdicom.sr.ReferencedSegment
             Content item representing a reference to the segment
 
-        Notes
-        -----
+        Note
+        ----
         This method will attempt to deduce source image information
         from information provided in the segmentation instance. If
         available, it will use information specific to the segment
@@ -2108,8 +2108,8 @@ class ReferencedSegment(ContentSequence):
         highdicom.sr.ReferencedSegment
             Content item representing a reference to the segment
 
-        Notes
-        -----
+        Note
+        ----
         This method will attempt to deduce source image information from
         information provided in the segmentation instance. If available, it
         will used information specific to the segment and frame numbers (if

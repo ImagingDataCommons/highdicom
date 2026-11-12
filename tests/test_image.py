@@ -16,18 +16,20 @@ from highdicom import (
     Volume,
     imread,
 )
-from highdicom._module_utils import (
+from highdicom._standard_utils import (
     does_iod_have_pixel_data,
 )
-from highdicom.content import VOILUTTransformation
+from highdicom.content import (
+    _add_icc_profile_attributes,
+    VOILUTTransformation,
+)
 from highdicom.image import (
     _CombinedPixelTransform,
+    _DimensionIndexSequence,
+    get_volume_from_series,
 )
 from highdicom.pixels import (
     apply_voi_window,
-)
-from highdicom.pr.content import (
-    _add_icc_profile_attributes,
 )
 from highdicom.pm import (
     RealWorldValueMapping,
@@ -35,7 +37,65 @@ from highdicom.pm import (
 )
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
+from highdicom.volume import ChannelDescriptor
 from tests.utils import find_readable_images
+
+
+class TestDimensionIndexSequence():
+
+    def test_construction_1(self):
+        seq = _DimensionIndexSequence(
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+        )
+        assert len(seq) == 1
+        assert seq[0].DimensionIndexPointer == 0x00200032
+        assert seq[0].FunctionalGroupPointer == 0x00209113
+
+    def test_construction_2(self):
+        seq = _DimensionIndexSequence(
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+            channel_dimensions=[ChannelDescriptor("ReferencedSegmentNumber")],
+        )
+        assert len(seq) == 2
+        assert seq[0].DimensionIndexPointer == 0x0062000B
+        assert seq[0].FunctionalGroupPointer == 0x0062000A
+        assert seq[1].DimensionIndexPointer == 0x00200032
+        assert seq[1].FunctionalGroupPointer == 0x00209113
+
+    def test_construction_3(self):
+        seq = _DimensionIndexSequence(
+            coordinate_system='SLIDE',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+        )
+        assert len(seq) == 2
+        assert seq[0].DimensionIndexPointer == 0x0048021F
+        assert seq[0].FunctionalGroupPointer == 0x0048021A
+        assert seq[1].DimensionIndexPointer == 0x0048021E
+        assert seq[1].FunctionalGroupPointer == 0x0048021A
+
+    def test_construction_4(self):
+        seq = _DimensionIndexSequence(
+            coordinate_system='SLIDE',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
+            channel_dimensions=[ChannelDescriptor("ReferencedSegmentNumber")],
+        )
+        assert len(seq) == 3
+        assert seq[0].DimensionIndexPointer == 0x0062000B
+        assert seq[0].FunctionalGroupPointer == 0x0062000A
+        assert seq[1].DimensionIndexPointer == 0x0048021F
+        assert seq[1].FunctionalGroupPointer == 0x0048021A
+        assert seq[2].DimensionIndexPointer == 0x0048021E
+        assert seq[2].FunctionalGroupPointer == 0x0048021A
 
 
 def test_slice_spacing():
@@ -1017,6 +1077,58 @@ def test_combined_transform_pmap_rwvm_lut():
         tf = _CombinedPixelTransform(pmap, output_dtype=np.float32)
 
 
+def test_empty_rescale_slope_intercept_behaves_as_missing():
+    # Construct a CT image with None RescaleSlope/RescaleIntercept
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    f = data_dir / 'test_files/ct_image.dcm'
+
+    # try all combinations of missing and None: None is treated as missing
+    for intercept_none in [False, True]:
+        for slope_none in [False, True]:
+            dataset = pydicom.dcmread(f)
+
+            del dataset.RescaleIntercept
+            del dataset.RescaleSlope
+
+            if intercept_none:
+                dataset.RescaleIntercept = None
+
+            if slope_none:
+                dataset.RescaleSlope = None
+
+            # parsing succeeds and defaults to no effective slope intercept
+            tf = _CombinedPixelTransform(dataset)
+            assert tf._effective_slope_intercept is None
+
+
+@pytest.mark.parametrize('lazy', [False, True])
+def test_get_frame_bits_stored_less_than_bits_allocated(lazy):
+    # 12 bits stored in 16 bits allocated, signed, without sign extension of
+    # the unused high bits: -1 is stored as 0x0FFF
+    dataset = pydicom.dcmread(get_testdata_file('MR_small.dcm'))
+    dataset.BitsStored = 12
+    dataset.HighBit = 11
+    dataset.PixelRepresentation = 1
+    stored = np.full((dataset.Rows, dataset.Columns), 0x0FFF, np.uint16)
+    stored[0, :] = 0x07FF
+    dataset.PixelData = stored.tobytes()
+    expected = dataset.pixel_array
+    assert expected[0, 0] == 2047
+    assert expected[1, 0] == -1
+
+    buf = BytesIO()
+    dataset.save_as(buf)
+    buf.seek(0)
+    im = imread(buf, lazy_frame_retrieval=lazy)
+
+    assert np.array_equal(im.get_stored_frame(1), expected)
+    assert np.array_equal(
+        im.get_frame(1, apply_modality_transform=False),
+        expected,
+    )
+
+
 def test_get_volume_multiframe_ct():
     im = imread(get_testdata_file('eCT_Supplemental.dcm'))
     volume = im.get_volume()
@@ -1040,6 +1152,39 @@ def test_get_volume_multiframe_ct():
     ]:
         volume = im.get_volume(dtype=dtype)
         assert volume.array.dtype == dtype
+
+
+def test_get_volume_from_series_with_tolerance():
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196'),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166'),
+    ]
+    ct_series = [pydicom.dcmread(f) for f in ct_files]
+
+    theta = 0.05
+    ct_series[0].ImageOrientationPatient = [
+        pydicom.valuerep.format_number_as_ds(x) for x in [
+            np.cos(theta), np.sin(theta), 0.0,
+            0.0, 1.0, 0.0
+        ]
+    ]
+
+    # With no tolerance (default), this should fail
+    msg = "Images do not have the same orientation."
+    with pytest.raises(ValueError, match=msg):
+        get_volume_from_series(ct_series)
+
+    # With a tolerance that is too low, we should see a different error
+    # msg = "Images do not have the same orientation."
+    msg = 'Orientations are not consistent within the specified tolerance.'
+    with pytest.raises(ValueError, match=msg):
+        get_volume_from_series(ct_series, orientation_tol=0.0000001)
+
+    vol = get_volume_from_series(ct_series, orientation_tol=0.01)
+
+    # The majority orientation should have been used
+    assert vol.direction_cosines == tuple(ct_series[1].ImageOrientationPatient)
 
 
 def test_tiled_full_no_dimension_index():
@@ -1260,6 +1405,65 @@ def test_instantiation():
         Image()
 
 
+@pytest.mark.parametrize('dtype', [np.uint16, np.float32, np.float64])
+@pytest.mark.parametrize('lazy_frame_retrieval', [False, True])
+@pytest.mark.parametrize(
+    'method',
+    ['get_frame', 'get_frames', 'get_stored_frame', 'get_stored_frames'],
+)
+def test_get_frames_pmap_rwvm(dtype, lazy_frame_retrieval, method):
+    file_path = Path(__file__)
+    data_dir = file_path.parent.parent.joinpath('data')
+    source_image = pydicom.dcmread(data_dir / 'test_files/ct_image.dcm')
+    pixel_array = np.resize(
+        np.arange(4, dtype=dtype),
+        (source_image.Rows, source_image.Columns),
+    )
+    mapping = RealWorldValueMapping(
+        lut_label='TEST',
+        lut_explanation='Linear map',
+        unit=codes.UCUM.NoUnits,
+        value_range=(0, 3) if dtype == np.uint16 else (0.0, 3.0),
+        slope=2,
+        intercept=1,
+    )
+    pmap = ParametricMap(
+        source_images=[source_image],
+        pixel_array=pixel_array,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        manufacturer='Test',
+        manufacturer_model_name='Test',
+        software_versions='1',
+        device_serial_number='1',
+        contains_recognizable_visual_features=False,
+        real_world_value_mappings=[mapping],
+        voi_lut_transformations=[
+            VOILUTTransformation(window_center=2, window_width=4),
+        ],
+    )
+    stream = BytesIO()
+    pmap.save_as(stream, enforce_file_format=True)
+    image = imread(
+        BytesIO(stream.getvalue()),
+        lazy_frame_retrieval=lazy_frame_retrieval,
+    )
+
+    args = () if method.endswith('frames') else (1,)
+    values = getattr(image, method)(*args)
+    if 'stored' in method:
+        expected = pixel_array
+        assert values.dtype == dtype
+    else:
+        expected = pixel_array.astype(np.float64) * 2 + 1
+        assert values.dtype == np.float64
+    if method.endswith('frames'):
+        expected = expected[None]
+    np.testing.assert_array_equal(values, expected)
+
+
 def test_get_frames():
     f = get_testdata_file('eCT_Supplemental.dcm')
     im = imread(f)
@@ -1439,3 +1643,17 @@ def test_imread_from_dicom_bytes_io_lazy():
         # Two reads to ensure opening/closing is handled
         im.get_frame(1)
         im.get_frame(2)
+
+
+def test_imread_missing_referenced_instances():
+    # Test for the case where a ReferencedSeriesSequence is present but does
+    # not list instances. This is not valid by the standard but is observed and
+    # we should be tolerant to it
+    dcm = get_testdata_file('eCT_Supplemental.dcm', read=True)
+
+    # Add ReferencedSeriesSequence without any referenced instances
+    ref_series = pydicom.Dataset()
+    ref_series.SeriesInstanceUID = UID()
+    dcm.ReferencedSeriesSequence = [ref_series]
+
+    Image.from_dataset(dcm, copy=False)

@@ -28,9 +28,12 @@ from pydicom.uid import (
 )
 
 from highdicom import (
+    AnatomicRegion,
     PaletteColorLUT,
+    PrimaryAnatomicStructure,
     PaletteColorLUTTransformation,
 )
+from highdicom.image import _DimensionIndexSequence
 from highdicom.base_content import ContributingEquipment
 from highdicom.color import CIELabColor
 from highdicom.content import (
@@ -48,8 +51,8 @@ from highdicom.image import get_volume_from_series
 from highdicom.seg import (
     create_segmentation_pyramid,
     segread,
-    DimensionIndexSequence,
     SegmentationTypeValues,
+    SegmentedPropertyType,
     SegmentAlgorithmTypeValues,
     Segmentation,
     SegmentDescription,
@@ -57,7 +60,11 @@ from highdicom.seg import (
     SegmentationFractionalTypeValues,
 )
 from highdicom.seg.utils import iter_segments
-from highdicom.spatial import VOLUME_INDEX_CONVENTION, sort_datasets
+from highdicom.spatial import (
+    VOLUME_INDEX_CONVENTION,
+    create_affine_matrix_from_attributes,
+    sort_datasets,
+)
 from highdicom.sr.coding import CodedConcept
 from highdicom.uid import UID
 from highdicom.volume import RGB_COLOR_CHANNEL_DESCRIPTOR, Volume
@@ -161,6 +168,227 @@ class TestAlgorithmIdentificationSequence(unittest.TestCase):
         seq[0].AlgorithmParameters = 'some invalid parameters'
         with pytest.raises(ValueError):
             seq.parameters  # noqa: B018
+
+
+@pytest.mark.parametrize('from_code', [True, False])
+def test_segmented_property_type_no_modifiers(from_code: bool):
+    if from_code:
+        property_type = SegmentedPropertyType(codes.SCT.Tumor)
+    else:
+        property_type = SegmentedPropertyType(
+            CodedConcept.from_code(codes.SCT.Tumor)
+        )
+
+    assert isinstance(property_type, CodedConcept)
+    assert isinstance(property_type.unmodified, CodedConcept)
+    assert not hasattr(
+        property_type,
+        'SegmentedPropertyTypeModifierCodeSequence'
+    )
+    assert property_type.unmodified == codes.SCT.Tumor
+    assert property_type.modifiers == ()
+    assert property_type.value == codes.SCT.Tumor.value
+    assert property_type.meaning == codes.SCT.Tumor.meaning
+    assert property_type.scheme_designator == codes.SCT.Tumor.scheme_designator
+
+
+@pytest.mark.parametrize('from_code', [True, False])
+def test_segmented_property_type_with_modifiers(from_code: bool):
+    if from_code:
+        property_type = SegmentedPropertyType(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Left],
+        )
+    else:
+        property_type = SegmentedPropertyType(
+            CodedConcept.from_code(codes.SCT.Kidney),
+            modifiers=[CodedConcept.from_code(codes.SCT.Left)],
+        )
+
+    assert isinstance(property_type, CodedConcept)
+    assert isinstance(property_type.unmodified, CodedConcept)
+    assert hasattr(
+        property_type,
+        'SegmentedPropertyTypeModifierCodeSequence'
+    )
+    assert len(property_type.SegmentedPropertyTypeModifierCodeSequence) == 1
+    assert property_type.unmodified == codes.SCT.Kidney
+    assert property_type.modifiers == (codes.SCT.Left, )
+    assert isinstance(property_type.modifiers[0], CodedConcept)
+    assert property_type.value == codes.SCT.Kidney.value
+    assert property_type.meaning == codes.SCT.Kidney.meaning
+    assert property_type.scheme_designator == codes.SCT.Kidney.scheme_designator
+
+
+def test_segmented_property_type_equality_match():
+    property_type_1 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+        modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+    )
+    property_type_2 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+        modifiers=[codes.SCT.Posterior, codes.SCT.Left],  # reverse order
+    )
+    # Test equality operator considers everything equal
+    assert property_type_1 == property_type_1
+    assert property_type_2 == property_type_2
+    assert property_type_1 == property_type_2
+
+    # Test hash operation via comparing sets
+    assert len({property_type_1, property_type_1}) == 1
+    assert len({property_type_1, property_type_2}) == 1
+    assert len({property_type_1, property_type_2}) == 1
+
+
+def test_segmented_property_type_equality_nonmatching():
+    property_type_1 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+        modifiers=[codes.SCT.Left],
+    )
+    property_type_2 = SegmentedPropertyType(
+        codes.SCT.Kidney,
+    )
+
+    # Test equality operator
+    assert property_type_1 != property_type_2
+    assert property_type_1.unmodified == property_type_2.unmodified
+
+    # Test hash operation via comparing sets
+    assert len({property_type_1, property_type_2}) == 2
+
+
+@pytest.mark.parametrize('copy', [True, False])
+def test_segmented_property_type_from_dataset_no_modifiers(copy: bool):
+    ds = Dataset()
+    ds.CodeValue = codes.SCT.Tumor.value
+    ds.CodeMeaning = 'Tumor'
+    ds.CodingSchemeDesignator = 'SCT'
+
+    property_type = SegmentedPropertyType.from_dataset(ds, copy=copy)
+    assert isinstance(property_type, SegmentedPropertyType)
+    assert property_type == codes.SCT.Tumor
+    assert property_type.modifiers == ()
+
+    if copy:
+        assert property_type is not ds
+    else:
+        assert property_type is ds
+
+
+@pytest.mark.parametrize('copy', [True, False])
+def test_segmented_property_type_from_dataset_with_modifiers(copy: bool):
+    ds = Dataset()
+    ds.CodeValue = codes.SCT.Kidney.value
+    ds.CodeMeaning = 'Kidney'
+    ds.CodingSchemeDesignator = 'SCT'
+
+    modifier = Dataset()
+    modifier.CodeValue = codes.SCT.Left.value
+    modifier.CodeMeaning = 'Left'
+    modifier.CodingSchemeDesignator = 'SCT'
+
+    ds.SegmentedPropertyTypeModifierCodeSequence = [modifier]
+
+    property_type = SegmentedPropertyType.from_dataset(ds, copy=copy)
+    assert isinstance(property_type, SegmentedPropertyType)
+    assert property_type.unmodified == codes.SCT.Kidney
+    assert property_type.modifiers == (codes.SCT.Left, )
+
+    if copy:
+        assert property_type is not ds
+        assert (
+            property_type.SegmentedPropertyTypeModifierCodeSequence[0]
+            is not
+            ds.SegmentedPropertyTypeModifierCodeSequence[0]
+        )
+    else:
+        assert property_type is ds
+        assert (
+            property_type.SegmentedPropertyTypeModifierCodeSequence[0]
+            is
+            ds.SegmentedPropertyTypeModifierCodeSequence[0]
+        )
+
+
+@pytest.mark.parametrize(
+    'cls,seq_name',
+    [
+        (AnatomicRegion, 'AnatomicRegionModifierSequence'),
+        (
+            PrimaryAnatomicStructure,
+            'PrimaryAnatomicStructureModifierSequence',
+        ),
+    ]
+)
+def test_modified_code_subclasses(cls, seq_name):
+    plain = cls(codes.SCT.Kidney)
+    assert plain.modifiers == ()
+    assert not hasattr(plain, seq_name)
+
+    modified = cls(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+    assert len(getattr(modified, seq_name)) == 1
+    assert modified.modifiers == (codes.SCT.Left, )
+    assert modified.unmodified == codes.SCT.Kidney
+    assert modified != plain
+    assert cls.from_code(modified) is modified
+    assert isinstance(cls.from_code(codes.SCT.Kidney), cls)
+
+
+def test_modified_code_invalid_arguments():
+    with pytest.raises(TypeError):
+        SegmentedPropertyType('not a code')
+    with pytest.raises(TypeError):
+        SegmentedPropertyType(codes.SCT.Kidney, modifiers=['not a code'])
+
+
+def test_modified_code_from_other_modified_class_rejected():
+    modified = SegmentedPropertyType(
+        codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+    )
+    with pytest.raises(TypeError):
+        AnatomicRegion(modified)
+    with pytest.raises(TypeError):
+        AnatomicRegion.from_code(modified)
+    # Even without modifiers, a different class is rejected for consistency
+    with pytest.raises(TypeError):
+        PrimaryAnatomicStructure(SegmentedPropertyType(codes.SCT.Kidney))
+
+
+def test_modified_code_from_same_class_keeps_modifiers():
+    modified = SegmentedPropertyType(
+        codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+    )
+    copied = SegmentedPropertyType(modified)
+    assert copied == modified
+    assert copied.modifiers == (codes.SCT.Left, )
+
+    extended = SegmentedPropertyType(
+        modified, modifiers=[codes.SCT.Posterior]
+    )
+    assert extended.modifiers == (codes.SCT.Left, codes.SCT.Posterior)
+    # The original is not altered
+    assert modified.modifiers == (codes.SCT.Left, )
+
+
+def test_modified_code_modifiers_not_copied_on_access():
+    modified = SegmentedPropertyType(
+        codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+    )
+    assert modified.modifiers[0] is modified.modifiers[0]
+
+
+def test_modified_code_equality_different_classes():
+    # The class of a modified code does not affect equality
+    a = SegmentedPropertyType(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+    b = AnatomicRegion(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+    assert a == b
+    assert b == a
+    assert len({a, b}) == 1
+    assert a != AnatomicRegion(codes.SCT.Kidney)
+    assert a != 'kidney'
+    # Unmodified compares equal to plain codes
+    assert SegmentedPropertyType(codes.SCT.Kidney) == codes.SCT.Kidney
+    assert a != codes.SCT.Kidney
 
 
 class TestSegmentDescription(unittest.TestCase):
@@ -395,6 +623,122 @@ class TestSegmentDescription(unittest.TestCase):
                 tracking_uid=self._tracking_uid,
             )
 
+    def _make_segment_description(self, **kwargs):
+        args = {
+            'segment_number': 1,
+            'segment_label': 'label',
+            'segmented_property_category': self._segmented_property_category,
+            'segmented_property_type': codes.SCT.Neoplasm,
+            'algorithm_type': 'MANUAL',
+        }
+        args.update(kwargs)
+        return SegmentDescription(**args)
+
+    def test_plain_codes_are_converted(self):
+        item = self._make_segment_description(
+            anatomic_regions=[codes.SCT.Thorax],
+            primary_anatomic_structures=[codes.SCT.Lung],
+        )
+        assert isinstance(item.segmented_property_type, SegmentedPropertyType)
+        assert isinstance(item.anatomic_regions[0], AnatomicRegion)
+        assert isinstance(
+            item.primary_anatomic_structures[0], PrimaryAnatomicStructure
+        )
+        assert item.segmented_property_type.modifiers == ()
+
+    def test_modifiers(self):
+        item = self._make_segment_description(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+            ),
+            anatomic_regions=[
+                AnatomicRegion(codes.SCT.Thorax, modifiers=[codes.SCT.Right]),
+                codes.SCT.Abdomen,
+            ],
+            primary_anatomic_structures=[
+                PrimaryAnatomicStructure(
+                    codes.SCT.Lung, modifiers=[codes.SCT.Left]
+                ),
+            ],
+        )
+        ptype = item.SegmentedPropertyTypeCodeSequence[0]
+        assert ptype.modifiers == (codes.SCT.Left, )
+        assert len(ptype.SegmentedPropertyTypeModifierCodeSequence) == 1
+        assert item.anatomic_regions[0].modifiers == (codes.SCT.Right, )
+        assert item.anatomic_regions[1].modifiers == ()
+        assert len(
+            item.AnatomicRegionSequence[0].AnatomicRegionModifierSequence
+        ) == 1
+        assert item.primary_anatomic_structures[0].modifiers == (
+            codes.SCT.Left,
+        )
+
+    def test_empty_sequences_omitted(self):
+        item = self._make_segment_description(
+            anatomic_regions=[],
+            primary_anatomic_structures=[],
+        )
+        assert not hasattr(item, 'AnatomicRegionSequence')
+        assert not hasattr(item, 'PrimaryAnatomicStructureSequence')
+        assert item.anatomic_regions == []
+        assert item.primary_anatomic_structures == []
+
+    def test_wrong_modified_type_category(self):
+        with pytest.raises(TypeError):
+            self._make_segment_description(
+                segmented_property_category=SegmentedPropertyType(
+                    self._segmented_property_category
+                )
+            )
+
+    def test_wrong_modified_type_property_type(self):
+        with pytest.raises(TypeError):
+            self._make_segment_description(
+                segmented_property_type=AnatomicRegion(codes.SCT.Kidney)
+            )
+
+    def test_wrong_modified_type_anatomic_region(self):
+        with pytest.raises(TypeError):
+            self._make_segment_description(
+                anatomic_regions=[PrimaryAnatomicStructure(codes.SCT.Lung)]
+            )
+
+    def test_wrong_modified_type_primary_anatomic_structure(self):
+        with pytest.raises(TypeError):
+            self._make_segment_description(
+                primary_anatomic_structures=[AnatomicRegion(codes.SCT.Lung)]
+            )
+
+    def test_from_dataset_round_trip(self):
+        item = self._make_segment_description(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.Kidney, modifiers=[codes.SCT.Left]
+            ),
+            anatomic_regions=[
+                AnatomicRegion(codes.SCT.Thorax, modifiers=[codes.SCT.Right]),
+            ],
+            primary_anatomic_structures=[
+                PrimaryAnatomicStructure(
+                    codes.SCT.Lung, modifiers=[codes.SCT.Left]
+                ),
+            ],
+        )
+        ds = Dataset()
+        ds.SegmentSequence = [item]
+        ds = write_and_read_dataset(ds)
+        desc = SegmentDescription.from_dataset(ds.SegmentSequence[0])
+
+        assert isinstance(desc.segmented_property_type, SegmentedPropertyType)
+        assert desc.segmented_property_type.modifiers == (codes.SCT.Left, )
+        assert isinstance(desc.anatomic_regions[0], AnatomicRegion)
+        assert desc.anatomic_regions[0].modifiers == (codes.SCT.Right, )
+        assert isinstance(
+            desc.primary_anatomic_structures[0], PrimaryAnatomicStructure
+        )
+        assert desc.primary_anatomic_structures[0].modifiers == (
+            codes.SCT.Left,
+        )
+
 
 class TestPixelMeasuresSequence(unittest.TestCase):
 
@@ -547,40 +891,6 @@ class TestPlaneOrientationSequence(unittest.TestCase):
                 coordinate_system='OTHER',
                 image_orientation=self._image_orientation
             )
-
-
-class TestDimensionIndexSequence(unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-
-    def test_construction(self):
-        seq = DimensionIndexSequence(
-            coordinate_system='PATIENT'
-        )
-        assert len(seq) == 2
-        assert seq[0].DimensionIndexPointer == 0x0062000B
-        assert seq[0].FunctionalGroupPointer == 0x0062000A
-        assert seq[1].DimensionIndexPointer == 0x00200032
-        assert seq[1].FunctionalGroupPointer == 0x00209113
-
-    def test_construction_2(self):
-        seq = DimensionIndexSequence(
-            coordinate_system='SLIDE'
-        )
-        assert len(seq) == 6
-        assert seq[0].DimensionIndexPointer == 0x0062000B
-        assert seq[0].FunctionalGroupPointer == 0x0062000A
-        assert seq[1].DimensionIndexPointer == 0x0048021F
-        assert seq[1].FunctionalGroupPointer == 0x0048021A
-        assert seq[2].DimensionIndexPointer == 0x0048021E
-        assert seq[2].FunctionalGroupPointer == 0x0048021A
-        assert seq[3].DimensionIndexPointer == 0x0040072A
-        assert seq[3].FunctionalGroupPointer == 0x0048021A
-        assert seq[4].DimensionIndexPointer == 0x0040073A
-        assert seq[4].FunctionalGroupPointer == 0x0048021A
-        assert seq[5].DimensionIndexPointer == 0x0040074A
-        assert seq[5].FunctionalGroupPointer == 0x0048021A
 
 
 class TestSegmentation:
@@ -868,7 +1178,10 @@ class TestSegmentation:
             else:
                 orientation = src.ImageOrientationPatient
 
-        dim_index = DimensionIndexSequence(coordinate_system)
+        dim_index = _DimensionIndexSequence(
+            coordinate_system,
+            'segmentation-multi-frame-functional-groups'
+        )
         if hasattr(src, 'NumberOfFrames'):
             plane_positions = dim_index.get_plane_positions_of_image(src)
         else:
@@ -897,6 +1210,8 @@ class TestSegmentation:
     def check_dimension_index_vals(seg):
         # Function to apply some checks (necessary but not sufficient for
         # correctness) to ensure that the dimension indices are correct
+        sfgs = seg.SharedFunctionalGroupsSequence[0]
+
         if seg.SegmentationType != "LABELMAP":
             all_segment_numbers = []
             for f in seg.PerFrameFunctionalGroupsSequence:
@@ -908,9 +1223,18 @@ class TestSegmentation:
                     # VM=1 so this is an int
                     posn_index = dim_ind_vals
 
-                seg_number = (
-                    f.SegmentIdentificationSequence[0].ReferencedSegmentNumber
-                )
+                if 'SegmentIdentificationSequence' in f:
+                    seg_number = (
+                        f
+                        .SegmentIdentificationSequence[0]
+                        .ReferencedSegmentNumber
+                    )
+                else:
+                    seg_number = (
+                        sfgs
+                        .SegmentIdentificationSequence[0]
+                        .ReferencedSegmentNumber
+                    )
 
                 assert seg_number == posn_index
                 all_segment_numbers.append(seg_number)
@@ -1045,7 +1369,7 @@ class TestSegmentation:
         assert instance.MaximumFractionalValue == 255
         assert instance.ContentLabel == self._content_label
         assert instance.ContentDescription is None
-        assert instance.ContentCreatorName is None
+        assert 'ContentCreatorName' not in instance
         with pytest.raises(AttributeError):
             instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
@@ -1077,12 +1401,15 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             self._ct_image.ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert instance.NumberOfFrames == 1
         assert len(instance.PerFrameFunctionalGroupsSequence) == 1
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
@@ -1152,6 +1479,7 @@ class TestSegmentation:
             self._sm_image.TotalPixelMatrixRows
         assert instance.TotalPixelMatrixColumns == \
             self._sm_image.TotalPixelMatrixColumns
+        assert instance.TotalPixelMatrixFocalPlanes == 1
         assert len(instance.SharedFunctionalGroupsSequence) == 1
         shared_item = instance.SharedFunctionalGroupsSequence[0]
         assert len(shared_item.PixelMeasuresSequence) == 1
@@ -1161,12 +1489,15 @@ class TestSegmentation:
         assert pm_item.PixelSpacing == src_pm_item.PixelSpacing
         assert pm_item.SliceThickness == src_pm_item.SliceThickness
         assert not hasattr(shared_item, "PlaneOrientationSequence")
+        assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert instance.ImageOrientationSlide == \
             self._sm_image.ImageOrientationSlide
         assert instance.TotalPixelMatrixOriginSequence == \
             self._sm_image.TotalPixelMatrixOriginSequence
         assert len(instance.DimensionOrganizationSequence) == 1
-        assert len(instance.DimensionIndexSequence) == 6
+        assert len(instance.DimensionIndexSequence) == 3
 
         # Number of frames should be number of frames in the segmentation mask
         # that are non-empty, due to sparsity
@@ -1174,12 +1505,12 @@ class TestSegmentation:
         assert instance.NumberOfFrames == num_frames
         assert len(instance.PerFrameFunctionalGroupsSequence) == num_frames
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.PlanePositionSlideSequence) == 1
         frame_content_item = frame_item.FrameContentSequence[0]
-        assert len(frame_content_item.DimensionIndexValues) == 6
+        assert len(frame_content_item.DimensionIndexValues) == 3
         for derivation_image_item in frame_item.DerivationImageSequence:
             assert len(derivation_image_item.SourceImageSequence) == 1
             source_image_item = derivation_image_item.SourceImageSequence[0]
@@ -1242,6 +1573,9 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             src_im.ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         n_frames = len(self._ct_series_nonempty)
@@ -1254,7 +1588,7 @@ class TestSegmentation:
             ),
             1
         ):
-            assert len(frame_item.SegmentIdentificationSequence) == 1
+            assert not hasattr(frame_item, 'SegmentIdentificationSequence')
             assert len(frame_item.FrameContentSequence) == 1
             assert len(frame_item.DerivationImageSequence) == 1
             assert len(frame_item.PlanePositionSequence) == 1
@@ -1342,12 +1676,15 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             src_shared_item.PlaneOrientationSequence[0].ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert len(instance.PerFrameFunctionalGroupsSequence) == \
             self._ct_multiframe.NumberOfFrames
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
@@ -1429,12 +1766,15 @@ class TestSegmentation:
         po_item = shared_item.PlaneOrientationSequence[0]
         assert po_item.ImageOrientationPatient == \
             src_im.ImageOrientationPatient
+        assert len(shared_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 2
         assert instance.NumberOfFrames == 4
         assert len(instance.PerFrameFunctionalGroupsSequence) == 4
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert len(frame_item.PlanePositionSequence) == 1
@@ -1527,7 +1867,7 @@ class TestSegmentation:
         assert instance.MaximumFractionalValue == 255
         assert instance.ContentLabel == self._content_label
         assert instance.ContentDescription is None
-        assert instance.ContentCreatorName is None
+        assert 'ContentCreatorName' not in instance
         with pytest.raises(AttributeError):
             instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
@@ -1551,14 +1891,17 @@ class TestSegmentation:
         assert instance.Columns == self._cr_image.pixel_array.shape[1]
         assert len(instance.SharedFunctionalGroupsSequence) == 1
         shared_item = instance.SharedFunctionalGroupsSequence[0]
+        assert len(shared_item.SegmentIdentificationSequence) == 1
         assert not hasattr(shared_item, 'PixelMeasuresSequence')
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 1
         assert instance.NumberOfFrames == 1
         assert len(instance.PerFrameFunctionalGroupsSequence) == 1
         frame_item = instance.PerFrameFunctionalGroupsSequence[0]
-        assert len(frame_item.SegmentIdentificationSequence) == 1
+        assert not hasattr(frame_item, 'SegmentIdentificationSequence')
         assert len(frame_item.FrameContentSequence) == 1
         assert len(frame_item.DerivationImageSequence) == 1
         assert not hasattr(frame_item, 'PlanePositionSequence')
@@ -1623,7 +1966,7 @@ class TestSegmentation:
         assert instance.MaximumFractionalValue == 255
         assert instance.ContentLabel == self._content_label
         assert instance.ContentDescription is None
-        assert instance.ContentCreatorName is None
+        assert 'ContentCreatorName' not in instance
         with pytest.raises(AttributeError):
             instance.LossyImageCompressionRatio  # noqa: B018
         with pytest.raises(AttributeError):
@@ -1636,6 +1979,8 @@ class TestSegmentation:
             instance.TotalPixelMatrixRows  # noqa: B018
         with pytest.raises(AttributeError):
             instance.TotalPixelMatrixColumns  # noqa: B018
+        with pytest.raises(AttributeError):
+            instance.TotalPixelMatrixFocalPlanes  # noqa: B018
         assert len(instance.SegmentSequence) == 2
         assert instance.SegmentSequence[0].SegmentNumber == 1
         assert instance.SegmentSequence[1].SegmentNumber == 2
@@ -1650,6 +1995,8 @@ class TestSegmentation:
         shared_item = instance.SharedFunctionalGroupsSequence[0]
         assert not hasattr(shared_item, 'PixelMeasuresSequence')
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
+        assert not hasattr(shared_item, 'PixelValueTransformationSequence')
+        assert not hasattr(shared_item, 'FrameVOILUTSequence')
         assert len(instance.DimensionOrganizationSequence) == 1
         assert len(instance.DimensionIndexSequence) == 1
         assert instance.NumberOfFrames == 2
@@ -1724,6 +2071,19 @@ class TestSegmentation:
         assert not hasattr(instance, 'ExtendedOffsetTable')
         assert not hasattr(instance, 'ExtendedOffsetTableLengths')
 
+        # Segment descriptions include background
+        assert (
+            len(instance.SegmentSequence) ==
+            len(self._segment_descriptions) + 1
+        )
+
+        # Background segment has no algorithm identification
+        bg_desc = instance.SegmentSequence[0]
+        assert not hasattr(
+            bg_desc,
+            'SegmentationAlgorithmIdentificationSequence'
+        )
+
     def test_construction_9(self):
         # A label with a palette color LUT
         instance = Segmentation(
@@ -1740,10 +2100,11 @@ class TestSegmentation:
             self._software_versions,
             self._device_serial_number,
             palette_color_lut_transformation=self._lut_transformation,
+            specific_character_set='ISO_IR 101',
         )
         assert instance.SOPClassUID == '1.2.840.10008.5.1.4.1.1.66.7'
         assert instance.PhotometricInterpretation == 'PALETTE COLOR'
-        assert hasattr(instance, 'ICCProfile')
+        assert not hasattr(instance, 'ICCProfile')
         assert hasattr(instance, 'RedPaletteColorLookupTableDescriptor')
         assert hasattr(instance, 'RedPaletteColorLookupTableData')
         assert hasattr(instance, 'GreenPaletteColorLookupTableDescriptor')
@@ -1751,6 +2112,7 @@ class TestSegmentation:
         assert hasattr(instance, 'BluePaletteColorLookupTableDescriptor')
         assert hasattr(instance, 'BluePaletteColorLookupTableData')
         assert instance.PixelPaddingValue == 0
+        assert instance.SpecificCharacterSet == 'ISO_IR 101'
         self.check_dimension_index_vals(instance)
 
     def test_construction_10(self):
@@ -1821,6 +2183,49 @@ class TestSegmentation:
             .PixelMeasuresSequence[0]
             .PixelSpacing == source_image.PixelSpacing
         )
+
+    def test_construction_dx_image_round_trip(self):
+        # This image has a pixel spacing but no frame of reference, so the
+        # Pixel Measures Sequence has no Slice Thickness
+        source_image = dcmread('data/test_files/dx_image.dcm')
+        array = np.zeros(
+            (source_image.Rows, source_image.Columns),
+            dtype=bool
+        )
+        array[10:20, 10:20] = True
+
+        instance = Segmentation(
+            [source_image],
+            array,
+            SegmentationTypeValues.BINARY,
+            self._segment_descriptions,
+            self._series_instance_uid,
+            self._series_number,
+            self._sop_instance_uid,
+            self._instance_number,
+            self._manufacturer,
+            self._manufacturer_model_name,
+            self._software_versions,
+            self._device_serial_number,
+        )
+        pixel_measures = (
+            instance
+            .SharedFunctionalGroupsSequence[0]
+            .PixelMeasuresSequence[0]
+        )
+        assert pixel_measures.PixelSpacing == source_image.PixelSpacing
+        assert 'SliceThickness' not in pixel_measures
+
+        with BytesIO() as buf:
+            instance.save_as(buf)
+            reread = segread(buf.getvalue())
+
+        assert isinstance(reread, Segmentation)
+        pixels = reread.get_pixels_by_source_instance(
+            source_sop_instance_uids=[source_image.SOPInstanceUID],
+            combine_segments=True,
+        )
+        assert np.array_equal(pixels[0], array)
 
     def test_construction_large_labelmap_monochrome(self):
         n_classes = 300  # force 16 bit
@@ -2641,6 +3046,9 @@ class TestSegmentation:
         ):
             fm.PlanePositionSequence[0].ImagePositionPatient = pos
 
+        # Test character set is copied from source image
+        volume_multiframe.SpecificCharacterSet = 'ISO_IR 109'
+
         # Segmentation instance from an enhanced (multi-frame) CT image
         instance = Segmentation(
             [volume_multiframe],
@@ -2805,6 +3213,8 @@ class TestSegmentation:
         )
         assert instance.DimensionOrganizationType == "TILED_FULL"
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
+        assert not hasattr(instance, 'DimensionIndexSequence')
+        assert hasattr(instance, 'DimensionOrganizationSequence')
 
     def test_construction_tiled_full_labelmap(self):
         instance = Segmentation(
@@ -2825,6 +3235,8 @@ class TestSegmentation:
         )
         assert instance.DimensionOrganizationType == "TILED_FULL"
         assert not hasattr(instance, "PerFrameFunctionalGroupsSequence")
+        assert not hasattr(instance, 'DimensionIndexSequence')
+        assert hasattr(instance, 'DimensionOrganizationSequence')
 
     def test_construction_further_source_images(self):
         # Further source images that are aligned
@@ -4463,7 +4875,8 @@ class TestSegmentation:
         self.check_dimension_index_vals(instance)
 
     def test_spatial_positions_not_preserved(self):
-        pixel_spacing = (0.5, 0.5)
+        origin = (1.2, 4.5, 0.0)
+        pixel_spacing = (0.005, 0.005)
         slice_thickness = 0.3
         pixel_measures = PixelMeasuresSequence(
             pixel_spacing=pixel_spacing,
@@ -4474,13 +4887,62 @@ class TestSegmentation:
             coordinate_system=CoordinateSystemNames.SLIDE,
             image_orientation=image_orientation
         )
+        affine = create_affine_matrix_from_attributes(
+            image_orientation=image_orientation,
+            pixel_spacing=pixel_spacing,
+            image_position=origin,
+            index_convention="RD",  # use column, row
+        )
+
+        # Arbitrary tile positions
+        # use (column, row ) format to match input to PlanePositionSequence
+        tile_positions = np.array(
+            [
+                [8361, 7917],
+                [9464, 6091],
+                [3188, 6036],
+                [8391, 9097],
+                [2063, 6274],
+                [6, 7616],
+                [9409, 447],
+                [305, 3222],
+                [5675, 3033],
+                [8130, 642],
+                [9921, 4617],
+                [633, 8264],
+                [3650, 4208],
+                [2078, 1986],
+                [507, 1362],
+                [4151, 3298],
+                [5998, 2695],
+                [6603, 7279],
+                [663, 522],
+                [7736, 9028],
+                [622, 8943],
+                [2147, 1407],
+                [2566, 9502],
+                [834, 9156],
+                [9859, 7794]
+            ]
+        )
+        n = tile_positions.shape[0]
+
+        # Subtract 1 (since top left pixel has position 1, 1) and add column of
+        # ones
+        tile_positions_aug = np.column_stack(
+            [tile_positions - 1, np.ones((n, 1))]
+        )
+
+        # Ignore the third column of the affine since there is no slice offset
+        plane_position_values = (affine[:3, [0, 1, 3]] @ tile_positions_aug.T).T
+
         plane_positions = [
             PlanePositionSequence(
                 coordinate_system=CoordinateSystemNames.SLIDE,
-                image_position=(i * 1.0, i * 1.0, 1.0),
-                pixel_matrix_position=(i * 1, i * 1)
+                pixel_matrix_position=tp.tolist(),
+                image_position=pp.tolist(),
             )
-            for i in range(self._sm_image.pixel_array.shape[0])
+            for tp, pp in zip(tile_positions, plane_position_values)
         ]
         instance = Segmentation(
             source_images=[self._sm_image],
@@ -4507,25 +4969,73 @@ class TestSegmentation:
         assert not hasattr(shared_item, 'PlaneOrientationSequence')
         self.check_dimension_index_vals(instance)
 
+        # Check that the correct origin was inferred from the plane positions
+        origin_seq = instance.TotalPixelMatrixOriginSequence[0]
+        assert origin_seq.XOffsetInSlideCoordinateSystem == origin[0]
+        assert origin_seq.YOffsetInSlideCoordinateSystem == origin[1]
+        assert origin_seq.ZOffsetInSlideCoordinateSystem == origin[2]
+
+        # Repeat with plane positions that are inconsistent with the tile
+        # positions - should raise an error
+        bad_plane_positions = [
+            PlanePositionSequence(
+                coordinate_system=CoordinateSystemNames.SLIDE,
+                pixel_matrix_position=tp.tolist(),
+                image_position=(1.0, 1.0, 1.0),  # same position for every tile
+            )
+            for tp in tile_positions
+        ]
+        msg = (
+            "Some plane positions are not consistent with the provided "
+            "plane orientation and pixel measures."
+        )
+        with pytest.raises(ValueError, match=msg):
+            Segmentation(
+                source_images=[self._sm_image],
+                pixel_array=self._sm_pixel_array,
+                segmentation_type=SegmentationTypeValues.FRACTIONAL.value,
+                segment_descriptions=self._segment_descriptions,
+                series_instance_uid=self._series_instance_uid,
+                series_number=self._series_number,
+                sop_instance_uid=self._sop_instance_uid,
+                instance_number=self._instance_number,
+                manufacturer=self._manufacturer,
+                manufacturer_model_name=self._manufacturer_model_name,
+                software_versions=self._software_versions,
+                device_serial_number=self._device_serial_number,
+                pixel_measures=pixel_measures,
+                plane_orientation=plane_orientation,
+                plane_positions=bad_plane_positions
+            )
+
     def test_get_plane_positions_of_image_patient(self):
-        seq = DimensionIndexSequence(
-            coordinate_system='PATIENT'
+        seq = _DimensionIndexSequence(
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
         )
         plane_positions = seq.get_plane_positions_of_image(self._ct_multiframe)
         for position in plane_positions:
             assert isinstance(position, PlanePositionSequence)
 
     def test_get_plane_positions_of_image_slide(self):
-        seq = DimensionIndexSequence(
-            coordinate_system='SLIDE'
+        seq = _DimensionIndexSequence(
+            coordinate_system='SLIDE',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
         )
         plane_positions = seq.get_plane_positions_of_image(self._sm_image)
         for position in plane_positions:
             assert isinstance(position, PlanePositionSequence)
 
     def test_get_plane_positions_of_series(self):
-        seq = DimensionIndexSequence(
-            coordinate_system='PATIENT'
+        seq = _DimensionIndexSequence(
+            coordinate_system='PATIENT',
+            functional_groups_module=(
+                'segmentation-multi-frame-functional-groups'
+            ),
         )
         plane_positions = seq.get_plane_positions_of_series(self._ct_series)
         for position in plane_positions:
@@ -4824,6 +5334,198 @@ class TestSegmentationParsing:
         )
         assert seg_nums == list(self._sm_control_seg.segment_numbers)
 
+    def _modified_property_type_seg(self):
+        """Copy of the control seg with modifiers on segments 2, 3 and 4.
+
+        Segment 1 and 5-20: ConnectiveTissue (no modifiers)
+        Segment 2: ConnectiveTissue + Left
+        Segment 3: ConnectiveTissue + Left + Posterior
+        Segment 4: ConnectiveTissue + Posterior
+        """
+        seg = deepcopy(self._sm_control_seg)
+        modifiers = {
+            2: [codes.SCT.Left],
+            3: [codes.SCT.Left, codes.SCT.Posterior],
+            4: [codes.SCT.Posterior],
+        }
+        for desc in seg.SegmentSequence:
+            if desc.segment_number in modifiers:
+                desc.SegmentedPropertyTypeCodeSequence = [
+                    SegmentedPropertyType(
+                        codes.SCT.ConnectiveTissue,
+                        modifiers=modifiers[desc.segment_number],
+                    )
+                ]
+        return seg
+
+    def test_segmented_property_types_unmodified(self):
+        types = self._sm_control_seg.segmented_property_types
+        assert len(types) == 1
+        assert isinstance(types[0], SegmentedPropertyType)
+        assert types[0] == codes.SCT.ConnectiveTissue
+        assert types[0].modifiers == ()
+
+    def test_segmented_property_types_modified(self):
+        seg = self._modified_property_type_seg()
+        types = seg.segmented_property_types
+
+        assert all(isinstance(t, SegmentedPropertyType) for t in types)
+        # Unique by root code and modifiers: plain, Left, Left+Posterior,
+        # Posterior
+        assert len(types) == 4
+        assert SegmentedPropertyType(codes.SCT.ConnectiveTissue) in types
+        assert SegmentedPropertyType(
+            codes.SCT.ConnectiveTissue, modifiers=[codes.SCT.Left]
+        ) in types
+        assert SegmentedPropertyType(
+            codes.SCT.ConnectiveTissue, modifiers=[codes.SCT.Posterior]
+        ) in types
+        assert SegmentedPropertyType(
+            codes.SCT.ConnectiveTissue,
+            modifiers=[codes.SCT.Posterior, codes.SCT.Left],
+        ) in types
+        assert all(
+            t.unmodified == codes.SCT.ConnectiveTissue for t in types
+        )
+
+    def test_segmented_property_types_modified_parsed_from_file(self):
+        seg = self._modified_property_type_seg()
+        seg = Segmentation.from_dataset(write_and_read_dataset(seg))
+        types = seg.segmented_property_types
+        assert len(types) == 4
+        assert all(isinstance(t, SegmentedPropertyType) for t in types)
+        assert sum(len(t.modifiers) for t in types) == 4
+
+    def test_get_segment_numbers_plain_code_ignores_modifiers(self):
+        seg = self._modified_property_type_seg()
+        for query in [
+            codes.SCT.ConnectiveTissue,
+            CodedConcept.from_code(codes.SCT.ConnectiveTissue),
+        ]:
+            seg_nums = seg.get_segment_numbers(
+                segmented_property_type=query
+            )
+            assert seg_nums == list(range(1, 21))
+
+        assert seg.get_segment_numbers(
+            segmented_property_type=codes.SCT.Lung
+        ) == []
+
+    def test_get_segment_numbers_modified_type_no_modifiers(self):
+        seg = self._modified_property_type_seg()
+        seg_nums = seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue
+            )
+        )
+        assert seg_nums == [1] + list(range(5, 21))
+
+    def test_get_segment_numbers_modified_type_single_modifier(self):
+        seg = self._modified_property_type_seg()
+        seg_nums = seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Left],
+            )
+        )
+        assert seg_nums == [2]
+
+    def test_get_segment_numbers_modified_type_multiple_modifiers(self):
+        seg = self._modified_property_type_seg()
+        # Order of modifiers is not significant
+        for modifiers in (
+            [codes.SCT.Left, codes.SCT.Posterior],
+            [codes.SCT.Posterior, codes.SCT.Left],
+        ):
+            seg_nums = seg.get_segment_numbers(
+                segmented_property_type=SegmentedPropertyType(
+                    codes.SCT.ConnectiveTissue,
+                    modifiers=modifiers,
+                )
+            )
+            assert seg_nums == [3]
+
+    def test_get_segment_numbers_modified_type_no_match(self):
+        seg = self._modified_property_type_seg()
+        # Wrong root code
+        assert seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.Lung,
+                modifiers=[codes.SCT.Left],
+            )
+        ) == []
+        # Modifier not present on any segment
+        assert seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Right],
+            )
+        ) == []
+        # Superset of a segment's modifiers does not match
+        assert seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[
+                    codes.SCT.Left, codes.SCT.Posterior, codes.SCT.Right
+                ],
+            )
+        ) == []
+
+    def test_get_segment_numbers_modified_type_combined_filters(self):
+        seg = self._modified_property_type_seg()
+        seg_nums = seg.get_segment_numbers(
+            segmented_property_category=codes.SCT.Tissue,
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Posterior],
+            ),
+            algorithm_type=SegmentAlgorithmTypeValues.AUTOMATIC,
+        )
+        assert seg_nums == [4]
+
+        seg_nums = seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Posterior],
+            ),
+            tracking_id=seg.get_segment_description(1).tracking_id,
+        )
+        assert seg_nums == []
+
+    def test_get_segment_numbers_modified_type_parsed_from_file(self):
+        # Modifiers survive a write/read round trip through the dataset
+        seg = self._modified_property_type_seg()
+        seg = Segmentation.from_dataset(write_and_read_dataset(seg))
+        seg_nums = seg.get_segment_numbers(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Left],
+            )
+        )
+        assert seg_nums == [2]
+        assert seg.get_segment_numbers(
+            segmented_property_type=codes.SCT.ConnectiveTissue
+        ) == list(range(1, 21))
+
+    def test_get_tracking_ids_modified_type(self):
+        seg = self._modified_property_type_seg()
+
+        # Plain code matches ignoring modifiers
+        assert len(seg.get_tracking_ids(
+            segmented_property_type=codes.SCT.ConnectiveTissue
+        )) == 20
+
+        tracking_id_tuples = seg.get_tracking_ids(
+            segmented_property_type=SegmentedPropertyType(
+                codes.SCT.ConnectiveTissue,
+                modifiers=[codes.SCT.Left],
+            )
+        )
+        desc2 = seg.get_segment_description(2)
+        assert tracking_id_tuples == [
+            (desc2.tracking_id, desc2.tracking_uid)
+        ]
+
     def test_get_tracking_ids(self):
         desc1 = self._sm_control_seg.get_segment_description(1)
 
@@ -4868,6 +5570,21 @@ class TestSegmentationParsing:
 
         out_shape = (
             len(source_frames_valid),
+            self._sm_control_seg.Rows,
+            self._sm_control_seg.Columns,
+            self._sm_control_seg.number_of_segments
+        )
+        assert pixels.shape == out_shape
+
+    def test_get_pixels_by_source_frames_all(self):
+        source_sop_uid = self._sm_control_seg.get_source_image_uids()[0][-1]
+
+        pixels = self._sm_control_seg.get_pixels_by_source_frame(
+            source_sop_instance_uid=source_sop_uid,
+        )
+
+        out_shape = (
+            25,
             self._sm_control_seg.Rows,
             self._sm_control_seg.Columns,
             self._sm_control_seg.number_of_segments
@@ -6651,6 +7368,8 @@ class TestPyramid:
             )
             assert abs(segment_pixel_spacing[0] - sm_pixel_spacing[0] * f) < tol
             assert abs(segment_pixel_spacing[1] - sm_pixel_spacing[1] * f) < tol
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_single_source_multiple_pixel_arrays(self, pass_with_frame_dim):
         # Test construction when given a single source image and multiple
@@ -6700,6 +7419,8 @@ class TestPyramid:
             seg_width = seg_spacing[1] * seg.TotalPixelMatrixColumns
             assert abs(seg_height - sm_height) < tol
             assert abs(seg_width - sm_width) < tol
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array(self, pass_with_frame_dim):
         # Test construction when given multiple source images and a single
@@ -6747,6 +7468,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array_multisegment(self):
         # Test construction when given multiple source images and a single
@@ -6789,6 +7512,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array_float(
         self,
@@ -6839,6 +7564,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_single_pixel_array_fractional(
         self,
@@ -6891,6 +7618,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays(self, pass_with_frame_dim):
         # Test construction when given multiple source images and multiple
@@ -6938,6 +7667,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays_multisegment(self):
         # Test construction when given multiple source images and multiple
@@ -6979,6 +7710,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays_multisegment_from_labelmap(
         self,
@@ -7029,6 +7762,8 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
 
     def test_multiple_source_multiple_pixel_arrays_multisegment_labelmap(
         self,
@@ -7079,3 +7814,5 @@ class TestPyramid:
                 .PixelSpacing
             )
             assert src_spacing == seg_spacing
+            assert 'SeriesDate' in seg
+            assert 'SeriesTime' in seg
