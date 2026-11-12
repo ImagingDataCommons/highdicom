@@ -39,13 +39,7 @@ Creating a volume from a MONAI MetaTensor:
 
     metatensor = monai.data.MetaTensor(...)
 
-    vol = hd.Volume.from_monai(
-        metatensor=metatensor,
-        coordinate_system='PATIENT',
-        frame_of_reference_uid=None,
-        channels=None,
-        channel_dim=None
-    )
+    vol = hd.Volume.from_monai(metatensor)
 
 
 .. _`MONAI`: https://project-monai.github.io/
