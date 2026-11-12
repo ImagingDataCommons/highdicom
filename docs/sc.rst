@@ -5,9 +5,9 @@ Secondary Capture (SC) Images
 
 Secondary Capture (SC) images are intended to store conversions of non-DICOM
 images to DICOM. Although it is not their intended purpose, in practice they
-are also often used as a general-purpose IOD for images that don't have a
-dedicated IOD to store things like screenshots and overlays of annotations on
-images.
+are also often used as a general-purpose IOD for images that don't otherwise
+have a dedicated IOD that better matches their content. Common examples include
+screenshots and overlays of annotations on images.
 
 Within `highdicom`, Secondary Capture images are implemented in the
 :class:`highdicom.sc.SCImage` class.
@@ -27,7 +27,7 @@ various required and optional pieces of metadata. You must include the
   or ``'PATIENT'`` otherwise).
 - ``patient_orientation`` (sequence of two ``str`` or
   :class:`highdicom.enum.PatientOrientationValuesBiped`): Required if and only
-  if using the ``'PATINT'`` coordinate system. Orientation of the patient
+  if using the ``'PATIENT'`` coordinate system. Orientation of the patient
   moving from the first to the last row (first item) and from the first to the
   last column (second item) of the image (required if `coordinate_system` is
   ``"PATIENT"``)
@@ -35,13 +35,13 @@ various required and optional pieces of metadata. You must include the
   :class:`highdicom.enum.PhotometricInterpretationValues`): This determines how
   the pixel values should be interpreted. The most common options are
   ``'MONOCHROME2'`` for a grayscale image or ``'RGB'`` for a color image.
-- ``bits_allocated`` (``int``): TODO fix this mess
 
 The image itself is passed as a ``numpy.ndarray`` to the ``pixel_array``
 parameter. This should be either a 2D array of shape *rows* by *columns* for a
 grayscale image, or a 3D array of shape *rows* by *columns* by *3* to specify 3
-color channels. The array must have unsigned integer pixel values of type
-``bool``, ``numpy.uint8``, or ``numpy.uint16``.
+color channels. The array must have integer pixel values of type
+``bool``, ``numpy.uint8``, or ``numpy.uint16``. In the case of grayscale images,
+``np.int8`` and ``np.int16`` are also available.
 
 Therefore a basic example of constructing an SC image would look like this:
 
@@ -56,7 +56,6 @@ Therefore a basic example of constructing an SC image would look like this:
     sc_image = hd.sc.SCImage(
         pixel_array=pixel_array.astype(np.uint8),
         photometric_interpretation=hd.PhotometricInterpretationValues.MONOCHROME2,
-        bits_allocated=8,
         coordinate_system=hd.CoordinateSystemNames.PATIENT,
         study_instance_uid=hd.UID(),
         series_instance_uid=hd.UID(),
@@ -77,7 +76,7 @@ Therefore a basic example of constructing an SC image would look like this:
 Construction From a Referenced Image
 ------------------------------------
 
-Often you will want to create an SC image to add to a study that already
+Typically you will want to create an SC image to add to a study that already
 exists. In this case, you can use the alternative
 :meth:`highdicom.sc.SCImage.from_ref_dataset` constructor method to provide
 patient, study, and clinical metadata, rather than providing this manually.
@@ -100,7 +99,6 @@ Here is a basic example:
         ref_dataset=ref_dataset,
         pixel_array=pixel_array.astype(np.uint8),
         photometric_interpretation=hd.PhotometricInterpretationValues.MONOCHROME2,
-        bits_allocated=8,
         coordinate_system=hd.CoordinateSystemNames.PATIENT,
         series_instance_uid=hd.UID(),
         sop_instance_uid=hd.UID(),
@@ -113,10 +111,117 @@ Here is a basic example:
 
     sc_image.save_as('sc.dcm')
 
+Spatial Metadata
+----------------
+
+Since version 0.29.0, highdicom has supported adding spatial metadata to SC images.
+The following parameters are available:
+
+- ``image_position``: Position, in mm, of the center of the top left pixel in the
+  frame-of reference-coordinate system. Must contain exactly 3 values.
+- ``image_orientation``: Direction cosines for the first row (first triplet)
+  and the first column (second triplet) of the image within the 3D
+  frame-of-reference coordinate system. Must contain exactly 6 values with
+  values between -1 and 1. The two triplets must represent orthogonal unit
+  vectors.
+- ``slice_thickness``: Slice thickness of the image in mm.
+- ``spacing_between_slices``: Spacing between slices, in mm.
+- ``frame_of_reference_uid``: A unique string specifying this frame-of-reference.
+  Images with matching frame-of-reference UIDs have can establish correspondences
+  between points with the same frame-of-reference coordinates. Otherwise, no
+  such relationship exists.
+
+With the exception of ``pixel_spacing`` and ``frame_of_reference_uid``, these
+parameters are only valid when using the ``"PATIENT"`` coordinate system.
+Furthermore, if you provide any either ``image_position`` or
+``image_orientation``, you must also provide the other and ``pixel_spacing``
+and ``frame_of_reference_uid``. ``slice_thickness`` and
+``spacing_between_slices`` are never required but are no accepted unless
+``image_position`` and ``image_orientation`` are passed.
+
+Here is an example with spatial metadata provided:
+
+
+.. code-block:: python
+
+    import highdicom as hd
+    import numpy as np
+
+    # Ranoom grayscale image of size 100x100
+    pixel_array = np.random.randint(0, 255, (100, 100))
+
+    sc_image = hd.sc.SCImage(
+        pixel_array=pixel_array.astype(np.uint8),
+        photometric_interpretation=hd.PhotometricInterpretationValues.MONOCHROME2,
+        coordinate_system=hd.CoordinateSystemNames.PATIENT,
+        study_instance_uid=hd.UID(),
+        series_instance_uid=hd.UID(),
+        sop_instance_uid=hd.UID(),
+        series_number=100,
+        instance_number=1,
+        manufacturer='Manufacturer',
+        series_description='Example Secondary Capture',
+        patient_name='Blogs^Joseph',
+        patient_id='ABC12345',
+        patient_birth_date='19871225',
+        patient_orientation=('L', 'P'),
+        image_position=(1.0, 2.0, 3.0),
+        image_orientation=(1.0, 0.0, 0.0, 0.0, -1.0, 0.0),
+        frame_of_reference_uid=hd.UID(),
+        spacing_between_slices=0.625,
+        slice_thickness=1.25,
+    )
+
+    sc_image.save_as('sc.dcm')
+
+Again, it is tedious and error prone to provide this information manually. If
+the new SC Image is spatially aligned (pixel for pixel) with an existing image,
+you can use the :meth:`highdicom.sc.SCImage.from_aligned_ref_image()` method,
+which copies spatial metadata (as well as patient and study metadata) from an
+existing image. For example
+
+
+.. code-block:: python
+
+    import highdicom as hd
+    import numpy as np
+
+
+    # Load an example from the highdicom test files
+    ref_dataset = hd.imread('data/test_files/ct_image.dcm')
+
+    # Ranoom grayscale image with the same size as the reference
+    pixel_array = np.random.randint(
+        0,
+        255,
+        (ref_dataset.Rows, ref_dataset.Columns),
+    )
+
+    sc_image = hd.sc.SCImage.from_aligned_ref_image(
+        ref_image=ref_dataset,
+        pixel_array=pixel_array.astype(np.uint8),
+        photometric_interpretation=hd.PhotometricInterpretationValues.MONOCHROME2,
+        series_instance_uid=hd.UID(),
+        sop_instance_uid=hd.UID(),
+        series_number=100,
+        instance_number=1,
+        manufacturer='Manufacturer',
+        series_description='Example Secondary Capture',
+    )
+
+    print(sc_image.ImagePositionPatient)
+    # [-158.135803, -179.035797, -75.699997]
+
+    print(sc_image.ImageOrientationPatient)
+    # [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]
+
+    sc_image.save_as('sc.dcm')
+
+
 Compression
 -----------
 
-Generally you will want to compress your SC image by providing the
+Usually you will want to compress your SC image by providing the
 ``transfer_syntax_uid`` parameter. See :ref:`compression` for more detail.
 
 CT With Annotation Example
@@ -189,7 +294,6 @@ labeled bounding box region drawn over a CT image.
         ref_dataset=image_dataset,
         pixel_array=pixel_array,
         photometric_interpretation=hd.PhotometricInterpretationValues.RGB,
-        bits_allocated=8,
         coordinate_system=hd.CoordinateSystemNames.PATIENT,
         series_instance_uid=hd.UID(),
         sop_instance_uid=hd.UID(),
