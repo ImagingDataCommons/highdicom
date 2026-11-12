@@ -4399,7 +4399,10 @@ class Volume(_VolumeBase):
         unsqueeze_dim: int | None
             Index of a singleton dimension to unsqueeze (must be a spatial
             dimension and is considered after the conversion to a channel last format).
-            Defaults to None.
+            Note that, due to limitations in the way MONAI represents affine
+            matrices for 2D images, the resulting volume's affine matrix will not
+            represent the same mapping to frame-of-reference coordinates as
+            the original 2D metatensor.
         unsqueeze_spacing: float
             Spacing applied to the unsqueezed dimension.
 
