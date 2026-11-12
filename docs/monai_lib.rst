@@ -12,7 +12,7 @@ installed separately. Version 1.3.0 or later is required.
 Volume Conversions
 ------------------
 
-Highdicom supports conversions with the ``monai.data.MetaTensor`` class through the
+Highdicom supports conversions to/from ``monai.data.MetaTensor`` class through the
 :meth:`highdicom.Volume.to_monai` and :meth:`highdicom.Volume.from_monai` methods.
 Unlike highdicom, which exclusively uses the "LPS" convention, MONAI supports both
 "RAS" and "LPS" MetaTensors. By default, highdicom converts to the "RAS" convention,
