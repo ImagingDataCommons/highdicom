@@ -37,10 +37,10 @@ generating UIDs.
     import pydicom
 
 
-    # Constuct a UID using highdicom's prefix
+    # Construct a UID using highdicom's prefix
     uid = hd.UID()
 
-    # Constuct a UID using your own prefix
+    # Construct a UID using your own prefix
     uid = hd.UID(pydicom.generate_uid('1.2.826.0.1.3680043.10.511.4.')))
 
 Study, Series, and SOP Instance UIDs
@@ -73,7 +73,7 @@ considerations for specifying UIDs:
   ``'SEG'``) of a CT image (modality ``'CT'``) can never belong in the same
   series as the original CT image. However you may in some situations be
   generating a new series consisting of multiple instances. In this situation,
-  you shoudl generate a single series instance UID and re-use it for all items
+  you should generate a single series instance UID and re-use it for all items
   in the series.
 * The ``sop_instance_uid`` should always be unique to every single object you
   create, even those within a given series.

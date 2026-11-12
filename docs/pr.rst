@@ -33,7 +33,7 @@ they support. They are:
 
 - *Grayscale Softcopy Presentation State*: These are applied to grayscale
   images to render them as altered grayscale images. The transformations of the
-  pixel values are lmited to grayscale, but this does *not* mean that graphic
+  pixel values are limited to grayscale, but this does *not* mean that graphic
   and text annotations are limited to grayscale, they can be rendered in color.
   They are implemented in the class
   :class:`highdicom.pr.GrayscaleSoftcopyPresentationState`
@@ -45,7 +45,7 @@ they support. They are:
   implemented in the class
   :class:`highdicom.pr.PseudoColorSoftcopyPresentationState`
 - *Advanced Blending Presentation State*: These are used to blend multiple
-  images together to form a composite image when rendered. They are implmented
+  images together to form a composite image when rendered. They are implemented
   in the class :class:`highdicom.pr.AdvancedBlendingPresenetationState`.
 
 Pixel Transforms

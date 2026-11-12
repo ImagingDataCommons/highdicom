@@ -30,7 +30,7 @@ The following parameters are required for construction of all DICOM objects:
 The following parameters are usually optional, but may be require depending on
 the IOD you are creating:
 
-- ``series_description`` (``str``). A concise, human-readable desciption of the
+- ``series_description`` (``str``). A concise, human-readable description of the
   attribute. Though this is technically optional, it is strongly recommended to
   include this in all objects. It is very commonly used by viewers to list
   series present, and generally used by humans to understand the content of a

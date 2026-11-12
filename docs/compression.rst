@@ -6,13 +6,13 @@ Compression and Transfer Syntaxes
 When creating images with *highdicom*, you will usually want to use some form
 of compression to reduce the size of the files. Various compression codecs are
 available within DICOM, and *highdicom*supports many of them. Although you may
-need to install further depenencies to enable them. Each compression method is
+need to install further dependencies to enable them. Each compression method is
 identified by a *TransferSyntaxUID* from a set of well-known :ref:`uids`.
 
 When constructing an image, you can instruct *highdicom* to compress it by
 passing the relevant UID to the ``transfer_syntax_uid`` argument of the
-contructor. By default, the ``ExplicitVRLittleEndian`` will be used, which is
-an uncompressed trasnfer syntax.
+constructor. By default, the ``ExplicitVRLittleEndian`` will be used, which is
+an uncompressed transfer syntax.
 
 You can either pass the UID itself as a string, or, more conveniently, import
 the values from the ``pydicom.uid`` module (e.g. ``pydicom.uid.JPEG2000``).
@@ -27,14 +27,14 @@ The most important conisderations when deciding what codec to use are:
   information in the input image, but usually result in a larger file.
 - *Compression performance*. Some codecs are better than others at comoression
   data, giving larger or smaller file sizees, or better or lower quality
-  compressed images. Some codecs will give better perforamnce on certain types
+  compressed images. Some codecs will give better performance on certain types
   of images.
 - *Speed*. Some codecs are faster at compressing images than others. Similarly,
   some are quicker to decompress than other.
 - *Support*. Some codecs are easily read by most other viewers and tools,
   whereas others are not.
 
-Suuported Transfer Syntaxes
+Supported Transfer Syntaxes
 ---------------------------
 
 - *Explicit VR Little Endian* and *Implicit VR Little Endian*. These are
@@ -70,8 +70,8 @@ support among all other tols, there may be advantages to using
 segmentations). If you can accept some information loss, ``JPEG2000`` is a good
 choice.
 
-Required Depenencies
---------------------
+Required Depednencies
+---------------------
 
 ``pylibjpeg`` is required for compression and decompression of *JPEG 2000* and
 *JPEG 2000 Lossless* images. You can install *highdicom* with the following
