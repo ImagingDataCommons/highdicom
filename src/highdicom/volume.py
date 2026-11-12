@@ -31,6 +31,8 @@ from highdicom.spatial import (
     create_affine_matrix_from_attributes,
     create_affine_matrix_from_components,
     get_closest_patient_orientation,
+    _squeeze_affine,
+    _unsqueeze_affine
 )
 from highdicom.content import (
     PixelMeasuresSequence,
@@ -4302,8 +4304,10 @@ class Volume(_VolumeBase):
         else:
             space = monai.utils.enums.SpaceKeys.LPS
 
-        affine = self.get_affine(space.value)
         array = np.ascontiguousarray(self.array)
+        affine = self.get_affine(space.value)
+
+        meta[MetaKeys.ORIGINAL_AFFINE] = affine.copy()
 
         keep_cols = [i for i in range(3) if i != squeeze_dim]
         if squeeze_dim is not None:
@@ -4320,28 +4324,14 @@ class Volume(_VolumeBase):
                     f' {array.shape}.'
                 )
 
-            u = affine[:3, keep_cols[0]]
-            v = affine[:3, keep_cols[1]]
-            origin = affine[:3, 3]
-
-            # define new orthonormal basis (e_0, e_1)
-            e_0 = u / np.linalg.norm(u)
-            v_perp = v - (np.dot(v, e_0) * e_0)
-            e_1 = v_perp / np.linalg.norm(v_perp)
-
-            affine = np.array(
-                [[np.dot(u, e_0), np.dot(v, e_0), np.dot(origin, e_0)],
-                 [np.dot(u, e_1), np.dot(v, e_1), np.dot(origin, e_1)],
-                 [0, 0, 1]]
-            )
             array = array.squeeze(squeeze_dim)
+            affine = _squeeze_affine(affine, squeeze_dim)
 
         meta[MetaKeys.SPACE] = space
         meta[ImageStatsKeys.SPACING] = tuple([
             self.spacing[i] for i in keep_cols
         ])
         meta[MetaKeys.SPATIAL_SHAPE] = np.array(self.spatial_shape)[keep_cols]
-        meta[MetaKeys.ORIGINAL_AFFINE] = affine.copy()
         meta[MetaKeys.AFFINE] = affine.copy()
         meta[MetaKeys.ORIGINAL_CHANNEL_DIM] = (
             -1 if self.ndim > 3 else float("nan")
@@ -4364,7 +4354,9 @@ class Volume(_VolumeBase):
             BaseTag | int | str | ChannelDescriptor,
             Sequence[int | str | float | Enum]
         ] | None = None,
-        channel_dim: int = 0
+        channel_dim: int | None = 0,
+        unsqueeze_dim: None | int = None,
+        unsqueeze_spacing: float = 1.0
     ) -> Self:
         """Construct a Volume from a ``monai.data.MetaTensor``.
 
@@ -4404,6 +4396,12 @@ class Volume(_VolumeBase):
             on).
         channel_dim: int
             Channel dimension index of the metatensor. Defaults to 0.
+        unsqueeze_dim: int | None
+            Index of a singleton dimension to unsqueeze (must be a spatial
+            dimension and is considered after the conversion to a channel last format).
+            Defaults to None.
+        unsqueeze_spacing: float
+            Spacing applied to the unsqueezed dimension.
 
         Returns
         -------
@@ -4425,9 +4423,18 @@ class Volume(_VolumeBase):
             module_name='monai',
             feature=f'{func.__module__}.{func.__qualname__}'
         )
+        MetaKeys = monai.utils.enums.MetaKeys
 
-        if metatensor.ndim > 3:
-            if metatensor.ndim > 4:
+        if channel_dim is None:
+            metatensor = metatensor.unsqueeze(0)
+            channel_dim = 0
+
+        final_ndim = metatensor.ndim
+        if unsqueeze_dim is not None:
+            final_ndim += 1
+
+        if final_ndim > 3:
+            if final_ndim > 4:
                 raise ValueError(
                     'Monai conversion does not currently support'
                     ' volumes with multiple channel dimensions.'
@@ -4450,10 +4457,28 @@ class Volume(_VolumeBase):
                     )
 
         array = metatensor.cpu().detach().numpy()
+        affine = metatensor.affine.cpu().detach().numpy()
+
+        if unsqueeze_dim is not None:
+            array = np.expand_dims(array, unsqueeze_dim)
+            original_affine = metatensor.meta.get(
+                MetaKeys.ORIGINAL_AFFINE,
+                None
+            )
+
+            if isinstance(original_affine, monai.data.MetaTensor):
+                original_affine = original_affine.cpu().detach().numpy()
+
+            affine = _unsqueeze_affine(
+                affine,
+                unsqueeze_dim,
+                original_affine,
+                unsqueeze_spacing
+            )
 
         return cls(
             array=array,
-            affine=metatensor.affine.cpu().detach().numpy(),
+            affine=affine,
             coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
             channels=channels,

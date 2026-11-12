@@ -10,7 +10,8 @@ from typing import Sequence
 from highdicom import Volume, ChannelDescriptor, get_volume_from_series
 from highdicom.spatial import (
     get_closest_patient_orientation,
-    convert_affine_to_convention
+    convert_affine_to_convention,
+    _unsqueeze_affine
 )
 from highdicom._dependency_utils import import_optional_dependency
 from highdicom.seg import segread
@@ -29,6 +30,7 @@ try:
     monai = import_optional_dependency('monai', feature='monai tests')
     ImageStatsKeys = monai.utils.enums.ImageStatsKeys
     MetaKeys = monai.utils.enums.MetaKeys
+    SpaceKeys = monai.utils.enums.SpaceKeys
 
 except Exception:
     pytest.skip("Optional dependency not available", allow_module_level=True)
@@ -77,41 +79,51 @@ def read_github_series_volume_and_metatensor(urls: Sequence[str]):
     return get_volume_from_series(series), series, metatensor
 
 
-def validate_affine(
+def get_equivalent_rotation_matrices(
     affine_3d: np.ndarray,
-    affine_2d: np.ndarray,
     squeeze_dim: int,
-    shape: Sequence[int]
+    angle: float,
 ):
-    keep_cols = [i for i in range(3) if i != squeeze_dim]
-    u = affine_3d[:3, keep_cols[0]]
-    v = affine_3d[:3, keep_cols[1]]
-    origin = affine_3d[:3, 3]
+    keep_dims = [i for i in range(3) if i != squeeze_dim]
 
-    e_0 = u / np.linalg.norm(u)
-    v_perp = v - (np.dot(v, e_0) * e_0)
-    e_1 = v_perp / np.linalg.norm(v_perp)
+    # 3D: Rodrigues rotation about plane normal
+    linear_3d = affine_3d[:3, :3]
+    u = linear_3d[:, keep_dims[0]]
+    v = linear_3d[:, keep_dims[1]]
 
-    basis = np.column_stack([e_0, e_1])
+    n = np.cross(u, v)
+    n /= np.linalg.norm(n)
 
-    origin_2d = basis.T @ origin
-    origin_offset = origin - basis @ origin_2d
+    skew = np.array([
+        [0, -n[2], n[1]],
+        [n[2], 0, -n[0]],
+        [-n[1], n[0], 0],
+    ])
 
-    for x in range(shape[keep_cols[0]]):
-        for y in range(shape[keep_cols[1]]):
-            vox_3d = np.zeros(3)
-            vox_3d[keep_cols[0]] = x
-            vox_3d[keep_cols[1]] = y
-            world_3d = affine_3d[:3, :3] @ vox_3d + affine_3d[:3, 3]
+    sin, cos = np.sin(angle), np.cos(angle)
 
-            vox_2d = np.array([x, y])
-            world_2d = affine_2d[:2, :2] @ vox_2d + affine_2d[:2, 2]
-            world_3d_recon = basis @ world_2d + origin_offset
+    rotation_world = (
+        np.eye(3) * cos +
+        (1 - cos) * np.outer(n, n) +
+        sin * skew
+    )
+    rotation_3d = np.linalg.inv(linear_3d) @ rotation_world @ linear_3d
 
-            assert np.allclose(
-                world_3d,
-                world_3d_recon
-            )
+    affine_rotation_3d = np.eye(4)
+    affine_rotation_3d[:3, :3] = rotation_3d
+
+    # 2D: plain 2x2 rotation, scaled by in-plane spacings
+    spacing = np.array([np.linalg.norm(u), np.linalg.norm(v)])
+    rotation_2d = (
+        np.diag(1.0 / spacing)
+        @ np.array([[cos, -sin], [sin, cos]])
+        @ np.diag(spacing)
+    )
+
+    affine_rotation_2d = np.eye(3)
+    affine_rotation_2d[:2, :2] = rotation_2d
+
+    return affine_rotation_2d, affine_rotation_3d
 
 
 @pytest.mark.parametrize(
@@ -640,17 +652,17 @@ def test_segmentation(
     meta = metatensor.meta
 
     if convert_to_ras:
-        space = monai.utils.enums.SpaceKeys.RAS
+        space = SpaceKeys.RAS
 
     else:
-        space = monai.utils.enums.SpaceKeys.LPS
+        space = SpaceKeys.LPS
 
     assert meta[MetaKeys.SPACE] == space
     assert vol.spacing == meta[ImageStatsKeys.SPACING] == spacing
     assert (np.array(vol.spatial_shape) == meta[MetaKeys.SPATIAL_SHAPE]).all()
     assert (
-        metatensor.shape[1:] if channel_first else metatensor.shape[:3] ==
-        spatial_shape
+        metatensor.shape[1:] == spatial_shape if channel_first
+        else metatensor.shape[:3] == spatial_shape
     )
     assert np.allclose(vol.get_affine(space), affine, atol=1e-4)
     assert np.allclose(metatensor.affine, affine, atol=1e-4)
@@ -920,18 +932,17 @@ def test_channels():
         ],
     ]
 )
-def test_squeeze_affine(volume, squeeze_dim):
+def test_squeeze_affine_roundtrip(volume, squeeze_dim):
     metatensor = volume.to_monai(squeeze_dim=squeeze_dim)
 
     assert (
         volume.array.squeeze(squeeze_dim) == metatensor.numpy()
     ).all()
-    validate_affine(
-        affine_3d=volume.affine,
-        affine_2d=metatensor.affine.numpy(),
-        squeeze_dim=squeeze_dim,
-        shape=volume.shape
-    )
+
+    volume_recon = Volume.from_monai(metatensor, unsqueeze_dim=squeeze_dim)
+
+    assert np.allclose(volume.array, volume_recon.array)
+    assert np.allclose(volume.affine, volume_recon.affine)
 
 
 def test_squeeze_errors():
@@ -973,3 +984,402 @@ def test_squeeze_errors():
         )
     ):
         volume.to_monai(squeeze_dim=squeeze_dim)
+
+
+@pytest.mark.parametrize(
+    'volume,squeeze_dim,rotation,spacing,axis_flips',
+    [
+        [
+            Volume(
+                array=np.arange(100).reshape(1, 10, 10),
+                affine=np.array(
+                    [[0., 4.99e-4, 0., -23.449374],
+                     [0., 0., 4.99e-4, -25.691075],
+                     [1., 0., 0., 1.01],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            0,
+            15,
+            [1.0e-4, 1.0e-4],
+            [1, 2]
+        ],
+        [
+            Volume(
+                array=np.arange(100).reshape(10, 1, 10),
+                affine=np.array(
+                    [[0., 4.99e-04, 0., -23.449873],
+                     [0., 0., 4.99e-04, -25.691574],
+                     [1., 0., 0., 0.],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            1,
+            0,
+            [4.99e-4, 1.0e-4],
+            [0]
+        ],
+        [
+            Volume(
+                array=np.arange(100).reshape(10, 10, 1),
+                affine=np.array(
+                    [[0., 4.99e-04, 0., -23.449873],
+                     [0., 0., 4.99e-04, -25.691574],
+                     [1., 0., 0., 0.],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            2,
+            78,
+            [3, 4.99e-4],
+            None
+        ],
+        # [
+        #     Volume(
+        #         array=np.arange(100).reshape(1, 10, 10),
+        #         affine=np.array(
+        #             [[0.51484336, -2.45034467, -0.29838402, 31.96125748],
+        #              [0.84430051, 1.01480423, -1.0149242, 19.85095778],
+        #              [1.16995367, 0.34594871, 0.86372826, -39.22734667],
+        #              [0., 0., 0., 1.]]
+        #         ),
+        #         coordinate_system="PATIENT",
+        #     ),
+        #     0,
+        #     60,
+        #     [1.0, 0.5],
+        #     [2]
+        # ],
+        [
+            Volume(
+                array=np.arange(100).reshape(10, 1, 10),
+                affine=np.array(
+                    [[-6.62073016e-03, -0.648063598, 6.39172474e-02, -25.55167],
+                     [-0.786401952, -1.4152762e-02, -1.50316788, -12.367773],
+                     [0.950988641, -1.621514e-02, -1.24257108, -11.5527702],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            1,
+            24,
+            [2.0, 2.0],
+            [0, 2]
+        ],
+        [
+            Volume(
+                array=np.arange(100).reshape(10, 10, 1),
+                affine=np.array(
+                    [[0.783406238, 0.312050746, 2.29152341e-02, 45.850208],
+                     [7.69377955e-02, -0.998526806, -0.712275579, -49.9411473],
+                     [-9.27305439e-02, 1.80779755, -0.397376895, 18.0307572],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            2,
+            90,
+            [1.0, 1.0],
+            None
+        ],
+        [
+            Volume(
+                array=np.arange(100).reshape(1, 10, 10),
+                affine=np.array(
+                    [[-1.8249537, 0.357257741, -0.365592144, 35.5553115],
+                     [1.06765446, 0.586750214, -0.637285403, 18.5404252],
+                     [-2.58571459e-02, -0.987438965, -0.510956107, 27.5584146],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            0,
+            127,
+            [0.89, 1.73],
+            [1, 2]
+        ],
+        [
+            Volume(
+                array=np.arange(100).reshape(10, 1, 10),
+                affine=np.array(
+                    [[0.40659061, -0.14035702, 2.52546278, -22.24126432],
+                     [-2.01663853, -0.32789655, 0.12001713, -27.24361216],
+                     [1.09727089, -0.55062153, -0.71522747, -25.00163784],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            1,
+            180,
+            [1.82, 0.65],
+            None
+        ],
+        [
+            Volume(
+                array=np.arange(100).reshape(10, 10, 1),
+                affine=np.array(
+                    [[-0.692324440, 1.81254936, 0.770028884, 19.9835788],
+                     [-1.01187701, -1.29172094, 1.06442359, 4.6090612],
+                     [2.01112784, -2.59508652e-02, 0.800633129, -38.2126518],
+                     [0., 0., 0., 1.]]
+                ),
+                coordinate_system="PATIENT",
+            ),
+            2,
+            30,
+            [1, 1],
+            None
+        ],
+    ]
+)
+def test_squeeze_transform_equivalence(
+    volume,
+    squeeze_dim,
+    rotation,
+    spacing,
+    axis_flips
+):
+    metatensor_2d = volume.to_monai(
+        squeeze_dim=squeeze_dim,
+        ensure_channel_first=True
+    )
+    metatensor_3d = volume.to_monai(
+        ensure_channel_first=True
+    )
+
+    keep_dims = [i for i in range(3) if i != squeeze_dim]
+    axis_flips_2d = tuple(
+        d - (d > squeeze_dim) for d in axis_flips
+    ) if axis_flips is not None else None
+
+    rotation_2d, rotation_3d = get_equivalent_rotation_matrices(
+        metatensor_3d.affine.numpy(),
+        squeeze_dim,
+        np.radians(rotation),
+    )
+
+    transform_2d = monai.transforms.Compose([
+        monai.transforms.Identity(),
+        monai.transforms.Affine(
+            affine=rotation_2d,
+            mode="nearest",
+            padding_mode="zeros",
+            image_only=True,
+        ),
+        monai.transforms.Spacing(
+            pixdim=spacing,
+            mode="nearest",
+            padding_mode="zeros",
+        ),
+        *(
+            [] if axis_flips is None else
+            [monai.transforms.Flip(spatial_axis=axis_flips_2d)]
+        ),
+        monai.transforms.ResizeWithPadOrCrop(
+            [np.ceil(s / 2) for s in metatensor_2d.shape[1:]]
+        )
+    ])
+
+    spacing_3d = list(volume.spacing)
+    for d, s in zip(keep_dims, spacing):
+        spacing_3d[d] = s
+
+    transform_3d = monai.transforms.Compose([
+        monai.transforms.Identity(),
+        monai.transforms.Affine(
+            affine=rotation_3d,
+            mode="nearest",
+            padding_mode="zeros",
+            image_only=True,
+        ),
+        monai.transforms.Spacing(
+            pixdim=spacing_3d,
+            mode="nearest",
+            padding_mode="zeros",
+        ),
+        *(
+            [] if axis_flips is None else
+            [monai.transforms.Flip(spatial_axis=axis_flips)]
+        ),
+        monai.transforms.ResizeWithPadOrCrop(
+            [np.ceil(s / 2) for s in metatensor_3d.shape[1:]]
+        )
+    ])
+
+    # Test entire compose block
+    volume_transformed_2d = Volume.from_monai(
+        transform_2d(metatensor_2d),
+        unsqueeze_dim=squeeze_dim
+    )
+    volume_transformed_3d = Volume.from_monai(
+        transform_3d(metatensor_3d)
+    )
+
+    assert np.allclose(
+        volume_transformed_2d.array,
+        volume_transformed_3d.array
+    )
+    assert np.allclose(
+        volume_transformed_2d.affine,
+        volume_transformed_3d.affine
+    )
+
+    # Test transforms individually
+    mt_2d = metatensor_2d.clone()
+    mt_3d = metatensor_3d.clone()
+
+    for t_2d, t_3d in zip(transform_2d.transforms, transform_3d.transforms):
+        mt_2d = t_2d(mt_2d)
+        mt_3d = t_3d(mt_3d)
+
+        array_2d = mt_2d[0].cpu().numpy()
+        array_3d = mt_3d[0].squeeze(squeeze_dim).cpu().numpy()
+
+        assert np.allclose(
+            array_2d,
+            array_3d,
+        ), f"Array mismatch after {t_2d} / {t_3d}"
+
+        affine_2d = mt_2d.affine.cpu().numpy()
+        affine_3d = mt_3d.affine.cpu().numpy()
+
+        reconstructed_affine = _unsqueeze_affine(
+            affine_2d,
+            squeeze_dim,
+            original_affine=metatensor_3d.affine,
+        )
+
+        assert np.allclose(
+            reconstructed_affine,
+            affine_3d,
+        ), f"Affine mismatch after {t_2d} / {t_3d}"
+
+
+@pytest.mark.parametrize(
+    'affine_2d,unsqueeze_dim,spacing,space',
+    [
+        [
+            np.array([[1., 0., 0.],
+                      [0., 1., 0.],
+                      [0., 0., 1.]]),
+            0,
+            1.,
+            SpaceKeys.RAS
+        ],
+        [
+            np.array([[1.73205081, -0.25, 10.],
+                      [1., 0.4330127, -5.],
+                      [0., 0., 1.]]),
+            0,
+            2.5,
+            SpaceKeys.RAS
+        ],
+        [
+            np.array([[0.18117333, 1.25570357, -3.2],
+                      [-0.67614808, 0.33646476, 8.1],
+                      [0., 0., 1.]]),
+            1,
+            0.5,
+            SpaceKeys.LPS
+        ],
+        [
+            np.array([[-0.75, -0.69282032, 42.],
+                      [1.29903811, -0.4, 17.5],
+                      [0., 0., 1.]]),
+            2,
+            3.0,
+            SpaceKeys.RAS
+        ],
+        [
+            np.array([[-0.84572336, -0.75244432, -12.],
+                      [-0.30781813, 2.06732377, 4.],
+                      [0., 0., 1.]]),
+            0,
+            1.25,
+            SpaceKeys.LPS
+        ],
+        [
+            np.array([[0.21213203, 0.42426407, 0.],
+                      [0.21213203, -0.42426407, 25.],
+                      [0., 0., 1.]]),
+            1,
+            4.0,
+            SpaceKeys.RAS
+        ],
+        [
+            np.array([[-2.25526229, 0.37622216, 7.7],
+                      [-0.82084834, -1.03366188, -30.3],
+                      [0., 0., 1.]]),
+            2,
+            0.75,
+            SpaceKeys.LPS
+        ],
+        [
+            np.array([[4.78152378, 0.0584743409, -100.],
+                      [1.46185852, -0.191260951, 60.],
+                      [0., 0., 1.]]),
+            2,
+            1.0,
+            SpaceKeys.RAS
+        ],
+    ]
+)
+def test_unsqueeze_arbitrary_2d_metatensor(
+    affine_2d,
+    unsqueeze_dim,
+    spacing,
+    space
+):
+    metatensor = monai.data.MetaTensor(
+        np.arange(100).reshape(10, 10),
+        affine=affine_2d
+    )
+    metatensor.meta[MetaKeys.SPACE] = space
+
+    with pytest.warns(
+        UserWarning,
+        match=(
+            '_unsqueeze_affine was called without original_affine. There is no'
+            ' reference to 3D space, so the 2D affine will be embedded in the'
+            f' axis-aligned plane perpendicular to axis {unsqueeze_dim}, with'
+            f' spacing={spacing} along the new axis and no translation applied.'
+        )
+    ):
+        vol = Volume.from_monai(
+            metatensor,
+            unsqueeze_dim=unsqueeze_dim,
+            unsqueeze_spacing=spacing,
+            channel_dim=None
+        )
+
+    expected_shape = [10, 10]
+    expected_shape.insert(unsqueeze_dim, 1)
+    assert vol.shape == tuple(expected_shape)
+    assert (vol.array == metatensor.unsqueeze(unsqueeze_dim).numpy()).all()
+    assert np.isclose(vol.spacing[unsqueeze_dim], spacing)
+
+    roundtrip = vol.to_monai(
+        squeeze_dim=unsqueeze_dim,
+        convert_to_ras=(space == 'RAS'),
+    )
+    assert roundtrip.shape == metatensor.shape
+    assert (roundtrip == metatensor).all()
+    assert roundtrip.affine.allclose(metatensor.affine)
+
+    keep_dims = [i for i in range(3) if i != unsqueeze_dim]
+
+    # verify right-handed
+    cols = [vol.affine[:3, i] for i in range(3)]
+
+    assert np.dot(np.cross(cols[0], cols[1]), cols[2]) > 0
+
+    u, v = (cols[i] for i in keep_dims)
+    n = np.cross(u, v)
+    w = cols[unsqueeze_dim]
+    assert np.allclose(np.cross(w, n), 0, atol=1e-8)
+
+    parity = -1 if unsqueeze_dim == 1 else 1
+    assert np.sign(np.dot(w, n)) == parity
