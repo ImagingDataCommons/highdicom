@@ -109,6 +109,7 @@ The parameters for construction of a Graphic Object are:
   :class:`highdicom.pr.AnnotationUnitsValues` for details.
 
 Additional optional parameters include:
+
 - ``is_filled`` (``bool``): Whether the graphic object should be rendered as a
   solid shape (``True``), or just an outline (``False``). Using ``True`` is
   only valid when the graphic type is ``'CIRCLE'`` or ``'ELLIPSE'``, or the
