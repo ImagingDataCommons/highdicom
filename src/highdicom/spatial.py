@@ -16,6 +16,8 @@ from highdicom.enum import (
     PatientOrientationValuesBiped,
 )
 
+import warnings
+
 
 _DEFAULT_SPACING_RELATIVE_TOLERANCE = 1e-2
 """Default tolerance for determining whether slices are regularly spaced."""
@@ -4211,3 +4213,178 @@ def _get_slice_distances(
     origin_distances = origin_distances.squeeze(0)
 
     return origin_distances
+
+
+def _get_plane_basis(
+    affine_3d: np.ndarray,
+    squeeze_dim: int
+):
+    """Define 2D vector basis to assist squeezing a 3D affine to
+    a 2D affine.
+
+    For axis-aligned affines, the basis vectors e_0 and e_1 correspond
+    to the world axes in their original order. For oblique affines,
+    e_0 is the in-plane direction closest to the first kept world axis
+    and e_1 is the in-plane direction perpendicular to it.
+
+    Parameters
+    ----------
+    affine_3d: np.ndarray
+        4 x 4 affine matrix representing the transformation from pixel
+        indices (slice index, row index, column index) to the
+        frame-of-reference coordinate system. The top left 3 x 3 matrix
+        should be a scaled orthogonal matrix representing the rotation and
+        scaling. The top right 3 x 1 vector represents the translation
+        component. The last row should have value [0, 0, 0, 1].
+    squeeze_dim: int
+        Index of the dimension being squeezed.
+
+    Returns
+    -------
+    np.ndarray:
+        Array of shape (2, 3) encoding the basis vectors (e_0, e_1) as rows.
+
+    np.ndarray
+        Unit normal vector of the plane.
+
+    """
+    keep_cols = [i for i in range(3) if i != squeeze_dim % 3]
+    u = affine_3d[:3, keep_cols[0]]
+    v = affine_3d[:3, keep_cols[1]]
+
+    n = np.cross(u, v)
+    n = n / np.linalg.norm(n)
+
+    # Drop axis most aligned with the plane's normal vector
+    drop = int(np.argmax(np.abs(n)))
+    rows = [i for i in range(3) if i != drop]
+
+    identity = np.eye(3)
+    projector = identity - np.outer(n, n)
+
+    e_0 = projector @ identity[rows[0]]
+    e_0 /= np.linalg.norm(e_0)
+    e_1 = projector @ identity[rows[1]]
+    e_1 -= (e_1 @ e_0) * e_0
+    e_1 /= np.linalg.norm(e_1)
+
+    return np.stack([e_0, e_1]), n
+
+
+def _squeeze_affine(
+    affine_3d: np.ndarray,
+    squeeze_dim: int
+):
+    """
+    Reduce dimension of a 3D affine to a 2D affine.
+
+    Parameters
+    ----------
+    affine_3d: np.ndarray
+        4 x 4 affine matrix representing the transformation from pixel
+        indices (slice index, row index, column index) to the
+        frame-of-reference coordinate system. The top left 3 x 3 matrix
+        should be a scaled orthogonal matrix representing the rotation and
+        scaling. The top right 3 x 1 vector represents the translation
+        component. The last row should have value [0, 0, 0, 1].
+    squeeze_dim: int
+        Index of the dimension being squeezed.
+
+    Returns
+    -------
+    np.ndarray:
+        3 x 3 affine matrix representing the transformation from pixel
+        indices (row index, column index) to the frame-of-reference coordinate
+        system. The top left 2 x 2 matrix should be a scaled orthogonal matrix
+        representing the rotation and scaling. The top right 2 x 1 vector
+        represents the translation component. The last row should have value
+        [0, 0, 1].
+
+    """
+    keep_cols = [i for i in range(3) if i != squeeze_dim % 3]
+    basis, _ = _get_plane_basis(affine_3d, squeeze_dim)
+
+    affine_2d = np.eye(3)
+    affine_2d[:2, :2] = basis @ affine_3d[:3, keep_cols]
+    affine_2d[:2, 2] = basis @ affine_3d[:3, 3]
+
+    return affine_2d
+
+
+def _unsqueeze_affine(
+    affine_2d: np.ndarray,
+    unsqueeze_dim: int,
+    original_affine: np.ndarray | None = None,
+    spacing: float = 1.0
+):
+    """
+    Reconstruct a 3D affine from a (possibly transformed) 2D affine.
+
+    For recovery of an original 3D space, the original_affine argument is
+    required. Otherwise, the 2 present axes will be selected as world axes
+    and the third axis will be given a set spacing with sign determined by
+    satisfying a positive determinant for the top left 3 x 3 matrix in the
+    produced 4 x 4 affine.
+
+    Parameters
+    ----------
+    affine_2d: np.ndarray
+        3 x 3 affine matrix representing the transformation from pixel
+        indices (row index, column index) to the frame-of-reference coordinate
+        system. The top left 2 x 2 matrix should be a scaled orthogonal matrix
+        representing the rotation and scaling. The top right 2 x 1 vector
+        represents the translation component. The last row should have value
+        [0, 0, 1]. If this 2D affine was originally 3D and squeezed, the
+        original_affine argument should be passed for a more robust
+        reconstruction.
+    unsqueeze_dim: int
+        Index of the dimension being unsqueezed.
+    original_affine: np.ndarray
+        4 x 4 affine matrix representing the transformation from pixel
+        indices (slice index, row index, column index) to the
+        frame-of-reference coordinate system. The top left 3 x 3 matrix
+        should be a scaled orthogonal matrix representing the rotation and
+        scaling. The top right 3 x 1 vector represents the translation
+        component. The last row should have value [0, 0, 0, 1]. If the current
+        2D affine was squeezed from an original 3D representation, this 3D
+        affine supplies the plane basis, the out-of-plane position of the
+        slice, and the column for the unsqueezed axis during reconstruction.
+    spacing: np.ndarray
+        Assumed spacing along the unsqueezed axis. Defaults to 1.0. This
+        spacing is only applied if the original_affine is not provided.
+
+    """
+    d = unsqueeze_dim % 3
+
+    keep_cols = [i for i in range(3) if i != d]
+    affine_3d = np.eye(4)
+
+    if original_affine is not None and original_affine.shape == (4, 4):
+        basis, n = _get_plane_basis(original_affine, d)
+
+        affine_3d[:3, keep_cols] = basis.T @ affine_2d[:2, :2]
+        affine_3d[:3, d] = original_affine[:3, d]
+        affine_3d[:3, 3] = (
+            basis.T @ affine_2d[:2, 2] + np.dot(n, original_affine[:3, 3]) * n
+        )
+
+        return affine_3d
+
+    warnings.warn(
+        '_unsqueeze_affine was called without original_affine. There is no'
+        ' reference to 3D space, so the 2D affine will be embedded in the'
+        f' axis-aligned plane perpendicular to axis {d}, with spacing={spacing}'
+        ' along the new axis and no translation applied.',
+        stacklevel=2
+    )
+
+    rows = keep_cols
+
+    affine_3d[np.ix_(rows, keep_cols)] = affine_2d[:2, :2]
+    affine_3d[rows, 3] = affine_2d[:2, 2]
+
+    sign = np.sign(np.linalg.det(affine_3d[:3, :3]))
+
+    affine_3d[d, d] = sign * np.abs(spacing)
+
+    return affine_3d
