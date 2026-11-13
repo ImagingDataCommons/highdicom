@@ -11,17 +11,35 @@ from pydicom.sr.coding import Code
 from highdicom.color import CIELabColor
 from highdicom.content import (
     AlgorithmIdentificationSequence,
+    AnatomicRegion,
+    PrimaryAnatomicStructure,
 )
 from highdicom.enum import (
     CoordinateSystemNames,
 )
 from highdicom.image import _DimensionIndexSequence
 from highdicom.seg.enum import SegmentAlgorithmTypeValues
-from highdicom.sr.coding import CodedConcept
+from highdicom.sr.coding import CodedConcept, _ModifiedCodedConcept
 from highdicom._standard_utils import (
     check_required_attributes,
 )
 from highdicom.volume import ChannelDescriptor
+
+
+class SegmentedPropertyType(_ModifiedCodedConcept):
+    """Dataset describing the property a segmentation represents.
+
+    This class may be used instead of a plain
+    :class:`highdicom.sr.CodedConcept` in order to include modifier codes that
+    describe characteristics of the segmented property, such as laterality.
+
+    See :dcm:`CID 7151 <part16/sect_CID_7151.html>` "Segmentation Property
+    Types" for the appropriate context group for the root concept, and
+    :dcm:`CID 2 <part16/sect_CID_2.html>` "Anatomic Modifier" for the context
+    group for modifier codes.
+
+    """
+    _MODIFIER_SEQUENCE_NAME = "SegmentedPropertyTypeModifierCodeSequence"
 
 
 class SegmentDescription(Dataset):
@@ -39,7 +57,7 @@ class SegmentDescription(Dataset):
         segment_number: int,
         segment_label: str,
         segmented_property_category: Code | CodedConcept,
-        segmented_property_type: Code | CodedConcept,
+        segmented_property_type: Code | CodedConcept | SegmentedPropertyType,
         algorithm_type: SegmentAlgorithmTypeValues | str,
         algorithm_identification: None | (
             AlgorithmIdentificationSequence
@@ -47,10 +65,10 @@ class SegmentDescription(Dataset):
         tracking_uid: str | None = None,
         tracking_id: str | None = None,
         anatomic_regions: None | (
-            Sequence[Code | CodedConcept]
+            Sequence[Code | CodedConcept | AnatomicRegion]
         ) = None,
         primary_anatomic_structures: None | (
-            Sequence[Code | CodedConcept]
+            Sequence[Code | CodedConcept | PrimaryAnatomicStructure]
         ) = None,
         display_color: CIELabColor | None = None,
     ) -> None:
@@ -61,16 +79,18 @@ class SegmentDescription(Dataset):
             Number of the segment.
         segment_label: str
             Label of the segment
-        segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+        segmented_property_category: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, highdicom.seg.SegmentedPropertyType]
             Category of the property the segment represents,
             e.g. ``Code("49755003", "SCT", "Morphologically Abnormal Structure")``
             (see :dcm:`CID 7150 <part16/sect_CID_7150.html>`
             "Segmentation Property Categories")
-        segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]
+        segmented_property_type: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, highdicom.seg.SegmentedPropertyType]
             Property the segment represents,
             e.g. ``Code("108369006", "SCT", "Neoplasm")``
-            (see :dcm:`CID 7151 <part16/sect_CID_7151.html>`
-            "Segmentation Property Types")
+            (see :dcm:`CID 7151 <part16/sect_CID_7151.html>` "Segmentation
+            Property Types"). Use a
+            :class:`highdicom.seg.SegmentedPropertyType` to pass a code with
+            modifiers (such as specifying laterality).
         algorithm_type: Union[str, highdicom.seg.SegmentAlgorithmTypeValues]
             Type of algorithm
         algorithm_identification: Union[highdicom.AlgorithmIdentificationSequence, None], optional
@@ -84,16 +104,20 @@ class SegmentDescription(Dataset):
             Tracking identifier (unique only with the domain of use). This is
             intended to provide an identifier to track this segment across
             multiple imaging studies.
-        anatomic_regions: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], None], optional
+        anatomic_regions: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, highdicom.AnatomicRegion]], None], optional
             Anatomic region(s) into which segment falls,
             e.g. ``Code("41216001", "SCT", "Prostate")``
             (see :dcm:`CID 4 <part16/sect_CID_4.html>`
             "Anatomic Region", :dcm:`CID 4031 <part16/sect_CID_4031.html>`
             "Common Anatomic Regions", as as well as other CIDs for
-            domain-specific anatomic regions)
-        primary_anatomic_structures: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept]], None], optional
-            Anatomic structure(s) the segment represents
-            (see CIDs for domain-specific primary anatomic structures)
+            domain-specific anatomic regions). Use a list of
+            :class:`highdicom.AnatomicRegion` to pass a code with
+            modifiers (such as specifying laterality).
+        primary_anatomic_structures: Union[Sequence[Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, highdicom.PrimaryAnatomicStructure]], None], optional
+            Anatomic structure(s) the segment represents (see CIDs for
+            domain-specific primary anatomic structures). Use a list of
+            :class:`highdicom.PrimaryAnatomicStructure` to pass a code with
+            modifiers (such as specifying laterality).
         display_color: Union[highdicom.color.CIELabColor, None], optional
             A recommended color to render this segment.
 
@@ -111,12 +135,35 @@ class SegmentDescription(Dataset):
             )
         self.SegmentNumber = segment_number
         self.SegmentLabel = segment_label
+
+        if isinstance(segmented_property_category, _ModifiedCodedConcept):
+            raise TypeError(
+                "Argument 'segmented_property_category' should not have "
+                f"type {segmented_property_category.__class__.__name__}."
+            )
+
         self.SegmentedPropertyCategoryCodeSequence = [
             CodedConcept.from_code(segmented_property_category)
         ]
+
+        if (
+            isinstance(segmented_property_type, _ModifiedCodedConcept) and not
+            isinstance(segmented_property_type, SegmentedPropertyType)
+        ):
+            raise TypeError(
+                "Argument 'segmented_property_type' should not have "
+                f"type {segmented_property_type.__class__.__name__}."
+            )
+
+        if not isinstance(segmented_property_type, SegmentedPropertyType):
+            segmented_property_type = SegmentedPropertyType(
+                segmented_property_type
+            )
+
         self.SegmentedPropertyTypeCodeSequence = [
-            CodedConcept.from_code(segmented_property_type)
+            segmented_property_type
         ]
+
         algorithm_type = SegmentAlgorithmTypeValues(algorithm_type)
         self.SegmentAlgorithmType = algorithm_type.value
         if algorithm_identification is None:
@@ -133,10 +180,12 @@ class SegmentDescription(Dataset):
                 algorithm_identification[0].AlgorithmName
             self.SegmentationAlgorithmIdentificationSequence = \
                 algorithm_identification
+
         num_given_tracking_identifiers = sum([
             tracking_id is not None,
             tracking_uid is not None
         ])
+
         if num_given_tracking_identifiers == 2:
             self.TrackingID = tracking_id
             self.TrackingUID = tracking_uid
@@ -144,16 +193,54 @@ class SegmentDescription(Dataset):
             raise TypeError(
                 'Tracking ID and Tracking UID must both be provided.'
             )
-        if anatomic_regions is not None:
-            self.AnatomicRegionSequence = [
-                CodedConcept.from_code(region)
-                for region in anatomic_regions
-            ]
-        if primary_anatomic_structures is not None:
-            self.PrimaryAnatomicStructureSequence = [
-                CodedConcept.from_code(structure)
-                for structure in primary_anatomic_structures
-            ]
+
+        if anatomic_regions is not None and len(anatomic_regions) > 0:
+            checked_regions = []
+
+            for region in anatomic_regions:
+                if (
+                    isinstance(region, _ModifiedCodedConcept) and not
+                    isinstance(region, AnatomicRegion)
+                ):
+                    raise TypeError(
+                        "Items of 'anatomic_regions' should not have "
+                        f"type {region.__class__.__name__}."
+                    )
+
+                if isinstance(region, AnatomicRegion):
+                    checked_regions.append(region)
+                else:
+                    checked_regions.append(
+                        AnatomicRegion(region)
+                    )
+
+            self.AnatomicRegionSequence = checked_regions
+
+        if (
+            primary_anatomic_structures is not None and
+            len(primary_anatomic_structures) > 0
+        ):
+            checked_structures = []
+
+            for structure in primary_anatomic_structures:
+                if (
+                    isinstance(structure, _ModifiedCodedConcept) and not
+                    isinstance(structure, PrimaryAnatomicStructure)
+                ):
+                    raise TypeError(
+                        "Items of 'primary_anatomic_structures' should not "
+                        f"have type {structure.__class__.__name__}."
+                    )
+
+                if isinstance(structure, PrimaryAnatomicStructure):
+                    checked_structures.append(structure)
+                else:
+                    checked_structures.append(
+                        PrimaryAnatomicStructure(structure)
+                    )
+
+            self.PrimaryAnatomicStructureSequence = checked_structures
+
         if display_color is not None:
             if not isinstance(display_color, CIELabColor):
                 raise TypeError(
@@ -210,7 +297,7 @@ class SegmentDescription(Dataset):
             )
         ]
         desc.SegmentedPropertyTypeCodeSequence = [
-            CodedConcept.from_dataset(
+            SegmentedPropertyType.from_dataset(
                 desc.SegmentedPropertyTypeCodeSequence[0],
                 copy=False,
             )
@@ -223,12 +310,12 @@ class SegmentDescription(Dataset):
                 )
         if hasattr(desc, 'AnatomicRegionSequence'):
             desc.AnatomicRegionSequence = [
-                CodedConcept.from_dataset(ds, copy=False)
+                AnatomicRegion.from_dataset(ds, copy=False)
                 for ds in desc.AnatomicRegionSequence
             ]
         if hasattr(desc, 'PrimaryAnatomicStructureSequence'):
             desc.PrimaryAnatomicStructureSequence = [
-                CodedConcept.from_dataset(ds, copy=False)
+                PrimaryAnatomicStructure.from_dataset(ds, copy=False)
                 for ds in desc.PrimaryAnatomicStructureSequence
             ]
         return cast(Self, desc)
@@ -252,8 +339,8 @@ class SegmentDescription(Dataset):
         return self.SegmentedPropertyCategoryCodeSequence[0]
 
     @property
-    def segmented_property_type(self) -> CodedConcept:
-        """highdicom.sr.CodedConcept:
+    def segmented_property_type(self) -> SegmentedPropertyType:
+        """highdicom.seg.SegmentedPropertyType:
             Type of the property the segment represents.
 
         """
@@ -297,8 +384,8 @@ class SegmentDescription(Dataset):
         return None
 
     @property
-    def anatomic_regions(self) -> list[CodedConcept]:
-        """List[highdicom.sr.CodedConcept]:
+    def anatomic_regions(self) -> list[AnatomicRegion]:
+        """List[highdicom.AnatomicRegion]:
             List of anatomic regions into which the segment falls.
             May be empty.
 
@@ -308,8 +395,8 @@ class SegmentDescription(Dataset):
         return list(self.AnatomicRegionSequence)
 
     @property
-    def primary_anatomic_structures(self) -> list[CodedConcept]:
-        """List[highdicom.sr.CodedConcept]:
+    def primary_anatomic_structures(self) -> list[PrimaryAnatomicStructure]:
+        """List[highdicom.PrimaryAnatomicStructure]:
             List of anatomic anatomic structures the segment represents.
             May be empty.
 

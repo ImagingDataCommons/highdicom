@@ -35,11 +35,13 @@ contains. The required metadata elements include:
 * A ``uid`` (``str`` or :class:`highdicom.UID`) uniquely identifying the group.
   Usually, you will want to generate a UID for this.
 * An ``annotated_property_category`` and ``annotated_property_type``
-  (:class:`highdicom.sr.CodedConcept`), coded values (see :ref:`coding`)
-  describing the category and specific structure that has been annotated.
-  See :dcm:`CID 7151 <part16/sect_CID_7151.html>` and
+  (`pydicom.sr.coding.Code`, :class:`highdicom.sr.CodedConcept` or
+  :class:`highdicom.ann.AnnotatedPropertyType` for the latter), coded values
+  (see :ref:`coding`) describing the category and specific structure that has
+  been annotated. See :dcm:`CID 7151 <part16/sect_CID_7151.html>` and
   :dcm:`CID 8135 <part16/sect_CID_8135.html>` respectively for the associated
-  context groups. 
+  context groups. Use :class:`highdicom.ann.AnnotatedPropertyType`
+  if you want to include modifier codes (see :ref:`ann-modifiers`).
 * A ``graphic_type`` (:class:`highdicom.ann.GraphicTypeValues`) indicating the
   "form" of the annotations. Permissible values are ``"ELLIPSE"``, ``"POINT"``,
   ``"POLYGON"``, ``"RECTANGLE"``, and ``"POLYLINE"``.
@@ -53,12 +55,17 @@ Further optional metadata may optionally be provided, including:
 * An ``algorithm_identification``
   (:class:`highdicom.AlgorithmIdentificationSequence`), specifying information
   about an algorithm that generated the annotations.
-* A list of ``anatomic_regions`` (a sequence of
-  :class:`highdicom.sr.CodedConcept` objects), giving coded values (see
-  :ref:`coding`) describing regions containing the annotations.
+* A list of ``anatomic_regions`` (a sequence of `pydicom.sr.coding.Code`,
+  :class:`highdicom.sr.CodedConcept`, or :class:`highdicom.AnatomicRegion`
+  objects), giving coded values (see :ref:`coding`) describing regions
+  containing the annotations. Use :class:`highdicom.AnatomicRegion` if you want
+  to include modifier codes (see :ref:`ann-modifiers`).
 * A list of ``primary_anatomic_structures`` (a sequence of
-  :class:`highdicom.sr.CodedConcept` objects) giving coded values (see
-  :ref:`coding`) describing anatomic structures of interest.
+  `pydicom.sr.coding.Code`, :class:`highdicom.sr.CodedConcept`, or
+  :class:`highdicom.PrimaryAnatomicStructure` objects) giving coded values (see
+  :ref:`coding`) describing anatomic structures of interest. Use
+  :class:`highdicom.PrimaryAnatomicStructure` if you want to include modifier
+  codes (see :ref:`ann-modifiers`).
 * A free-text ``description`` (``str``) of the annotation group.
 * A ``display_color`` (:class:`highdicom.color.CIELabColor`) giving a
   recommended value for viewers to use to render these annotations. This is in
@@ -111,6 +118,46 @@ Here is a simple example of constructing an annotation group:
 
 Note that including two nuclei would be very unusual in practice: annotations
 often number in the thousands or even millions within a large whole slide image.
+
+.. _ann-modifiers:
+
+Annotation Groups With Modifiers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The annotated property type, anatomic regions, and primary anatomic structures
+of an annotation group may each be accompanied by `modifier` codes that refine
+their meaning, most commonly to specify laterality (see
+:ref:`coding-modifiers` for background). To include modifiers, use the classes
+:class:`highdicom.ann.AnnotatedPropertyType`, :class:`highdicom.AnatomicRegion`
+and :class:`highdicom.PrimaryAnatomicStructure` respectively, passing the root
+code and then a list of modifier codes (see :dcm:`CID 2
+<part16/sect_CID_2.html>` "Anatomic Modifier" for the associated context
+group).
+
+.. code-block:: python
+
+    # Annotations of malignant nuclei
+    malignant_nuclei_group = hd.ann.AnnotationGroup(
+        number=2,
+        uid=hd.UID(),
+        label='malignant nuclei',
+        annotated_property_category=codes.SCT.AnatomicalStructure,
+        annotated_property_type=hd.ann.AnnotatedPropertyType(
+            codes.SCT.Nucleus,
+            modifiers=[codes.SCT.Malignant],
+        ),
+        algorithm_type=hd.ann.AnnotationGroupGenerationTypeValues.MANUAL,
+        graphic_type=hd.ann.GraphicTypeValues.POINT,
+        graphic_data=graphic_data,
+    )
+
+Anywhere that one of these classes may be used, you may still pass a plain
+:class:`highdicom.sr.CodedConcept` or :class:`pydicom.sr.coding.Code`, which is
+treated as a code with no modifiers. Note that the wrong class may not be used
+in the wrong place: for example, passing a :class:`highdicom.AnatomicRegion` as
+the ``annotated_property_type`` raises a ``TypeError``. The
+``annotated_property_category`` does not support modifiers, and passing one of
+the modified classes there also raises a ``TypeError``.
 
 Including Measurements
 ----------------------
@@ -292,6 +339,41 @@ of matching groups, since the filters may match multiple groups.
     )
     assert len(groups) == 1 and isinstance(groups[0], hd.ann.AnnotationGroup)
 
+When searching by annotated property type, whether modifiers are considered
+depends on the type of the value you pass:
+
+* If you pass a plain :class:`pydicom.sr.coding.Code` or
+  :class:`highdicom.sr.CodedConcept`, only the root code is compared, and any
+  modifiers on the group's type are ignored. Groups are matched whether or not
+  they have modifiers.
+* If you pass a :class:`highdicom.ann.AnnotatedPropertyType`, the root code and
+  the complete set of modifiers (in any order) must match. An
+  :class:`highdicom.ann.AnnotatedPropertyType` with no modifiers therefore
+  matches only groups with a type that has no modifiers.
+
+.. code-block:: python
+
+    # Matches any group with a "Nucleus" type, whether or not it has modifiers
+    groups = ann.get_annotation_groups(
+        annotated_property_type=codes.SCT.Nucleus,
+    )
+
+    # Matches only groups with a "Nucleus" type that has no modifiers
+    groups = ann.get_annotation_groups(
+        annotated_property_type=hd.ann.AnnotatedPropertyType(
+            codes.SCT.Nucleus,
+        ),
+    )
+
+    # Matches only groups with a "Nucleus" type with exactly the modifier
+    # "Malignant"
+    groups = ann.get_annotation_groups(
+        annotated_property_type=hd.ann.AnnotatedPropertyType(
+            codes.SCT.Nucleus,
+            modifiers=[codes.SCT.Malignant],
+        ),
+    )
+
 
 Extracting Information From Annotation Groups
 ---------------------------------------------
@@ -312,8 +394,15 @@ list):
     # Access the UID
     assert group.uid == '1.2.826.0.1.3680043.10.511.3.40670836327971302375623613533993686'
 
-    # Access the annotated property type (returns a CodedConcept)
-    assert group.annotated_property_type == Code('84640000', 'SCT', 'Nucleus')
+    # Access the annotated property type (returns an AnnotatedPropertyType,
+    # a sub-class of CodedConcept)
+    assert group.annotated_property_type == codes.SCT.Nucleus
+
+    # Any modifiers of the annotated property type are available via the
+    # modifiers property (an empty tuple if there are none), and the root code
+    # alone via the unmodified property
+    assert group.annotated_property_type.modifiers == ()
+    assert group.annotated_property_type.unmodified == codes.SCT.Nucleus
 
     # Access the graphic type, describing the "form" of each annotation
     assert group.graphic_type == hd.ann.GraphicTypeValues.POINT

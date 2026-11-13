@@ -521,3 +521,22 @@ class PixelDataKeywords(Enum):
 
     DOUBLE_FLOAT_PIXEL_DATA = 'DoubleFloatPixelData'
     """64-bit-float-valued pixel data (Double Floating Point Image Pixel Module)."""  # noqa: E501
+
+
+class CodingSchemeURLTypeValues(Enum):
+
+    """Enumerated values for Coding Scheme URL Type attribute."""
+
+    DOC = 'DOC'
+    """The resource is human-readable information describing the scheme."""
+
+    OWL = 'OWL'
+    """The resource contains an OWL file representing the scheme."""
+
+    CSV = 'CSV'
+    """The resource contains a comma separated value text file representing
+    the scheme.
+    """
+
+    FHIR = 'FHIR'
+    """The resource is a FHIR CodingScheme."""

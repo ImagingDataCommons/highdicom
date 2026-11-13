@@ -23,3 +23,4 @@ library enables.
    itk_lib
    sitk_lib
    nib_lib
+   monai_lib

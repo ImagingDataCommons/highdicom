@@ -2380,7 +2380,8 @@ class QualitativeEvaluation(Template):
     def __init__(
         self,
         name: Code | CodedConcept,
-        value: Code | CodedConcept
+        value: Code | CodedConcept,
+        modifiers: Sequence[CodeContentItem] | None = None,
     ) -> None:
         """
         Parameters
@@ -2389,6 +2390,16 @@ class QualitativeEvaluation(Template):
             concept name
         value: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             coded value or an enumerated item representing a coded value
+        modifiers: Sequence[highdicom.sr.CodeContentItem] | None, optional
+            Further codes that modify the main "value" code, provided as a
+            sequence of :class:`highdicom.sr.CodeContentItem`. The
+            ``relationship_type`` of each item must be "HAS CONCEPT MOD" or not
+            specified, in which case it will be set to "HAS CONCEPT MOD"
+            automatically. Any other ``relationship_type`` will lead to a
+            ``ValueError``. See :dcm:`CID 210 Qualitative Evaluation Modifier
+            Type <part16/sect_CID_210.html>` for the context group for the code
+            names, and :dcm:`CID 211 Qualitative Evaluation Modifier Value
+            <part16/sect_CID_211.html>` for the code values.
 
         """  # noqa: E501
         item = CodeContentItem(
@@ -2396,6 +2407,33 @@ class QualitativeEvaluation(Template):
             value=value,
             relationship_type=RelationshipTypeValues.CONTAINS
         )
+        if modifiers is not None and len(modifiers) > 0:
+            content = []
+            for modifier in modifiers:
+                if not isinstance(modifier, CodeContentItem):
+                    raise TypeError(
+                        "Items of 'modifiers' must have type "
+                        "highdicom.sr.CodeContentItem."
+                    )
+
+                if 'RelationshipType' not in modifier:
+                    modifier.RelationshipType = (
+                        RelationshipTypeValues.HAS_CONCEPT_MOD.value
+                    )
+
+                elif (
+                    modifier.relationship_type !=
+                    RelationshipTypeValues.HAS_CONCEPT_MOD
+                ):
+                    raise ValueError(
+                        "Items of 'modifiers' must have relationship type "
+                        "'HAS CONCEPT MOD'."
+                    )
+
+                content.append(modifier)
+
+            item.ContentSequence = content
+
         super().__init__([item])
 
     @classmethod
@@ -2426,7 +2464,18 @@ class QualitativeEvaluation(Template):
                 'Qualitative Evaluation shall contain only one content item.'
             )
         item = CodeContentItem.from_dataset(sequence[0])
-        return cls(name=item.name, value=item.value)
+
+        # Only CODE items with relationship type HAS CONCEPT MOD are
+        # recognized as modifiers. Any other child content items are not
+        # part of this template and are discarded
+        modifiers = [
+            modifier for modifier in getattr(item, 'ContentSequence', [])
+            if isinstance(modifier, CodeContentItem) and
+            modifier.relationship_type ==
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        ]
+
+        return cls(name=item.name, value=item.value, modifiers=modifiers)
 
     @property
     def name(self) -> CodedConcept:
@@ -2434,8 +2483,104 @@ class QualitativeEvaluation(Template):
         return self[0].name
 
     @property
-    def value(self) -> int | float:
-        """Union[int, float]: coded value of the qualitative evaluation"""
+    def value(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: coded value of the qualitative
+        evaluation"""
+        return self[0].value
+
+    @property
+    def modifiers(self) -> list[CodeContentItem]:
+        """list[highdicom.sr.CodeContentItem]: content items that modify the
+        value of the qualitative evaluation (empty list if there are none)"""
+        if not hasattr(self[0], 'ContentSequence'):
+            return []
+
+        return [
+            item for item in self[0].ContentSequence
+            if isinstance(item, CodeContentItem) and
+            item.relationship_type ==
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        ]
+
+
+class TextEvaluation(Template):
+
+    """Qualitative evaluation with a free text value.
+
+    This may be used to make evaluations of measurement groups using free text,
+    unlike :class:`highdicom.sr.QualitativeEvaluation`, which has a coded
+    value. It is recommended to use coded evaluations preferentially to free
+    text evaluations as they are standardized and leave less room for ambiguity.
+
+    This corresponds to the TEXT content item of a qualitative evaluation
+    within a measurement group, e.g. row 12 of :dcm:`TID 1501
+    <part16/chapter_A.html#sect_TID_1501>`, row 13 of :dcm:`TID 1410
+    <part16/chapter_A.html#sect_TID_1410>`, and row 17 of :dcm:`TID 1411
+    <part16/chapter_A.html#sect_TID_1411>`. Unlike a
+    :class:`highdicom.sr.QualitativeEvaluation`, a text evaluation may not
+    have modifiers.
+
+    """
+
+    def __init__(
+        self,
+        name: Code | CodedConcept,
+        value: str,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
+            Concept name of the evaluation
+        value: str
+            Free text value of the evaluation
+
+        """  # noqa: E501
+        item = TextContentItem(
+            name=name,
+            value=value,
+            relationship_type=RelationshipTypeValues.CONTAINS
+        )
+        super().__init__([item])
+
+    @classmethod
+    def from_sequence(
+        cls,
+        sequence: Sequence[Dataset],
+        is_root: bool = False
+    ) -> Self:
+        """Construct object from a sequence of content items.
+
+        Parameters
+        ----------
+        sequence: Sequence[pydicom.dataset.Dataset]
+            Content Sequence containing one SR TEXT Content Item
+        is_root: bool, optional
+            Whether the sequence is used to contain SR Content Items that are
+            intended to be added to an SR document at the root of the document
+            content tree
+
+        Returns
+        -------
+        highdicom.sr.TextEvaluation
+            Content Sequence containing one SR TEXT Content Item
+
+        """
+        if len(sequence) > 1:
+            raise ValueError(
+                'Text Evaluation shall contain only one content item.'
+            )
+        item = TextContentItem.from_dataset(sequence[0])
+        return cls(name=item.name, value=item.value)
+
+    @property
+    def name(self) -> CodedConcept:
+        """highdicom.sr.CodedConcept: name of the text evaluation"""
+        return self[0].name
+
+    @property
+    def value(self) -> str:
+        """str: free text value of the text evaluation"""
         return self[0].value
 
 
@@ -2782,6 +2927,7 @@ class _MeasurementsAndQualitativeEvaluations(Template):
             Sequence[QualitativeEvaluation]
         ) = None,
         finding_category: CodedConcept | Code | None = None,
+        text_evaluations: Sequence[TextEvaluation] | None = None,
     ):
         """
 
@@ -2814,6 +2960,9 @@ class _MeasurementsAndQualitativeEvaluations(Template):
         finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Category of observed finding, e.g., anatomic structure or
             morphologically abnormal structure
+        text_evaluations: Union[Sequence[highdicom.sr.TextEvaluation], None], optional
+            Name-value pairs with coded names and free text values that
+            describe qualitative evaluations.
 
         """  # noqa: E501
         super().__init__()
@@ -2934,6 +3083,14 @@ class _MeasurementsAndQualitativeEvaluations(Template):
                         'have type QualitativeEvaluation.'
                     )
                 content.extend(evaluation)
+        if text_evaluations is not None:
+            for text_evaluation in text_evaluations:
+                if not isinstance(text_evaluation, TextEvaluation):
+                    raise TypeError(
+                        'Items of argument "text_evaluations" must '
+                        'have type TextEvaluation.'
+                    )
+                content.extend(text_evaluation)
         if len(content) > 0:
             group_item.ContentSequence = content
         self.append(group_item)
@@ -3164,6 +3321,43 @@ class _MeasurementsAndQualitativeEvaluations(Template):
             )
         ]
 
+    def get_text_evaluations(
+        self,
+        name: Code | CodedConcept | None = None
+    ) -> list[TextEvaluation]:
+        """Get text evaluations.
+
+        Parameters
+        ----------
+        name: Union[pydicom.sr.coding.Code, highdicom.sr.CodedConcept, None], optional
+            Name used to filter evaluations. If ``None``, all evaluations found
+            are returned.
+
+        Returns
+        -------
+        List[highdicom.sr.TextEvaluation]
+            Text evaluations
+
+        """  # noqa: E501
+        root_item = self[0]
+        # Other TEXT content items in the measurement group (e.g., tracking
+        # identifier, session, time point context, algorithm identification)
+        # use relationship types other than CONTAINS
+        if name is None:
+            matches = find_content_items(
+                root_item,
+                value_type=ValueTypeValues.TEXT,
+                relationship_type=RelationshipTypeValues.CONTAINS,
+            )
+        else:
+            matches = find_content_items(
+                root_item,
+                name=name,
+                value_type=ValueTypeValues.TEXT,
+                relationship_type=RelationshipTypeValues.CONTAINS,
+            )
+        return [TextEvaluation.from_sequence([item]) for item in matches]
+
 
 class MeasurementsAndQualitativeEvaluations(
     _MeasurementsAndQualitativeEvaluations
@@ -3190,6 +3384,7 @@ class MeasurementsAndQualitativeEvaluations(
         source_images: None | (
             Sequence[SourceImageForMeasurementGroup]
         ) = None,
+        text_evaluations: Sequence[TextEvaluation] | None = None,
     ):
         """
 
@@ -3226,6 +3421,9 @@ class MeasurementsAndQualitativeEvaluations(
             Images to that were the source of the measurements. If not provided,
             all images that listed in the document tree of the containing SR
             document are assumed to be source images.
+        text_evaluations: Union[Sequence[highdicom.sr.TextEvaluation], None], optional
+            Name-value pairs with coded names and free text values that
+            describe qualitative evaluations
 
         """  # noqa: E501
         super().__init__(
@@ -3240,6 +3438,7 @@ class MeasurementsAndQualitativeEvaluations(
             measurements=measurements,
             qualitative_evaluations=qualitative_evaluations,
             finding_category=finding_category,
+            text_evaluations=text_evaluations,
         )
         group_item = self[0]
 
@@ -3311,6 +3510,7 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         ) = None,
         geometric_purpose: CodedConcept | Code | None = None,
         finding_category: CodedConcept | Code | None = None,
+        text_evaluations: Sequence[TextEvaluation] | None = None,
     ):
         """
 
@@ -3354,6 +3554,9 @@ class _ROIMeasurementsAndQualitativeEvaluations(
         finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Category of observed finding, e.g., anatomic structure or
             morphologically abnormal structure
+        text_evaluations: Union[Sequence[highdicom.sr.TextEvaluation], None], optional
+            Name-value pairs with coded names and free text values that
+            describe qualitative evaluations
 
         Note
         ----
@@ -3373,7 +3576,8 @@ class _ROIMeasurementsAndQualitativeEvaluations(
             session=session,
             measurements=measurements,
             qualitative_evaluations=qualitative_evaluations,
-            finding_category=finding_category
+            finding_category=finding_category,
+            text_evaluations=text_evaluations,
         )
         group_item = self[0]
         were_references_provided = [
@@ -3473,7 +3677,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             Sequence[QualitativeEvaluation]
         ) = None,
         geometric_purpose: CodedConcept | Code | None = None,
-        finding_category: CodedConcept | Code | None = None
+        finding_category: CodedConcept | Code | None = None,
+        text_evaluations: Sequence[TextEvaluation] | None = None,
     ):
         """
 
@@ -3515,6 +3720,9 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
         finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Category of observed finding, e.g., anatomic structure or
             morphologically abnormal structure
+        text_evaluations: Union[Sequence[highdicom.sr.TextEvaluation], None], optional
+            Name-value pairs with coded names and free text values that
+            describe qualitative evaluations of a region of interest
 
         Note
         ----
@@ -3571,7 +3779,8 @@ class PlanarROIMeasurementsAndQualitativeEvaluations(
             measurements=measurements,
             qualitative_evaluations=qualitative_evaluations,
             geometric_purpose=geometric_purpose,
-            finding_category=finding_category
+            finding_category=finding_category,
+            text_evaluations=text_evaluations,
         )
         self[0].ContentTemplateSequence[0].TemplateIdentifier = '1410'
 
@@ -3758,6 +3967,7 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         ) = None,
         geometric_purpose: CodedConcept | Code | None = None,
         finding_category: CodedConcept | Code | None = None,
+        text_evaluations: Sequence[TextEvaluation] | None = None,
     ):
         """
 
@@ -3801,6 +4011,9 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
         finding_category: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code, None], optional
             Category of observed finding, e.g., anatomic structure or
             morphologically abnormal structure
+        text_evaluations: Union[Sequence[highdicom.sr.TextEvaluation], None], optional
+            Name-value pairs with coded names and free text values that
+            describe qualitative evaluations of a volume of interest
 
         Note
         ----
@@ -3841,7 +4054,8 @@ class VolumetricROIMeasurementsAndQualitativeEvaluations(
             session=session,
             qualitative_evaluations=qualitative_evaluations,
             geometric_purpose=geometric_purpose,
-            finding_category=finding_category
+            finding_category=finding_category,
+            text_evaluations=text_evaluations,
         )
         self[0].ContentTemplateSequence[0].TemplateIdentifier = '1411'
 

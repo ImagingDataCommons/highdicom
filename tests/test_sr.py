@@ -12,6 +12,7 @@ from pydicom import config
 from pydicom.data import get_testdata_file, get_testdata_files
 from pydicom.dataset import Dataset
 from pydicom.filereader import dcmread
+from pydicom.sequence import Sequence as DicomSequence
 from pydicom.sr.codedict import codes
 from pydicom.sr.coding import Code
 from pydicom.uid import generate_uid
@@ -22,6 +23,7 @@ from highdicom.sr import (
     AlgorithmIdentification,
     CodeContentItem,
     CodedConcept,
+    codes_equal,
     CompositeContentItem,
     Comprehensive3DSR,
     ComprehensiveSR,
@@ -70,6 +72,7 @@ from highdicom.sr import (
     SubjectContextSpecimen,
     TcoordContentItem,
     TextContentItem,
+    TextEvaluation,
     TimeContentItem,
     TimePointContext,
     TrackingIdentifier,
@@ -80,6 +83,9 @@ from highdicom.sr import (
     WaveformContentItem,
     srread,
 )
+from highdicom import AnatomicRegion
+from highdicom.ann import AnnotatedPropertyType
+from highdicom.seg import SegmentedPropertyType
 from highdicom.sr.content import CoordinatesForMeasurement
 from highdicom.sr.utils import collect_evidence, find_content_items
 from highdicom import UID
@@ -718,6 +724,178 @@ class TestCodedConcept(unittest.TestCase):
         c1 = CodedConcept(self._value, self._scheme_designator, self._meaning)
         c2 = CodedConcept('R-00317', 'SRT', self._meaning)
         assert c1 == c2
+
+
+class TestCodesEqual:
+
+    @staticmethod
+    @pytest.fixture(
+        params=[
+            SegmentedPropertyType,
+            AnatomicRegion,
+            AnnotatedPropertyType,
+        ]
+    )
+    def modified_class(request):
+        return request.param
+
+    def test_plain_codes(self):
+        concept = CodedConcept.from_code(codes.SCT.Kidney)
+        for a, b in [
+            (codes.SCT.Kidney, codes.SCT.Kidney),
+            (codes.SCT.Kidney, concept),
+            (concept, codes.SCT.Kidney),
+            (concept, concept),
+        ]:
+            assert codes_equal(a, b)
+
+        assert not codes_equal(codes.SCT.Kidney, codes.SCT.Liver)
+        assert not codes_equal(concept, codes.SCT.Liver)
+
+    def test_meaning_ignored(self):
+        a = Code('64033007', 'SCT', 'Kidney')
+        b = Code('64033007', 'SCT', 'Something else')
+        assert codes_equal(a, b)
+
+    def test_equivalent_coding(self):
+        a = CodedConcept('373098007', 'SCT', 'Mean Value of population')
+        b = CodedConcept('R-00317', 'SRT', 'Mean Value of population')
+        assert codes_equal(a, b)
+        assert codes_equal(b, a)
+
+    def test_invalid_types(self):
+        with pytest.raises(TypeError):
+            codes_equal(codes.SCT.Kidney, 'kidney')
+        with pytest.raises(TypeError):
+            codes_equal(None, codes.SCT.Kidney)
+
+    def test_modifiers_significant_by_default(self, modified_class):
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        unmodified = modified_class(codes.SCT.Kidney)
+        other_modified = modified_class(
+            codes.SCT.Kidney, modifiers=[codes.SCT.Right]
+        )
+
+        assert codes_equal(modified, modified)
+        assert codes_equal(unmodified, codes.SCT.Kidney)
+        assert not codes_equal(modified, unmodified)
+        assert not codes_equal(modified, other_modified)
+
+    def test_symmetric_with_pydicom_code(self, modified_class):
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        unmodified = modified_class(codes.SCT.Kidney)
+
+        assert not codes_equal(modified, codes.SCT.Kidney)
+        assert not codes_equal(codes.SCT.Kidney, modified)
+
+        assert codes_equal(unmodified, codes.SCT.Kidney)
+        assert codes_equal(codes.SCT.Kidney, unmodified)
+
+    def test_ignore_modifiers(self, modified_class):
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        other_modified = modified_class(
+            codes.SCT.Kidney, modifiers=[codes.SCT.Right]
+        )
+        for a, b in [
+            (modified, codes.SCT.Kidney),
+            (codes.SCT.Kidney, modified),
+            (modified, other_modified),
+            (modified, CodedConcept.from_code(codes.SCT.Kidney)),
+        ]:
+            assert codes_equal(a, b, ignore_modifiers=True)
+
+        assert not codes_equal(
+            modified,
+            codes.SCT.Liver,
+            ignore_modifiers=True,
+        )
+
+    def test_modifier_order_not_significant(self, modified_class):
+        a = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+        )
+        b = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Posterior, codes.SCT.Left],
+        )
+        assert codes_equal(a, b)
+        assert codes_equal(b, a)
+
+    def test_modifier_subset_not_equal(self, modified_class):
+        a = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+        )
+        b = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        assert not codes_equal(a, b)
+        assert not codes_equal(b, a)
+
+    def test_class_not_considered(self):
+        a = SegmentedPropertyType(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        b = AnatomicRegion(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        c = AnnotatedPropertyType(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        assert codes_equal(a, b)
+        assert codes_equal(b, c)
+        assert codes_equal(a, c)
+
+    def test_equivalent_modifiers_match(self, modified_class):
+        a = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[CodedConcept('373098007', 'SCT', 'Mean')],
+        )
+        b = modified_class(
+            codes.SCT.Kidney,
+            modifiers=[CodedConcept('R-00317', 'SRT', 'Mean')],
+        )
+        assert codes_equal(a, b)
+
+    def test_operator_agrees_with_function(self, modified_class):
+        concepts = [
+            modified_class(codes.SCT.Kidney),
+            modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left]),
+            modified_class(
+                codes.SCT.Kidney,
+                modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+            ),
+            modified_class(codes.SCT.Liver),
+            CodedConcept.from_code(codes.SCT.Kidney),
+        ]
+        for a in concepts:
+            for b in concepts:
+                assert (a == b) == codes_equal(a, b)
+                assert (a != b) == (not codes_equal(a, b))
+
+    def test_hash_consistent_with_equality(self, modified_class):
+        concepts = [
+            modified_class(codes.SCT.Kidney),
+            modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left]),
+            modified_class(
+                codes.SCT.Kidney,
+                modifiers=[codes.SCT.Posterior, codes.SCT.Left],
+            ),
+            modified_class(
+                codes.SCT.Kidney,
+                modifiers=[codes.SCT.Left, codes.SCT.Posterior],
+            ),
+            modified_class(codes.SCT.Liver),
+            CodedConcept.from_code(codes.SCT.Kidney),
+            codes.SCT.Kidney,
+        ]
+        for a in concepts:
+            for b in concepts:
+                if a == b and b == a:
+                    assert hash(a) == hash(b)
+
+    def test_operator_asymmetry_with_pydicom_code(self, modified_class):
+        # Documents known behavior: pydicom's Code.__eq__ is evaluated first
+        # when a Code is the left operand and knows nothing of modifiers.
+        # codes_equal should be used instead in such situations.
+        modified = modified_class(codes.SCT.Kidney, modifiers=[codes.SCT.Left])
+        assert modified != codes.SCT.Kidney
+        assert codes.SCT.Kidney == modified
+        assert not codes_equal(modified, codes.SCT.Kidney)
+        assert not codes_equal(codes.SCT.Kidney, modified)
 
 
 class TestContentItem(unittest.TestCase):
@@ -3368,6 +3546,264 @@ class TestQualitativeEvaluation(unittest.TestCase):
         assert len(evaluation) == 1
         assert evaluation.name == self._name
         assert evaluation.value == self._value
+        assert evaluation.modifiers == []
+        assert not hasattr(evaluation[0], 'ContentSequence')
+
+    def _make_modifier(self, relationship_type=None):
+        return CodeContentItem(
+            name=codes.SCT.Severity,
+            value=codes.SCT.Severe,
+            relationship_type=relationship_type,
+        )
+
+    def test_construction_with_modifiers(self):
+        modifier = self._make_modifier(
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        )
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[modifier],
+        )
+
+        assert len(evaluation) == 1
+        assert len(evaluation[0].ContentSequence) == 1
+        modifiers = evaluation.modifiers
+        assert len(modifiers) == 1
+        assert isinstance(modifiers[0], CodeContentItem)
+        assert modifiers[0].name == codes.SCT.Severity
+        assert modifiers[0].value == codes.SCT.Severe
+        assert modifiers[0].relationship_type == (
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        )
+
+    def test_construction_with_modifiers_string_relationship_type(self):
+        modifier = self._make_modifier('HAS CONCEPT MOD')
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[modifier],
+        )
+        assert len(evaluation.modifiers) == 1
+
+    def test_construction_with_modifiers_no_relationship_type(self):
+        modifier = self._make_modifier()
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[modifier],
+        )
+
+        modifiers = evaluation.modifiers
+        assert len(modifiers) == 1
+        assert isinstance(modifiers[0], CodeContentItem)
+        assert modifiers[0].relationship_type == (
+            RelationshipTypeValues.HAS_CONCEPT_MOD
+        )
+
+    def test_construction_with_empty_modifiers(self):
+        evaluation = QualitativeEvaluation(
+            name=self._name,
+            value=self._value,
+            modifiers=[],
+        )
+        assert evaluation.modifiers == []
+        assert not hasattr(evaluation[0], 'ContentSequence')
+
+    def test_construction_with_modifiers_wrong_relationship_type(self):
+        modifier = self._make_modifier(RelationshipTypeValues.CONTAINS)
+        msg = (
+            "Items of 'modifiers' must have relationship type "
+            "'HAS CONCEPT MOD'."
+        )
+        with pytest.raises(ValueError, match=msg):
+            QualitativeEvaluation(
+                name=self._name,
+                value=self._value,
+                modifiers=[modifier],
+            )
+
+    def test_construction_with_modifiers_wrong_type(self):
+        modifier = TextContentItem(
+            name=codes.SCT.Severity,
+            value='severe',
+            relationship_type=RelationshipTypeValues.HAS_CONCEPT_MOD,
+        )
+        msg = (
+            "Items of 'modifiers' must have type "
+            "highdicom.sr.CodeContentItem."
+        )
+        with pytest.raises(TypeError, match=msg):
+            QualitativeEvaluation(
+                name=self._name,
+                value=self._value,
+                modifiers=[modifier],
+            )
+
+    def test_construction_with_code_modifier_wrong_type(self):
+        msg = (
+            "Items of 'modifiers' must have type "
+            "highdicom.sr.CodeContentItem."
+        )
+        with pytest.raises(TypeError, match=msg):
+            QualitativeEvaluation(
+                name=self._name,
+                value=self._value,
+                modifiers=[codes.SCT.Severe],
+            )
+
+    @staticmethod
+    def _make_code_dataset(code):
+        ds = Dataset()
+        ds.CodeValue = code.value
+        ds.CodingSchemeDesignator = code.scheme_designator
+        ds.CodeMeaning = code.meaning
+        return ds
+
+    def _make_code_item_dataset(self, name, value, relationship_type):
+        ds = Dataset()
+        ds.RelationshipType = relationship_type
+        ds.ValueType = 'CODE'
+        ds.ConceptNameCodeSequence = [self._make_code_dataset(name)]
+        ds.ConceptCodeSequence = [self._make_code_dataset(value)]
+        return ds
+
+    def _make_evaluation_sequence(self, modifiers=None):
+        item = self._make_code_item_dataset(
+            self._name,
+            self._value,
+            'CONTAINS',
+        )
+        if modifiers is not None:
+            item.ContentSequence = DicomSequence(modifiers)
+
+        return DicomSequence([item])
+
+    def test_from_sequence(self):
+        sequence = self._make_evaluation_sequence()
+        parsed = QualitativeEvaluation.from_sequence(sequence)
+
+        assert isinstance(parsed, QualitativeEvaluation)
+        assert parsed.name == self._name
+        assert parsed.value == self._value
+        assert parsed.modifiers == []
+        assert not hasattr(parsed[0], 'ContentSequence')
+
+    def test_from_sequence_with_modifiers(self):
+        sequence = self._make_evaluation_sequence(
+            modifiers=[
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Severe,
+                    'HAS CONCEPT MOD',
+                ),
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Mild,
+                    'HAS CONCEPT MOD',
+                ),
+            ]
+        )
+        parsed = QualitativeEvaluation.from_sequence(sequence)
+
+        assert parsed.name == self._name
+        assert parsed.value == self._value
+        # Modifiers must be encoded in the content item itself
+        assert len(parsed[0].ContentSequence) == 2
+        modifiers = parsed.modifiers
+        assert len(modifiers) == 2
+        assert all(isinstance(m, CodeContentItem) for m in modifiers)
+        assert modifiers[0].name == codes.SCT.Severity
+        assert modifiers[0].value == codes.SCT.Severe
+        assert modifiers[1].value == codes.SCT.Mild
+        assert all(
+            m.relationship_type == RelationshipTypeValues.HAS_CONCEPT_MOD
+            for m in modifiers
+        )
+
+    def test_from_sequence_ignores_non_modifier_children(self):
+        comment = Dataset()
+        comment.RelationshipType = 'HAS PROPERTIES'
+        comment.ValueType = 'TEXT'
+        comment.ConceptNameCodeSequence = [
+            self._make_code_dataset(codes.DCM.Comment)
+        ]
+        comment.TextValue = 'a comment'
+        sequence = self._make_evaluation_sequence(
+            modifiers=[
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Severe,
+                    'HAS CONCEPT MOD',
+                ),
+                # CODE item, but not a modifier relationship
+                self._make_code_item_dataset(
+                    codes.SCT.Severity,
+                    codes.SCT.Mild,
+                    'HAS PROPERTIES',
+                ),
+                comment,
+            ]
+        )
+        parsed = QualitativeEvaluation.from_sequence(sequence)
+
+        assert len(parsed.modifiers) == 1
+        assert parsed.modifiers[0].value == codes.SCT.Severe
+        assert len(parsed[0].ContentSequence) == 1
+
+
+class TestTextEvaluation(unittest.TestCase):
+
+    def setUp(self):
+        self._name = codes.DCM.Impression
+        self._value = 'Likely benign, recommend follow-up in 12 months'
+
+    def test_construction(self):
+        evaluation = TextEvaluation(
+            name=self._name,
+            value=self._value,
+        )
+
+        assert len(evaluation) == 1
+        item = evaluation[0]
+        assert isinstance(item, TextContentItem)
+        assert item.relationship_type == RelationshipTypeValues.CONTAINS
+        assert evaluation.name == self._name
+        assert evaluation.value == self._value
+
+    def test_from_sequence(self):
+        item = Dataset()
+        item.RelationshipType = 'CONTAINS'
+        item.ValueType = 'TEXT'
+        concept_name = Dataset()
+        concept_name.CodeValue = self._name.value
+        concept_name.CodingSchemeDesignator = self._name.scheme_designator
+        concept_name.CodeMeaning = self._name.meaning
+        item.ConceptNameCodeSequence = [concept_name]
+        item.TextValue = self._value
+        sequence = DicomSequence([item])
+
+        parsed = TextEvaluation.from_sequence(sequence)
+
+        assert isinstance(parsed, TextEvaluation)
+        assert parsed.name == self._name
+        assert parsed.value == self._value
+
+    def test_from_sequence_wrong_value_type(self):
+        evaluation = QualitativeEvaluation(
+            name=codes.SCT.AssociatedMorphology,
+            value=codes.SCT.Neoplasm,
+        )
+        with pytest.raises(ValueError):
+            TextEvaluation.from_sequence(evaluation)
+
+    def test_from_sequence_multiple_items(self):
+        evaluation = TextEvaluation(name=self._name, value=self._value)
+        with pytest.raises(
+            ValueError,
+            match='Text Evaluation shall contain only one content item.'
+        ):
+            TextEvaluation.from_sequence([evaluation[0], evaluation[0]])
 
 
 class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
@@ -3457,6 +3893,124 @@ class TestMeasurementsAndQualitativeEvaluations(unittest.TestCase):
                 codes.SCT.MorphologicallyAbnormalStructure
             )
             assert group.finding_type == codes.SCT.Neoplasm
+
+    def test_get_evaluations_with_modifiers(self):
+        qualitative_evaluations = [
+            QualitativeEvaluation(
+                name=codes.SCT.AssociatedMorphology,
+                value=codes.SCT.Neoplasm,
+                modifiers=[
+                    CodeContentItem(
+                        name=codes.SCT.Severity,
+                        value=codes.SCT.Severe,
+                    ),
+                ],
+            ),
+        ]
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            measurements=self._measurements,
+            qualitative_evaluations=qualitative_evaluations,
+        )
+        parsed = MeasurementsAndQualitativeEvaluations.from_sequence(template)
+        for group in (template, parsed):
+            # The modifier is nested and must not show up as a separate
+            # qualitative evaluation
+            evaluations = group.get_qualitative_evaluations()
+            assert len(evaluations) == 1
+            evaluation = evaluations[0]
+            assert evaluation.name == codes.SCT.AssociatedMorphology
+            assert evaluation.value == codes.SCT.Neoplasm
+            modifiers = evaluation.modifiers
+            assert len(modifiers) == 1
+            assert modifiers[0].name == codes.SCT.Severity
+            assert modifiers[0].value == codes.SCT.Severe
+
+            # Modifiers must survive re-use of a retrieved evaluation in a
+            # new measurement group
+            regrouped = MeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                measurements=self._measurements,
+                qualitative_evaluations=evaluations,
+            )
+            reevaluations = regrouped.get_qualitative_evaluations()
+            assert len(reevaluations) == 1
+            assert len(reevaluations[0].modifiers) == 1
+
+    def test_get_text_evaluations(self):
+        text_evaluations = [
+            TextEvaluation(
+                name=codes.DCM.Impression,
+                value='Likely benign',
+            ),
+            TextEvaluation(
+                name=codes.DCM.Comment,
+                value='Compare with prior study',
+            ),
+        ]
+        # Include other TEXT content items in the group (tracking identifier,
+        # session, time point and algorithm identification), which must not
+        # be returned as text evaluations
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            session='Session 1',
+            time_point_context=TimePointContext(time_point='first'),
+            algorithm_id=AlgorithmIdentification(
+                name='algo',
+                version='1.0',
+            ),
+            measurements=self._measurements,
+            qualitative_evaluations=[
+                QualitativeEvaluation(
+                    name=codes.SCT.AssociatedMorphology,
+                    value=codes.SCT.Neoplasm,
+                ),
+            ],
+            text_evaluations=text_evaluations,
+        )
+        parsed = MeasurementsAndQualitativeEvaluations.from_sequence(template)
+        for group in (template, parsed):
+            evaluations = group.get_text_evaluations()
+            assert len(evaluations) == 2
+            assert all(isinstance(e, TextEvaluation) for e in evaluations)
+            assert evaluations[0].name == codes.DCM.Impression
+            assert evaluations[0].value == 'Likely benign'
+            assert evaluations[1].name == codes.DCM.Comment
+            assert evaluations[1].value == 'Compare with prior study'
+
+            filtered = group.get_text_evaluations(name=codes.DCM.Comment)
+            assert len(filtered) == 1
+            assert filtered[0].value == 'Compare with prior study'
+
+            assert group.get_text_evaluations(name=codes.DCM.Finding) == []
+
+            # Text evaluations must not interfere with coded evaluations
+            assert len(group.get_qualitative_evaluations()) == 1
+
+    def test_get_text_evaluations_empty(self):
+        template = MeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            session='Session 1',
+            measurements=self._measurements,
+        )
+        assert template.get_text_evaluations() == []
+
+    def test_construction_with_text_evaluations_wrong_type(self):
+        msg = (
+            'Items of argument "text_evaluations" must have type '
+            'TextEvaluation.'
+        )
+        with pytest.raises(TypeError, match=msg):
+            MeasurementsAndQualitativeEvaluations(
+                tracking_identifier=self._tracking_identifier,
+                text_evaluations=[
+                    TextContentItem(
+                        name=codes.DCM.Comment,
+                        value='a comment',
+                        relationship_type=RelationshipTypeValues.CONTAINS,
+                    )
+                ],
+            )
 
 
 class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
@@ -3556,6 +4110,26 @@ class TestPlanarROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         root_item = template[0]
         assert root_item.ContentTemplateSequence[0].TemplateIdentifier == '1410'
         assert template.reference_type == codes.DCM.ImageRegion
+
+    def test_construction_with_text_evaluations(self):
+        template = PlanarROIMeasurementsAndQualitativeEvaluations(
+            tracking_identifier=self._tracking_identifier,
+            referenced_region=self._region,
+            text_evaluations=[
+                TextEvaluation(
+                    name=codes.DCM.Comment,
+                    value='Poorly defined margin',
+                ),
+            ],
+        )
+        parsed = PlanarROIMeasurementsAndQualitativeEvaluations.from_sequence(
+            template
+        )
+        for group in (template, parsed):
+            evaluations = group.get_text_evaluations()
+            assert len(evaluations) == 1
+            assert evaluations[0].name == codes.DCM.Comment
+            assert evaluations[0].value == 'Poorly defined margin'
 
     def test_construction_with_region_3d(self):
         template = PlanarROIMeasurementsAndQualitativeEvaluations(
@@ -3806,6 +4380,25 @@ class TestVolumetricROIMeasurementsAndQualitativeEvaluations(unittest.TestCase):
         assert all(isinstance(region, ImageRegion) for region in template.roi)
         assert template.referenced_segment is None
         assert template.reference_type == codes.DCM.ImageRegion
+
+    def test_constructed_with_text_evaluations(self):
+        cls = VolumetricROIMeasurementsAndQualitativeEvaluations
+        template = cls(
+            tracking_identifier=self._tracking_identifier,
+            referenced_regions=self._regions,
+            text_evaluations=[
+                TextEvaluation(
+                    name=codes.DCM.Comment,
+                    value='Heterogeneous enhancement',
+                ),
+            ],
+        )
+        parsed = cls.from_sequence(template)
+        for group in (template, parsed):
+            evaluations = group.get_text_evaluations()
+            assert len(evaluations) == 1
+            assert evaluations[0].name == codes.DCM.Comment
+            assert evaluations[0].value == 'Heterogeneous enhancement'
 
     def test_constructed_with_regions_3d(self):
         with pytest.raises(TypeError):

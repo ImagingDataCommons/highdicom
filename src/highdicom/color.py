@@ -19,12 +19,28 @@ from typing_extensions import Self
 logger = logging.getLogger(__name__)
 
 
-def _rgb_to_xyz(r: float, g: float, b: float) -> tuple[float, float, float]:
-    """Convert an RGB color to CIE XYZ representation.
+# White points, defined by their 4-figure CIE x,y chromaticities, as in the
+# sample code of the CSS Color Module Level 4
+# (https://www.w3.org/TR/css-color-4/#color-conversion-code).
+#
+# DICOM encodes CIELab values in the same way as the ICC Profile Connection
+# Space (PCS, see PS3.3 C.10.7.1.1), i.e. relative to the D50 illuminant,
+# whereas the native white point of sRGB is D65. The conversions below
+# therefore chromatically adapt between the two using the linear Bradford
+# transform. Note that for neutral (gray) colors the results are the same
+# either way, for chromatic colors the a* and b* values differ slightly.
+_D50_WHITEPOINT_X = 0.3457 / 0.3585
+_D50_WHITEPOINT_Y = 1.0
+_D50_WHITEPOINT_Z = (1.0 - 0.3457 - 0.3585) / 0.3585
 
-    Outputs are scaled between 0.0 and the white point (95.05, 100.0, 108.89).
-    As a private function, no checks are performed that input values are valid,
-    and output values are not clipped.
+
+def _rgb_to_xyz(r: float, g: float, b: float) -> tuple[float, float, float]:
+    """Convert an sRGB color to CIE XYZ representation.
+
+    Outputs are relative to the D50 white point (ICC PCS XYZ) and scaled
+    between 0.0 and the white point (0.9642, 1.0, 0.8251). As a private
+    function, no checks are performed that input values are valid, and output
+    values are not clipped.
 
     Parameters
     ----------
@@ -38,47 +54,79 @@ def _rgb_to_xyz(r: float, g: float, b: float) -> tuple[float, float, float]:
     Returns
     -------
     x: float
-        X component as a float between 0.0 and 95.05.
+        X component as a float between 0.0 and 0.9642.
     y: float
-        Y component as a float between 0.0 and 100.0.
+        Y component as a float between 0.0 and 1.0.
     z: float
-        Z component as a float between 0.0 and 108.89.
+        Z component as a float between 0.0 and 0.8251.
 
     """
-    # Adapted from ColorUtilities module of pixelmed:
-    # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
-    def convert_component(c: float) -> float:
+    # Matches the implementation of DCMTK's IODCIELabUtil::rgb2Xyz()
+    def invert_gamma(c: float) -> float:
+        # sRGB transfer function (IEC 61966-2-1), gamma-encoded to linear
         c = c / 255.0
         if c > 0.04045:
             return ((c + 0.055) / 1.055) ** 2.4
         return c / 12.92
 
-    r = convert_component(r) * 100
-    g = convert_component(g) * 100
-    b = convert_component(b) * 100
+    r = invert_gamma(r)
+    g = invert_gamma(g)
+    b = invert_gamma(b)
 
-    x = r * 0.4124 + g * 0.3576 + b * 0.1805
-    y = r * 0.2126 + g * 0.7152 + b * 0.0722
-    z = r * 0.0193 + g * 0.1192 + b * 0.9505
+    # Linear RGB to CIE XYZ (D65)
+    x65 = (
+        (506752.0 / 1228815.0) * r +
+        (87881.0 / 245763.0) * g +
+        (12673.0 / 70218.0) * b
+    )
+    y65 = (
+        (87098.0 / 409605.0) * r +
+        (175762.0 / 245763.0) * g +
+        (12673.0 / 175545.0) * b
+    )
+    z65 = (
+        (7918.0 / 409605.0) * r +
+        (87881.0 / 737289.0) * g +
+        (1001167.0 / 1053270.0) * b
+    )
+
+    # Chromatic adaptation from D65 to D50 (linear Bradford)
+    x = (
+        1.0479297925449969 * x65 +
+        0.022946870601609652 * y65 -
+        0.05019226628920524 * z65
+    )
+    y = (
+        0.02962780877005599 * x65 +
+        0.9904344267538799 * y65 -
+        0.017073799063418826 * z65
+    )
+    z = (
+        -0.009243040646204504 * x65 +
+        0.015055191490298152 * y65 +
+        0.7518742814281371 * z65
+    )
 
     return x, y, z
 
 
 def _xyz_to_rgb(x: float, y: float, z: float) -> tuple[float, float, float]:
-    """Convert a CIE XYZ color to RGB representation.
+    """Convert a CIE XYZ color to sRGB representation.
 
-    Inputs are scaled between 0.0 and the white point (95.05, 100.0, 108.89).
-    As a private function, no checks are performed that input values are valid,
-    and output values are not clipped.
+    Inputs are relative to the D50 white point (ICC PCS XYZ) and scaled
+    between 0.0 and the white point (0.9642, 1.0, 0.8251). As a private
+    function, no checks are performed that input values are valid, and output
+    values are not clipped. Consequently colors that lie outside the sRGB
+    gamut give values outside the 0.0 to 255.0 range.
 
     Parameters
     ----------
     x: float
-        X component as a float between 0.0 and 95.05.
+        X component as a float between 0.0 and 0.9642.
     y: float
-        Y component as a float between 0.0 and 100.0.
+        Y component as a float between 0.0 and 1.0.
     z: float
-        Z component as a float between 0.0 and 108.89.
+        Z component as a float between 0.0 and 0.8251.
 
     Returns
     -------
@@ -90,42 +138,67 @@ def _xyz_to_rgb(x: float, y: float, z: float) -> tuple[float, float, float]:
         Blue component between 0.0 and 255.0 (inclusive).
 
     """
-    # Adapted from ColorUtilities module of pixelmed:
-    # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
-    x = x / 100
-    y = y / 100
-    z = z / 100
+    # Matches the implementation of DCMTK's IODCIELabUtil::xyz2Rgb(), except
+    # that out-of-gamut values are not clipped here (this is left to the
+    # caller, which may instead want to report them as out of gamut)
+    # Chromatic adaptation from D50 to D65 (linear Bradford)
+    x65 = (
+        0.955473421488075 * x -
+        0.02309845494876471 * y +
+        0.06325924320057072 * z
+    )
+    y65 = (
+        -0.0283697093338637 * x +
+        1.0099953980813041 * y +
+        0.021041441191917323 * z
+    )
+    z65 = (
+        0.012314014864481998 * x -
+        0.020507649298898964 * y +
+        1.330365926242124 * z
+    )
 
-    r = x * 3.2406 + y * -1.5372 + z * -0.4986
-    g = x * -0.9689 + y * 1.8758 + z * 0.0415
-    b = x * 0.0557 + y * -0.2040 + z * 1.0570
+    # CIE XYZ (D65) to linear RGB
+    r = (
+        (12831.0 / 3959.0) * x65 -
+        (329.0 / 214.0) * y65 -
+        (1974.0 / 3959.0) * z65
+    )
+    g = (
+        (-851781.0 / 878810.0) * x65 +
+        (1648619.0 / 878810.0) * y65 +
+        (36519.0 / 878810.0) * z65
+    )
+    b = (
+        (705.0 / 12673.0) * x65 -
+        (2585.0 / 12673.0) * y65 +
+        (705.0 / 667.0) * z65
+    )
 
-    def convert_component(c: float) -> float:
+    def apply_gamma(c: float) -> float:
+        # sRGB transfer function (IEC 61966-2-1), linear to gamma-encoded
         if c > 0.0031308:
-            return 1.055 * (c ** (1 / 2.4)) - 0.055
+            return 1.055 * (c ** (1.0 / 2.4)) - 0.055
         return 12.92 * c
 
-    r = convert_component(r) * 255
-    g = convert_component(g) * 255
-    b = convert_component(b) * 255
-
-    return r, g, b
+    return apply_gamma(r) * 255, apply_gamma(g) * 255, apply_gamma(b) * 255
 
 
 def _xyz_to_lab(x: float, y: float, z: float) -> tuple[float, float, float]:
     """Convert a CIE XYZ color to CIE Lab representation.
 
-    As a private function, no checks are performed that input values are valid,
-    and output values are not clipped.
+    Both input and output are relative to the D50 white point (ICC PCS). As a
+    private function, no checks are performed that input values are valid, and
+    output values are not clipped.
 
     Parameters
     ----------
     x: float
-        X component.
+        X component as a float between 0.0 and 0.9642.
     y: float
-        Y component.
+        Y component as a float between 0.0 and 1.0.
     z: float
-        Z component.
+        Z component as a float between 0.0 and 0.8251.
 
     Returns
     -------
@@ -137,16 +210,16 @@ def _xyz_to_lab(x: float, y: float, z: float) -> tuple[float, float, float]:
         Blue-yellow value from -128.0 (blue) to 127.0 (yellow).
 
     """
-    # Adapted from ColorUtilities module of pixelmed:
-    # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
-    x = x / 95.047
-    y = y / 100.0
-    z = z / 108.883
+    # Matches the implementation of DCMTK's IODCIELabUtil::xyz2Lab()
+    x = x / _D50_WHITEPOINT_X
+    y = y / _D50_WHITEPOINT_Y
+    z = z / _D50_WHITEPOINT_Z
 
     def convert_component(c: float) -> float:
-        if c >= 8.85645167903563082e-3:
-            return c ** (1.0 / 3)
-        return (841.0 / 108.0) * c + (4.0 / 29.0)
+        # epsilon = (6/29)^3 = 216/24389, kappa = (29/3)^3 = 24389/27
+        if c > 216.0 / 24389.0:
+            return c ** (1.0 / 3.0)
+        return ((24389.0 / 27.0) * c + 16.0) / 116.0
 
     x = convert_component(x)
     y = convert_component(y)
@@ -166,9 +239,10 @@ def _lab_to_xyz(
 ) -> tuple[float, float, float]:
     """Convert a CIE Lab color to CIE XYZ representation.
 
-    Outputs are scaled between 0.0 and the white point (95.05, 100.0, 108.89).
-    As a private function, no checks are performed that input values are valid,
-    and output values are not clipped.
+    Both input and output are relative to the D50 white point (ICC PCS).
+    Outputs are scaled between 0.0 and the white point (0.9642, 1.0, 0.8251).
+    As a private function, no checks are performed that input values are
+    valid, and output values are not clipped.
 
     Parameters
     ----------
@@ -182,42 +256,37 @@ def _lab_to_xyz(
     Returns
     -------
     x: float
-        X component.
+        X component as a float between 0.0 and 0.9642.
     y: float
-        Y component.
+        Y component as a float between 0.0 and 1.0.
     z: float
-        Z component.
+        Z component as a float between 0.0 and 0.8251.
 
     """
-    # Adapted from ColorUtilities module of pixelmed:
-    # https://www.dclunie.com/pixelmed/software/javadoc/com/pixelmed/utils/ColorUtilities.html
+    # Matches the implementation of DCMTK's IODCIELabUtil::lab2Xyz()
     y = (l_star + 16) / 116
     x = a_star / 500 + y
     z = y - b_star / 200
 
     def convert_component(c: float) -> float:
-        c3 = c ** 3
+        # c > 6/29 is equivalent to c ** 3 > epsilon
+        if c > 6.0 / 29.0:
+            return c ** 3
+        return (116.0 * c - 16.0) / (24389.0 / 27.0)
 
-        if c3 > 0.008856:
-            return c3
-        return (c - 16.0 / 116) / 7.787
-
-    x = convert_component(x)
-    y = convert_component(y)
-    z = convert_component(z)
-
-    x = 95.047 * x
-    y = 100.0 * y
-    z = 108.883 * z
+    x = _D50_WHITEPOINT_X * convert_component(x)
+    y = _D50_WHITEPOINT_Y * convert_component(y)
+    z = _D50_WHITEPOINT_Z * convert_component(z)
 
     return x, y, z
 
 
 def _rgb_to_lab(r: float, g: float, b: float) -> tuple[float, float, float]:
-    """Convert an RGB color to CIE Lab representation.
+    """Convert an sRGB color to CIE Lab representation.
 
-    As a private function, no checks are performed that input values are valid,
-    and output values are not clipped.
+    The output is relative to the D50 white point (ICC PCS), as used by DICOM.
+    As a private function, no checks are performed that input values are
+    valid, and output values are not clipped.
 
     Parameters
     ----------
@@ -246,11 +315,12 @@ def _lab_to_rgb(
     a_star: float,
     b_star: float,
 ) -> tuple[float, float, float]:
-    """Convert a CIE Lab color to RGB representation.
+    """Convert a CIE Lab color to sRGB representation.
 
-    As a private function, no checks are performed that input values are valid,
-    and output values are not clipped. Lab colors that cannot be represented in
-    RGB will have values outside to 0.0 to 255.0 range.
+    The input is relative to the D50 white point (ICC PCS), as used by DICOM.
+    As a private function, no checks are performed that input values are
+    valid, and output values are not clipped. Lab colors that cannot be
+    represented in sRGB will have values outside to 0.0 to 255.0 range.
 
     Parameters
     ----------
@@ -291,7 +361,7 @@ class CIELabColor:
     >>>
     >>> color = hd.color.CIELabColor(50.0, 34.0, 12.4)
     >>> print(color.to_rgb())
-    (177, 95, 99)
+    (175, 94, 100)
 
     Construct a CIE-Lab color from an RGB color and examine the Lab components:
 
@@ -299,7 +369,7 @@ class CIELabColor:
     >>>
     >>> color = hd.color.CIELabColor.from_rgb(0, 255, 0)
     >>> print(color.l_star, color.a_star, color.b_star)
-    87.73632410162509 -86.1828793774319 83.1828793774319
+    87.81872281986725 -79.27237354085602 80.99610894941634
 
     Construct a CIE-Lab color from the name of a well-known color:
 
@@ -307,7 +377,7 @@ class CIELabColor:
     >>>
     >>> color = hd.color.CIELabColor.from_string('turquoise')
     >>> print(color.l_star, color.a_star, color.b_star)
-    81.2664988174258 -44.07782101167315 -4.035019455252922
+    80.96131837949187 -45.13618677042801 -4.680933852140072
 
     Within DICOM files, the three components are represented using scaled and
     shifted unsigned 16 bit integer values. You can move between these
@@ -318,10 +388,10 @@ class CIELabColor:
     >>> color = hd.color.CIELabColor.from_string('orange')
     >>> # Print the values that would actually be stored in a DICOM file
     >>> print(color.value)
-    (49107, 39048, 53188)
+    (49538, 39968, 53230)
     >>> # Create a color directly from these values
-    >>> color2 = hd.color.CIELabColor.from_dicom_value((49107, 39048, 53188))
-    >>>> print(color2.to_rgb())
+    >>> color2 = hd.color.CIELabColor.from_dicom_value((49538, 39968, 53230))
+    >>> print(color2.to_rgb())
     (255, 165, 0)
 
     """

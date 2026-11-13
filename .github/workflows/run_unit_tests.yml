@@ -22,7 +22,7 @@ jobs:
         # stage
         os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.13", "3.14"]
-        dependencies: [".", ".[libjpeg,itk,simpleitk,nibabel]"]
+        dependencies: [".", ".[libjpeg,itk,simpleitk,nibabel,monai]"]
 
         include:
           - os: windows-latest
@@ -31,7 +31,7 @@ jobs:
 
           - os: windows-latest
             python-version: "3.14"
-            dependencies: ".[libjpeg,itk,simpleitk,nibabel]"
+            dependencies: ".[libjpeg,itk,simpleitk,nibabel,monai]"
 
           - os: macos-latest
             python-version: "3.14"
@@ -39,7 +39,7 @@ jobs:
 
           - os: macos-latest
             python-version: "3.14"
-            dependencies: ".[libjpeg,itk,simpleitk,nibabel]"
+            dependencies: ".[libjpeg,itk,simpleitk,nibabel,monai]"
 
     env:
       # Set this otherwise coverage on python 3.12 is absurdly slow

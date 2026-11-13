@@ -673,7 +673,8 @@ def test_inconsistent_type_2_attribute(
     assert getattr(converted, keyword) is None
 
 
-def test_optional_module(modality: Modality) -> None:
+@pytest.mark.parametrize('strict', [False, True])
+def test_optional_module(modality: Modality, strict: bool) -> None:
     """Check that presence of the required attributes triggers inclusion of
     optional module.
 
@@ -684,13 +685,14 @@ def test_optional_module(modality: Modality) -> None:
         modality, 1, True, True
     )
 
-    # Including just one of the two required attributes should cause the entire
-    # module to be omitted
+    # In strict mode, including just one of the two required attributes should
+    # cause the entire module to be omitted
     for ds in legacy_datasets:
         ds.ClinicalTrialSponsorName = 'Sponsor'  # type 1
         ds.ClinicalTrialProtocolName = 'Protocol Name'  # type 2
         ds.ClinicalTrialSiteName = 'Site Name'  # type 2
         ds.IssuerOfClinicalTrialSubjectID = "Issuer"  # type 3
+        # 'ClinicalTrialProtocolID' is omitted
 
     converted = LegacyConvertedClass(
         legacy_datasets,
@@ -698,12 +700,21 @@ def test_optional_module(modality: Modality) -> None:
         series_number=1,
         sop_instance_uid=UID(),
         instance_number=1,
+        strict=strict,
     )
 
-    assert 'ClinicalTrialSponsorName' not in converted
-    assert 'ClinicalTrialProtocolID' not in converted
-    assert 'ClinicalTrialProtocolName' not in converted
-    assert 'IssuerOfClinicalTrialSubjectID' not in converted
+    if strict:
+        assert 'ClinicalTrialSponsorName' not in converted
+        assert 'ClinicalTrialProtocolID' not in converted
+        assert 'ClinicalTrialProtocolName' not in converted
+        assert 'ClinicalTrialSiteName' not in converted
+        assert 'IssuerOfClinicalTrialSubjectID' not in converted
+    else:
+        assert 'ClinicalTrialProtocolID' not in converted  # missing
+        assert 'ClinicalTrialSponsorName' in converted
+        assert 'ClinicalTrialProtocolName' in converted
+        assert 'ClinicalTrialSiteName' in converted
+        assert 'IssuerOfClinicalTrialSubjectID' in converted
 
     # Now additionally including the missing required attribute should trigger
     # the whole module to be included
@@ -716,6 +727,7 @@ def test_optional_module(modality: Modality) -> None:
         series_number=1,
         sop_instance_uid=UID(),
         instance_number=1,
+        strict=strict,
     )
 
     assert converted.ClinicalTrialSponsorName == 'Sponsor'
@@ -2107,6 +2119,80 @@ def test_transcode_custom_workers():
         [ds.pixel_array for ds in reversed(legacy_datasets)]
     )
     assert np.array_equal(converted.pixel_array, expected_pixels)
+
+
+def test_enhanced_functional_groups():
+    """Test functional groups from enhanced IODs."""
+    # Some test files that have a lot of attributes that can be placed into the
+    # enhanced CT functional groups
+    ct_files = [
+        get_testdata_file('dicomdirtests/77654033/CT2/17136', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17196', read=True),
+        get_testdata_file('dicomdirtests/77654033/CT2/17166', read=True),
+    ]
+
+    converted = LegacyConvertedEnhancedCTImage(
+        ct_files,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+    )
+
+    sfgs = (
+        converted
+        .SharedFunctionalGroupsSequence[0]
+    )
+    unassigned_shared_seq = (
+        sfgs
+        .UnassignedSharedConvertedAttributesSequence[0]
+    )
+
+    expected_attributes = [
+        ('CTAcquisitionDetailsSequence', 'DataCollectionDiameter'),
+        ('CTAcquisitionDetailsSequence', 'TableHeight'),
+        ('CTGeometrySequence', 'DistanceSourceToDetector'),
+        ('CTReconstructionSequence', 'ConvolutionKernel'),
+        ('CTXRayDetailsSequence', 'KVP'),
+    ]
+
+    for seq_kw, attr_kw in expected_attributes:
+        # Check the enhanced group is present and the element is not placed in
+        # the unassigned groups
+        seq = getattr(sfgs, seq_kw)[0]
+        val = getattr(seq, attr_kw)
+        orig_val = getattr(ct_files[0], attr_kw)
+        assert val == orig_val
+
+        assert not hasattr(unassigned_shared_seq, seq_kw)
+
+    # Now try without the enhanced functional IOD
+    converted = LegacyConvertedEnhancedCTImage(
+        ct_files,
+        series_instance_uid=UID(),
+        series_number=1,
+        sop_instance_uid=UID(),
+        instance_number=1,
+        include_enhanced_groups=False,
+    )
+
+    sfgs = (
+        converted
+        .SharedFunctionalGroupsSequence[0]
+    )
+    unassigned_shared_seq = (
+        sfgs
+        .UnassignedSharedConvertedAttributesSequence[0]
+    )
+
+    for seq_kw, attr_kw in expected_attributes:
+        # Check the enhanced group is not present so the element is placed in
+        # the unassigned groups
+        assert not hasattr(sfgs, seq_kw)
+
+        val = getattr(unassigned_shared_seq, attr_kw)
+        orig_val = getattr(ct_files[0], attr_kw)
+        assert val == orig_val
 
 
 def test_from_dataset(modality: Modality) -> None:

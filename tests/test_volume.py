@@ -943,6 +943,55 @@ def test_match_geometry_failure_translation():
         vol.match_geometry(geometry)
 
 
+def test_match_geometry_small_translation_within_tolerance():
+    vol, _ = read_multiframe_ct_volume()
+    # Misalignment of 0.1% of a voxel along the row direction
+    shift = 1e-3 * vol.spacing[1]
+
+    new_affine = _translate_affine_matrix(vol.affine, [0.0, shift, 0.0])
+    geometry = VolumeGeometry(
+        new_affine,
+        vol.shape,
+        coordinate_system="PATIENT",
+    )
+
+    matched = vol.match_geometry(geometry)
+    assert matched.spatial_shape == vol.spatial_shape
+
+    with pytest.raises(RuntimeError):
+        vol.match_geometry(geometry, position_tol=1e-5)
+
+
+def test_match_geometry_far_corner_drift():
+    vol, _ = read_multiframe_ct_volume()
+    n = vol.spatial_shape[2]
+
+    # Spacing error passes spacing_tol per voxel, but accumulates across
+    # the extent of the volume to well over position_tol
+    new_affine = vol.affine.copy()
+    new_affine[:3, 2] *= 1.0 + 5e-4
+    geometry = VolumeGeometry(
+        new_affine,
+        vol.shape,
+        coordinate_system="PATIENT",
+    )
+    assert (n - 1) * 5e-4 > 1e-2
+
+    with pytest.raises(RuntimeError, match="drift"):
+        vol.match_geometry(geometry)
+
+    # Passes when the tolerance is loosened accordingly
+    vol.match_geometry(geometry, position_tol=1.0)
+
+
+def test_match_geometry_deprecated_tol():
+    vol, _ = read_multiframe_ct_volume()
+    geometry = vol.get_geometry()
+
+    with pytest.warns(DeprecationWarning):
+        vol.match_geometry(geometry, tol=1e-5)
+
+
 def test_match_geometry_failure_spacing():
     vol, _ = read_multiframe_ct_volume()
 

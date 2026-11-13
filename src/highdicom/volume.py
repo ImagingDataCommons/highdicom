@@ -22,6 +22,7 @@ from highdicom.spatial import (
     PATIENT_ORIENTATION_OPPOSITES,
     VOLUME_INDEX_CONVENTION,
     _DEFAULT_EQUALITY_TOLERANCE,
+    _DEFAULT_PERPENDICULAR_TOLERANCE,
     _is_matrix_orthogonal,
     _normalize_patient_orientation,
     _stack_affine_matrix,
@@ -31,6 +32,8 @@ from highdicom.spatial import (
     create_affine_matrix_from_attributes,
     create_affine_matrix_from_components,
     get_closest_patient_orientation,
+    _squeeze_affine,
+    _unsqueeze_affine
 )
 from highdicom.content import (
     PixelMeasuresSequence,
@@ -1789,7 +1792,10 @@ class _VolumeBase(ABC):
         mode: PadModes = PadModes.CONSTANT,
         constant_value: float = 0.0,
         per_channel: bool = False,
-        tol: float = _DEFAULT_EQUALITY_TOLERANCE,
+        spacing_tol: float = 1e-3,
+        position_tol: float = 1e-2,
+        parallel_tol: float = _DEFAULT_PERPENDICULAR_TOLERANCE,
+        tol: float | None = None,
     ) -> Self:
         """Match the geometry of this volume to another.
 
@@ -1817,6 +1823,24 @@ class _VolumeBase(ABC):
             the entire array). For other padding modes, this argument makes no
             difference. This should be True only if the volume has a channel
             dimension.
+        spacing_tol: float, optional
+            Relative tolerance on the ratio of the voxel spacing of ``other``
+            to that of this volume along each axis. The ratio must be within
+            ``spacing_tol * n`` of the nearest integer ``n``, i.e. the
+            tolerance scales with the integer step size.
+        position_tol: float, optional
+            Tolerance on the translation between the two volumes along each
+            axis, expressed as a fraction of a voxel (of this volume, after
+            permutation). The translation must be within this fraction of an
+            integer number of voxels. The same tolerance is applied to the
+            misalignment at the far end of the target grid, which accumulates
+            any small spacing discrepancy over the extent of the volume.
+        parallel_tol: float, optional
+            Tolerance used when deciding whether direction vectors of the two
+            volumes are parallel.
+        tol: float | None, optional
+            Deprecated. If provided, it overrides both ``spacing_tol`` and
+            ``position_tol``. Use those parameters instead.
 
         Returns
         -------
@@ -1830,14 +1854,25 @@ class _VolumeBase(ABC):
             If the geometries cannot be matched without resampling the array.
 
         """
+        if tol is not None:
+            warnings.warn(
+                "The 'tol' parameter of 'match_geometry' is deprecated and "
+                "will be removed in a future release. Use 'spacing_tol' and "
+                "'position_tol' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            spacing_tol = tol
+            position_tol = tol
+
         if (
             self.frame_of_reference_uid is not None and
-            other.frame_of_reference_uid is not None
+            other.frame_of_reference_uid is not None and
+            self.frame_of_reference_uid != other.frame_of_reference_uid
         ):
-            if self.frame_of_reference_uid != self.frame_of_reference_uid:
-                raise RuntimeError(
-                    "Volumes do not have matching frame of reference UIDs."
-                )
+            raise RuntimeError(
+                "Volumes do not have matching frame of reference UIDs."
+            )
 
         if self.coordinate_system != other.coordinate_system:
             raise RuntimeError(
@@ -1846,28 +1881,31 @@ class _VolumeBase(ABC):
 
         permute_indices = []
         step_sizes = []
+        signed_scale_factors = []
         for u, s in zip(other.unit_vectors(), other.spacing):
             for j, (v, t) in enumerate(
                 zip(self.unit_vectors(), self.spacing)
             ):
                 dot_product = u @ v
                 if (
-                    np.abs(dot_product - 1.0) < tol or
-                    np.abs(dot_product + 1.0) < tol
+                    np.abs(dot_product - 1.0) < parallel_tol or
+                    np.abs(dot_product + 1.0) < parallel_tol
                 ):
                     permute_indices.append(j)
 
                     scale_factor = s / t
                     step = int(np.round(scale_factor))
-                    if abs(scale_factor - step) > tol:
+                    if abs(scale_factor - step) > spacing_tol * abs(step):
                         raise RuntimeError(
                             "Non-integer scale factor required."
                         )
 
                     if dot_product < 0.0:
                         step = -step
+                        scale_factor = -scale_factor
 
                     step_sizes.append(step)
+                    signed_scale_factors.append(scale_factor)
 
                     break
             else:
@@ -1892,10 +1930,11 @@ class _VolumeBase(ABC):
         requires_crop = False
         requires_pad = False
 
-        for v, spacing, step, out_shape, in_shape in zip(
+        for v, spacing, step, scale_factor, out_shape, in_shape in zip(
             new_volume.unit_vectors(),
             new_volume.spacing,
             step_sizes,
+            signed_scale_factors,
             other.spatial_shape,
             new_volume.spatial_shape,
         ):
@@ -1904,10 +1943,23 @@ class _VolumeBase(ABC):
             start_pos = int(np.round(start_ind))
             end_pos = start_pos + out_shape * step
 
-            if abs(start_pos - start_ind) > tol:
+            if abs(start_pos - start_ind) > position_tol:
                 raise RuntimeError(
                     "Required translation is non-integer "
                     "multiple of voxel spacing."
+                )
+
+            # Small spacing discrepancies accumulate along the axis, so also
+            # check the misalignment at the far end of the target grid
+            far_misalignment = (
+                (start_ind - start_pos) +
+                (out_shape - 1) * (scale_factor - step)
+            )
+            if abs(far_misalignment) > position_tol:
+                raise RuntimeError(
+                    "Voxel grids drift out of alignment by more than "
+                    "'position_tol' along an axis due to a small difference "
+                    "in spacing."
                 )
 
             if step > 0:
@@ -3931,7 +3983,7 @@ class Volume(_VolumeBase):
 
         cast_dtype = dtype_map.get(np.dtype(dtype), dtype)
         if np.dtype(dtype) == np.dtype(cast_dtype):
-            array = self.array.transpose(2, 1, 0).copy()
+            array = np.ascontiguousarray(self.array.transpose(2, 1, 0))
 
         else:
             info = (
@@ -3944,7 +3996,9 @@ class Volume(_VolumeBase):
             )
 
             try:
-                array = self.astype(cast_dtype).array.transpose(2, 1, 0).copy()
+                array = np.ascontiguousarray(
+                    self.astype(cast_dtype).array.transpose(2, 1, 0)
+                )
 
             except Exception:
                 raise ValueError(
@@ -4030,7 +4084,7 @@ class Volume(_VolumeBase):
                 ' volumes with multiple channels.'
             )
 
-        array = array.transpose(2, 1, 0).copy()
+        array = np.ascontiguousarray(array.transpose(2, 1, 0))
 
         return cls.from_components(
             array=array,
@@ -4267,6 +4321,254 @@ class Volume(_VolumeBase):
             coordinate_system=coordinate_system,
             frame_of_reference_uid=frame_of_reference_uid,
             from_reference_convention='RAS'
+        )
+
+    def to_monai(
+        self,
+        convert_to_ras: bool = True,
+        squeeze_dim: None | int = None,
+        ensure_channel_first: bool = False,
+    ) -> 'monai.data.MetaTensor':  # noqa: F821
+        """Convert the volume to a ``monai.data.MetaTensor``.
+
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``monai``.
+
+        The Volume is converted to a ``monai.data.Metatensor``. Spatial metadata
+        is preserved through the affine array. By default, metatensors use "RAS"
+        convention, however they can support "LPS" similar to highdicom if
+        specified.
+
+        Parameters
+        ----------
+        convert_to_ras: bool
+            Whether to convert the affine matrix from 'LPS' to 'RAS' convention.
+        squeeze_dim: None | int
+            Index of a singleton dimension to squeeze (must be a spatial
+            dimension). Defaults to None.
+        ensure_channel_first: bool
+            Whether to convert to a channel first metatensor. Defaults to False.
+
+        Returns
+        -------
+        monai.data.MetaTensor:
+            MetaTensor constructed from the volume.
+
+        Raises
+        ------
+        ValueError
+            When the volume has more than one channel dimension.
+        ValueError
+            When squeeze_dim does not correspond to a spatial dimension.
+
+        """
+        func = self.to_monai
+        monai = import_optional_dependency(
+            module_name='monai',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+
+        ImageStatsKeys = monai.utils.enums.ImageStatsKeys
+        MetaKeys = monai.utils.enums.MetaKeys
+
+        if self.number_of_channel_dimensions > 1:
+            raise ValueError(
+                'Monai conversion does not currently support'
+                ' volumes with multiple channel dimensions.'
+            )
+
+        meta = {}
+        if convert_to_ras:
+            space = monai.utils.enums.SpaceKeys.RAS
+
+        else:
+            space = monai.utils.enums.SpaceKeys.LPS
+
+        array = np.ascontiguousarray(self.array)
+        affine = self.get_affine(space.value)
+
+        meta[MetaKeys.ORIGINAL_AFFINE] = affine.copy()
+
+        keep_cols = [i for i in range(3) if i != squeeze_dim]
+        if squeeze_dim is not None:
+            if squeeze_dim not in [0, 1, 2]:
+                raise ValueError(
+                    'If provided, `squeeze_dim` must be a spatial'
+                    ' dimension (0, 1, 2).'
+                )
+
+            if array.shape[squeeze_dim] != 1:
+                raise ValueError(
+                    f'`squeeze_dim={squeeze_dim}` does not correspond'
+                    ' to a singleton dimension. Array has shape:'
+                    f' {array.shape}.'
+                )
+
+            array = array.squeeze(squeeze_dim)
+            affine = _squeeze_affine(affine, squeeze_dim)
+
+        meta[MetaKeys.SPACE] = space
+        meta[ImageStatsKeys.SPACING] = tuple([
+            self.spacing[i] for i in keep_cols
+        ])
+        meta[MetaKeys.SPATIAL_SHAPE] = np.array(self.spatial_shape)[keep_cols]
+        meta[MetaKeys.AFFINE] = affine.copy()
+        meta[MetaKeys.ORIGINAL_CHANNEL_DIM] = (
+            -1 if self.ndim > 3 else float("nan")
+        )
+
+        metatensor = monai.data.MetaTensor(array, meta=meta)
+
+        if ensure_channel_first:
+            metatensor = monai.transforms.EnsureChannelFirst()(metatensor)
+
+        return metatensor
+
+    @classmethod
+    def from_monai(
+        cls,
+        metatensor: 'monai.data.MetaTensor',  # noqa: F821
+        coordinate_system: CoordinateSystemNames | str = 'PATIENT',
+        frame_of_reference_uid: str | None = None,
+        channels: dict[
+            BaseTag | int | str | ChannelDescriptor,
+            Sequence[int | str | float | Enum]
+        ] | None = None,
+        channel_dim: int | None = 0,
+        unsqueeze_dim: None | int = None,
+        unsqueeze_spacing: float = 1.0
+    ) -> Self:
+        """Construct a Volume from a ``monai.data.MetaTensor``.
+
+        This method requires an optional dependency to be installed
+        separately from highdicom, specifically ``monai``.
+
+        The ``monai.data.MetaTensor`` is converted to a 3D Volume.
+        Spatial metadata is preserved through the affine array. By default,
+        metatensors use "RAS" convention, however they can support "LPS" similar
+        to highdicom. For correct conversions, ensure that the metatensor's
+        metadata specifies the appropriate convention through the space key
+        (``monai.utils.enums.SPACE``).
+
+        Parameters
+        ----------
+        metatensor: monai.data.MetaTensor
+            A ``monai.data.MetaTensor`` to convert to a volume.
+        coordinate_system: highdicom.CoordinateSystemNames | str
+            Coordinate system (``"PATIENT"`` or ``"SLIDE"``) in which the volume
+            is defined.
+        frame_of_reference_uid: Union[str, None], optional
+            Frame of reference UID for the frame of reference, if known.
+        channels: dict[int | str | ChannelDescriptor, Sequence[int | str | float | Enum]] | None, optional
+            Specification of channels of the array. Channels are additional
+            dimensions of the array beyond the three spatial dimensions. For
+            each such additional dimension (if any), an item in this dictionary
+            is required to specify the meaning. The dictionary key specifies
+            the meaning of the dimension, which must be either an instance of
+            highdicom.ChannelDescriptor, specifying a DICOM tag whose attribute
+            describes the channel, a a DICOM keyword describing a DICOM
+            attribute, or an integer representing the tag of a DICOM attribute.
+            The corresponding item of the dictionary is a sequence giving the
+            value of the relevant attribute at each index in the array. The
+            insertion order of the dictionary is significant as it is used to
+            match items to the corresponding dimensions of the array (the first
+            item in the dictionary corresponds to axis 3 of the array and so
+            on).
+        channel_dim: int
+            Channel dimension index of the metatensor. Defaults to 0.
+        unsqueeze_dim: int | None
+            Index of a singleton dimension to unsqueeze (must be a spatial
+            dimension and is considered after the conversion to a channel last format).
+            Note that, due to limitations in the way MONAI represents affine
+            matrices for 2D images, the resulting volume's affine matrix will not
+            represent the same mapping to frame-of-reference coordinates as
+            the original 2D metatensor.
+        unsqueeze_spacing: float
+            Spacing applied to the unsqueezed dimension.
+
+        Returns
+        -------
+        highdicom.Volume:
+            Volume constructed from the monai image.
+
+        Raises
+        ------
+        ValueError
+            When the metatensor has more than 4 dimensions (multiple channel
+            dimensions are unsupported).
+        ValueError
+            When there are multiple channels and the `channels` argument is
+            not provided.
+
+        """  # noqa: E501
+        func = cls.from_monai
+        monai = import_optional_dependency(
+            module_name='monai',
+            feature=f'{func.__module__}.{func.__qualname__}'
+        )
+        MetaKeys = monai.utils.enums.MetaKeys
+
+        if channel_dim is None:
+            metatensor = metatensor.unsqueeze(0)
+            channel_dim = 0
+
+        final_ndim = metatensor.ndim
+        if unsqueeze_dim is not None:
+            final_ndim += 1
+
+        if final_ndim > 3:
+            if final_ndim > 4:
+                raise ValueError(
+                    'Monai conversion does not currently support'
+                    ' volumes with multiple channel dimensions.'
+                )
+
+            channel_dim = channel_dim % metatensor.ndim
+            channel_last_perm = [
+                i for i in range(metatensor.ndim) if i != channel_dim
+            ] + [channel_dim]
+            metatensor = metatensor.permute(channel_last_perm)
+
+            if channels is None:
+                if metatensor.shape[-1] == 1:
+                    metatensor = metatensor.squeeze(-1)
+
+                else:
+                    raise ValueError(
+                        'Monai conversion requires `channels` be specified'
+                        ' for volumes with >=2 channels.'
+                    )
+
+        array = metatensor.cpu().detach().numpy()
+        affine = metatensor.affine.cpu().detach().numpy()
+
+        if unsqueeze_dim is not None:
+            array = np.expand_dims(array, unsqueeze_dim)
+            original_affine = metatensor.meta.get(
+                MetaKeys.ORIGINAL_AFFINE,
+                None
+            )
+
+            if isinstance(original_affine, monai.data.MetaTensor):
+                original_affine = original_affine.cpu().detach().numpy()
+
+            affine = _unsqueeze_affine(
+                affine,
+                unsqueeze_dim,
+                original_affine,
+                unsqueeze_spacing
+            )
+
+        return cls(
+            array=array,
+            affine=affine,
+            coordinate_system=coordinate_system,
+            frame_of_reference_uid=frame_of_reference_uid,
+            channels=channels,
+            from_reference_convention=metatensor.meta.get(
+                monai.utils.enums.MetaKeys.SPACE,
+                monai.utils.enums.SpaceKeys.RAS
+            ).value
         )
 
 
