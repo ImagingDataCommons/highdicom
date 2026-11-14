@@ -8134,7 +8134,7 @@ class _Image(SOPClass):
             c.replace('_DimensionIndexValues', '')
             for (_, c) in all_columns
         ]
-        if len(all_dimensions) != len(all_dimensions):
+        if len(set(all_dimensions)) != len(all_dimensions):
             raise ValueError(
                 'Dimensions used for tile position, channel, and filter '
                 'must all be distinct.'
