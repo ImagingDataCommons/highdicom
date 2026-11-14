@@ -3,8 +3,8 @@
 Presentation States
 ===================
 
-Presentation states are objects that descrbe how a separate image or series of
-images should be presented. This can include:
+Presentation states are objects that describe how a separate image or image
+series images should be displayed by a viewer application. This can include:
 
 - :doc:`pixel_transforms` that override any that are specified within the
   images themselves
@@ -18,10 +18,12 @@ Through their ability to overlay graphics on top of image, presentation states
 therefore offer a simple way to represent analysis results (e.g. detected areas
 of interest or segmentation contours) over an image. However, this is not
 generally recommended because other IODs such as :doc:`seg` and :doc:`sr` offer
-better ways to do this, intended for this purpose, with more complete,
+better ways to do this that are specifically intended for the purpose of
+communicating analysis results, and therefore contain more complete,
 standardized metadata describing the meaning and source of the analyses.
-Displaying presentation state objects is more widely supported by viewers than
-these other objects, which is why they are sometimes used for this purpose.
+However, displaying presentation state objects is more widely supported by
+DICOM viewers than Segmentations and Structured Reports, which is why they are
+sometimes used for this purpose.
 
 Presentation State IODs
 -----------------------
@@ -51,34 +53,61 @@ they support. They are:
 Pixel Transforms
 ----------------
 
-The pixel transforms supported by the four PR IODs are as follows, listed in
-the order they are applied (see :doc:`pixel_transforms` for more detail on
-these):
+Pixel transforms are operations that transform the raw pixel values stored in
+the image to a potentially different set of values that a viewer should
+display. Pixel transforms are also found in image objects themselves as well as
+presentation states and therefore have a dedicated documentation page here:
+:doc:`pixel_transforms`. When a presentation state is used by a viewer, the
+pixel transforms defined in the PR object override those stored in the original
+image file.
+
+The different PR IODs support different combinations of pixel transforms,
+leading to different sets of parameters for the constructor of the highdicom
+class. as follows (in the order they are applied)
 
 - *Grayscale Softcopy Presentation State*:
    - A ``modality_lut_transformation`` of type
-     :class:`highdicom.ModalityLUTTransformation`
+     :class:`highdicom.ModalityLUTTransformation` that define a mapping from
+     the raw pixel values stored in the image to the range of values acquired
+     by the modality. It is quite unusual to need to override the original
+     image's modality LUT.
    - One or more ``voi_lut_transformations`` as a sequence of
-     :class:`highdicom.SoftcopyVOILUTTransformation`
+     :class:`highdicom.SoftcopyVOILUTTransformation`. These define a particular
+     intensity range of "values of interest" to which the image should be
+     limited for display. Particularly for modalities with high dynamic range
+     (e.g., CTs and X-Rays), these allow you to render images that best display
+     detail within a particular tissue type (e.g. soft tissue detail exists in
+     a different intensity range to bone detail).
    - A ``presentation_lut_transformation`` of type
-     :class:`highdicom.PresentationLUTTransformation`
+     :class:`highdicom.PresentationLUTTransformation`. This defines a final
+     transformation that maps the output of previous stages to what the viewer
+     renders. Most commonly this is used to invert the range of values for
+     images stored with Photometric Interpretation of ``"MONOCHROME1"`` so that
+     they display as expected. It is unusual to need to override an image's
+     presentation LUT.
 - *Color Softcopy Presentation State*:
-   - An ``icc_profile`` of type ``bytes``
+   - An ``icc_profile`` of type ``bytes`` that performs color corrections to
+     RGB values to account for differences in acquisition and rendering
+     equipment.
 - *Pseudo-Color Softcopy Presentation State*:
    - A ``modality_lut_transformation`` of type
-     :class:`highdicom.ModalityLUTTransformation`
+     :class:`highdicom.ModalityLUTTransformation`, as in the Grayscale case.
    - One or more ``voi_lut_transformations`` as a sequence of
-     :class:`highdicom.SoftcopyVOILUTTransformation`
+     :class:`highdicom.SoftcopyVOILUTTransformation` as in the Grayscale case.
    - A ``palette_color_lut_transformation`` of type
-     :class:`highdicom.PaletteColorLUTTransformation` (required)
-   - An ``icc_profile`` of type ``bytes``
+     :class:`highdicom.PaletteColorLUTTransformation` (required). This defines
+     a lookup table (LUT) that maps grayscale values to 3-channel RGB values
+     allowing you to apply color maps to underlying grayscale images for
+     rendering.
+   - An ``icc_profile`` of type ``bytes``, as in the Color case.
 - *Advanced Blending Presentation State*:
-   - An ``icc_profile`` of type ``bytes``
+   - An ``icc_profile`` of type ``bytes``, as in the Color case.
 
-All pixel transforms are optional unless noted otherwise above. If they are not
-specified, but a corresponding transform exists in the source image, the source
-image transform will be copied to the presentation state such that the image is
-displayed the same way with the presentation state as without it.
+In highdicom's constructors, all pixel transform parameters are optional unless
+noted otherwise above. If they are not specified, but a corresponding transform
+exists in the referenced image, the referenced image transform will be copied
+to the presentation state such that the image is displayed the same way with
+the presentation state as without it.
 
 Advanced Blending Presentation States
 -------------------------------------
@@ -89,6 +118,9 @@ Graphic Objects, Layers and Annotations
 A presentation state may contain any number of Graphic Objects and Text
 Objects. These are grouped into Graphic Annotations, each of which relates to a
 single Graphic Layer.
+
+Graphic Objects
+~~~~~~~~~~~~~~~
 
 A Graphic Object is represented by the :class:`highdicom.pr.GraphicObject` class.
 The parameters for construction of a Graphic Object are:
@@ -101,9 +133,10 @@ The parameters for construction of a Graphic Object are:
   from, those used in Structured Reports.
 - ``graphic_data`` (``numpy.ndarray``). An array of coordinates defining the
   graphic object. The shape of the array should be (N, 2), where N is the
-  number of 2D points in this graphic object.  Each row of the array therefore
-  describes a (column, row) value for a single 2D point, and the interpretation
-  of the points depends upon the graphic type.
+  number of 2D points in this graphic object, which depends on the
+  graphic type. Each row of the array therefore describes a (column, row)
+  value for a single 2D point, and the interpretation of the points depends
+  upon the graphic type.
 - ``units`` (``str`` or :class:`highdicom.pr.AnnotationUnitsValues` The units
   in which each point in graphic data is expressed. See documentation of
   :class:`highdicom.pr.AnnotationUnitsValues` for details.
@@ -148,9 +181,21 @@ Some examples of constructing Graphic Objects are given below:
         tracking_uid=hd.UID()  # highdicom will generate a unique ID
     )
 
+Text Objects
+~~~~~~~~~~~~
+
+Graphic Annotations
+~~~~~~~~~~~~~~~~~~~
+
+Graphic Layers
+~~~~~~~~~~~~~~
 
 Constructing Presentation States
 --------------------------------
+
+To create a Presentation State object, you pass the standard :ref:`basic`, a
+list of all referenced images, and any pixel transforms, graphic annotations,
+or graphic layers that you want to include.
 
 A full example of creating a GSPS is given below:
 
