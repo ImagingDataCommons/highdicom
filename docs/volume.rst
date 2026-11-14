@@ -695,3 +695,4 @@ visit the following:
   - :ref:`ITK <itk_vol>`
   - :ref:`SimpleITK <sitk_vol>`
   - :ref:`NiBabel <nibabel_vol>`
+  - :ref:`MONAI <monai_vol>`
