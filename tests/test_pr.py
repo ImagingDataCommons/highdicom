@@ -1554,6 +1554,117 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert len(gsps.SoftcopyVOILUTSequence) == 1
         assert len(gsps.SoftcopyVOILUTSequence[0].VOILUTSequence) == 2
 
+    def test_construction_with_copy_voi_lut_data_shared(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        # This file has no VOI LUT info
+        ct_im = dcmread(data_dir / 'test_files/ct_image.dcm')
+        ct_ims = []
+        for i in range(3):
+            im = deepcopy(ct_im)
+            im.SOPInstanceUID = UID(f'1.2.3.4.{i}')
+            im.VOILUTSequence = [
+                VOILUT(0, np.array([2, 3, 4], np.uint16)),
+            ]
+            ct_ims.append(im)
+        # A different LUT for the last image
+        ct_ims[2].VOILUTSequence = [
+            VOILUT(0, np.array([5, 6, 7], np.uint16)),
+        ]
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=ct_ims,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            concept_name=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John'
+        )
+        assert len(gsps.SoftcopyVOILUTSequence) == 2
+        item_0, item_1 = gsps.SoftcopyVOILUTSequence
+        assert [
+            ref.ReferencedSOPInstanceUID
+            for ref in item_0.ReferencedImageSequence
+        ] == ['1.2.3.4.0', '1.2.3.4.1']
+        np.testing.assert_array_equal(
+            item_0.VOILUTSequence[0].lut_data,
+            [2, 3, 4],
+        )
+        assert [
+            ref.ReferencedSOPInstanceUID
+            for ref in item_1.ReferencedImageSequence
+        ] == ['1.2.3.4.2']
+        np.testing.assert_array_equal(
+            item_1.VOILUTSequence[0].lut_data,
+            [5, 6, 7],
+        )
+
+    def test_construction_with_copy_voi_lut_data_us(self):
+        # This file has a VOI LUT Sequence whose LUT Data has VR US
+        im = dcmread(get_testdata_file('vlut_04.dcm'))
+        assert im.VOILUTSequence[0]['LUTData'].VR == 'US'
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=[im],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            concept_name=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John'
+        )
+        assert len(gsps.SoftcopyVOILUTSequence) == 1
+        luts = gsps.SoftcopyVOILUTSequence[0].VOILUTSequence
+        assert len(luts) == 1
+        assert luts[0].LUTDescriptor == im.VOILUTSequence[0].LUTDescriptor
+        np.testing.assert_array_equal(
+            luts[0].lut_data,
+            im.VOILUTSequence[0].LUTData,
+        )
+
+    def test_construction_with_copy_voi_lut_data_8bit_padded(self):
+        file_path = Path(__file__)
+        data_dir = file_path.parent.parent.joinpath('data')
+        # This file has no VOI LUT info
+        ct_im = dcmread(data_dir / 'test_files/ct_image.dcm')
+        # 8 bit LUT with an odd number of entries, LUT Data is padded to
+        # an even length
+        lut = VOILUT(0, np.array([2, 3, 4], np.uint8))
+        lut.LUTData = lut.LUTData + b'\x00'
+        ct_im.VOILUTSequence = [lut]
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=[ct_im],
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            concept_name=codes.DCM.PresentationState,
+            institution_name='MGH',
+            institutional_department_name='Radiology',
+            content_creator_name='Doe^John'
+        )
+        luts = gsps.SoftcopyVOILUTSequence[0].VOILUTSequence
+        assert luts[0].LUTDescriptor == [3, 0, 8]
+        np.testing.assert_array_equal(luts[0].lut_data, [2, 3, 4])
+
     def test_construction_with_copy_voi_lut_multiframe(self):
         gsps = GrayscaleSoftcopyPresentationState(
             referenced_images=[self._ct_multiframe],
