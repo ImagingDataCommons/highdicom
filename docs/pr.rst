@@ -112,12 +112,12 @@ the presentation state as without it.
 Advanced Blending Presentation States
 -------------------------------------
 
-Graphic Objects, Layers and Annotations
----------------------------------------
+Graphic and Text Objects
+------------------------
 
-A presentation state may contain any number of Graphic Objects and Text
-Objects. These are grouped into Graphic Annotations, each of which relates to a
-single Graphic Layer.
+There are two basic "building blocks" used to store annotations in Presentation
+States: Graphic Objects and Text Objects. A presentation state may contain any
+number of Graphic Objects and Text Objects.
 
 Graphic Objects
 ~~~~~~~~~~~~~~~
@@ -184,10 +184,99 @@ Some examples of constructing Graphic Objects are given below:
 Text Objects
 ~~~~~~~~~~~~
 
+Text Objects are used to draw text overlays over the image. They are
+represented by the class :class:`highdicom.pr.TextObject`, whose constructor
+takes the following parameters:
+
+- ``text_value`` (``str``): This is the actual string that you want to display
+- ``bounding_box`` (``tuple[float, float, float, float]``): Coordinates of the
+  bounding box in which the text should be displayed, given in the following
+  order [left, top, right, bottom], where 'left' and 'right' are the horizontal
+  offsets of the left and right sides of the box, respectively, and 'top' and
+  'bottom' are the vertical offsets of the upper and lower sides of the box.
+- ``anchor_point`` (``tuple[float, float]``): Location of a point in the image
+  to which the text value is related, given as a (Column, Row) pair. This gives
+  the viewer some freedom regarding how exactly the text is displayed relative
+  to the anchor point.
+- ``units`` (:class:`highdicom.pr.AnnotationUnitsValues` or ``str``): The units
+  in which the coordinates of the bounding box and/or anchor point are
+  expressed.
+
+The location of the text must be defined using either ``bounding_box`` or
+``anchor_point``, and not both.
+
+Further optional parameters include:
+
+- ``anchor_point_visible`` (``bool``): Whether the relationship between the
+  anchor point and the text should be displayed in the image, for example via a
+  line or arrow. By default, the anchor point is show. This parameter is
+  ignored if the ``anchor_point`` is not provided.
+- ``tracking_id`` (``str``): User defined text identifier for tracking this
+  finding or feature. Shall be unique within the domain in which it is used.
+- ``tracking_uid`` (``str``): Unique identifier for tracking this finding or
+  feature.
+
+Some examples of constructing Text Objects are given below:
+
+.. code-block:: python
+
+    import highdicom as hd
+
+    # Text Object using a bounding box
+    text1 = hd.pr.TextObject(
+        text_value="Suspected lesion",
+        bounding_box=(100, 500, 150, 550),  # coordinates of bounding box
+        units=hd.pr.AnnotationUnitsValues.PIXEL,  # units for bounding box
+    )
+
+    # Text Object using an anchor point and with tracking information
+    text2 = hd.pr.TextObject(
+        text_value="Biopsy clip",
+        anchor_point=(250, 300),  # coordinates of bounding box
+        units=hd.pr.AnnotationUnitsValues.PIXEL,  # units for bounding box
+        tracking_id='Clip-001',  # site-specific ID
+        tracking_uid=hd.UID()  # highdicom will generate a unique ID
+    )
+
+Graphic Annotations, Graphic Layers, and Graphic Groups
+-------------------------------------------------------
+
+Graphic Objects and Text Objects are grouped together in multiple ways within a
+Presentation State to create Graphic Annotations, Graphic Layers, and Graphic
+Groups. Graphic Annotations actually contain the objects within the structure
+of the Presentation State file. Graphic Layers define which objects are rendered
+above or below other objects. Graphic Groups are optional, and provide a way
+to logically group objects in different layers that belong together.
+
+Graphic Layers
+~~~~~~~~~~~~~~
+
+
+
 Graphic Annotations
 ~~~~~~~~~~~~~~~~~~~
 
-Graphic Layers
+Graphic Objects and Text Objects are grouped together within items of the
+Graphic Annotation Sequence. In highdicom we use the
+:class:`highdicom.pr.GraphicAnnotation` class to represent these items. Any
+number and combination of Graphic Objects and/or Text Objects may be placed
+together in a Graphic Annotation, provided that there is at least one object
+in total.
+
+All objects within a Graphic Annotation belong to the same Graphic Layer (see
+below) and are rendered over the same image or image frame (or set of images or
+image frames).
+
+To construct a Graphic Annotation, pass the list of images to which the
+annotations apply, the Graphic Layer object to which the objects in this
+annotation belong, and the objects themselves.
+
+WHAT TO DO IF THEY APPLY TO ALL???
+
+
+ADD AN EXAMPLE
+
+Graphic Groups
 ~~~~~~~~~~~~~~
 
 Constructing Presentation States
@@ -277,4 +366,3 @@ A full example of creating a GSPS is given below:
 
     # Save the GSPS file
     gsps.save_as('gsps.dcm')
-
