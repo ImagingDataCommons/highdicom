@@ -1797,7 +1797,7 @@ class ReferencedImageSequence(DataElementSequence):
 
     def __init__(
         self,
-        referenced_images: Sequence[Dataset] | None = None,
+        referenced_images: Sequence[Dataset],
         referenced_frame_number: int | Sequence[int] | None = None,
         referenced_segment_number: int | Sequence[int] | None = None,
     ):
@@ -1806,9 +1806,7 @@ class ReferencedImageSequence(DataElementSequence):
         Parameters
         ----------
         referenced_images: Union[Sequence[pydicom.Dataset], None], optional
-            Images to which the VOI LUT described in this dataset applies. Note
-            that if unspecified, the VOI LUT applies to every image referenced
-            in the presentation state object that this dataset is included in.
+            List of images to be referenced.
         referenced_frame_number: Union[int, Sequence[int], None], optional
             Frame number(s) within a referenced multiframe image to which this
             VOI LUT applies.

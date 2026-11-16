@@ -32,7 +32,6 @@ For questions, suggestions, or to report bugs, please use the issue tracker on o
    usage
    development
    code_of_conduct
-   conformance
    citation
    license
    release_notes
