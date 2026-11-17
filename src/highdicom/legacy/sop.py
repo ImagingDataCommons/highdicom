@@ -46,6 +46,7 @@ from highdicom.content import VOILUTTransformation
 from highdicom.enum import PhotometricInterpretationValues
 from highdicom.frame import encode_frame, get_lossy_compression_attributes
 from highdicom.image import Image, _Image
+from highdicom.legacy.config import HarmonizationConfig
 from highdicom.spatial import get_series_volume_positions
 from highdicom.sr import CodedConcept
 from highdicom.uid import UID as hd_UID
@@ -170,6 +171,33 @@ def _istag_group_length(t: BaseTag) -> bool:
     return t.element == 0
 
 
+def _normalize_private_tag(t: BaseTag, ds: Dataset) -> tuple[str, BaseTag]:
+    """Get a normalized representation of a private tag.
+
+    Parameters
+    ----------
+    t: pydicom.tag.BaseTag
+        The tag in question
+    ds: pydicom.Dataset
+        The dataset that the tag is drawn from.
+
+    Returns
+    -------
+    str:
+        Private creator name
+    pydicom.BaseTag:
+        Normalized version of the tag, removing the variable bits (first two
+        hex digits in the element part of the tag).
+
+    """
+    creator_tag = t.private_creator
+    if creator_tag not in ds:
+        creator_name = "UNKNOWN_CREATOR"
+    else:
+        creator_name = ds[t.private_creator].value
+    return creator_name, BaseTag(t & 0xFFFF_00FF)
+
+
 def _read_ambiguous_vr(dataset: Dataset, kw: str) -> int:
     """Read attribute from dataset while coercing ambiguous VR.
 
@@ -284,6 +312,26 @@ def _get_dimension_index_sequence_item(
     return index_ds
 
 
+def _get_allowed_functional_groups(
+    modality: str,
+    include_enhanced_groups: bool,
+) -> set[str]:
+    modules = [
+        f'legacy-converted-enhanced-{modality}-image-multi-frame-functional-groups'
+    ]
+    if include_enhanced_groups:
+        modules.append(f'enhanced-{modality}-image-multi-frame-functional-groups')
+
+    sequences = set()
+    for m in modules:
+        tree = construct_module_tree(m)
+        sequences.update(
+            tree['attributes']['PerFrameFunctionalGroupsSequence']['attributes'].keys()
+        )
+
+    return sequences
+
+
 @dataclass
 class _AttributeConfig:
     """Configuration for how to copy an attribute to the converted instance.
@@ -340,6 +388,7 @@ class _LegacyConversionRunner:
         require_volume: bool = False,
         include_dimension_index: bool | None = None,
         include_enhanced_groups: bool = True,
+        harmonization_configs: list[HarmonizationConfig] | None = None,
         strict: bool = False,
         skip_private_attributes: bool = False,
         workers: int | Executor = 0,
@@ -406,6 +455,8 @@ class _LegacyConversionRunner:
             do not belong in them are placed into the
             UnassignedSharedConvertedAttributesSequence or
             UnassignedPerFrameConvertedAttributesSequence.
+        harmonization_configs: list[highdicom.legacy.config.HarmonizationConfig] | None, optional
+            Harmonization configs with attributes in this functional group.
         strict: bool, optional
             Whether to use strict requirements on the new converted dataset. If
             True and any attributes required to create a standard-compliant
@@ -429,8 +480,31 @@ class _LegacyConversionRunner:
         self._use_extended_offset_table = use_extended_offset_table
         self._keyword_shared_dict: dict[str, bool] = {}
         self._unused_keywords: set[str] = set()
-        self._private_tag_shared_dict: dict[BaseTag, bool]
+        self._private_tag_shared_dict: dict[
+            tuple[str, BaseTag], tuple[BaseTag, bool]
+        ]
         self._dimension_index_values: list[list[int]] | None = None
+
+        modality = {
+            LegacyConvertedEnhancedPETImageStorage: "pet",
+            LegacyConvertedEnhancedCTImageStorage: "ct",
+            LegacyConvertedEnhancedMRImageStorage: "mr",
+        }[self._destination.SOPClassUID]
+
+        if harmonization_configs is None:
+            harmonization_configs = []
+
+        allowed_func_groups = _get_allowed_functional_groups(
+            modality,
+            include_enhanced_groups=include_enhanced_groups
+        )
+        for h_cfg in harmonization_configs:
+            if h_cfg.destination_sequence_keyword not in allowed_func_groups:
+                raise ValueError(
+                    "Harmonization configuration uses an inappropriate "
+                    f"functional group: {h_cfg.destination_sequence_keyword}.."
+                )
+        self._harmonization_configs = harmonization_configs
 
         (self._keyword_shared_dict, self._private_tag_shared_dict) = (
             self._find_shared_and_perframe_attributes()
@@ -1018,7 +1092,10 @@ class _LegacyConversionRunner:
 
     def _find_shared_and_perframe_attributes(
         self,
-    ) -> tuple[dict[str, bool], dict[BaseTag, bool]]:
+    ) -> tuple[
+        dict[str, bool],
+        dict[tuple[str, BaseTag], tuple[BaseTag, bool]]
+    ]:
         """Find attributes present in any dataset and whether they are shared.
 
         Returns
@@ -1028,55 +1105,60 @@ class _LegacyConversionRunner:
             any dataset. The corresponding value is a boolean that indicates
             whether that tag is consistent (in presence and value) across all
             datasets.
-        private_tag_shared_dict: dict[pydicom.tag.BaseTag, bool]
-            Dictionary whose keys include all (standard) keywords present in
-            any dataset. The corresponding value is a boolean that indicates
-            whether that tag is consistent (in presence and value) across all
-            datasets.
+        private_tag_shared_dict: dict[tuple[str, pydicom.BaseTag], tuple[pydicom.BaseTag, bool]]
+            Dictionary whose keys are "normalized" private tag present in any
+            dataset. The normalized tag consists of a tuple containing the
+            private creator str and a bitmasked version of the tag that removes
+            the bits indicating the specific location the tag was placed in
+            this dataset. This combination should be consistent across datasets
+            even if conflicting sets of private tags led to some tags being
+            moved to higher tags.
 
-        """
-        all_keywords_present = set()
-        all_private_tags_present = set()
+            The corresponding value is a tuple containing the original
+            (unnormalized) tag and boolean that indicates whether that tag is
+            consistent (in presence, value and location) across all datasets.
+
+        """  # noqa: E501
+        standard_values_by_keyword: dict[str, list[Any]] = defaultdict(list)
+        private_values_by_creator_tag: dict[
+            tuple[str, BaseTag, BaseTag], list[Any]
+        ] = defaultdict(list)
         for ds in self._legacy_datasets:
-            for t in ds.keys():
+            for e in ds:
                 if (
-                    not _istag_file_meta_information_group(t) and not
-                    _istag_repeating_group(t) and not
-                    _istag_group_length(t)
+                    not _istag_file_meta_information_group(e.tag) and not
+                    _istag_repeating_group(e.tag) and not
+                    _istag_group_length(e.tag) and
+                    e.tag != 0x7FE0_0010  # PixelData
                 ):
-                    if t.is_private and not self._skip_private_attributes:
-                        if not t.is_private_creator:
-                            all_private_tags_present.add(t)
+                    if e.tag.is_private and not self._skip_private_attributes:
+                        if not e.tag.is_private_creator:
+                            private_values_by_creator_tag[
+                                (*_normalize_private_tag(e.tag, ds), e.tag)
+                            ].append(e.value)
                     else:
-                        all_keywords_present.add(keyword_for_tag(t))
+                        kw = keyword_for_tag(e.tag)
+                        standard_values_by_keyword[kw].append(e.value)
 
-        keyword_shared_dict: dict[str, bool] = {}
+        keyword_shared_dict = {
+            kw: (
+                len(values) == len(self._legacy_datasets) and
+                all(v == values[0] for v in values)
+            )
+            for kw, values in standard_values_by_keyword.items()
+        }
 
-        for kw in all_keywords_present:
-            present_in_all = all(kw in ds for ds in self._legacy_datasets)
-
-            same_value_in_all = False
-            if present_in_all:
-                ref_val = getattr(self._legacy_datasets[0], kw)
-                same_value_in_all = all(
-                    getattr(ds, kw) == ref_val for ds in self._legacy_datasets
+        private_tag_shared_dict = {
+            (c, n): (
+                t,
+                (
+                    len(vals) >= 1 and
+                    len(vals) == len(self._legacy_datasets) and
+                    all(v == vals[0] for v in vals)
                 )
-
-            keyword_shared_dict[kw] = present_in_all and same_value_in_all
-
-        private_tag_shared_dict: dict[BaseTag, bool] = {}
-
-        for t in all_private_tags_present:
-            present_in_all = all(t in ds for ds in self._legacy_datasets)
-
-            same_value_in_all = False
-            if present_in_all:
-                ref_val = self._legacy_datasets[0][t].value
-                same_value_in_all = all(
-                    ds[t].value == ref_val for ds in self._legacy_datasets
-                )
-
-            private_tag_shared_dict[t] = present_in_all and same_value_in_all
+            )
+            for (c, n, t), vals in private_values_by_creator_tag.items()
+        }
 
         return keyword_shared_dict, private_tag_shared_dict
 
@@ -1560,6 +1642,7 @@ class _LegacyConversionRunner:
         destination: Dataset,
         sequence_name: str,
         attribute_configs: list[_AttributeConfig],
+        harmonization_configs: list[HarmonizationConfig] | None = None,
         custom_logic_callback: Callable[[Dataset, Dataset], None] | None = None,
     ) -> None:
         """
@@ -1573,6 +1656,8 @@ class _LegacyConversionRunner:
             Name of the sequence where the functional group will be placed.
         attribute_configs: list[highdicom.legacy.sop._AttributeConfig]
             Configurations for each attribute to place into the sequence.
+        harmonization_configs: list[highdicom.legacy.config.HarmonizationConfig] | None, optional
+            Harmonization configs with attributes in this functional group.
         custom_logic_callback: Callable[[pydicom.Dataset, pydicom.Dataset], None] | None
             Callback implementing custom logic to call after the other parameters
             have been copied. Takes the source and destination datasets as input
@@ -1599,6 +1684,27 @@ class _LegacyConversionRunner:
                 # default value if there is one
                 if a_cfg.default_val is not None:
                     setattr(item, a_cfg.dest_kw, a_cfg.default_val)
+
+        for h_cfg in (harmonization_configs or []):
+            params = []
+            for t in h_cfg.source_tags:
+                if t.is_private:
+                    tup = (cast(str, h_cfg.private_creator_name), t)
+                    location_tag = self._private_tag_shared_dict[tup][0]
+                else:
+                    location_tag = t
+
+                if location_tag in source:
+                    params.append(source[location_tag].value)
+
+            if len(params) == len(h_cfg.source_tags):
+                if h_cfg.mapping is None:
+                    out = params[0]
+                else:
+                    out = h_cfg.mapping(*params)
+
+                if out is not None:
+                    setattr(item, h_cfg.destination_keyword, out)
 
         if custom_logic_callback is not None:
             custom_logic_callback(source, item)
@@ -1650,7 +1756,7 @@ class _LegacyConversionRunner:
         # If any attribute is per-frame, the whole functional group is
         # per-frame
         any_attr_is_per_frame = False
-        any_attr_exists = False
+        any_attr_has_source = False
         all_required_attrs_exist = True
         for configs, required_attr in zip(
             [required_attributes, optional_attributes], [True, False]
@@ -1658,13 +1764,13 @@ class _LegacyConversionRunner:
             for a_cfg in configs:
                 for kw in a_cfg.get_source_keywords():
                     if kw in self._keyword_shared_dict:
-                        any_attr_exists = True
+                        any_attr_has_source = True
                         if not self._keyword_shared_dict[kw]:
                             any_attr_is_per_frame = True
                         break
                 else:
                     if a_cfg.default_val is not None:
-                        any_attr_exists = True
+                        any_attr_has_source = True
                     elif required_attr:
                         all_required_attrs_exist = False
                         if required:
@@ -1685,7 +1791,35 @@ class _LegacyConversionRunner:
                                 )
                                 logger.warning(msg)
 
-        if not required and not all_required_attrs_exist:
+        harmonization_configs = []
+        for h_cfg in self._harmonization_configs:
+            if h_cfg.destination_sequence_keyword != sequence_name:
+                continue
+
+            all_harmonization_sources_exist = True
+            any_harmonization_source_is_per_frame = False
+            for t in h_cfg.source_tags:
+                if t.is_private:
+                    tup = (cast(str, h_cfg.private_creator_name), t)
+                    if tup in self._private_tag_shared_dict:
+                        if not self._private_tag_shared_dict[tup][1]:
+                            any_harmonization_source_is_per_frame = True
+                    else:
+                        all_harmonization_sources_exist = False
+                else:
+                    kw = keyword_for_tag(t)
+                    if kw in self._keyword_shared_dict:
+                        if not self._keyword_shared_dict[kw]:
+                            any_harmonization_source_is_per_frame = True
+                    else:
+                        all_harmonization_sources_exist = False
+
+            if all_harmonization_sources_exist:
+                any_attr_has_source = True
+                any_attr_is_per_frame |= any_harmonization_source_is_per_frame
+                harmonization_configs.append(h_cfg)
+
+        if self._strict and not required and not all_required_attrs_exist:
             # Do not include this functional group. Nothing more to do
             return
 
@@ -1704,8 +1838,9 @@ class _LegacyConversionRunner:
                     sequence_name=sequence_name,
                     attribute_configs=attribute_configs,
                     custom_logic_callback=custom_logic_callback,
+                    harmonization_configs=harmonization_configs,
                 )
-        elif any_attr_exists or required:
+        elif any_attr_has_source or required:
             # Use the shared functional groups
             self._copy_to_functional_group(
                 source=self._legacy_datasets[0],
@@ -1713,6 +1848,7 @@ class _LegacyConversionRunner:
                 sequence_name=sequence_name,
                 attribute_configs=attribute_configs,
                 custom_logic_callback=custom_logic_callback,
+                harmonization_configs=harmonization_configs,
             )
 
         # Else nothing to copy
@@ -2201,7 +2337,7 @@ class _LegacyConversionRunner:
         if any(
             not self._keyword_shared_dict[kw] for kw in self._unused_keywords
         ) or any(
-            not shared for shared in self._private_tag_shared_dict.values()
+            not shared for (_, shared) in self._private_tag_shared_dict.values()
         ):
             for pffg in self._destination.PerFrameFunctionalGroupsSequence:
                 pffg.UnassignedPerFrameConvertedAttributesSequence = [Dataset()]
@@ -2230,7 +2366,7 @@ class _LegacyConversionRunner:
                         )
 
         # Private tags (these will all be unused at this stage)
-        for t, shared in self._private_tag_shared_dict.items():
+        for (t, shared) in self._private_tag_shared_dict.values():
             if shared:
                 self._copy_private_attribute(
                     t,
@@ -2747,6 +2883,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
         skip_private_attributes: bool = False,
         include_dimension_index: bool | None = None,
         include_enhanced_groups: bool = True,
+        harmonization_configs: list[HarmonizationConfig] | None = None,
         contributing_equipment: Sequence[ContributingEquipment] | None = None,
         use_extended_offset_table: bool = False,
         workers: int | Executor = 0,
@@ -2831,6 +2968,8 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             do not belong in them are placed into the
             UnassignedSharedConvertedAttributesSequence or
             UnassignedPerFrameConvertedAttributesSequence.
+        harmonization_configs: list[highdicom.legacy.config.HarmonizationConfig] | None, optional
+            Harmonization configs with attributes in this functional group.
         contributing_equipment: Sequence[highdicom.ContributingEquipment] | None, optional
             Additional equipment that has contributed to the acquisition,
             creation or modification of this instance.
@@ -2935,6 +3074,7 @@ class _CommonLegacyConvertedEnhancedImage(Image):
             transfer_syntax_uid=transfer_syntax_uid,
             include_dimension_index=include_dimension_index,
             include_enhanced_groups=include_enhanced_groups,
+            harmonization_configs=harmonization_configs,
             strict=strict,
             skip_private_attributes=skip_private_attributes,
             use_extended_offset_table=use_extended_offset_table,
