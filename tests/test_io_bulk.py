@@ -250,26 +250,24 @@ def test_read_frames_compressed_and_file_like():
 
 
 def test_read_frames_bitpacked_and_float_pixel_data():
-    bits = np.array([
-        [[True, False, True], [False, True, False], [True, True, False]],
-        [[False, True, False], [True, False, True], [False, False, True]],
-    ])
-    floats = np.array([
-        [[0.5, 1.5], [2.5, 3.5]],
-        [[4.5, 5.5], [6.5, 7.5]],
-    ], dtype=np.float32)
+    bits = (np.arange(5 * 3 * 3).reshape(5, 3, 3) % 2) == 0
+    floats = (
+        np.arange(5 * 2 * 2, dtype=np.float32).reshape(5, 2, 2) + 0.5
+    )
     with TemporaryDirectory() as temp_dir:
         bit_path = Path(temp_dir) / 'bits.dcm'
         float_path = Path(temp_dir) / 'float.dcm'
         _write_native_dataset(bit_path, bits)
         _write_native_dataset(float_path, floats)
         with ImageFileReader(bit_path) as reader:
-            bit_frames = reader.read_frames(indices=[1, 0])
+            bit_frames = reader.read_frames(indices=[4, 1, 4, 0, 3])
         with ImageFileReader(float_path) as reader:
-            float_frames = reader.read_frames(indices=[1, 0])
-        np.testing.assert_array_equal(np.stack(bit_frames), bits[[1, 0]])
+            float_frames = reader.read_frames(indices=[4, 1, 4, 0, 3])
         np.testing.assert_array_equal(
-            np.stack(float_frames), floats[[1, 0]]
+            np.stack(bit_frames), bits[[4, 1, 4, 0, 3]]
+        )
+        np.testing.assert_array_equal(
+            np.stack(float_frames), floats[[4, 1, 4, 0, 3]]
         )
 
 
@@ -305,6 +303,8 @@ def test_lazy_image_methods_use_selective_reader_path():
         displayed = image.get_frames([4, 2], as_indices=False, dtype=np.uint8)
         np.testing.assert_array_equal(stored, pixels[[3, 1]])
         np.testing.assert_array_equal(displayed, pixels[[3, 1]])
+        displayed_all = image.get_frames(dtype=np.uint8)
+        np.testing.assert_array_equal(displayed_all, pixels)
 
         assembled = image._get_pixels_by_frame(
             2,
