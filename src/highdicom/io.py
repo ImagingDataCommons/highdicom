@@ -6,7 +6,7 @@ import traceback
 from typing_extensions import Self
 from pathlib import Path
 import weakref
-from typing import BinaryIO
+from typing import BinaryIO, Iterable
 
 import numpy as np
 import pydicom
@@ -23,6 +23,7 @@ from pydicom.filereader import (
     dcmread,
     read_partial,
 )
+from pydicom.pixels import iter_pixels
 from pydicom.tag import (
     ItemTag,
     SequenceDelimiterTag,
@@ -752,6 +753,49 @@ class ImageFileReader:
 
         return frame_data
 
+    def read_raw_frames(
+        self,
+        indices: Iterable[int] | None = None,
+    ) -> list[bytes]:
+        """Read the encoded pixel data for multiple frames.
+
+        Parameters
+        ----------
+        indices: Iterable[int], optional
+            Zero-based frame indices to return, in the requested order. If
+            omitted, all frames are returned in file order. Repeated indices
+            are returned repeatedly. An empty iterable returns an empty list.
+
+        Returns
+        -------
+        list[bytes]
+            Encoded frame items, with the same meaning as
+            :meth:`read_frame_raw`.
+
+        Raises
+        ------
+        ValueError
+            When an index is outside the range of available frames.
+
+        Notes
+        -----
+        This method returns transfer-syntax encoded bytes, not NumPy arrays.
+        It is therefore selective and does not invoke a pixel decoder.
+        """
+        if indices is None:
+            frame_indices = list(range(self.number_of_frames))
+        else:
+            frame_indices = list(indices)
+
+        for index in frame_indices:
+            if index < 0 or index >= self.number_of_frames:
+                raise ValueError(
+                    'Frame index must be greater than or equal to 0 and less '
+                    'than the number of frames in the image.'
+                )
+
+        return [self.read_frame_raw(index) for index in frame_indices]
+
     def read_frame(self, index: int, correct_color: bool = True) -> np.ndarray:
         """Reads and decodes the pixel data of an individual frame item.
 
@@ -824,6 +868,93 @@ class ImageFileReader:
             return self._color_manager.transform_frame(frame_array)
 
         return frame_array
+
+    def read_frames(
+        self,
+        indices: Iterable[int] | None = None,
+        correct_color: bool = True,
+    ) -> list[np.ndarray]:
+        """Reads and decodes multiple frames in one bulk operation.
+
+        This is an opt-in alternative to :meth:`read_frame` for callers that
+        consume most or all frames.  The existing frame-level method remains
+        lazy and is preferable for random access or low-memory streaming.
+
+        Parameters
+        ----------
+        indices: Iterable[int], optional
+            Zero-based frame indices to return, in the requested order. If
+            omitted, all frames are returned in file order. Only the requested
+            frames are decoded.
+        correct_color: bool, optional
+            Whether colors should be corrected by applying an ICC
+            transformation. This has the same semantics as
+            :meth:`read_frame`.
+
+        Returns
+        -------
+        list[numpy.ndarray]
+            Decoded frames in the requested order. A single-frame image
+            returns a one-item list.
+
+        Raises
+        ------
+        ValueError
+            When an index is less than 0 or greater than or equal to the
+            number of frames.
+        OSError
+            When pixel data cannot be decoded.
+
+        Notes
+        -----
+        pydicom's frame iterator is called with the requested indices and
+        ``raw=False`` to preserve :meth:`read_frame`'s RGB output for YBR
+        images. Consequently, a small selection does not decode the
+        unrequested frames. ICC correction, when requested, is applied by
+        highdicom after decoding.
+        """
+        if indices is None:
+            frame_indices = list(range(self.number_of_frames))
+        else:
+            frame_indices = list(indices)
+
+        for index in frame_indices:
+            if index < 0 or index >= self.number_of_frames:
+                raise ValueError(
+                    'Frame index must be greater than or equal to 0 and less '
+                    'than the number of frames in the image.'
+                )
+
+        if self._filename is not None:
+            source = self._filename
+            frames = list(iter_pixels(source, indices=frame_indices, raw=False))
+        else:
+            # pydicom expects a file-like source positioned at the start of
+            # the Part 10 file. Restore the caller-visible position after the
+            # selective read so this opt-in method does not disturb frame
+            # access.
+            position = self._fp.tell()
+            try:
+                self._fp.seek(0)
+                frames = list(
+                    iter_pixels(self._fp, indices=frame_indices, raw=False)
+                )
+            finally:
+                self._fp.seek(position)
+
+        if correct_color and self.metadata.SamplesPerPixel > 1:
+            if self._color_manager is None:
+                raise ValueError(
+                    'Cannot correct color because the image does either not '
+                    'contain an ICC Profile or contains a malformatted ICC '
+                    'Profile. See logged warning messages for details.'
+                )
+            frames = [
+                self._color_manager.transform_frame(frame)
+                for frame in frames
+            ]
+
+        return frames
 
     @property
     def number_of_frames(self) -> int:

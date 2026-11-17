@@ -4643,6 +4643,20 @@ class _Image(SOPClass):
                 frame_numbers = range(0, self.number_of_frames)
             else:
                 frame_numbers = range(1, self.number_of_frames + 1)
+        else:
+            frame_numbers = list(frame_numbers)
+
+        if self._pixel_array is None and self._file_reader is not None:
+            frame_indices = [
+                self._standardize_frame_index(frame_number, as_indices)
+                for frame_number in frame_numbers
+            ]
+            with self._file_reader:
+                frames = self._file_reader.read_frames(
+                    frame_indices,
+                    correct_color=False,
+                )
+            return np.stack(frames)
 
         context_manager = (
             self._file_reader
@@ -4992,6 +5006,8 @@ class _Image(SOPClass):
                 frame_numbers = range(0, self.number_of_frames)
             else:
                 frame_numbers = range(1, self.number_of_frames + 1)
+        else:
+            frame_numbers = list(frame_numbers)
 
         shared_frame_transform = _CombinedPixelTransform(
             self,
@@ -5007,6 +5023,18 @@ class _Image(SOPClass):
             output_dtype=dtype,
         )
 
+        decoded_frames = None
+        if self._pixel_array is None and self._file_reader is not None:
+            frame_indices = [
+                self._standardize_frame_index(frame_number, as_indices)
+                for frame_number in frame_numbers
+            ]
+            with self._file_reader:
+                decoded_frames = self._file_reader.read_frames(
+                    frame_indices,
+                    correct_color=False,
+                )
+
         context_manager = (
             self._file_reader
             if self._file_reader is not None
@@ -5017,7 +5045,7 @@ class _Image(SOPClass):
         with context_manager:
 
             # loop through output frames
-            for frame_number in frame_numbers:
+            for frame_position, frame_number in enumerate(frame_numbers):
 
                 frame_index = self._standardize_frame_index(
                     frame_number,
@@ -5042,7 +5070,11 @@ class _Image(SOPClass):
                         output_dtype=dtype,
                     )
 
-                if self._pixel_array is None:
+                if decoded_frames is not None:
+                    frame = frame_transform(
+                        decoded_frames[frame_position], frame_index
+                    )
+                elif self._pixel_array is None:
                     if self._file_reader is not None:
                         frame_bytes = self._file_reader.read_frame_raw(
                             frame_index
@@ -7064,6 +7096,17 @@ class _Image(SOPClass):
             output_dtype=dtype,
         )
 
+        indices_iterator = list(indices_iterator)
+
+        decoded_frames = None
+        if self._pixel_array is None and self._file_reader is not None:
+            frame_indices = [item[0] for item in indices_iterator]
+            with self._file_reader:
+                decoded_frames = self._file_reader.read_frames(
+                    frame_indices,
+                    correct_color=False,
+                )
+
         # Initialize empty pixel array
         if isinstance(spatial_shape, tuple):
             initial_shape = spatial_shape
@@ -7092,12 +7135,12 @@ class _Image(SOPClass):
         with context_manager:
 
             # loop through output frames
-            for (
+            for frame_position, (
                 frame_index,
                 input_indexer,
                 spatial_indexer,
                 channel_indexer
-            ) in indices_iterator:
+            ) in enumerate(indices_iterator):
 
                 if shared_frame_transform.applies_to_all_frames:
                     frame_transform = shared_frame_transform
@@ -7127,7 +7170,11 @@ class _Image(SOPClass):
                 else:
                     output_indexer = (*spatial_indexer, *channel_indexer)
 
-                if self._pixel_array is None:
+                if decoded_frames is not None:
+                    frame = frame_transform(
+                        decoded_frames[frame_position], frame_index
+                    )
+                elif self._pixel_array is None:
                     if self._file_reader is not None:
                         frame_bytes = self._file_reader.read_frame_raw(
                             frame_index
