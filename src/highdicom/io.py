@@ -39,6 +39,8 @@ from highdicom.uid import UID as hd_UID
 
 logger = logging.getLogger(__name__)
 
+_BULK_FRAME_MINIMUM = 5
+
 
 _FLOAT_PIXEL_DATA_TAGS = {0x7FE00008, 0x7FE00009, }
 _UINT_PIXEL_DATA_TAGS = {0x7FE00010, }
@@ -925,9 +927,36 @@ class ImageFileReader:
                     'than the number of frames in the image.'
                 )
 
+        # For very small selections, decoder setup and metadata parsing can
+        # cost more than the per-frame path. Keep those requests bounded and
+        # use the established single-frame implementation.
+        if len(frame_indices) < _BULK_FRAME_MINIMUM:
+            return [
+                self.read_frame(index, correct_color=correct_color)
+                for index in frame_indices
+            ]
+
+        return list(self._iter_decoded_frames(frame_indices, correct_color))
+
+    def _iter_decoded_frames(
+        self,
+        indices: Iterable[int],
+        correct_color: bool,
+    ) -> Iterable[np.ndarray]:
+        """Yield selected decoded frames without retaining the selection."""
+        def validate(index: int) -> int:
+            if index < 0 or index >= self.number_of_frames:
+                raise ValueError(
+                    'Frame index must be greater than or equal to 0 and less '
+                    'than the number of frames in the image.'
+                )
+            return index
+
+        frame_indices = (validate(index) for index in indices)
+
         if self._filename is not None:
             source = self._filename
-            frames = list(iter_pixels(source, indices=frame_indices, raw=False))
+            frames = iter_pixels(source, indices=frame_indices, raw=False)
         else:
             # pydicom expects a file-like source positioned at the start of
             # the Part 10 file. Restore the caller-visible position after the
@@ -936,12 +965,22 @@ class ImageFileReader:
             position = self._fp.tell()
             try:
                 self._fp.seek(0)
-                frames = list(
-                    iter_pixels(self._fp, indices=frame_indices, raw=False)
+                frames = iter_pixels(
+                    self._fp, indices=frame_indices, raw=False
                 )
+                yield from self._apply_color_to_frames(frames, correct_color)
+                return
             finally:
                 self._fp.seek(position)
 
+        yield from self._apply_color_to_frames(frames, correct_color)
+
+    def _apply_color_to_frames(
+        self,
+        frames: Iterable[np.ndarray],
+        correct_color: bool,
+    ) -> Iterable[np.ndarray]:
+        """Apply the reader's optional ICC transform while streaming."""
         if correct_color and self.metadata.SamplesPerPixel > 1:
             if self._color_manager is None:
                 raise ValueError(
@@ -949,12 +988,10 @@ class ImageFileReader:
                     'contain an ICC Profile or contains a malformatted ICC '
                     'Profile. See logged warning messages for details.'
                 )
-            frames = [
-                self._color_manager.transform_frame(frame)
-                for frame in frames
-            ]
-
-        return frames
+            for frame in frames:
+                yield self._color_manager.transform_frame(frame)
+        else:
+            yield from frames
 
     @property
     def number_of_frames(self) -> int:

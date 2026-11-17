@@ -4,7 +4,7 @@ from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from enum import Enum
-from itertools import chain
+from itertools import chain, tee
 import logging
 from os import PathLike
 import sqlite3
@@ -7096,16 +7096,16 @@ class _Image(SOPClass):
             output_dtype=dtype,
         )
 
-        indices_iterator = list(indices_iterator)
-
         decoded_frames = None
         if self._pixel_array is None and self._file_reader is not None:
-            frame_indices = [item[0] for item in indices_iterator]
-            with self._file_reader:
-                decoded_frames = self._file_reader.read_frames(
-                    frame_indices,
-                    correct_color=False,
-                )
+            indices_for_decode, indices_for_output = tee(indices_iterator)
+            decoded_frames = self._file_reader._iter_decoded_frames(
+                (item[0] for item in indices_for_decode),
+                correct_color=False,
+            )
+            frame_items = zip(indices_for_output, decoded_frames)
+        else:
+            frame_items = ((item, None) for item in indices_iterator)
 
         # Initialize empty pixel array
         if isinstance(spatial_shape, tuple):
@@ -7135,12 +7135,13 @@ class _Image(SOPClass):
         with context_manager:
 
             # loop through output frames
-            for frame_position, (
-                frame_index,
-                input_indexer,
-                spatial_indexer,
-                channel_indexer
-            ) in enumerate(indices_iterator):
+            for frame_position, (item, decoded_frame) in enumerate(frame_items):
+                (
+                    frame_index,
+                    input_indexer,
+                    spatial_indexer,
+                    channel_indexer
+                ) = item
 
                 if shared_frame_transform.applies_to_all_frames:
                     frame_transform = shared_frame_transform
@@ -7170,10 +7171,8 @@ class _Image(SOPClass):
                 else:
                     output_indexer = (*spatial_indexer, *channel_indexer)
 
-                if decoded_frames is not None:
-                    frame = frame_transform(
-                        decoded_frames[frame_position], frame_index
-                    )
+                if decoded_frame is not None:
+                    frame = frame_transform(decoded_frame, frame_index)
                 elif self._pixel_array is None:
                     if self._file_reader is not None:
                         frame_bytes = self._file_reader.read_frame_raw(
