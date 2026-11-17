@@ -7,6 +7,28 @@ Brief release notes may be found on `on Github
 <https://github.com/MGHComputationalPathology/highdicom/releases>`_. This page
 contains migration notes for major breaking changes to the library's API.
 
+.. _ann-point-index-list:
+
+Encoding of Long Primitive Point Index List in Bulk Annotations
+---------------------------------------------------------------
+
+Up to version 0.28.1, highdicom encoded the Long Primitive Point Index List
+(0066,0040) of POLYGON and POLYLINE annotation groups in
+:class:`highdicom.ann.AnnotationGroup` as the (one-based) index of the first
+*coordinate value* of each annotation within the Point Coordinates Data. This
+is not consistent with the standard, which requires the index of the first
+*point* (coordinate tuple). For example, for two 2D polygons where the first
+has 4 points, the correct value is ``[1, 5]``, whereas earlier versions of
+highdicom wrote ``[1, 9]``.
+
+Newly created annotation groups now use the correct encoding. When reading,
+:meth:`highdicom.ann.AnnotationGroup.get_graphic_data()` detects the legacy
+encoding where the values cannot be valid point indices, decodes it
+accordingly and issues a warning. Other applications that read files created
+with earlier versions of highdicom (or that produce files read by highdicom)
+may need to be updated accordingly. See `issue #466
+<https://github.com/ImagingDataCommons/highdicom/issues/466>`_.
+
 .. _add-segments-deprecation:
 
 Deprecation of `add_segments` method
