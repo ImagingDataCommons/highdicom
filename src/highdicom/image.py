@@ -4,7 +4,7 @@ from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from enum import Enum
-from itertools import chain
+from itertools import chain, tee
 import logging
 from os import PathLike
 import sqlite3
@@ -77,7 +77,11 @@ from highdicom.enum import (
     PlanarConfigurationValues,
 )
 from highdicom.frame import decode_frame, encode_frame
-from highdicom.io import ImageFileReader, _wrapped_dcmread
+from highdicom.io import (
+    ImageFileReader,
+    _BULK_FRAME_MINIMUM,
+    _wrapped_dcmread,
+)
 from highdicom.pixels import (
     _check_rescale_dtype,
     _get_combined_palette_color_lut,
@@ -4643,6 +4647,20 @@ class _Image(SOPClass):
                 frame_numbers = range(0, self.number_of_frames)
             else:
                 frame_numbers = range(1, self.number_of_frames + 1)
+        else:
+            frame_numbers = list(frame_numbers)
+
+        if self._pixel_array is None and self._file_reader is not None:
+            frame_indices = [
+                self._standardize_frame_index(frame_number, as_indices)
+                for frame_number in frame_numbers
+            ]
+            with self._file_reader:
+                frames = self._file_reader.read_frames(
+                    frame_indices,
+                    correct_color=False,
+                )
+            return np.stack(frames)
 
         context_manager = (
             self._file_reader
@@ -4992,6 +5010,8 @@ class _Image(SOPClass):
                 frame_numbers = range(0, self.number_of_frames)
             else:
                 frame_numbers = range(1, self.number_of_frames + 1)
+        else:
+            frame_numbers = list(frame_numbers)
 
         shared_frame_transform = _CombinedPixelTransform(
             self,
@@ -5007,6 +5027,37 @@ class _Image(SOPClass):
             output_dtype=dtype,
         )
 
+        frame_items = None
+        if self._pixel_array is None and self._file_reader is not None:
+            frame_indices = [
+                self._standardize_frame_index(frame_number, as_indices)
+                for frame_number in frame_numbers
+            ]
+            if len(frame_indices) < _BULK_FRAME_MINIMUM:
+                with self._file_reader:
+                    decoded_frames = self._file_reader.read_frames(
+                        frame_indices,
+                        correct_color=False,
+                    )
+                frame_items = zip(frame_numbers, decoded_frames)
+            else:
+                frame_numbers_for_decode, frame_numbers_for_output = tee(
+                    frame_numbers
+                )
+                decoded_frames = self._file_reader._iter_decoded_frames(
+                    (
+                        self._standardize_frame_index(
+                            frame_number,
+                            as_indices,
+                        )
+                        for frame_number in frame_numbers_for_decode
+                    ),
+                    correct_color=False,
+                )
+                frame_items = zip(frame_numbers_for_output, decoded_frames)
+        else:
+            frame_items = ((frame_number, None) for frame_number in frame_numbers)
+
         context_manager = (
             self._file_reader
             if self._file_reader is not None
@@ -5017,7 +5068,7 @@ class _Image(SOPClass):
         with context_manager:
 
             # loop through output frames
-            for frame_number in frame_numbers:
+            for frame_number, decoded_frame in frame_items:
 
                 frame_index = self._standardize_frame_index(
                     frame_number,
@@ -5042,7 +5093,9 @@ class _Image(SOPClass):
                         output_dtype=dtype,
                     )
 
-                if self._pixel_array is None:
+                if decoded_frame is not None:
+                    frame = frame_transform(decoded_frame, frame_index)
+                elif self._pixel_array is None:
                     if self._file_reader is not None:
                         frame_bytes = self._file_reader.read_frame_raw(
                             frame_index
@@ -7064,6 +7117,17 @@ class _Image(SOPClass):
             output_dtype=dtype,
         )
 
+        decoded_frames = None
+        if self._pixel_array is None and self._file_reader is not None:
+            indices_for_decode, indices_for_output = tee(indices_iterator)
+            decoded_frames = self._file_reader._iter_decoded_frames(
+                (item[0] for item in indices_for_decode),
+                correct_color=False,
+            )
+            frame_items = zip(indices_for_output, decoded_frames)
+        else:
+            frame_items = ((item, None) for item in indices_iterator)
+
         # Initialize empty pixel array
         if isinstance(spatial_shape, tuple):
             initial_shape = spatial_shape
@@ -7092,12 +7156,13 @@ class _Image(SOPClass):
         with context_manager:
 
             # loop through output frames
-            for (
-                frame_index,
-                input_indexer,
-                spatial_indexer,
-                channel_indexer
-            ) in indices_iterator:
+            for frame_position, (item, decoded_frame) in enumerate(frame_items):
+                (
+                    frame_index,
+                    input_indexer,
+                    spatial_indexer,
+                    channel_indexer
+                ) = item
 
                 if shared_frame_transform.applies_to_all_frames:
                     frame_transform = shared_frame_transform
@@ -7127,7 +7192,9 @@ class _Image(SOPClass):
                 else:
                     output_indexer = (*spatial_indexer, *channel_indexer)
 
-                if self._pixel_array is None:
+                if decoded_frame is not None:
+                    frame = frame_transform(decoded_frame, frame_index)
+                elif self._pixel_array is None:
                     if self._file_reader is not None:
                         frame_bytes = self._file_reader.read_frame_raw(
                             frame_index
