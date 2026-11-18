@@ -951,6 +951,96 @@ def test_bits_stored_greater_than_allocated():
         )
 
 
+@pytest.mark.parametrize(
+    'value',
+    [
+        2048,  # above the 12 bit signed range
+        -2049,  # below the 12 bit signed range
+        3000,
+        -3000,
+    ],
+)
+def test_invalid_bits_stored_signed(value: int):
+    frame = np.zeros((4, 4), dtype=np.int16)
+    frame[0, 0] = value
+
+    match = (
+        "Provided 'pixel_array' cannot be represented with "
+        "the specified number of 'bits_stored'"
+    )
+    with pytest.raises(ValueError, match=match):
+        SCImage(
+            pixel_array=frame,
+            photometric_interpretation='MONOCHROME2',
+            coordinate_system='PATIENT',
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            sop_instance_uid=UID(),
+            series_number=1,
+            instance_number=1,
+            manufacturer='Manufacturer',
+            patient_orientation=('A', 'R'),
+            bits_stored=12,
+        )
+
+
+@pytest.mark.parametrize(
+    'dtype,bits_allocated,expected_bits_stored',
+    [
+        (np.uint8, 8, 8),
+        (np.uint16, 16, 16),
+        (np.uint16, 12, 12),
+    ],
+)
+def test_deprecated_bits_allocated_keyword(
+    dtype: type,
+    bits_allocated: int,
+    expected_bits_stored: int,
+):
+    frame = np.zeros((4, 4), dtype=dtype)
+
+    msg = "The 'bits_allocated' parameter is deprecated"
+    with pytest.warns(UserWarning, match=msg):
+        instance = SCImage(
+            pixel_array=frame,
+            photometric_interpretation='MONOCHROME2',
+            coordinate_system='PATIENT',
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            sop_instance_uid=UID(),
+            series_number=1,
+            instance_number=1,
+            manufacturer='Manufacturer',
+            patient_orientation=('A', 'R'),
+            bits_allocated=bits_allocated,
+        )
+
+    assert instance.BitsAllocated == frame.itemsize * 8
+    assert instance.BitsStored == expected_bits_stored
+
+
+def test_deprecated_bits_allocated_positional():
+    frame = np.zeros((4, 4), dtype=np.uint8)
+
+    msg = "Use of 'bits_allocated' as a positional argument was deprecated"
+    with pytest.raises(TypeError, match=msg):
+        # Signature of highdicom < 0.29.0, with 'bits_allocated' as the third
+        # positional argument
+        SCImage(
+            frame,
+            'MONOCHROME2',
+            8,
+            'PATIENT',
+            UID(),
+            UID(),
+            1,
+            UID(),
+            1,
+            'Manufacturer',
+            patient_orientation=('A', 'R'),
+        )
+
+
 def test_construct_with_spatial_info():
     study_uid = UID()
     series_uid = UID()
