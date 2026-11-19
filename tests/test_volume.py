@@ -926,6 +926,45 @@ def test_match_geometry_nonintersecting():
     assert transformed.array.max() == 0
 
 
+@pytest.mark.parametrize(
+    'crop,pad',
+    [
+        # Crop only at the far end of one axis
+        ((slice(None, 8), slice(None), slice(None)), None),
+        # Crop at the far end of all axes
+        ((slice(None, 4), slice(None, 5), slice(None, 6)), None),
+        # Subsample without any offset
+        ((slice(None, None, 2), slice(None), slice(None)), None),
+        ((slice(None), slice(None, None, 3), slice(None, None, 2)), None),
+        # Pad after on one axis, crop at the far end of another
+        ((slice(None), slice(None, 7), slice(None)), ((0, 3), (0, 0), (0, 0))),
+    ],
+)
+def test_match_geometry_crop_far_end(crop, pad):
+    # Target geometries that share the origin of the volume, so that no axis
+    # needs a crop at the start or a flip
+    vol = Volume.from_components(
+        direction=np.eye(3),
+        position=[10.0, -20.0, 5.0],
+        spacing=[1.0, 0.5, 2.0],
+        coordinate_system="PATIENT",
+        array=np.arange(10 * 12 * 14).reshape(10, 12, 14),
+    )
+
+    transformed = vol[crop]
+    if pad is not None:
+        transformed = transformed.pad(pad)
+
+    matched = vol.match_geometry(transformed)
+    assert matched.geometry_equal(transformed)
+    assert np.array_equal(matched.array, transformed.array)
+
+    matched_geometry = vol.get_geometry().match_geometry(
+        transformed.get_geometry()
+    )
+    assert matched_geometry.geometry_equal(transformed)
+
+
 def test_match_geometry_failure_translation():
     vol, _ = read_multiframe_ct_volume()
 

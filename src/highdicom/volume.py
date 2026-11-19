@@ -1968,7 +1968,14 @@ class _VolumeBase(ABC):
                 crop_start = start_pos + pad_before
                 crop_stop = end_pos + pad_before
 
-                if crop_start > 0 or crop_stop < out_shape:
+                # A crop is needed unless the slice would select every voxel
+                # of the (padded) axis in order
+                padded_shape = in_shape + pad_before + pad_after
+                if (
+                    step != 1 or
+                    crop_start > 0 or
+                    crop_stop < padded_shape
+                ):
                     requires_crop = True
             else:
                 pad_after = max(start_pos - in_shape + 1, 0)
