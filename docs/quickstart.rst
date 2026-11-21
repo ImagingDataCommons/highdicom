@@ -870,7 +870,7 @@ can capture more detail about how the derived information was obtained and
 what it represents.
 
 In this example, we use a secondary capture to store an image containing a
-labeled bounding box region drawn over a CT image.
+labelled bounding box region drawn over a CT image.
 
 .. code-block:: python
 
@@ -951,7 +951,6 @@ labeled bounding box region drawn over a CT image.
     # Save the file
     sc_image.save_as('sc_output.dcm')
 
-
 To save a 3D image as a series of output slices, simply loop over the 2D
 slices and ensure that the individual output instances share a common series
 instance UID.  Here is an example for a CT scan that is in a NumPy array called
@@ -1010,6 +1009,8 @@ overlay a segmentation that is stored in a NumPy array called "seg_out".
         )
 
         sc_image.save_as(os.path.join("output", 'sc_output_' + str(iz) + '.dcm'))
+
+See :ref:`sc` for more information.
 
 
 Creating Grayscale Softcopy Presentation State (GSPS) Objects
