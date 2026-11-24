@@ -39,6 +39,8 @@ invalid_code_strings = [
     '-FOO',
     '1FOO',
     'ABCDEFGHIJKLMNOPQ',
+    'FOO\n',
+    'ABCDEFGHIJKLMNOP\n',
 ]
 
 

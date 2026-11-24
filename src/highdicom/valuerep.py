@@ -94,7 +94,7 @@ def _check_code_string(value: str) -> None:
     if not isinstance(value, str):
         raise TypeError('Invalid type for a code string.')
 
-    if re.match(r'[A-Z0-9_ ]{1,16}$', value) is None:
+    if re.fullmatch(r'[A-Z0-9_ ]{1,16}', value) is None:
         raise ValueError(
             'Code string must contain between 1 and 16 characters that are '
             'either uppercase letters, numbers, spaces, or underscores.'
