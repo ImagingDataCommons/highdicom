@@ -261,6 +261,18 @@ class SCImage(Image):
             of `highdicom.base.SOPClass`
 
         """  # noqa: E501
+        # If we received an integer for coordinate_system, assume that the user
+        # is using the old signature that included the deprecated
+        # 'bits_allocated' with positional arguments
+        if isinstance(coordinate_system, int):
+            raise TypeError(
+                "Use of 'bits_allocated' as a positional argument was "
+                "deprecated in highdicom 0.29.0. Omit the parameter to use "
+                "the number of bits per pixel in the input array as both "
+                "the number of bits allocated and bits stored or specify "
+                "'bits_stored' as a keyword argument."
+            )
+
         supported_transfer_syntaxes = {
             ImplicitVRLittleEndian,
             ExplicitVRLittleEndian,
@@ -305,18 +317,6 @@ class SCImage(Image):
             **kwargs
         )
         self._add_contributing_equipment(contributing_equipment)
-
-        # If we received an integer for coordinate_system, assume that the user
-        # is using the old signature that included the deprecated
-        # 'bits_allocated' with positional arguments
-        if isinstance(bits_allocated, int):
-            raise TypeError(
-                "Use of 'bits_allocated' as a positional argument was "
-                "deprecated in highdicom 0.29.0. Omit the parameter to use "
-                "the number of bits per pixel in the input array as both "
-                "the number of bits allocated and bits stored or specify "
-                "'bits_stored' as a keyword argument."
-            )
 
         coordinate_system = CoordinateSystemNames(coordinate_system)
         if coordinate_system == CoordinateSystemNames.PATIENT:
@@ -496,9 +496,19 @@ class SCImage(Image):
 
             self.BitsStored = bits_stored
 
+            if self.PixelRepresentation == 1:
+                min_value = -(2 ** (bits_stored - 1))
+                max_value = 2 ** (bits_stored - 1) - 1
+            else:
+                min_value = 0
+                max_value = 2 ** bits_stored - 1
+
             if (
                 bits_stored != self.BitsAllocated and
-                pixel_array.max() >= 2 ** bits_stored
+                (
+                    pixel_array.min() < min_value or
+                    pixel_array.max() > max_value
+                )
             ):
                 raise ValueError(
                     "Provided 'pixel_array' cannot be represented with the "
