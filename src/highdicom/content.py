@@ -1808,11 +1808,11 @@ class ReferencedImageSequence(DataElementSequence):
         referenced_images: Union[Sequence[pydicom.Dataset], None], optional
             List of images to be referenced.
         referenced_frame_number: Union[int, Sequence[int], None], optional
-            Frame number(s) within a referenced multiframe image to which this
-            VOI LUT applies.
+            Frame number(s) within a referenced multiframe image to be
+            referenced.
         referenced_segment_number: Union[int, Sequence[int], None], optional
-            Segment number(s) within a referenced segmentation image to which
-            this VOI LUT applies.
+            Segment number(s) within a referenced segmentation image to be
+            referenced.
 
         """
         super().__init__()
