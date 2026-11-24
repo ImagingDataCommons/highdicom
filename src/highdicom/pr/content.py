@@ -515,7 +515,7 @@ class GraphicAnnotation(Dataset):
 
     def __init__(
         self,
-        referenced_images: Sequence[Dataset],
+        referenced_images: Sequence[Dataset] | None,
         graphic_layer: GraphicLayer,
         referenced_frame_number: int | Sequence[int] | None = None,
         referenced_segment_number: int | Sequence[int] | None = None,
@@ -525,9 +525,16 @@ class GraphicAnnotation(Dataset):
         """
         Parameters
         ----------
-        referenced_images: Sequence[pydicom.dataset.Dataset]
+        referenced_images: Sequence[pydicom.dataset.Dataset] | None
             Sequence of referenced datasets. Graphic and text objects shall be
-            rendered on all images in this list.
+            rendered on all images in this list. If explicitly set to ``None``,
+            the Referenced Image Sequence will not be included in the resulting
+            dataset, which communicates that the objects apply to all images in
+            the Referenced Series Sequence of the presentation state that
+            contains this Graphic Annotation (i.e. images passed to the
+            ``referenced_images`` parameter of the constructor of the
+            presentation state object that also includes this Graphic
+            Annotation).
         graphic_layer: highdicom.pr.GraphicLayer
             Graphic layer to which this annotation should belong.
         referenced_frame_number: Union[int, Sequence[int], None], optional
@@ -543,49 +550,14 @@ class GraphicAnnotation(Dataset):
 
         """  # noqa: E501
         super().__init__()
-        if len(referenced_images) == 0:
-            raise ValueError('List of referenced images must not be empty.')
-        referenced_series_uid = referenced_images[0].SeriesInstanceUID
-        rows = referenced_images[0].Rows
-        columns = referenced_images[0].Columns
+
         if not isinstance(graphic_layer, GraphicLayer):
             raise TypeError(
                 'Argument "graphic_layer" should be of type '
                 'highdicom.pr.GraphicLayer.'
             )
-        self.GraphicLayer = graphic_layer.GraphicLayer
 
-        is_multiframe = is_multiframe_image(referenced_images[0])
-        if is_multiframe and len(referenced_images) > 1:
-            raise ValueError(
-                'If referenced images are multi-frame, only a single image '
-                'should be passed.'
-            )
-        if is_multiframe:
-            if (
-                referenced_frame_number is not None and
-                referenced_segment_number is not None
-            ):
-                raise TypeError(
-                    'At most one of "referenced_frame_number" or '
-                    '"referenced_segment_number" should be provided.'
-                )
-        for ref_im in referenced_images:
-            if ref_im.SeriesInstanceUID != referenced_series_uid:
-                raise ValueError(
-                    'All referenced images must belong to the same series.'
-                )
-            if not is_tiled_image(ref_im):
-                if ref_im.Columns != columns or ref_im.Rows != rows:
-                    raise ValueError(
-                        'All referenced images must have the same number '
-                        'of rows and columns.'
-                    )
-        self.ReferencedImageSequence = ReferencedImageSequence(
-            referenced_images=referenced_images,
-            referenced_frame_number=referenced_frame_number,
-            referenced_segment_number=referenced_segment_number
-        )
+        self.GraphicLayer = graphic_layer.GraphicLayer
 
         have_graphics = graphic_objects is not None and len(graphic_objects) > 0
         have_text = text_objects is not None and len(text_objects) > 0
@@ -594,38 +566,124 @@ class GraphicAnnotation(Dataset):
                 'Either "graphic_objects" or "text_objects" must contain at '
                 'least one item.'
             )
-        if have_graphics:
+        if graphic_objects is not None:
             for go in graphic_objects:
                 if not isinstance(go, GraphicObject):
                     raise TypeError(
                         'All items in "graphic_objects" must be of type '
                         'highdicom.pr.GraphicObject'
                     )
-                if go.units == AnnotationUnitsValues.MATRIX:
-                    if not is_tiled_image(referenced_images[0]):
-                        raise ValueError(
-                            'Graphic Objects may only use MATRIX units if the '
-                            'referenced images are tiled images. '
-                        )
-                self._check_coords(
-                    go.graphic_data,
-                    referenced_images[0],
-                    go.units,
-                )
-            self.GraphicObjectSequence = graphic_objects
-        if have_text:
+
+            if len(graphic_objects) > 0:
+                self.GraphicObjectSequence = graphic_objects
+
+        if text_objects is not None:
             for to in text_objects:
                 if not isinstance(to, TextObject):
                     raise TypeError(
                         'All items in text_objects must be of type '
                         'highdicom.pr.TextObject'
                     )
-                if to.units == AnnotationUnitsValues.MATRIX:
-                    if not is_tiled_image(referenced_images[0]):
-                        raise ValueError(
-                            'Text Objects may only use MATRIX units if the '
-                            'referenced images are tiled images. '
-                        )
+
+            if len(text_objects) > 0:
+                self.TextObjectSequence = text_objects
+
+        if referenced_images is None:
+            if referenced_frame_number is not None:
+                raise TypeError(
+                    "Specifying 'referenced_frame_number' is invalid if "
+                    "'referenced_images' is None."
+                )
+            if referenced_segment_number is not None:
+                raise TypeError(
+                    "Specifying 'referenced_segment_number' is invalid if "
+                    "'referenced_images' is None."
+                )
+        else:
+            self._check_referenced_images(
+                referenced_images=referenced_images,
+                referenced_frame_number=referenced_frame_number,
+                referenced_segment_number=referenced_segment_number,
+            )
+            self.ReferencedImageSequence = ReferencedImageSequence(
+                referenced_images=referenced_images,
+                referenced_frame_number=referenced_frame_number,
+                referenced_segment_number=referenced_segment_number
+            )
+
+    def _check_referenced_images(
+        self,
+        referenced_images: Sequence[Dataset],
+        referenced_frame_number: int | Sequence[int] | None = None,
+        referenced_segment_number: int | Sequence[int] | None = None,
+    ):
+        """Check references are valid and coordinates are consistent.
+
+        """
+        if len(referenced_images) == 0:
+            raise ValueError('List of referenced images must not be empty.')
+
+        referenced_series_uid = referenced_images[0].SeriesInstanceUID
+        rows = referenced_images[0].Rows
+        columns = referenced_images[0].Columns
+
+        is_multiframe = is_multiframe_image(referenced_images[0])
+        if is_multiframe and len(referenced_images) > 1:
+            raise ValueError(
+                'If referenced images are multi-frame, only a single image '
+                'should be passed.'
+            )
+
+        if (
+            is_multiframe and
+            referenced_frame_number is not None and
+            referenced_segment_number is not None
+        ):
+            raise TypeError(
+                'At most one of "referenced_frame_number" or '
+                '"referenced_segment_number" should be provided.'
+            )
+
+        for ref_im in referenced_images:
+            if ref_im.SeriesInstanceUID != referenced_series_uid:
+                raise ValueError(
+                    'All referenced images must belong to the same series.'
+                )
+            if (
+                not is_tiled_image(ref_im) and
+                (ref_im.Columns != columns or ref_im.Rows != rows)
+            ):
+                raise ValueError(
+                    'All referenced images must have the same number '
+                    'of rows and columns.'
+                )
+
+        if 'GraphicObjectSequence' in self:
+            for go in self.GraphicObjectSequence:
+                if (
+                    go.units == AnnotationUnitsValues.MATRIX and
+                    not is_tiled_image(referenced_images[0])
+                ):
+                    raise ValueError(
+                        'Graphic Objects may only use MATRIX units if the '
+                        'referenced images are tiled images. '
+                    )
+                self._check_coords(
+                    go.graphic_data,
+                    referenced_images[0],
+                    go.units,
+                )
+
+        if 'TextObjectSequence' in self:
+            for to in self.TextObjectSequence:
+                if (
+                    to.units == AnnotationUnitsValues.MATRIX and
+                    not is_tiled_image(referenced_images[0])
+                ):
+                    raise ValueError(
+                        'Text Objects may only use MATRIX units if the '
+                        'referenced images are tiled images. '
+                    )
                 if to.bounding_box is not None:
                     graphic_data = np.array(to.bounding_box).reshape((2, 2))
                     self._check_coords(
@@ -640,7 +698,6 @@ class GraphicAnnotation(Dataset):
                         referenced_images[0],
                         to.units,
                     )
-            self.TextObjectSequence = text_objects
 
     @staticmethod
     def _check_coords(
@@ -667,7 +724,7 @@ class GraphicAnnotation(Dataset):
             units specified by the units parameter.
 
         """
-        min_col = graphic_data[:, 1].min()
+        min_col = graphic_data[:, 0].min()
         max_col = graphic_data[:, 0].max()
         min_row = graphic_data[:, 1].min()
         max_row = graphic_data[:, 1].max()
@@ -940,6 +997,8 @@ def _add_graphic_group_annotation_layer_attributes(
             )
         labels_unique = set(labels)
         dataset.GraphicLayerSequence = graphic_layers
+    else:
+        labels_unique = set()
 
     if graphic_annotations is not None:
         for i, ann in enumerate(graphic_annotations):
@@ -954,38 +1013,45 @@ def _add_graphic_group_annotation_layer_attributes(
                     f'referenced in item #{i} of "graphic_annotations", '
                     'but not included "graphic_layers".'
                 )
-            for item in ann.ReferencedImageSequence:
-                uids = (
-                    item.ReferencedSOPClassUID,
-                    item.ReferencedSOPInstanceUID
-                )
-                if uids not in ref_images_lut:
-                    raise ValueError(
-                        f'Instance with SOP Instance UID {uids[1]} and '
-                        f'SOP Class UID {uids[0]} is referenced in item #{i} '
-                        f'of "graphic_annotations", but not included '
-                        'in "referenced_images".'
+
+            if 'ReferencedImageSequence' in ann:
+                for item in ann.ReferencedImageSequence:
+                    uids = (
+                        item.ReferencedSOPClassUID,
+                        item.ReferencedSOPInstanceUID
                     )
+                    if uids not in ref_images_lut:
+                        raise ValueError(
+                            f'Instance with SOP Instance UID {uids[1]} and '
+                            f'SOP Class UID {uids[0]} is referenced in item '
+                            f'#{i} of "graphic_annotations", but not '
+                            'included in "referenced_images".'
+                        )
+            else:
+                # If ReferencedImageSequence is not present in the Graphic
+                # Annotation, it applies to all images in the PR. In this case,
+                # the consistency checks will not have been run when the
+                # Graphic Annotation was created, and so they should be run now
+                ann._check_referenced_images(referenced_images)
+
             for obj in getattr(ann, 'GraphicObjectSequence', []):
                 grp_id = obj.graphic_group_id
-                if grp_id is not None:
-                    if grp_id not in described_groups_ids:
-                        raise ValueError(
-                            'Found graphic object with graphic group '
-                            f'ID "{grp_id}", but no such group is '
-                            'described in the "graphic_groups" '
-                            'argument.'
-                        )
+                if grp_id is not None and grp_id not in described_groups_ids:
+                    raise ValueError(
+                        'Found graphic object with graphic group '
+                        f'ID "{grp_id}", but no such group is '
+                        'described in the "graphic_groups" '
+                        'argument.'
+                    )
             for obj in getattr(ann, 'TextObjectSequence', []):
                 grp_id = obj.graphic_group_id
-                if grp_id is not None:
-                    if grp_id not in described_groups_ids:
-                        raise ValueError(
-                            'Found text object with graphic group ID '
-                            f'"{grp_id}", but no such group is '
-                            'described in the "graphic_groups" '
-                            'argument.'
-                        )
+                if grp_id is not None and grp_id not in described_groups_ids:
+                    raise ValueError(
+                        'Found text object with graphic group ID '
+                        f'"{grp_id}", but no such group is '
+                        'described in the "graphic_groups" '
+                        'argument.'
+                    )
         dataset.GraphicAnnotationSequence = graphic_annotations
 
 

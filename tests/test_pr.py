@@ -2306,6 +2306,35 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
         assert len(gsps.ReferencedSeriesSequence) == 1
         assert len(gsps.GraphicLayerSequence) == 1
 
+    def test_construction_with_ann_without_ref_ims(self):
+        ann_no_references = GraphicAnnotation(
+            referenced_images=None,
+            graphic_layer=self._layer_grp,
+            graphic_objects=[self._graphic_object],
+            text_objects=[self._text_object],
+        )
+
+        assert (
+            'ReferencedImageSequence' not in ann_no_references
+        )
+
+        gsps = GrayscaleSoftcopyPresentationState(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            graphic_layers=[self._layer_grp],
+            graphic_groups=[self._group],
+            graphic_annotations=[ann_no_references],
+        )
+        assert 'GraphicAnnotationSequence' in gsps
+
     def test_construction_with_images_missing(self):
         with pytest.raises(ValueError):
             GrayscaleSoftcopyPresentationState(
