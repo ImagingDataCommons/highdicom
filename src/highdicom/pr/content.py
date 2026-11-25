@@ -1476,17 +1476,23 @@ def _get_voi_lut_transformations(
                     getattr(ref_im, 'VOILUTFunction', None),
                 )].append(ref_im)
             elif has_lut:
-                # Create a unique identifier for this list of LUTs
-                lut_id = (
-                    (
-                        voi_lut.LUTDescriptor[1],
-                        voi_lut.LUTDescriptor[2],
-                        getattr(voi_lut, 'LUTExplanation', None),
-                        voi_lut.LUTData
+                # Create a unique (hashable) identifier for this list of
+                # LUTs, such that images with identical LUTs are grouped
+                # into a single item
+                lut_id = []
+                for item in ref_im.VOILUTSequence:
+                    voi_lut = VOILUT.from_dataset(item)
+                    lut_id.append(
+                        (
+                            voi_lut.first_mapped_value,
+                            voi_lut.bits_per_entry,
+                            getattr(voi_lut, 'LUTExplanation', None),
+                            # LUT Data may have VR US or OW, so decode it
+                            # into a consistent representation
+                            voi_lut.lut_data.tobytes(),
+                        )
                     )
-                    for voi_lut in ref_im.VOILUTSequence
-                )
-                by_lut[lut_id].append(ref_im)
+                by_lut[tuple(lut_id)].append(ref_im)
 
         for (width, center, exp, func), im_list in by_window.items():
             if len(im_list) == len(referenced_images):
