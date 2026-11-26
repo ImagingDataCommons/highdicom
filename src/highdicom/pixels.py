@@ -383,7 +383,7 @@ def apply_voi_window(
 
     Parameters
     ----------
-    apply: numpy.ndarray
+    array: numpy.ndarray
         Pixel array to which the transformation should be applied. Can be
         of any shape but must have an integer datatype if the
         transformation uses a LUT.
@@ -644,7 +644,7 @@ def apply_lut(
 
     Parameters
     ----------
-    apply: numpy.ndarray
+    array: numpy.ndarray
         Pixel array to which the LUT should be applied. Can be of any shape
         but must have an integer datatype.
     lut_data: numpy.ndarray

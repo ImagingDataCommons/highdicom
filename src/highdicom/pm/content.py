@@ -197,7 +197,7 @@ class RealWorldValueMapping(Dataset):
 
         Parameters
         ----------
-        apply: numpy.ndarray
+        array: numpy.ndarray
             Pixel array to which the transform should be applied. Can be of any
             shape but must have an integer datatype if the mapping uses a LUT.
 

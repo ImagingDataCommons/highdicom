@@ -3554,7 +3554,7 @@ def get_series_volume_positions(
         makes the function tolerant of unsorted inputs. Set to False to check
         whether the positions represent a 3D volume in the specific order in
         which they are passed.
-    allow_missing_postions: bool, optional
+    allow_missing_positions: bool, optional
         Allow for slices missing from the volume. If True, the smallest
         distance between two consecutive slices is found and returned as the
         slice spacing, provided all other spacings are an integer multiple of

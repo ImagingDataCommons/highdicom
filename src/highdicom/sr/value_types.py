@@ -474,7 +474,7 @@ class ContentSequence(DataElementSequence):
 
         Parameters
         ----------
-        item: highdicom.sr.ContentItem
+        val: highdicom.sr.ContentItem
             SR Content Item
 
         """
@@ -1314,7 +1314,7 @@ class ContainerContentItem(ContentItem):
         ----------
         name: Union[highdicom.sr.CodedConcept, pydicom.sr.coding.Code]
             concept name
-        is_content_continous: bool, optional
+        is_content_continuous: bool, optional
             whether contained content items are logically linked in a
             continuous manner or separate items (default: ``True``)
         template_id: Union[str, None], optional
