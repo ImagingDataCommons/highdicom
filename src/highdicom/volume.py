@@ -536,7 +536,7 @@ class _VolumeBase(ABC):
 
         Parameters
         ----------
-        plane_number: int
+        plane_index: int
             Zero-based plane index (down the first dimension of the array).
 
         Returns
@@ -2193,8 +2193,9 @@ class VolumeGeometry(_VolumeBase):
 
         Parameters
         ----------
-        array: numpy.ndarray
-            Three dimensional array of voxel data.
+        spatial_shape: Sequence[int]
+            Number of voxels in the (implied) volume along the three spatial
+            dimensions.
         spacing: Sequence[float]
             Spacing between pixel centers in the the frame of reference
             coordinate system along each of the dimensions of the array. Should

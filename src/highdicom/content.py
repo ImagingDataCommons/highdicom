@@ -2198,7 +2198,7 @@ class LUT(Dataset):
 
         Parameters
         ----------
-        apply: numpy.ndarray
+        array: numpy.ndarray
             Pixel array to which the LUT should be applied. Can be of any shape
             but must have an integer datatype.
         dtype: Union[type, str, numpy.dtype, None], optional
@@ -2484,7 +2484,7 @@ class VOILUTTransformation(Dataset):
 
         Parameters
         ----------
-        apply: numpy.ndarray
+        array: numpy.ndarray
             Pixel array to which the transformation should be applied. Can be
             of any shape but must have an integer datatype if the
             transformation uses a LUT.
@@ -2687,7 +2687,7 @@ class ModalityLUTTransformation(Dataset):
 
         Parameters
         ----------
-        apply: numpy.ndarray
+        array: numpy.ndarray
             Pixel array to which the transformation should be applied. Can be
             of any shape but must have an integer datatype if the
             transformation uses a LUT.
@@ -2978,7 +2978,7 @@ class PaletteColorLUT(Dataset):
 
         Parameters
         ----------
-        apply: numpy.ndarray
+        array: numpy.ndarray
             Pixel array to which the LUT should be applied. Can be of any shape
             but must have an integer datatype.
         dtype: Union[type, str, numpy.dtype, None], optional
@@ -3196,7 +3196,7 @@ class SegmentedPaletteColorLUT(Dataset):
 
         Parameters
         ----------
-        apply: numpy.ndarray
+        array: numpy.ndarray
             Pixel array to which the LUT should be applied. Can be of any shape
             but must have an integer datatype.
         dtype: Union[type, str, numpy.dtype, None], optional
