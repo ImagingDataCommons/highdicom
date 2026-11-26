@@ -9,8 +9,8 @@ contains migration notes for major breaking changes to the library's API.
 
 .. _add-segments-deprecation:
 
-Deprecation of `add_segments` method
-------------------------------------
+Deprecation of ``add_segments`` method
+--------------------------------------
 
 Prior to highdicom 0.8.0, it was possible to add further segments to
 :class:`highdicom.seg.Segmentation` image after its construction using the
@@ -146,8 +146,8 @@ integers.
 
 .. _processing-type-deprecation:
 
-Deprecation of `processing_type` parameter
-------------------------------------------
+Deprecation of ``processing_type`` parameter
+--------------------------------------------
 
 In highdicom 0.15.0, the ``processing_type`` parameter was removed from the
 constructor of :class:`highdicom.content.SpecimenPreparationStep`.
@@ -156,8 +156,8 @@ derived from the type of the ``processing_procedure`` argument.
 
 .. _specimen-preparation-step-refactoring:
 
-Refactoring of `SpecimenPreparationStep` class
-----------------------------------------------
+Refactoring of ``SpecimenPreparationStep``` class
+-------------------------------------------------
 
 In highdicom 0.16.0 and later versions,
 :class:`highdicom.content.SpecimenPreparationStep` represents an item of the
@@ -173,7 +173,7 @@ the ``from_dataset()`` instead of the ``from_sequence()`` class method.
 Deprecation of Big Endian Transfer Syntaxes
 -------------------------------------------
 
-The use of "Big Endian" transfer syntaxes such as `ExplicitVRBigEndian` is
+The use of "Big Endian" transfer syntaxes such as ``ExplicitVRBigEndian`` is
 disallowed from highdicom 0.18.0 onwards. The use of Big Endian transfer
 syntaxes has been retired in the standard for some time. To discourage the use
 of retired transfer syntaxes and to simplify the logic when encoding and
@@ -183,7 +183,7 @@ passing a big endian transfer syntax to the constructor of
 error.
 
 Similarly, as of highdicom 0.18.0, it is no longer possible to pass datasets
-with a Big Endian transfer syntax to the `from_dataset` methods of any of the
+with a Big Endian transfer syntax to the ``from_dataset`` methods of any of the
 :class:`highdicom.SOPClass` subclasses.
 
 .. _update-image-library:
