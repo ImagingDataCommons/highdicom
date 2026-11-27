@@ -5246,7 +5246,7 @@ class _Image(SOPClass):
                         col_data.append([v])
 
         for source_image_item in self.get('SourceImageSequence', []):
-            ref_uid = source_image_item.ReferencedSOPInstanceUID,
+            ref_uid = source_image_item.ReferencedSOPInstanceUID
 
             locations_preserved = source_image_item.get(
                 'SpatialLocationsPreserved'
