@@ -547,7 +547,7 @@ class PseudoColorSoftcopyPresentationState(SOPClass):
                     'empty.'
                 )
             for v in voi_lut_transformations:
-                if not isinstance(v, voi_lut_transformations):
+                if not isinstance(v, SoftcopyVOILUTTransformation):
                     raise TypeError(
                         'Items of argument "voi_lut_transformations" '
                         'must be of type SoftcopyVOILUTTransformation.'

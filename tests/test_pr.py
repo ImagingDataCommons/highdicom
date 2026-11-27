@@ -2397,6 +2397,48 @@ class TestXSoftcopyPresentationState(unittest.TestCase):
                 content_creator_name='Doe^John',
             )
 
+    def test_construction_pseudo_color_with_voi_lut(self):
+        lut_data = np.arange(10, 120, dtype=np.uint16)
+        transformation = PaletteColorLUTTransformation(
+            red_lut=PaletteColorLUT(32, lut_data, color='red'),
+            green_lut=PaletteColorLUT(32, lut_data, color='green'),
+            blue_lut=PaletteColorLUT(32, lut_data, color='blue'),
+            palette_color_lut_uid=UID(),
+        )
+        kwargs = dict(
+            referenced_images=self._ct_series,
+            series_instance_uid=self._series_uid,
+            series_number=123,
+            sop_instance_uid=self._sop_uid,
+            instance_number=456,
+            manufacturer='Foo Corp.',
+            manufacturer_model_name='Bar, Mark 2',
+            software_versions='0.0.1',
+            device_serial_number='12345',
+            content_label='DOODLE',
+            palette_color_lut_transformation=transformation,
+        )
+        pr = PseudoColorSoftcopyPresentationState(
+            voi_lut_transformations=[
+                SoftcopyVOILUTTransformation(
+                    window_center=40.0,
+                    window_width=400.0,
+                    window_explanation='Soft Tissue Window'
+                )
+            ],
+            **kwargs,
+        )
+        assert len(pr.SoftcopyVOILUTSequence) == 1
+        assert pr.SoftcopyVOILUTSequence[0].WindowCenter == 40.0
+        assert pr.SoftcopyVOILUTSequence[0].WindowWidth == 400.0
+
+        msg = 'must be of type SoftcopyVOILUTTransformation'
+        with pytest.raises(TypeError, match=msg):
+            PseudoColorSoftcopyPresentationState(
+                voi_lut_transformations=['not a transformation'],
+                **kwargs,
+            )
+
     def test_construction_palette_color_lut_transformation(self):
         r_lut_data = np.arange(10, 120, dtype=np.uint16)
         g_lut_data = np.arange(20, 130, dtype=np.uint16)
