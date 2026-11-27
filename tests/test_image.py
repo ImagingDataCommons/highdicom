@@ -156,6 +156,35 @@ def test_pickle():
     assert not unpickled.are_dimension_indices_unique([ptr])
 
 
+def test_single_frame_source_image_uids(caplog):
+    # A source image of a single frame image that is listed in the
+    # Referenced Series Sequence should not be reported as missing
+    ct = pydicom.dcmread(get_testdata_file('CT_small.dcm'))
+    source_sop_uid = UID()
+    source_series_uid = UID()
+
+    source_item = pydicom.Dataset()
+    source_item.ReferencedSOPClassUID = ct.SOPClassUID
+    source_item.ReferencedSOPInstanceUID = source_sop_uid
+    ct.SourceImageSequence = [source_item]
+
+    ref_instance = pydicom.Dataset()
+    ref_instance.ReferencedSOPClassUID = ct.SOPClassUID
+    ref_instance.ReferencedSOPInstanceUID = source_sop_uid
+    ref_series = pydicom.Dataset()
+    ref_series.SeriesInstanceUID = source_series_uid
+    ref_series.ReferencedInstanceSequence = [ref_instance]
+    ct.ReferencedSeriesSequence = [ref_series]
+
+    image = Image.from_dataset(ct)
+
+    with caplog.at_level('WARNING', logger='highdicom.image'):
+        uids = image.get_source_image_uids()
+
+    assert uids == [(ct.StudyInstanceUID, source_series_uid, source_sop_uid)]
+    assert len(caplog.records) == 0
+
+
 def test_combined_transform_ect_rwvm():
 
     dcm = pydicom.dcmread(
