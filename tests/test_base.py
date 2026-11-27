@@ -359,6 +359,23 @@ class TestBase(unittest.TestCase):
             'ISO 2022 IR 87',
         ]
 
+    def test_specific_character_multivalue_korean(self):
+        instance = SOPClass(
+            study_instance_uid=UID(),
+            series_instance_uid=UID(),
+            series_number=1,
+            sop_instance_uid=UID(),
+            sop_class_uid='1.2.840.10008.5.1.4.1.1.88.33',
+            instance_number=1,
+            modality='SR',
+            manufacturer='highdicom',
+            specific_character_set=['ISO 2022 IR 6', 'ISO 2022 IR 149'],
+        )
+        assert instance.SpecificCharacterSet == [
+            'ISO 2022 IR 6',
+            'ISO 2022 IR 149',
+        ]
+
     def test_specific_character_invalid_multivalue_multibyte(self):
         msg = (
             "When SpecificCharacterSet is multi-valued, a multi-byte "

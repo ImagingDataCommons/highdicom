@@ -379,7 +379,7 @@ class SpecificCharacterSetValues(Enum):
     JAPANESE_KANJI_SUPPLEMENTARY_CODE_EXTENSIONS = 'ISO 2022 IR 159'
     """Multi-byte Japanese Kanji with Code Extensions"""
 
-    KOREAN_CODE_EXTENSIONS = 'ISO 2022 IR 159'
+    KOREAN_CODE_EXTENSIONS = 'ISO 2022 IR 149'
     """Multi-byte Korean Hangul and Hanja with Code Extensions"""
 
     SIMPLIFIED_CHINESE_CODE_EXTENSIONS = 'ISO 2022 IR 58'
